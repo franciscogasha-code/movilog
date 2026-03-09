@@ -1,0 +1,2323 @@
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
+
+export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.1"
+  }
+  public: {
+    Tables: {
+      ai_anomalies: {
+        Row: {
+          acknowledged_at: string | null
+          acknowledged_by: string | null
+          affected_entities: Json | null
+          anomaly_type: string
+          area: Database["public"]["Enums"]["kpi_area"]
+          branch_id: string | null
+          created_at: string
+          description: string
+          first_detected_at: string | null
+          id: string
+          is_acknowledged: boolean | null
+          is_recurring: boolean | null
+          occurrence_count: number | null
+          severity: Database["public"]["Enums"]["anomaly_severity"]
+          supporting_data: Json | null
+          title: string
+        }
+        Insert: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          affected_entities?: Json | null
+          anomaly_type: string
+          area: Database["public"]["Enums"]["kpi_area"]
+          branch_id?: string | null
+          created_at?: string
+          description: string
+          first_detected_at?: string | null
+          id?: string
+          is_acknowledged?: boolean | null
+          is_recurring?: boolean | null
+          occurrence_count?: number | null
+          severity?: Database["public"]["Enums"]["anomaly_severity"]
+          supporting_data?: Json | null
+          title: string
+        }
+        Update: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          affected_entities?: Json | null
+          anomaly_type?: string
+          area?: Database["public"]["Enums"]["kpi_area"]
+          branch_id?: string | null
+          created_at?: string
+          description?: string
+          first_detected_at?: string | null
+          id?: string
+          is_acknowledged?: boolean | null
+          is_recurring?: boolean | null
+          occurrence_count?: number | null
+          severity?: Database["public"]["Enums"]["anomaly_severity"]
+          supporting_data?: Json | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_anomalies_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_recommendations: {
+        Row: {
+          action_notes: string | null
+          actioned_at: string | null
+          actioned_by: string | null
+          anomaly_id: string | null
+          area: Database["public"]["Enums"]["kpi_area"]
+          branch_id: string | null
+          created_at: string
+          description: string
+          expected_impact: string | null
+          expires_at: string | null
+          id: string
+          status: Database["public"]["Enums"]["recommendation_status"]
+          supporting_data: Json | null
+          title: string
+        }
+        Insert: {
+          action_notes?: string | null
+          actioned_at?: string | null
+          actioned_by?: string | null
+          anomaly_id?: string | null
+          area: Database["public"]["Enums"]["kpi_area"]
+          branch_id?: string | null
+          created_at?: string
+          description: string
+          expected_impact?: string | null
+          expires_at?: string | null
+          id?: string
+          status?: Database["public"]["Enums"]["recommendation_status"]
+          supporting_data?: Json | null
+          title: string
+        }
+        Update: {
+          action_notes?: string | null
+          actioned_at?: string | null
+          actioned_by?: string | null
+          anomaly_id?: string | null
+          area?: Database["public"]["Enums"]["kpi_area"]
+          branch_id?: string | null
+          created_at?: string
+          description?: string
+          expected_impact?: string | null
+          expires_at?: string | null
+          id?: string
+          status?: Database["public"]["Enums"]["recommendation_status"]
+          supporting_data?: Json | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_recommendations_anomaly_id_fkey"
+            columns: ["anomaly_id"]
+            isOneToOne: false
+            referencedRelation: "ai_anomalies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_recommendations_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      branch_request_items: {
+        Row: {
+          created_at: string
+          id: string
+          notes: string | null
+          product_id: string
+          quantity_accepted: number | null
+          quantity_picked: number | null
+          quantity_received: number | null
+          quantity_requested: number
+          quantity_shipped: number | null
+          request_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          product_id: string
+          quantity_accepted?: number | null
+          quantity_picked?: number | null
+          quantity_received?: number | null
+          quantity_requested: number
+          quantity_shipped?: number | null
+          request_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          product_id?: string
+          quantity_accepted?: number | null
+          quantity_picked?: number | null
+          quantity_received?: number | null
+          quantity_requested?: number
+          quantity_shipped?: number | null
+          request_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "branch_request_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "branch_request_items_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "branch_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      branch_requests: {
+        Row: {
+          accepted_at: string | null
+          accepted_by: string | null
+          bims_invoice_number: string | null
+          bims_sale_reference: string | null
+          client_address: string | null
+          client_name: string | null
+          closed_at: string | null
+          closed_by: string | null
+          created_at: string
+          created_by: string
+          current_custody_holder_id: string | null
+          current_location_branch_id: string | null
+          expected_next_event: string | null
+          expected_next_event_deadline: string | null
+          id: string
+          notes: string | null
+          priority: string | null
+          rejected_at: string | null
+          rejected_by: string | null
+          rejection_reason: string | null
+          request_number: number
+          request_type: Database["public"]["Enums"]["request_type"]
+          requesting_branch_id: string
+          shipping_cost: number | null
+          shipping_method: Database["public"]["Enums"]["shipping_method"]
+          shipping_paid_by: string | null
+          source_branch_id: string
+          status: Database["public"]["Enums"]["request_status"]
+          updated_at: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          accepted_by?: string | null
+          bims_invoice_number?: string | null
+          bims_sale_reference?: string | null
+          client_address?: string | null
+          client_name?: string | null
+          closed_at?: string | null
+          closed_by?: string | null
+          created_at?: string
+          created_by: string
+          current_custody_holder_id?: string | null
+          current_location_branch_id?: string | null
+          expected_next_event?: string | null
+          expected_next_event_deadline?: string | null
+          id?: string
+          notes?: string | null
+          priority?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
+          rejection_reason?: string | null
+          request_number?: number
+          request_type?: Database["public"]["Enums"]["request_type"]
+          requesting_branch_id: string
+          shipping_cost?: number | null
+          shipping_method?: Database["public"]["Enums"]["shipping_method"]
+          shipping_paid_by?: string | null
+          source_branch_id: string
+          status?: Database["public"]["Enums"]["request_status"]
+          updated_at?: string
+        }
+        Update: {
+          accepted_at?: string | null
+          accepted_by?: string | null
+          bims_invoice_number?: string | null
+          bims_sale_reference?: string | null
+          client_address?: string | null
+          client_name?: string | null
+          closed_at?: string | null
+          closed_by?: string | null
+          created_at?: string
+          created_by?: string
+          current_custody_holder_id?: string | null
+          current_location_branch_id?: string | null
+          expected_next_event?: string | null
+          expected_next_event_deadline?: string | null
+          id?: string
+          notes?: string | null
+          priority?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
+          rejection_reason?: string | null
+          request_number?: number
+          request_type?: Database["public"]["Enums"]["request_type"]
+          requesting_branch_id?: string
+          shipping_cost?: number | null
+          shipping_method?: Database["public"]["Enums"]["shipping_method"]
+          shipping_paid_by?: string | null
+          source_branch_id?: string
+          status?: Database["public"]["Enums"]["request_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "branch_requests_current_location_branch_id_fkey"
+            columns: ["current_location_branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "branch_requests_requesting_branch_id_fkey"
+            columns: ["requesting_branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "branch_requests_shipping_paid_by_fkey"
+            columns: ["shipping_paid_by"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "branch_requests_source_branch_id_fkey"
+            columns: ["source_branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      branches: {
+        Row: {
+          address: string | null
+          city: string | null
+          code: string
+          created_at: string
+          id: string
+          is_active: boolean | null
+          is_central_warehouse: boolean | null
+          name: string
+          phone: string | null
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          city?: string | null
+          code: string
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          is_central_warehouse?: boolean | null
+          name: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          city?: string | null
+          code?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          is_central_warehouse?: boolean | null
+          name?: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      committed_stock: {
+        Row: {
+          branch_id: string
+          branch_request_id: string | null
+          created_at: string
+          created_by: string
+          expires_at: string | null
+          fulfillment_order_id: string | null
+          id: string
+          is_expired: boolean | null
+          product_id: string
+          quantity: number
+          release_reason: string | null
+          released_at: string | null
+          released_by: string | null
+          reserve_reason: Database["public"]["Enums"]["reserve_reason"]
+          reserve_type: Database["public"]["Enums"]["reserve_type"]
+          updated_at: string
+        }
+        Insert: {
+          branch_id: string
+          branch_request_id?: string | null
+          created_at?: string
+          created_by: string
+          expires_at?: string | null
+          fulfillment_order_id?: string | null
+          id?: string
+          is_expired?: boolean | null
+          product_id: string
+          quantity: number
+          release_reason?: string | null
+          released_at?: string | null
+          released_by?: string | null
+          reserve_reason: Database["public"]["Enums"]["reserve_reason"]
+          reserve_type?: Database["public"]["Enums"]["reserve_type"]
+          updated_at?: string
+        }
+        Update: {
+          branch_id?: string
+          branch_request_id?: string | null
+          created_at?: string
+          created_by?: string
+          expires_at?: string | null
+          fulfillment_order_id?: string | null
+          id?: string
+          is_expired?: boolean | null
+          product_id?: string
+          quantity?: number
+          release_reason?: string | null
+          released_at?: string | null
+          released_by?: string | null
+          reserve_reason?: Database["public"]["Enums"]["reserve_reason"]
+          reserve_type?: Database["public"]["Enums"]["reserve_type"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "committed_stock_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "committed_stock_branch_request_id_fkey"
+            columns: ["branch_request_id"]
+            isOneToOne: false
+            referencedRelation: "branch_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "committed_stock_fulfillment_order_id_fkey"
+            columns: ["fulfillment_order_id"]
+            isOneToOne: false
+            referencedRelation: "fulfillment_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "committed_stock_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      directed_inventories: {
+        Row: {
+          assigned_to: string | null
+          branch_id: string
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          data_source: string | null
+          description: string | null
+          id: string
+          inventory_scope: string | null
+          notes: string | null
+          reviewed_by: string | null
+          scheduled_date: string | null
+          scope_filter: Json | null
+          started_at: string | null
+          status: Database["public"]["Enums"]["directed_inventory_status"]
+          title: string
+          updated_at: string
+          upload_file_url: string | null
+        }
+        Insert: {
+          assigned_to?: string | null
+          branch_id: string
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          data_source?: string | null
+          description?: string | null
+          id?: string
+          inventory_scope?: string | null
+          notes?: string | null
+          reviewed_by?: string | null
+          scheduled_date?: string | null
+          scope_filter?: Json | null
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["directed_inventory_status"]
+          title: string
+          updated_at?: string
+          upload_file_url?: string | null
+        }
+        Update: {
+          assigned_to?: string | null
+          branch_id?: string
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          data_source?: string | null
+          description?: string | null
+          id?: string
+          inventory_scope?: string | null
+          notes?: string | null
+          reviewed_by?: string | null
+          scheduled_date?: string | null
+          scope_filter?: Json | null
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["directed_inventory_status"]
+          title?: string
+          updated_at?: string
+          upload_file_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "directed_inventories_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      directed_inventory_items: {
+        Row: {
+          counted_at: string | null
+          counted_by: string | null
+          counted_quantity: number | null
+          created_at: string
+          difference: number | null
+          expected_quantity: number | null
+          id: string
+          inventory_id: string
+          notes: string | null
+          product_id: string
+        }
+        Insert: {
+          counted_at?: string | null
+          counted_by?: string | null
+          counted_quantity?: number | null
+          created_at?: string
+          difference?: number | null
+          expected_quantity?: number | null
+          id?: string
+          inventory_id: string
+          notes?: string | null
+          product_id: string
+        }
+        Update: {
+          counted_at?: string | null
+          counted_by?: string | null
+          counted_quantity?: number | null
+          created_at?: string
+          difference?: number | null
+          expected_quantity?: number | null
+          id?: string
+          inventory_id?: string
+          notes?: string | null
+          product_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "directed_inventory_items_inventory_id_fkey"
+            columns: ["inventory_id"]
+            isOneToOne: false
+            referencedRelation: "directed_inventories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "directed_inventory_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      driver_settlements: {
+        Row: {
+          created_at: string
+          documents_returned: Json | null
+          driver_id: string
+          id: string
+          net_amount: number | null
+          notes: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string | null
+          total_collections: number | null
+          total_fuel: number | null
+          total_other_expenses: number | null
+          total_per_diem: number | null
+          trip_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          documents_returned?: Json | null
+          driver_id: string
+          id?: string
+          net_amount?: number | null
+          notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string | null
+          total_collections?: number | null
+          total_fuel?: number | null
+          total_other_expenses?: number | null
+          total_per_diem?: number | null
+          trip_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          documents_returned?: Json | null
+          driver_id?: string
+          id?: string
+          net_amount?: number | null
+          notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string | null
+          total_collections?: number | null
+          total_fuel?: number | null
+          total_other_expenses?: number | null
+          total_per_diem?: number | null
+          trip_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "driver_settlements_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
+            referencedRelation: "drivers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "driver_settlements_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      drivers: {
+        Row: {
+          assigned_branch_id: string | null
+          assigned_vehicle_id: string | null
+          created_at: string
+          id: string
+          is_active: boolean | null
+          license_expiry: string | null
+          license_number: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          assigned_branch_id?: string | null
+          assigned_vehicle_id?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          license_expiry?: string | null
+          license_number?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          assigned_branch_id?: string | null
+          assigned_vehicle_id?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          license_expiry?: string | null
+          license_number?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "drivers_assigned_branch_id_fkey"
+            columns: ["assigned_branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "drivers_assigned_vehicle_id_fkey"
+            columns: ["assigned_vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fuel_records: {
+        Row: {
+          created_at: string
+          date: string
+          driver_id: string
+          id: string
+          liters: number
+          mileage_at_fill: number | null
+          notes: string | null
+          payment_method: string | null
+          price_per_liter: number | null
+          receipt_photo_url: string | null
+          station_name: string | null
+          total_amount: number
+          trip_id: string | null
+          vehicle_id: string
+        }
+        Insert: {
+          created_at?: string
+          date?: string
+          driver_id: string
+          id?: string
+          liters: number
+          mileage_at_fill?: number | null
+          notes?: string | null
+          payment_method?: string | null
+          price_per_liter?: number | null
+          receipt_photo_url?: string | null
+          station_name?: string | null
+          total_amount: number
+          trip_id?: string | null
+          vehicle_id: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          driver_id?: string
+          id?: string
+          liters?: number
+          mileage_at_fill?: number | null
+          notes?: string | null
+          payment_method?: string | null
+          price_per_liter?: number | null
+          receipt_photo_url?: string | null
+          station_name?: string | null
+          total_amount?: number
+          trip_id?: string | null
+          vehicle_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fuel_records_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
+            referencedRelation: "drivers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fuel_records_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fuel_records_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fulfillment_items: {
+        Row: {
+          created_at: string
+          fulfillment_id: string
+          id: string
+          product_id: string
+          quantity_accepted: number | null
+          quantity_dispatched: number
+          quantity_received: number | null
+          quantity_rejected: number | null
+          rejection_reason: string | null
+          request_item_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          fulfillment_id: string
+          id?: string
+          product_id: string
+          quantity_accepted?: number | null
+          quantity_dispatched: number
+          quantity_received?: number | null
+          quantity_rejected?: number | null
+          rejection_reason?: string | null
+          request_item_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          fulfillment_id?: string
+          id?: string
+          product_id?: string
+          quantity_accepted?: number | null
+          quantity_dispatched?: number
+          quantity_received?: number | null
+          quantity_rejected?: number | null
+          rejection_reason?: string | null
+          request_item_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fulfillment_items_fulfillment_id_fkey"
+            columns: ["fulfillment_id"]
+            isOneToOne: false
+            referencedRelation: "fulfillment_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fulfillment_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fulfillment_items_request_item_id_fkey"
+            columns: ["request_item_id"]
+            isOneToOne: false
+            referencedRelation: "branch_request_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fulfillment_orders: {
+        Row: {
+          bims_invoice_number: string | null
+          branch_request_id: string | null
+          created_at: string
+          current_custody_holder_id: string | null
+          current_location_branch_id: string | null
+          destination_branch_id: string | null
+          destination_client_address: string | null
+          destination_client_name: string | null
+          dispatched_at: string | null
+          dispatched_by: string | null
+          expected_next_event: string | null
+          expected_next_event_deadline: string | null
+          id: string
+          notes: string | null
+          received_at: string | null
+          received_by: string | null
+          shipping_method: Database["public"]["Enums"]["shipping_method"]
+          source_branch_id: string
+          status: Database["public"]["Enums"]["fulfillment_status"]
+          trip_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          bims_invoice_number?: string | null
+          branch_request_id?: string | null
+          created_at?: string
+          current_custody_holder_id?: string | null
+          current_location_branch_id?: string | null
+          destination_branch_id?: string | null
+          destination_client_address?: string | null
+          destination_client_name?: string | null
+          dispatched_at?: string | null
+          dispatched_by?: string | null
+          expected_next_event?: string | null
+          expected_next_event_deadline?: string | null
+          id?: string
+          notes?: string | null
+          received_at?: string | null
+          received_by?: string | null
+          shipping_method: Database["public"]["Enums"]["shipping_method"]
+          source_branch_id: string
+          status?: Database["public"]["Enums"]["fulfillment_status"]
+          trip_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          bims_invoice_number?: string | null
+          branch_request_id?: string | null
+          created_at?: string
+          current_custody_holder_id?: string | null
+          current_location_branch_id?: string | null
+          destination_branch_id?: string | null
+          destination_client_address?: string | null
+          destination_client_name?: string | null
+          dispatched_at?: string | null
+          dispatched_by?: string | null
+          expected_next_event?: string | null
+          expected_next_event_deadline?: string | null
+          id?: string
+          notes?: string | null
+          received_at?: string | null
+          received_by?: string | null
+          shipping_method?: Database["public"]["Enums"]["shipping_method"]
+          source_branch_id?: string
+          status?: Database["public"]["Enums"]["fulfillment_status"]
+          trip_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fulfillment_orders_branch_request_id_fkey"
+            columns: ["branch_request_id"]
+            isOneToOne: false
+            referencedRelation: "branch_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fulfillment_orders_current_location_branch_id_fkey"
+            columns: ["current_location_branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fulfillment_orders_destination_branch_id_fkey"
+            columns: ["destination_branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fulfillment_orders_source_branch_id_fkey"
+            columns: ["source_branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fulfillment_orders_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      kpi_definitions: {
+        Row: {
+          aggregation: Database["public"]["Enums"]["kpi_aggregation"]
+          area: Database["public"]["Enums"]["kpi_area"]
+          code: string
+          created_at: string
+          date_column: string | null
+          decimal_places: number | null
+          description: string | null
+          display_order: number | null
+          filter_conditions: Json | null
+          format: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          source_table: string
+          unit: string | null
+          updated_at: string
+          value_column: string | null
+        }
+        Insert: {
+          aggregation: Database["public"]["Enums"]["kpi_aggregation"]
+          area: Database["public"]["Enums"]["kpi_area"]
+          code: string
+          created_at?: string
+          date_column?: string | null
+          decimal_places?: number | null
+          description?: string | null
+          display_order?: number | null
+          filter_conditions?: Json | null
+          format?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          source_table: string
+          unit?: string | null
+          updated_at?: string
+          value_column?: string | null
+        }
+        Update: {
+          aggregation?: Database["public"]["Enums"]["kpi_aggregation"]
+          area?: Database["public"]["Enums"]["kpi_area"]
+          code?: string
+          created_at?: string
+          date_column?: string | null
+          decimal_places?: number | null
+          description?: string | null
+          display_order?: number | null
+          filter_conditions?: Json | null
+          format?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          source_table?: string
+          unit?: string | null
+          updated_at?: string
+          value_column?: string | null
+        }
+        Relationships: []
+      }
+      kpi_targets: {
+        Row: {
+          branch_id: string | null
+          created_at: string
+          critical_threshold: number | null
+          id: string
+          kpi_id: string
+          period_end: string
+          period_start: string
+          target_value: number
+          updated_at: string
+          warning_threshold: number | null
+          weight: number | null
+        }
+        Insert: {
+          branch_id?: string | null
+          created_at?: string
+          critical_threshold?: number | null
+          id?: string
+          kpi_id: string
+          period_end: string
+          period_start: string
+          target_value: number
+          updated_at?: string
+          warning_threshold?: number | null
+          weight?: number | null
+        }
+        Update: {
+          branch_id?: string | null
+          created_at?: string
+          critical_threshold?: number | null
+          id?: string
+          kpi_id?: string
+          period_end?: string
+          period_start?: string
+          target_value?: number
+          updated_at?: string
+          warning_threshold?: number | null
+          weight?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kpi_targets_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "kpi_targets_kpi_id_fkey"
+            columns: ["kpi_id"]
+            isOneToOne: false
+            referencedRelation: "kpi_definitions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      kpi_values: {
+        Row: {
+          achievement_percentage: number | null
+          branch_id: string | null
+          calculated_at: string
+          change_percentage: number | null
+          id: string
+          kpi_id: string
+          period_date: string
+          previous_value: number | null
+          target_value: number | null
+          value: number
+        }
+        Insert: {
+          achievement_percentage?: number | null
+          branch_id?: string | null
+          calculated_at?: string
+          change_percentage?: number | null
+          id?: string
+          kpi_id: string
+          period_date: string
+          previous_value?: number | null
+          target_value?: number | null
+          value: number
+        }
+        Update: {
+          achievement_percentage?: number | null
+          branch_id?: string | null
+          calculated_at?: string
+          change_percentage?: number | null
+          id?: string
+          kpi_id?: string
+          period_date?: string
+          previous_value?: number | null
+          target_value?: number | null
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kpi_values_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "kpi_values_kpi_id_fkey"
+            columns: ["kpi_id"]
+            isOneToOne: false
+            referencedRelation: "kpi_definitions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      logistics_incidents: {
+        Row: {
+          assigned_to: string | null
+          branch_id: string
+          branch_request_id: string | null
+          created_at: string
+          current_custody_holder_id: string | null
+          current_location_branch_id: string | null
+          description: string | null
+          fulfillment_order_id: string | null
+          id: string
+          incident_type: Database["public"]["Enums"]["incident_type"]
+          inventory_id: string | null
+          photo_urls: Json | null
+          product_id: string | null
+          quantity_affected: number | null
+          reported_by: string
+          resolution: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          status: Database["public"]["Enums"]["incident_status"]
+          title: string
+          trip_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          branch_id: string
+          branch_request_id?: string | null
+          created_at?: string
+          current_custody_holder_id?: string | null
+          current_location_branch_id?: string | null
+          description?: string | null
+          fulfillment_order_id?: string | null
+          id?: string
+          incident_type: Database["public"]["Enums"]["incident_type"]
+          inventory_id?: string | null
+          photo_urls?: Json | null
+          product_id?: string | null
+          quantity_affected?: number | null
+          reported_by: string
+          resolution?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: Database["public"]["Enums"]["incident_status"]
+          title: string
+          trip_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          branch_id?: string
+          branch_request_id?: string | null
+          created_at?: string
+          current_custody_holder_id?: string | null
+          current_location_branch_id?: string | null
+          description?: string | null
+          fulfillment_order_id?: string | null
+          id?: string
+          incident_type?: Database["public"]["Enums"]["incident_type"]
+          inventory_id?: string | null
+          photo_urls?: Json | null
+          product_id?: string | null
+          quantity_affected?: number | null
+          reported_by?: string
+          resolution?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: Database["public"]["Enums"]["incident_status"]
+          title?: string
+          trip_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "logistics_incidents_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "logistics_incidents_branch_request_id_fkey"
+            columns: ["branch_request_id"]
+            isOneToOne: false
+            referencedRelation: "branch_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "logistics_incidents_current_location_branch_id_fkey"
+            columns: ["current_location_branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "logistics_incidents_fulfillment_order_id_fkey"
+            columns: ["fulfillment_order_id"]
+            isOneToOne: false
+            referencedRelation: "fulfillment_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "logistics_incidents_inventory_id_fkey"
+            columns: ["inventory_id"]
+            isOneToOne: false
+            referencedRelation: "directed_inventories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "logistics_incidents_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "logistics_incidents_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      operational_events: {
+        Row: {
+          category: Database["public"]["Enums"]["event_category"]
+          created_at: string
+          event_description: string | null
+          event_type: string
+          expected_next_event: string | null
+          expected_next_event_deadline: string | null
+          id: string
+          latitude: number | null
+          longitude: number | null
+          metadata: Json | null
+          new_custody_holder_id: string | null
+          new_location_branch_id: string | null
+          new_status: string | null
+          previous_custody_holder_id: string | null
+          previous_location_branch_id: string | null
+          previous_status: string | null
+          reference_id: string
+          reference_type: string
+          triggered_by: string
+        }
+        Insert: {
+          category: Database["public"]["Enums"]["event_category"]
+          created_at?: string
+          event_description?: string | null
+          event_type: string
+          expected_next_event?: string | null
+          expected_next_event_deadline?: string | null
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          metadata?: Json | null
+          new_custody_holder_id?: string | null
+          new_location_branch_id?: string | null
+          new_status?: string | null
+          previous_custody_holder_id?: string | null
+          previous_location_branch_id?: string | null
+          previous_status?: string | null
+          reference_id: string
+          reference_type: string
+          triggered_by: string
+        }
+        Update: {
+          category?: Database["public"]["Enums"]["event_category"]
+          created_at?: string
+          event_description?: string | null
+          event_type?: string
+          expected_next_event?: string | null
+          expected_next_event_deadline?: string | null
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          metadata?: Json | null
+          new_custody_holder_id?: string | null
+          new_location_branch_id?: string | null
+          new_status?: string | null
+          previous_custody_holder_id?: string | null
+          previous_location_branch_id?: string | null
+          previous_status?: string | null
+          reference_id?: string
+          reference_type?: string
+          triggered_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "operational_events_new_location_branch_id_fkey"
+            columns: ["new_location_branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "operational_events_previous_location_branch_id_fkey"
+            columns: ["previous_location_branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      per_diem_records: {
+        Row: {
+          amount: number
+          approved_at: string | null
+          approved_by: string | null
+          concept: string
+          created_at: string
+          date: string
+          driver_id: string
+          id: string
+          notes: string | null
+          receipt_photo_url: string | null
+          trip_id: string | null
+        }
+        Insert: {
+          amount: number
+          approved_at?: string | null
+          approved_by?: string | null
+          concept: string
+          created_at?: string
+          date?: string
+          driver_id: string
+          id?: string
+          notes?: string | null
+          receipt_photo_url?: string | null
+          trip_id?: string | null
+        }
+        Update: {
+          amount?: number
+          approved_at?: string | null
+          approved_by?: string | null
+          concept?: string
+          created_at?: string
+          date?: string
+          driver_id?: string
+          id?: string
+          notes?: string | null
+          receipt_photo_url?: string | null
+          trip_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "per_diem_records_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
+            referencedRelation: "drivers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "per_diem_records_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      products: {
+        Row: {
+          bims_code: string | null
+          category: string | null
+          created_at: string
+          id: string
+          is_active: boolean | null
+          name: string
+          sku: string | null
+          unit: string | null
+          updated_at: string
+          volume_cm3: number | null
+          weight_kg: number | null
+        }
+        Insert: {
+          bims_code?: string | null
+          category?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          name: string
+          sku?: string | null
+          unit?: string | null
+          updated_at?: string
+          volume_cm3?: number | null
+          weight_kg?: number | null
+        }
+        Update: {
+          bims_code?: string | null
+          category?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          sku?: string | null
+          unit?: string | null
+          updated_at?: string
+          volume_cm3?: number | null
+          weight_kg?: number | null
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          default_branch_id: string | null
+          full_name: string
+          id: string
+          is_active: boolean | null
+          phone: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          default_branch_id?: string | null
+          full_name: string
+          id?: string
+          is_active?: boolean | null
+          phone?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          default_branch_id?: string | null
+          full_name?: string
+          id?: string
+          is_active?: boolean | null
+          phone?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_default_branch_id_fkey"
+            columns: ["default_branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      special_stock: {
+        Row: {
+          branch_id: string
+          created_at: string
+          created_by: string
+          disposition: string | null
+          disposition_date: string | null
+          id: string
+          incident_id: string | null
+          notes: string | null
+          product_id: string
+          quantity: number
+          stock_type: string
+          updated_at: string
+        }
+        Insert: {
+          branch_id: string
+          created_at?: string
+          created_by: string
+          disposition?: string | null
+          disposition_date?: string | null
+          id?: string
+          incident_id?: string | null
+          notes?: string | null
+          product_id: string
+          quantity: number
+          stock_type: string
+          updated_at?: string
+        }
+        Update: {
+          branch_id?: string
+          created_at?: string
+          created_by?: string
+          disposition?: string | null
+          disposition_date?: string | null
+          id?: string
+          incident_id?: string | null
+          notes?: string | null
+          product_id?: string
+          quantity?: number
+          stock_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "special_stock_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "special_stock_incident_id_fkey"
+            columns: ["incident_id"]
+            isOneToOne: false
+            referencedRelation: "logistics_incidents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "special_stock_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tracked_documents: {
+        Row: {
+          archived_at: string | null
+          bims_reference: string | null
+          branch_request_id: string | null
+          created_at: string
+          current_holder_id: string | null
+          current_holder_role: Database["public"]["Enums"]["app_role"] | null
+          current_location_branch_id: string | null
+          document_number: string
+          document_type: Database["public"]["Enums"]["document_type"]
+          expected_next_event: string | null
+          expected_next_event_deadline: string | null
+          fulfillment_order_id: string | null
+          id: string
+          issued_at: string | null
+          notes: string | null
+          signed_at: string | null
+          status: Database["public"]["Enums"]["document_status"]
+          trip_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          archived_at?: string | null
+          bims_reference?: string | null
+          branch_request_id?: string | null
+          created_at?: string
+          current_holder_id?: string | null
+          current_holder_role?: Database["public"]["Enums"]["app_role"] | null
+          current_location_branch_id?: string | null
+          document_number: string
+          document_type: Database["public"]["Enums"]["document_type"]
+          expected_next_event?: string | null
+          expected_next_event_deadline?: string | null
+          fulfillment_order_id?: string | null
+          id?: string
+          issued_at?: string | null
+          notes?: string | null
+          signed_at?: string | null
+          status?: Database["public"]["Enums"]["document_status"]
+          trip_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          archived_at?: string | null
+          bims_reference?: string | null
+          branch_request_id?: string | null
+          created_at?: string
+          current_holder_id?: string | null
+          current_holder_role?: Database["public"]["Enums"]["app_role"] | null
+          current_location_branch_id?: string | null
+          document_number?: string
+          document_type?: Database["public"]["Enums"]["document_type"]
+          expected_next_event?: string | null
+          expected_next_event_deadline?: string | null
+          fulfillment_order_id?: string | null
+          id?: string
+          issued_at?: string | null
+          notes?: string | null
+          signed_at?: string | null
+          status?: Database["public"]["Enums"]["document_status"]
+          trip_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tracked_documents_branch_request_id_fkey"
+            columns: ["branch_request_id"]
+            isOneToOne: false
+            referencedRelation: "branch_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tracked_documents_current_location_branch_id_fkey"
+            columns: ["current_location_branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tracked_documents_fulfillment_order_id_fkey"
+            columns: ["fulfillment_order_id"]
+            isOneToOne: false
+            referencedRelation: "fulfillment_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tracked_documents_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trips: {
+        Row: {
+          actual_arrival: string | null
+          actual_departure: string | null
+          created_at: string
+          driver_id: string
+          end_mileage: number | null
+          end_mileage_photo_url: string | null
+          id: string
+          notes: string | null
+          origin_branch_id: string
+          planned_arrival: string | null
+          planned_departure: string | null
+          planned_stops: Json | null
+          settled_at: string | null
+          settled_by: string | null
+          settlement_status: string | null
+          start_mileage: number | null
+          start_mileage_photo_url: string | null
+          status: Database["public"]["Enums"]["trip_status"]
+          trip_number: number
+          updated_at: string
+          vehicle_id: string
+        }
+        Insert: {
+          actual_arrival?: string | null
+          actual_departure?: string | null
+          created_at?: string
+          driver_id: string
+          end_mileage?: number | null
+          end_mileage_photo_url?: string | null
+          id?: string
+          notes?: string | null
+          origin_branch_id: string
+          planned_arrival?: string | null
+          planned_departure?: string | null
+          planned_stops?: Json | null
+          settled_at?: string | null
+          settled_by?: string | null
+          settlement_status?: string | null
+          start_mileage?: number | null
+          start_mileage_photo_url?: string | null
+          status?: Database["public"]["Enums"]["trip_status"]
+          trip_number?: number
+          updated_at?: string
+          vehicle_id: string
+        }
+        Update: {
+          actual_arrival?: string | null
+          actual_departure?: string | null
+          created_at?: string
+          driver_id?: string
+          end_mileage?: number | null
+          end_mileage_photo_url?: string | null
+          id?: string
+          notes?: string | null
+          origin_branch_id?: string
+          planned_arrival?: string | null
+          planned_departure?: string | null
+          planned_stops?: Json | null
+          settled_at?: string | null
+          settled_by?: string | null
+          settlement_status?: string | null
+          start_mileage?: number | null
+          start_mileage_photo_url?: string | null
+          status?: Database["public"]["Enums"]["trip_status"]
+          trip_number?: number
+          updated_at?: string
+          vehicle_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trips_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
+            referencedRelation: "drivers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trips_origin_branch_id_fkey"
+            columns: ["origin_branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trips_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_roles: {
+        Row: {
+          branch_id: string | null
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          branch_id?: string | null
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          branch_id?: string | null
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_roles_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vehicle_loans: {
+        Row: {
+          actual_return_date: string | null
+          approved_by: string | null
+          borrowing_branch_id: string
+          created_at: string
+          expected_return_date: string | null
+          id: string
+          lending_branch_id: string
+          notes: string | null
+          reason: string | null
+          requested_by: string
+          return_mileage: number | null
+          start_date: string | null
+          start_mileage: number | null
+          status: Database["public"]["Enums"]["vehicle_loan_status"]
+          updated_at: string
+          vehicle_id: string
+        }
+        Insert: {
+          actual_return_date?: string | null
+          approved_by?: string | null
+          borrowing_branch_id: string
+          created_at?: string
+          expected_return_date?: string | null
+          id?: string
+          lending_branch_id: string
+          notes?: string | null
+          reason?: string | null
+          requested_by: string
+          return_mileage?: number | null
+          start_date?: string | null
+          start_mileage?: number | null
+          status?: Database["public"]["Enums"]["vehicle_loan_status"]
+          updated_at?: string
+          vehicle_id: string
+        }
+        Update: {
+          actual_return_date?: string | null
+          approved_by?: string | null
+          borrowing_branch_id?: string
+          created_at?: string
+          expected_return_date?: string | null
+          id?: string
+          lending_branch_id?: string
+          notes?: string | null
+          reason?: string | null
+          requested_by?: string
+          return_mileage?: number | null
+          start_date?: string | null
+          start_mileage?: number | null
+          status?: Database["public"]["Enums"]["vehicle_loan_status"]
+          updated_at?: string
+          vehicle_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicle_loans_borrowing_branch_id_fkey"
+            columns: ["borrowing_branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vehicle_loans_lending_branch_id_fkey"
+            columns: ["lending_branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vehicle_loans_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vehicle_maintenance: {
+        Row: {
+          completed_date: string | null
+          cost: number | null
+          created_at: string
+          description: string
+          id: string
+          maintenance_type: string
+          mileage_at_service: number | null
+          next_maintenance_date: string | null
+          next_maintenance_mileage: number | null
+          notes: string | null
+          provider: string | null
+          scheduled_date: string | null
+          status: string | null
+          updated_at: string
+          vehicle_id: string
+        }
+        Insert: {
+          completed_date?: string | null
+          cost?: number | null
+          created_at?: string
+          description: string
+          id?: string
+          maintenance_type: string
+          mileage_at_service?: number | null
+          next_maintenance_date?: string | null
+          next_maintenance_mileage?: number | null
+          notes?: string | null
+          provider?: string | null
+          scheduled_date?: string | null
+          status?: string | null
+          updated_at?: string
+          vehicle_id: string
+        }
+        Update: {
+          completed_date?: string | null
+          cost?: number | null
+          created_at?: string
+          description?: string
+          id?: string
+          maintenance_type?: string
+          mileage_at_service?: number | null
+          next_maintenance_date?: string | null
+          next_maintenance_mileage?: number | null
+          notes?: string | null
+          provider?: string | null
+          scheduled_date?: string | null
+          status?: string | null
+          updated_at?: string
+          vehicle_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicle_maintenance_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vehicles: {
+        Row: {
+          assigned_branch_id: string | null
+          brand: string | null
+          created_at: string
+          current_mileage: number | null
+          id: string
+          insurance_expiry: string | null
+          is_active: boolean | null
+          model: string | null
+          notes: string | null
+          plate: string
+          status: Database["public"]["Enums"]["vehicle_status"]
+          updated_at: string
+          vtv_expiry: string | null
+          year: number | null
+        }
+        Insert: {
+          assigned_branch_id?: string | null
+          brand?: string | null
+          created_at?: string
+          current_mileage?: number | null
+          id?: string
+          insurance_expiry?: string | null
+          is_active?: boolean | null
+          model?: string | null
+          notes?: string | null
+          plate: string
+          status?: Database["public"]["Enums"]["vehicle_status"]
+          updated_at?: string
+          vtv_expiry?: string | null
+          year?: number | null
+        }
+        Update: {
+          assigned_branch_id?: string | null
+          brand?: string | null
+          created_at?: string
+          current_mileage?: number | null
+          id?: string
+          insurance_expiry?: string | null
+          is_active?: boolean | null
+          model?: string | null
+          notes?: string | null
+          plate?: string
+          status?: Database["public"]["Enums"]["vehicle_status"]
+          updated_at?: string
+          vtv_expiry?: string | null
+          year?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicles_assigned_branch_id_fkey"
+            columns: ["assigned_branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      has_role_in_branch: {
+        Args: {
+          _branch_id: string
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+    }
+    Enums: {
+      anomaly_severity: "info" | "warning" | "critical"
+      app_role:
+        | "admin"
+        | "supervisor"
+        | "warehouse_operator"
+        | "driver"
+        | "collector"
+        | "branch_manager"
+        | "branch_operator"
+        | "viewer"
+      directed_inventory_status:
+        | "planned"
+        | "in_progress"
+        | "completed"
+        | "cancelled"
+      document_status:
+        | "issued"
+        | "with_driver"
+        | "delivered_to_client"
+        | "signed_by_client"
+        | "with_admin"
+        | "sent_to_collector"
+        | "received_by_collector"
+        | "presented_to_client"
+        | "collection_scheduled"
+        | "collection_completed"
+        | "archived"
+      document_type:
+        | "invoice"
+        | "remission"
+        | "signed_invoice"
+        | "credit_note"
+        | "delivery_receipt"
+      event_category:
+        | "request"
+        | "fulfillment"
+        | "document"
+        | "trip"
+        | "inventory"
+        | "incident"
+        | "vehicle"
+        | "collection"
+        | "stock"
+      fulfillment_status: "pending" | "partial" | "completed" | "cancelled"
+      incident_status:
+        | "open"
+        | "under_review"
+        | "resolved"
+        | "escalated"
+        | "closed"
+      incident_type:
+        | "damaged"
+        | "missing"
+        | "surplus"
+        | "wrong_product"
+        | "expired"
+        | "admin_stock"
+        | "fair_stock"
+      kpi_aggregation:
+        | "count"
+        | "sum"
+        | "average"
+        | "percentage"
+        | "ratio"
+        | "min"
+        | "max"
+      kpi_area:
+        | "logistics"
+        | "warehouse"
+        | "fleet"
+        | "collections"
+        | "inventory"
+        | "fulfillment"
+        | "general"
+      recommendation_status: "pending" | "accepted" | "rejected" | "expired"
+      request_status:
+        | "pending"
+        | "accepted"
+        | "rejected"
+        | "picking"
+        | "ready_to_ship"
+        | "in_transit"
+        | "received_ok"
+        | "received_partial"
+        | "closed"
+      request_type: "client" | "reposition" | "mixed"
+      reserve_reason: "branch_request" | "client_order" | "pending_fulfillment"
+      reserve_type: "soft" | "hard"
+      shipping_method:
+        | "own_fleet"
+        | "courier"
+        | "pickup"
+        | "direct_client"
+        | "cut_shipment"
+      trip_status: "planned" | "in_progress" | "completed" | "cancelled"
+      vehicle_loan_status:
+        | "requested"
+        | "approved"
+        | "active"
+        | "returned"
+        | "cancelled"
+      vehicle_status:
+        | "available"
+        | "in_route"
+        | "maintenance"
+        | "out_of_service"
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
+}
+
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+
+export type Tables<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      Row: infer R
+    }
+    ? R
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
+    : never
+
+export type TablesInsert<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Insert: infer I
+    }
+    ? I
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
+    : never
+
+export type TablesUpdate<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Update: infer U
+    }
+    ? U
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
+    : never
+
+export type Enums<
+  DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never = never,
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
+
+export const Constants = {
+  public: {
+    Enums: {
+      anomaly_severity: ["info", "warning", "critical"],
+      app_role: [
+        "admin",
+        "supervisor",
+        "warehouse_operator",
+        "driver",
+        "collector",
+        "branch_manager",
+        "branch_operator",
+        "viewer",
+      ],
+      directed_inventory_status: [
+        "planned",
+        "in_progress",
+        "completed",
+        "cancelled",
+      ],
+      document_status: [
+        "issued",
+        "with_driver",
+        "delivered_to_client",
+        "signed_by_client",
+        "with_admin",
+        "sent_to_collector",
+        "received_by_collector",
+        "presented_to_client",
+        "collection_scheduled",
+        "collection_completed",
+        "archived",
+      ],
+      document_type: [
+        "invoice",
+        "remission",
+        "signed_invoice",
+        "credit_note",
+        "delivery_receipt",
+      ],
+      event_category: [
+        "request",
+        "fulfillment",
+        "document",
+        "trip",
+        "inventory",
+        "incident",
+        "vehicle",
+        "collection",
+        "stock",
+      ],
+      fulfillment_status: ["pending", "partial", "completed", "cancelled"],
+      incident_status: [
+        "open",
+        "under_review",
+        "resolved",
+        "escalated",
+        "closed",
+      ],
+      incident_type: [
+        "damaged",
+        "missing",
+        "surplus",
+        "wrong_product",
+        "expired",
+        "admin_stock",
+        "fair_stock",
+      ],
+      kpi_aggregation: [
+        "count",
+        "sum",
+        "average",
+        "percentage",
+        "ratio",
+        "min",
+        "max",
+      ],
+      kpi_area: [
+        "logistics",
+        "warehouse",
+        "fleet",
+        "collections",
+        "inventory",
+        "fulfillment",
+        "general",
+      ],
+      recommendation_status: ["pending", "accepted", "rejected", "expired"],
+      request_status: [
+        "pending",
+        "accepted",
+        "rejected",
+        "picking",
+        "ready_to_ship",
+        "in_transit",
+        "received_ok",
+        "received_partial",
+        "closed",
+      ],
+      request_type: ["client", "reposition", "mixed"],
+      reserve_reason: ["branch_request", "client_order", "pending_fulfillment"],
+      reserve_type: ["soft", "hard"],
+      shipping_method: [
+        "own_fleet",
+        "courier",
+        "pickup",
+        "direct_client",
+        "cut_shipment",
+      ],
+      trip_status: ["planned", "in_progress", "completed", "cancelled"],
+      vehicle_loan_status: [
+        "requested",
+        "approved",
+        "active",
+        "returned",
+        "cancelled",
+      ],
+      vehicle_status: [
+        "available",
+        "in_route",
+        "maintenance",
+        "out_of_service",
+      ],
+    },
+  },
+} as const
