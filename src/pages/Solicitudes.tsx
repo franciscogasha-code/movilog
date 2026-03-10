@@ -34,7 +34,7 @@ export default function Solicitudes() {
         .limit(50);
 
       if (statusFilter !== "all") {
-        query = query.eq("status", statusFilter);
+        query = query.eq("status", statusFilter as any);
       }
       const { data, error } = await query;
       if (error) throw error;
