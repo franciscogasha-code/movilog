@@ -12,6 +12,11 @@ import Distribucion from "./pages/Distribucion";
 import Cobranzas from "./pages/Cobranzas";
 import Flota from "./pages/Flota";
 import Ruteo from "./pages/Ruteo";
+import Solicitudes from "./pages/Solicitudes";
+import StockComprometido from "./pages/StockComprometido";
+import Cumplimiento from "./pages/Cumplimiento";
+import Incidencias from "./pages/Incidencias";
+import Documentos from "./pages/Documentos";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -25,6 +30,11 @@ const App = () => (
         <Routes>
           <Route element={<AppLayout />}>
             <Route path="/" element={<Index />} />
+            <Route path="/solicitudes" element={<Solicitudes />} />
+            <Route path="/stock-comprometido" element={<StockComprometido />} />
+            <Route path="/cumplimiento" element={<Cumplimiento />} />
+            <Route path="/incidencias" element={<Incidencias />} />
+            <Route path="/documentos" element={<Documentos />} />
             <Route path="/abastecimiento" element={<Abastecimiento />} />
             <Route path="/reposicion" element={<Reposicion />} />
             <Route path="/pedidos" element={<Pedidos />} />
