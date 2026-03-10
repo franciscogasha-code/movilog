@@ -7,6 +7,10 @@ import {
   CreditCard,
   Route,
   LayoutDashboard,
+  FileText,
+  Lock,
+  CheckSquare,
+  AlertTriangle,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -27,6 +31,14 @@ import {
 
 const mainItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
+];
+
+const coreItems = [
+  { title: "Solicitudes", url: "/solicitudes", icon: ArrowRightLeft },
+  { title: "Stock Comprometido", url: "/stock-comprometido", icon: Lock },
+  { title: "Cumplimiento", url: "/cumplimiento", icon: CheckSquare },
+  { title: "Incidencias", url: "/incidencias", icon: AlertTriangle },
+  { title: "Documentos", url: "/documentos", icon: FileText },
 ];
 
 const operationItems = [
@@ -107,6 +119,7 @@ export function AppSidebar() {
 
       <SidebarContent className="px-2">
         <MenuGroup label="Principal" items={mainItems} collapsed={collapsed} />
+        <MenuGroup label="Núcleo" items={coreItems} collapsed={collapsed} />
         <MenuGroup label="Operaciones" items={operationItems} collapsed={collapsed} />
         <MenuGroup label="Gestión" items={managementItems} collapsed={collapsed} />
       </SidebarContent>
