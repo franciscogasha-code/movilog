@@ -1157,6 +1157,7 @@ export type Database = {
           description: string | null
           fulfillment_order_id: string | null
           id: string
+          incident_origin: string | null
           incident_type: Database["public"]["Enums"]["incident_type"]
           inventory_id: string | null
           photo_urls: Json | null
@@ -1181,6 +1182,7 @@ export type Database = {
           description?: string | null
           fulfillment_order_id?: string | null
           id?: string
+          incident_origin?: string | null
           incident_type: Database["public"]["Enums"]["incident_type"]
           inventory_id?: string | null
           photo_urls?: Json | null
@@ -1205,6 +1207,7 @@ export type Database = {
           description?: string | null
           fulfillment_order_id?: string | null
           id?: string
+          incident_origin?: string | null
           incident_type?: Database["public"]["Enums"]["incident_type"]
           inventory_id?: string | null
           photo_urls?: Json | null
@@ -2048,7 +2051,18 @@ export type Database = {
         | "vehicle"
         | "collection"
         | "stock"
-      fulfillment_status: "pending" | "partial" | "completed" | "cancelled"
+      fulfillment_status:
+        | "pending"
+        | "picking"
+        | "waiting_for_cut"
+        | "waiting_for_courier"
+        | "dispatched"
+        | "in_transit"
+        | "delivered"
+        | "received"
+        | "partial"
+        | "completed"
+        | "cancelled"
       incident_status:
         | "open"
         | "under_review"
@@ -2304,7 +2318,19 @@ export const Constants = {
         "collection",
         "stock",
       ],
-      fulfillment_status: ["pending", "partial", "completed", "cancelled"],
+      fulfillment_status: [
+        "pending",
+        "picking",
+        "waiting_for_cut",
+        "waiting_for_courier",
+        "dispatched",
+        "in_transit",
+        "delivered",
+        "received",
+        "partial",
+        "completed",
+        "cancelled",
+      ],
       incident_status: [
         "open",
         "under_review",
