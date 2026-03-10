@@ -147,8 +147,11 @@ export type Database = {
       }
       branch_request_items: {
         Row: {
+          client_address: string | null
+          client_name: string | null
           created_at: string
           id: string
+          item_purpose: Database["public"]["Enums"]["item_purpose"]
           notes: string | null
           product_id: string
           quantity_accepted: number | null
@@ -156,11 +159,17 @@ export type Database = {
           quantity_received: number | null
           quantity_requested: number
           quantity_shipped: number | null
+          rejection_reason_type:
+            | Database["public"]["Enums"]["rejection_reason_type"]
+            | null
           request_id: string
         }
         Insert: {
+          client_address?: string | null
+          client_name?: string | null
           created_at?: string
           id?: string
+          item_purpose?: Database["public"]["Enums"]["item_purpose"]
           notes?: string | null
           product_id: string
           quantity_accepted?: number | null
@@ -168,11 +177,17 @@ export type Database = {
           quantity_received?: number | null
           quantity_requested: number
           quantity_shipped?: number | null
+          rejection_reason_type?:
+            | Database["public"]["Enums"]["rejection_reason_type"]
+            | null
           request_id: string
         }
         Update: {
+          client_address?: string | null
+          client_name?: string | null
           created_at?: string
           id?: string
+          item_purpose?: Database["public"]["Enums"]["item_purpose"]
           notes?: string | null
           product_id?: string
           quantity_accepted?: number | null
@@ -180,6 +195,9 @@ export type Database = {
           quantity_received?: number | null
           quantity_requested?: number
           quantity_shipped?: number | null
+          rejection_reason_type?:
+            | Database["public"]["Enums"]["rejection_reason_type"]
+            | null
           request_id?: string
         }
         Relationships: [
@@ -203,6 +221,8 @@ export type Database = {
         Row: {
           accepted_at: string | null
           accepted_by: string | null
+          admin_closed_at: string | null
+          admin_closed_by: string | null
           bims_invoice_number: string | null
           bims_sale_reference: string | null
           client_address: string | null
@@ -216,11 +236,16 @@ export type Database = {
           expected_next_event: string | null
           expected_next_event_deadline: string | null
           id: string
+          logistic_closed_at: string | null
+          logistic_closed_by: string | null
           notes: string | null
           priority: string | null
           rejected_at: string | null
           rejected_by: string | null
           rejection_reason: string | null
+          rejection_reason_type:
+            | Database["public"]["Enums"]["rejection_reason_type"]
+            | null
           request_number: number
           request_type: Database["public"]["Enums"]["request_type"]
           requesting_branch_id: string
@@ -234,6 +259,8 @@ export type Database = {
         Insert: {
           accepted_at?: string | null
           accepted_by?: string | null
+          admin_closed_at?: string | null
+          admin_closed_by?: string | null
           bims_invoice_number?: string | null
           bims_sale_reference?: string | null
           client_address?: string | null
@@ -247,11 +274,16 @@ export type Database = {
           expected_next_event?: string | null
           expected_next_event_deadline?: string | null
           id?: string
+          logistic_closed_at?: string | null
+          logistic_closed_by?: string | null
           notes?: string | null
           priority?: string | null
           rejected_at?: string | null
           rejected_by?: string | null
           rejection_reason?: string | null
+          rejection_reason_type?:
+            | Database["public"]["Enums"]["rejection_reason_type"]
+            | null
           request_number?: number
           request_type?: Database["public"]["Enums"]["request_type"]
           requesting_branch_id: string
@@ -265,6 +297,8 @@ export type Database = {
         Update: {
           accepted_at?: string | null
           accepted_by?: string | null
+          admin_closed_at?: string | null
+          admin_closed_by?: string | null
           bims_invoice_number?: string | null
           bims_sale_reference?: string | null
           client_address?: string | null
@@ -278,11 +312,16 @@ export type Database = {
           expected_next_event?: string | null
           expected_next_event_deadline?: string | null
           id?: string
+          logistic_closed_at?: string | null
+          logistic_closed_by?: string | null
           notes?: string | null
           priority?: string | null
           rejected_at?: string | null
           rejected_by?: string | null
           rejection_reason?: string | null
+          rejection_reason_type?:
+            | Database["public"]["Enums"]["rejection_reason_type"]
+            | null
           request_number?: number
           request_type?: Database["public"]["Enums"]["request_type"]
           requesting_branch_id?: string
@@ -1461,7 +1500,7 @@ export type Database = {
           branch_id: string
           created_at: string
           created_by: string
-          disposition: string | null
+          disposition: Database["public"]["Enums"]["stock_disposition"] | null
           disposition_date: string | null
           id: string
           incident_id: string | null
@@ -1475,7 +1514,7 @@ export type Database = {
           branch_id: string
           created_at?: string
           created_by: string
-          disposition?: string | null
+          disposition?: Database["public"]["Enums"]["stock_disposition"] | null
           disposition_date?: string | null
           id?: string
           incident_id?: string | null
@@ -1489,7 +1528,7 @@ export type Database = {
           branch_id?: string
           created_at?: string
           created_by?: string
-          disposition?: string | null
+          disposition?: Database["public"]["Enums"]["stock_disposition"] | null
           disposition_date?: string | null
           id?: string
           incident_id?: string | null
@@ -2024,6 +2063,7 @@ export type Database = {
         | "expired"
         | "admin_stock"
         | "fair_stock"
+      item_purpose: "client" | "reposition"
       kpi_aggregation:
         | "count"
         | "sum"
@@ -2041,6 +2081,13 @@ export type Database = {
         | "fulfillment"
         | "general"
       recommendation_status: "pending" | "accepted" | "rejected" | "expired"
+      rejection_reason_type:
+        | "no_stock_real"
+        | "stock_difference"
+        | "product_not_found"
+        | "stock_reserved"
+        | "not_convenient_rotation"
+        | "other"
       request_status:
         | "pending"
         | "accepted"
@@ -2060,6 +2107,16 @@ export type Database = {
         | "pickup"
         | "direct_client"
         | "cut_shipment"
+      stock_disposition:
+        | "ajuste_inventario"
+        | "reclamo_proveedor"
+        | "descuento_colaborador"
+        | "imputacion_salon"
+        | "imputacion_sucursal"
+        | "perdida_empresa"
+        | "venta_feria"
+        | "reconteo_pendiente"
+        | "other"
       trip_status: "planned" | "in_progress" | "completed" | "cancelled"
       vehicle_loan_status:
         | "requested"
@@ -2264,6 +2321,7 @@ export const Constants = {
         "admin_stock",
         "fair_stock",
       ],
+      item_purpose: ["client", "reposition"],
       kpi_aggregation: [
         "count",
         "sum",
@@ -2283,6 +2341,14 @@ export const Constants = {
         "general",
       ],
       recommendation_status: ["pending", "accepted", "rejected", "expired"],
+      rejection_reason_type: [
+        "no_stock_real",
+        "stock_difference",
+        "product_not_found",
+        "stock_reserved",
+        "not_convenient_rotation",
+        "other",
+      ],
       request_status: [
         "pending",
         "accepted",
@@ -2303,6 +2369,17 @@ export const Constants = {
         "pickup",
         "direct_client",
         "cut_shipment",
+      ],
+      stock_disposition: [
+        "ajuste_inventario",
+        "reclamo_proveedor",
+        "descuento_colaborador",
+        "imputacion_salon",
+        "imputacion_sucursal",
+        "perdida_empresa",
+        "venta_feria",
+        "reconteo_pendiente",
+        "other",
       ],
       trip_status: ["planned", "in_progress", "completed", "cancelled"],
       vehicle_loan_status: [
