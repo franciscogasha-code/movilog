@@ -11,6 +11,7 @@ import {
   Lock,
   CheckSquare,
   AlertTriangle,
+  Search,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -34,6 +35,7 @@ const mainItems = [
 ];
 
 const coreItems = [
+  { title: "Consultas", url: "/consultas", icon: Search },
   { title: "Solicitudes", url: "/solicitudes", icon: ArrowRightLeft },
   { title: "Stock Comprometido", url: "/stock-comprometido", icon: Lock },
   { title: "Cumplimiento", url: "/cumplimiento", icon: CheckSquare },

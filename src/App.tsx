@@ -13,6 +13,7 @@ import Cobranzas from "./pages/Cobranzas";
 import Flota from "./pages/Flota";
 import Ruteo from "./pages/Ruteo";
 import Solicitudes from "./pages/Solicitudes";
+import Consultas from "./pages/Consultas";
 import StockComprometido from "./pages/StockComprometido";
 import Cumplimiento from "./pages/Cumplimiento";
 import Incidencias from "./pages/Incidencias";
@@ -30,6 +31,7 @@ const App = () => (
         <Routes>
           <Route element={<AppLayout />}>
             <Route path="/" element={<Index />} />
+            <Route path="/consultas" element={<Consultas />} />
             <Route path="/solicitudes" element={<Solicitudes />} />
             <Route path="/stock-comprometido" element={<StockComprometido />} />
             <Route path="/cumplimiento" element={<Cumplimiento />} />

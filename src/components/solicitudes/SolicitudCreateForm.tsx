@@ -111,8 +111,10 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
           <Label>Tipo de solicitud</Label>
           <select {...register("request_type")} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
             <option value="reposition">Reposición</option>
-            <option value="client">Pedido cliente</option>
+            <option value="client">Pedido Cliente</option>
             <option value="mixed">Mixto</option>
+            <option value="online">Pedido Online</option>
+            <option value="redistribution">Redistribución</option>
           </select>
         </div>
         <div className="space-y-2">
@@ -122,6 +124,7 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
             <option value="courier">Encomienda</option>
             <option value="cut">Corte</option>
             <option value="pickup">Retiro en sucursal</option>
+            <option value="direct_client">Envío directo al cliente</option>
           </select>
         </div>
       </div>
