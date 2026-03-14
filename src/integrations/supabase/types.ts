@@ -2018,6 +2018,13 @@ export type Database = {
         | "branch_manager"
         | "branch_operator"
         | "viewer"
+      consultation_status: "open" | "responded" | "converted" | "expired"
+      damage_origin:
+        | "transfer_reception"
+        | "collaborator"
+        | "customer"
+        | "sealed_package"
+        | "product_defect"
       directed_inventory_status:
         | "planned"
         | "in_progress"
@@ -2094,6 +2101,7 @@ export type Database = {
         | "inventory"
         | "fulfillment"
         | "general"
+      package_label_type: "inter_branch" | "customer" | "courier"
       recommendation_status: "pending" | "accepted" | "rejected" | "expired"
       rejection_reason_type:
         | "no_stock_real"
@@ -2112,7 +2120,12 @@ export type Database = {
         | "received_ok"
         | "received_partial"
         | "closed"
-      request_type: "client" | "reposition" | "mixed"
+      request_type:
+        | "client"
+        | "reposition"
+        | "mixed"
+        | "online"
+        | "redistribution"
       reserve_reason: "branch_request" | "client_order" | "pending_fulfillment"
       reserve_type: "soft" | "hard"
       shipping_method:
@@ -2132,6 +2145,7 @@ export type Database = {
         | "reconteo_pendiente"
         | "other"
       trip_status: "planned" | "in_progress" | "completed" | "cancelled"
+      trip_type: "urban_cutoff" | "interurban_planned"
       vehicle_loan_status:
         | "requested"
         | "approved"
@@ -2281,6 +2295,14 @@ export const Constants = {
         "branch_operator",
         "viewer",
       ],
+      consultation_status: ["open", "responded", "converted", "expired"],
+      damage_origin: [
+        "transfer_reception",
+        "collaborator",
+        "customer",
+        "sealed_package",
+        "product_defect",
+      ],
       directed_inventory_status: [
         "planned",
         "in_progress",
@@ -2366,6 +2388,7 @@ export const Constants = {
         "fulfillment",
         "general",
       ],
+      package_label_type: ["inter_branch", "customer", "courier"],
       recommendation_status: ["pending", "accepted", "rejected", "expired"],
       rejection_reason_type: [
         "no_stock_real",
@@ -2386,7 +2409,13 @@ export const Constants = {
         "received_partial",
         "closed",
       ],
-      request_type: ["client", "reposition", "mixed"],
+      request_type: [
+        "client",
+        "reposition",
+        "mixed",
+        "online",
+        "redistribution",
+      ],
       reserve_reason: ["branch_request", "client_order", "pending_fulfillment"],
       reserve_type: ["soft", "hard"],
       shipping_method: [
@@ -2408,6 +2437,7 @@ export const Constants = {
         "other",
       ],
       trip_status: ["planned", "in_progress", "completed", "cancelled"],
+      trip_type: ["urban_cutoff", "interurban_planned"],
       vehicle_loan_status: [
         "requested",
         "approved",
