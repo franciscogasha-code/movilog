@@ -13,6 +13,7 @@ import Cobranzas from "./pages/Cobranzas";
 import Flota from "./pages/Flota";
 import Ruteo from "./pages/Ruteo";
 import Solicitudes from "./pages/Solicitudes";
+import Consultas from "./pages/Consultas";
 import StockComprometido from "./pages/StockComprometido";
 import Cumplimiento from "./pages/Cumplimiento";
 import Incidencias from "./pages/Incidencias";
