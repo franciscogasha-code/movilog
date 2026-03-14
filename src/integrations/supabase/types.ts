@@ -145,6 +145,64 @@ export type Database = {
           },
         ]
       }
+      availability_consultations: {
+        Row: {
+          auto_close_at: string | null
+          converted_to_request_id: string | null
+          created_at: string
+          created_by: string
+          id: string
+          product_id: string
+          requesting_branch_id: string
+          status: Database["public"]["Enums"]["consultation_status"]
+          updated_at: string
+        }
+        Insert: {
+          auto_close_at?: string | null
+          converted_to_request_id?: string | null
+          created_at?: string
+          created_by: string
+          id?: string
+          product_id: string
+          requesting_branch_id: string
+          status?: Database["public"]["Enums"]["consultation_status"]
+          updated_at?: string
+        }
+        Update: {
+          auto_close_at?: string | null
+          converted_to_request_id?: string | null
+          created_at?: string
+          created_by?: string
+          id?: string
+          product_id?: string
+          requesting_branch_id?: string
+          status?: Database["public"]["Enums"]["consultation_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "availability_consultations_converted_to_request_id_fkey"
+            columns: ["converted_to_request_id"]
+            isOneToOne: false
+            referencedRelation: "branch_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "availability_consultations_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "availability_consultations_requesting_branch_id_fkey"
+            columns: ["requesting_branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       branch_request_items: {
         Row: {
           client_address: string | null
@@ -250,7 +308,9 @@ export type Database = {
           request_type: Database["public"]["Enums"]["request_type"]
           requesting_branch_id: string
           shipping_cost: number | null
+          shipping_destination_paid: number | null
           shipping_method: Database["public"]["Enums"]["shipping_method"]
+          shipping_origin_paid: number | null
           shipping_paid_by: string | null
           source_branch_id: string
           status: Database["public"]["Enums"]["request_status"]
@@ -288,7 +348,9 @@ export type Database = {
           request_type?: Database["public"]["Enums"]["request_type"]
           requesting_branch_id: string
           shipping_cost?: number | null
+          shipping_destination_paid?: number | null
           shipping_method?: Database["public"]["Enums"]["shipping_method"]
+          shipping_origin_paid?: number | null
           shipping_paid_by?: string | null
           source_branch_id: string
           status?: Database["public"]["Enums"]["request_status"]
@@ -326,7 +388,9 @@ export type Database = {
           request_type?: Database["public"]["Enums"]["request_type"]
           requesting_branch_id?: string
           shipping_cost?: number | null
+          shipping_destination_paid?: number | null
           shipping_method?: Database["public"]["Enums"]["shipping_method"]
+          shipping_origin_paid?: number | null
           shipping_paid_by?: string | null
           source_branch_id?: string
           status?: Database["public"]["Enums"]["request_status"]
@@ -484,6 +548,89 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      consultation_messages: {
+        Row: {
+          consultation_id: string
+          created_at: string
+          id: string
+          message: string
+          sender_id: string
+        }
+        Insert: {
+          consultation_id: string
+          created_at?: string
+          id?: string
+          message: string
+          sender_id: string
+        }
+        Update: {
+          consultation_id?: string
+          created_at?: string
+          id?: string
+          message?: string
+          sender_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consultation_messages_consultation_id_fkey"
+            columns: ["consultation_id"]
+            isOneToOne: false
+            referencedRelation: "availability_consultations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      consultation_targets: {
+        Row: {
+          branch_id: string
+          consultation_id: string
+          created_at: string
+          id: string
+          responded_at: string | null
+          responded_by: string | null
+          response_colors: string | null
+          response_note: string | null
+          response_quantity: number | null
+        }
+        Insert: {
+          branch_id: string
+          consultation_id: string
+          created_at?: string
+          id?: string
+          responded_at?: string | null
+          responded_by?: string | null
+          response_colors?: string | null
+          response_note?: string | null
+          response_quantity?: number | null
+        }
+        Update: {
+          branch_id?: string
+          consultation_id?: string
+          created_at?: string
+          id?: string
+          responded_at?: string | null
+          responded_by?: string | null
+          response_colors?: string | null
+          response_note?: string | null
+          response_quantity?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consultation_targets_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consultation_targets_consultation_id_fkey"
+            columns: ["consultation_id"]
+            isOneToOne: false
+            referencedRelation: "availability_consultations"
             referencedColumns: ["id"]
           },
         ]
@@ -870,6 +1017,8 @@ export type Database = {
       fulfillment_orders: {
         Row: {
           bims_invoice_number: string | null
+          bims_transfer_number: string | null
+          bims_transfer_verified: boolean | null
           branch_request_id: string | null
           created_at: string
           current_custody_holder_id: string | null
@@ -883,6 +1032,7 @@ export type Database = {
           expected_next_event_deadline: string | null
           id: string
           notes: string | null
+          package_count: number | null
           received_at: string | null
           received_by: string | null
           shipping_method: Database["public"]["Enums"]["shipping_method"]
@@ -893,6 +1043,8 @@ export type Database = {
         }
         Insert: {
           bims_invoice_number?: string | null
+          bims_transfer_number?: string | null
+          bims_transfer_verified?: boolean | null
           branch_request_id?: string | null
           created_at?: string
           current_custody_holder_id?: string | null
@@ -906,6 +1058,7 @@ export type Database = {
           expected_next_event_deadline?: string | null
           id?: string
           notes?: string | null
+          package_count?: number | null
           received_at?: string | null
           received_by?: string | null
           shipping_method: Database["public"]["Enums"]["shipping_method"]
@@ -916,6 +1069,8 @@ export type Database = {
         }
         Update: {
           bims_invoice_number?: string | null
+          bims_transfer_number?: string | null
+          bims_transfer_verified?: boolean | null
           branch_request_id?: string | null
           created_at?: string
           current_custody_holder_id?: string | null
@@ -929,6 +1084,7 @@ export type Database = {
           expected_next_event_deadline?: string | null
           id?: string
           notes?: string | null
+          package_count?: number | null
           received_at?: string | null
           received_by?: string | null
           shipping_method?: Database["public"]["Enums"]["shipping_method"]
@@ -1154,12 +1310,14 @@ export type Database = {
           created_at: string
           current_custody_holder_id: string | null
           current_location_branch_id: string | null
+          damage_origin: Database["public"]["Enums"]["damage_origin"] | null
           description: string | null
           fulfillment_order_id: string | null
           id: string
           incident_origin: string | null
           incident_type: Database["public"]["Enums"]["incident_type"]
           inventory_id: string | null
+          pending_shipment_to_admin: boolean | null
           photo_urls: Json | null
           product_id: string | null
           quantity_affected: number | null
@@ -1167,6 +1325,9 @@ export type Database = {
           resolution: string | null
           resolved_at: string | null
           resolved_by: string | null
+          responsible_user_id: string | null
+          shipment_reminder_24th: boolean | null
+          shipment_reminder_9th: boolean | null
           status: Database["public"]["Enums"]["incident_status"]
           title: string
           trip_id: string | null
@@ -1179,12 +1340,14 @@ export type Database = {
           created_at?: string
           current_custody_holder_id?: string | null
           current_location_branch_id?: string | null
+          damage_origin?: Database["public"]["Enums"]["damage_origin"] | null
           description?: string | null
           fulfillment_order_id?: string | null
           id?: string
           incident_origin?: string | null
           incident_type: Database["public"]["Enums"]["incident_type"]
           inventory_id?: string | null
+          pending_shipment_to_admin?: boolean | null
           photo_urls?: Json | null
           product_id?: string | null
           quantity_affected?: number | null
@@ -1192,6 +1355,9 @@ export type Database = {
           resolution?: string | null
           resolved_at?: string | null
           resolved_by?: string | null
+          responsible_user_id?: string | null
+          shipment_reminder_24th?: boolean | null
+          shipment_reminder_9th?: boolean | null
           status?: Database["public"]["Enums"]["incident_status"]
           title: string
           trip_id?: string | null
@@ -1204,12 +1370,14 @@ export type Database = {
           created_at?: string
           current_custody_holder_id?: string | null
           current_location_branch_id?: string | null
+          damage_origin?: Database["public"]["Enums"]["damage_origin"] | null
           description?: string | null
           fulfillment_order_id?: string | null
           id?: string
           incident_origin?: string | null
           incident_type?: Database["public"]["Enums"]["incident_type"]
           inventory_id?: string | null
+          pending_shipment_to_admin?: boolean | null
           photo_urls?: Json | null
           product_id?: string | null
           quantity_affected?: number | null
@@ -1217,6 +1385,9 @@ export type Database = {
           resolution?: string | null
           resolved_at?: string | null
           resolved_by?: string | null
+          responsible_user_id?: string | null
+          shipment_reminder_24th?: boolean | null
+          shipment_reminder_9th?: boolean | null
           status?: Database["public"]["Enums"]["incident_status"]
           title?: string
           trip_id?: string | null
@@ -1498,6 +1669,65 @@ export type Database = {
           },
         ]
       }
+      shipment_packages: {
+        Row: {
+          contact_phone: string | null
+          created_at: string
+          destination_description: string | null
+          fulfillment_order_id: string
+          id: string
+          invoice_reference: string | null
+          label_printed: boolean | null
+          label_type: Database["public"]["Enums"]["package_label_type"]
+          package_number: number
+          printed_at: string | null
+          recipient_name: string | null
+          sending_area: string | null
+          sending_branch_code: string | null
+          transfer_reference: string | null
+        }
+        Insert: {
+          contact_phone?: string | null
+          created_at?: string
+          destination_description?: string | null
+          fulfillment_order_id: string
+          id?: string
+          invoice_reference?: string | null
+          label_printed?: boolean | null
+          label_type?: Database["public"]["Enums"]["package_label_type"]
+          package_number?: number
+          printed_at?: string | null
+          recipient_name?: string | null
+          sending_area?: string | null
+          sending_branch_code?: string | null
+          transfer_reference?: string | null
+        }
+        Update: {
+          contact_phone?: string | null
+          created_at?: string
+          destination_description?: string | null
+          fulfillment_order_id?: string
+          id?: string
+          invoice_reference?: string | null
+          label_printed?: boolean | null
+          label_type?: Database["public"]["Enums"]["package_label_type"]
+          package_number?: number
+          printed_at?: string | null
+          recipient_name?: string | null
+          sending_area?: string | null
+          sending_branch_code?: string | null
+          transfer_reference?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shipment_packages_fulfillment_order_id_fkey"
+            columns: ["fulfillment_order_id"]
+            isOneToOne: false
+            referencedRelation: "fulfillment_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       special_stock: {
         Row: {
           branch_id: string
@@ -1665,6 +1895,8 @@ export type Database = {
           actual_arrival: string | null
           actual_departure: string | null
           created_at: string
+          cutoff_ended_at: string | null
+          cutoff_started_at: string | null
           driver_id: string
           end_mileage: number | null
           end_mileage_photo_url: string | null
@@ -1681,6 +1913,7 @@ export type Database = {
           start_mileage_photo_url: string | null
           status: Database["public"]["Enums"]["trip_status"]
           trip_number: number
+          trip_type: Database["public"]["Enums"]["trip_type"]
           updated_at: string
           vehicle_id: string
         }
@@ -1688,6 +1921,8 @@ export type Database = {
           actual_arrival?: string | null
           actual_departure?: string | null
           created_at?: string
+          cutoff_ended_at?: string | null
+          cutoff_started_at?: string | null
           driver_id: string
           end_mileage?: number | null
           end_mileage_photo_url?: string | null
@@ -1704,6 +1939,7 @@ export type Database = {
           start_mileage_photo_url?: string | null
           status?: Database["public"]["Enums"]["trip_status"]
           trip_number?: number
+          trip_type?: Database["public"]["Enums"]["trip_type"]
           updated_at?: string
           vehicle_id: string
         }
@@ -1711,6 +1947,8 @@ export type Database = {
           actual_arrival?: string | null
           actual_departure?: string | null
           created_at?: string
+          cutoff_ended_at?: string | null
+          cutoff_started_at?: string | null
           driver_id?: string
           end_mileage?: number | null
           end_mileage_photo_url?: string | null
@@ -1727,6 +1965,7 @@ export type Database = {
           start_mileage_photo_url?: string | null
           status?: Database["public"]["Enums"]["trip_status"]
           trip_number?: number
+          trip_type?: Database["public"]["Enums"]["trip_type"]
           updated_at?: string
           vehicle_id?: string
         }
@@ -1991,6 +2230,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      fn_validate_driver_pickup: {
+        Args: { p_fulfillment_id: string }
+        Returns: Json
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
