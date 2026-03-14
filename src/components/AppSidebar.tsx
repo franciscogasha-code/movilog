@@ -35,6 +35,7 @@ const mainItems = [
 ];
 
 const coreItems = [
+  { title: "Consultas", url: "/consultas", icon: Search },
   { title: "Solicitudes", url: "/solicitudes", icon: ArrowRightLeft },
   { title: "Stock Comprometido", url: "/stock-comprometido", icon: Lock },
   { title: "Cumplimiento", url: "/cumplimiento", icon: CheckSquare },

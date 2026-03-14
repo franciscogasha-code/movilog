@@ -72,7 +72,7 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
           </p>
         </div>
         <Badge variant="outline" className="capitalize">
-          {r.request_type === "client" ? "Pedido Cliente" : r.request_type === "reposition" ? "Reposición" : "Mixto"}
+          {REQUEST_TYPE_LABELS[r.request_type] || r.request_type}
         </Badge>
       </div>
 

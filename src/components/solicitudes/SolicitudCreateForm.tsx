@@ -124,6 +124,7 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
             <option value="courier">Encomienda</option>
             <option value="cut">Corte</option>
             <option value="pickup">Retiro en sucursal</option>
+            <option value="direct_client">Envío directo al cliente</option>
           </select>
         </div>
       </div>

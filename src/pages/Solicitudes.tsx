@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Plus, Search, Filter, ArrowRightLeft, Clock, Eye } from "lucide-react";
-import { REQUEST_STATUS_CONFIG, SHIPPING_METHOD_LABELS, ITEM_PURPOSE_LABELS, REJECTION_REASONS } from "@/lib/constants";
+import { REQUEST_STATUS_CONFIG, SHIPPING_METHOD_LABELS, ITEM_PURPOSE_LABELS, REJECTION_REASONS, REQUEST_TYPE_LABELS } from "@/lib/constants";
 import { StatusBadge } from "@/components/StatusBadge";
 import { SolicitudCreateForm } from "@/components/solicitudes/SolicitudCreateForm";
 import { SolicitudDetail } from "@/components/solicitudes/SolicitudDetail";
