@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { StatusBadge } from "@/components/StatusBadge";
-import { REQUEST_STATUS_CONFIG, SHIPPING_METHOD_LABELS, ITEM_PURPOSE_LABELS, REJECTION_REASONS } from "@/lib/constants";
+import { REQUEST_STATUS_CONFIG, SHIPPING_METHOD_LABELS, ITEM_PURPOSE_LABELS, REJECTION_REASONS, REQUEST_TYPE_LABELS } from "@/lib/constants";
 import { Clock, Package, MapPin, User, ArrowRight } from "lucide-react";
 
 export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; onUpdate: () => void }) {
