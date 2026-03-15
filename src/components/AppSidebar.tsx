@@ -12,6 +12,9 @@ import {
   AlertTriangle,
   Search,
   ClipboardList,
+  User,
+  Tag,
+  Bell,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -32,6 +35,7 @@ import {
 
 const mainItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
+  { title: "Alertas", url: "/alertas", icon: Bell },
 ];
 
 const coreItems = [
@@ -41,6 +45,11 @@ const coreItems = [
   { title: "Ejecución Física", url: "/cumplimiento", icon: Package },
   { title: "Incidencias", url: "/incidencias", icon: AlertTriangle },
   { title: "Documentos", url: "/documentos", icon: FileText },
+];
+
+const driverItems = [
+  { title: "Panel Chofer", url: "/chofer", icon: User },
+  { title: "Etiquetas", url: "/etiquetas", icon: Tag },
 ];
 
 const operationItems = [
@@ -122,6 +131,7 @@ export function AppSidebar() {
       <SidebarContent className="px-2">
         <MenuGroup label="Principal" items={mainItems} collapsed={collapsed} />
         <MenuGroup label="Núcleo" items={coreItems} collapsed={collapsed} />
+        <MenuGroup label="Chofer / Despacho" items={driverItems} collapsed={collapsed} />
         <MenuGroup label="Operaciones" items={operationItems} collapsed={collapsed} />
         <MenuGroup label="Gestión" items={managementItems} collapsed={collapsed} />
       </SidebarContent>
@@ -129,7 +139,7 @@ export function AppSidebar() {
       <SidebarFooter className="p-4">
         {!collapsed && (
           <p className="text-[10px] text-sidebar-foreground/30 text-center">
-            v1.0.0 — Fase 1
+            v2.0.0 — Fase 2
           </p>
         )}
       </SidebarFooter>
