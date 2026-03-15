@@ -45,6 +45,7 @@ const coreItems = [
   { title: "Pedidos", url: "/solicitudes", icon: ClipboardList },
   { title: "Stock Comprometido", url: "/stock-comprometido", icon: Lock },
   { title: "Ejecución Física", url: "/cumplimiento", icon: Package },
+  { title: "Recepción", url: "/recepcion", icon: PackageCheck },
   { title: "Incidencias", url: "/incidencias", icon: AlertTriangle },
   { title: "Documentos", url: "/documentos", icon: FileText },
 ];
