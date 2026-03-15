@@ -15,6 +15,8 @@ import {
   User,
   Tag,
   Bell,
+  PackageCheck,
+  Receipt,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -43,6 +45,7 @@ const coreItems = [
   { title: "Pedidos", url: "/solicitudes", icon: ClipboardList },
   { title: "Stock Comprometido", url: "/stock-comprometido", icon: Lock },
   { title: "Ejecución Física", url: "/cumplimiento", icon: Package },
+  { title: "Recepción", url: "/recepcion", icon: PackageCheck },
   { title: "Incidencias", url: "/incidencias", icon: AlertTriangle },
   { title: "Documentos", url: "/documentos", icon: FileText },
 ];
@@ -50,6 +53,7 @@ const coreItems = [
 const driverItems = [
   { title: "Panel Chofer", url: "/chofer", icon: User },
   { title: "Etiquetas", url: "/etiquetas", icon: Tag },
+  { title: "Rendición", url: "/rendicion", icon: Receipt },
 ];
 
 const operationItems = [
@@ -139,7 +143,7 @@ export function AppSidebar() {
       <SidebarFooter className="p-4">
         {!collapsed && (
           <p className="text-[10px] text-sidebar-foreground/30 text-center">
-            v2.0.0 — Fase 2
+            v3.0.0 — Fase 3
           </p>
         )}
       </SidebarFooter>

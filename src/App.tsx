@@ -21,6 +21,8 @@ import Documentos from "./pages/Documentos";
 import Chofer from "./pages/Chofer";
 import Etiquetas from "./pages/Etiquetas";
 import Alertas from "./pages/Alertas";
+import Recepcion from "./pages/Recepcion";
+import Rendicion from "./pages/Rendicion";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -50,6 +52,8 @@ const App = () => (
             <Route path="/chofer" element={<Chofer />} />
             <Route path="/etiquetas" element={<Etiquetas />} />
             <Route path="/alertas" element={<Alertas />} />
+            <Route path="/recepcion" element={<Recepcion />} />
+            <Route path="/rendicion" element={<Rendicion />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>
