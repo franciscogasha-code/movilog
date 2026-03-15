@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Printer, Tag, Plus, Search, CheckCircle2 } from "lucide-react";
+import { PrintLabelsButton } from "@/components/etiquetas/LabelPDF";
 import { toast } from "sonner";
 
 export default function Etiquetas() {
