@@ -18,6 +18,9 @@ import StockComprometido from "./pages/StockComprometido";
 import Cumplimiento from "./pages/Cumplimiento";
 import Incidencias from "./pages/Incidencias";
 import Documentos from "./pages/Documentos";
+import Chofer from "./pages/Chofer";
+import Etiquetas from "./pages/Etiquetas";
+import Alertas from "./pages/Alertas";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -44,6 +47,9 @@ const App = () => (
             <Route path="/cobranzas" element={<Cobranzas />} />
             <Route path="/flota" element={<Flota />} />
             <Route path="/ruteo" element={<Ruteo />} />
+            <Route path="/chofer" element={<Chofer />} />
+            <Route path="/etiquetas" element={<Etiquetas />} />
+            <Route path="/alertas" element={<Alertas />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>
