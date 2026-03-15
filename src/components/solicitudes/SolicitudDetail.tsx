@@ -1,11 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { StatusBadge } from "@/components/StatusBadge";
-import { REQUEST_STATUS_CONFIG, SHIPPING_METHOD_LABELS, ITEM_PURPOSE_LABELS, REJECTION_REASONS, REQUEST_TYPE_LABELS } from "@/lib/constants";
-import { Clock, Package, MapPin, User, ArrowRight } from "lucide-react";
+import { REQUEST_STATUS_CONFIG, SHIPPING_METHOD_LABELS, DELIVERY_TARGET_LABELS, ITEM_PURPOSE_LABELS, REJECTION_REASONS, REQUEST_TYPE_LABELS } from "@/lib/constants";
+import { Package } from "lucide-react";
 
 export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; onUpdate: () => void }) {
   const { data: request, isLoading } = useQuery({
@@ -64,7 +63,7 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
       <div className="flex items-center justify-between">
         <div>
           <div className="flex items-center gap-3">
-            <h3 className="font-display text-xl font-bold">Solicitud #{r.request_number}</h3>
+            <h3 className="font-display text-xl font-bold">Pedido #{r.request_number}</h3>
             <StatusBadge status={r.status} config={REQUEST_STATUS_CONFIG} />
           </div>
           <p className="text-sm text-muted-foreground mt-1">
@@ -92,10 +91,14 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
         </Card>
       </div>
 
-      <div className="grid grid-cols-3 gap-3 text-sm">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+        <div>
+          <span className="text-muted-foreground">Destino:</span>{" "}
+          <span className="font-medium">{DELIVERY_TARGET_LABELS[r.delivery_target] || "A sucursal"}</span>
+        </div>
         <div>
           <span className="text-muted-foreground">Envío:</span>{" "}
-          <span className="font-medium">{SHIPPING_METHOD_LABELS[r.shipping_method]}</span>
+          <span className="font-medium">{SHIPPING_METHOD_LABELS[r.shipping_method] || r.shipping_method}</span>
         </div>
         {r.client_name && (
           <div>

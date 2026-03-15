@@ -1,10 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { motion } from "framer-motion";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/StatusBadge";
-import { INCIDENT_STATUS_CONFIG } from "@/lib/constants";
+import { INCIDENT_STATUS_CONFIG, DETECTION_CONTEXT_LABELS, DAMAGE_CAUSE_LABELS } from "@/lib/constants";
 import { AlertTriangle, ShieldAlert, Search as SearchIcon } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
@@ -39,6 +39,7 @@ export default function Incidencias() {
   });
 
   const openCount = incidents?.filter((i) => i.status === "open").length || 0;
+  const pendingAdminCount = incidents?.filter((i: any) => i.pending_shipment_to_admin).length || 0;
 
   const filtered = incidents?.filter((i: any) => {
     if (!search) return true;
@@ -50,16 +51,25 @@ export default function Incidencias() {
     <motion.div className="space-y-6" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
       <div>
         <h1 className="font-display text-2xl font-bold text-foreground">Incidencias Logísticas</h1>
-        <p className="text-muted-foreground mt-1">Gestión de productos averiados, faltantes, sobrantes y diferencias</p>
+        <p className="text-muted-foreground mt-1">Averiados, faltantes, sobrantes y diferencias de stock</p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card className="glass-card">
           <CardContent className="p-5 flex items-center gap-4">
             <div className="bg-destructive/10 p-3 rounded-xl"><ShieldAlert className="h-5 w-5 text-destructive" /></div>
             <div>
               <p className="text-xs text-muted-foreground uppercase">Abiertas</p>
               <p className="text-2xl font-display font-bold">{openCount}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="glass-card">
+          <CardContent className="p-5 flex items-center gap-4">
+            <div className="bg-warning/10 p-3 rounded-xl"><AlertTriangle className="h-5 w-5 text-warning" /></div>
+            <div>
+              <p className="text-xs text-muted-foreground uppercase">Pendientes envío admin</p>
+              <p className="text-2xl font-display font-bold">{pendingAdminCount}</p>
             </div>
           </CardContent>
         </Card>
@@ -95,7 +105,8 @@ export default function Incidencias() {
                     <th className="text-left p-3 font-medium text-muted-foreground">Sucursal</th>
                     <th className="text-left p-3 font-medium text-muted-foreground">Producto</th>
                     <th className="text-left p-3 font-medium text-muted-foreground">Cant.</th>
-                    <th className="text-left p-3 font-medium text-muted-foreground">Origen</th>
+                    <th className="text-left p-3 font-medium text-muted-foreground">Detección</th>
+                    <th className="text-left p-3 font-medium text-muted-foreground">Causa</th>
                     <th className="text-left p-3 font-medium text-muted-foreground">Estado</th>
                     <th className="text-left p-3 font-medium text-muted-foreground">Fecha</th>
                   </tr>
@@ -112,7 +123,14 @@ export default function Incidencias() {
                       <td className="p-3">{i.branch?.code}</td>
                       <td className="p-3 text-muted-foreground">{i.product?.name || "—"}</td>
                       <td className="p-3 font-mono">{i.quantity_affected || "—"}</td>
-                      <td className="p-3 text-xs text-muted-foreground">{i.incident_origin || "—"}</td>
+                      <td className="p-3 text-xs text-muted-foreground">
+                        {DETECTION_CONTEXT_LABELS[i.detection_context] || "—"}
+                      </td>
+                      <td className="p-3 text-xs text-muted-foreground">
+                        {i.detection_context === "internal" && i.damage_cause
+                          ? DAMAGE_CAUSE_LABELS[i.damage_cause]
+                          : "—"}
+                      </td>
                       <td className="p-3">
                         <StatusBadge status={i.status} config={INCIDENT_STATUS_CONFIG} />
                       </td>
