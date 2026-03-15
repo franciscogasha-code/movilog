@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/StatusBadge";
 import { REQUEST_STATUS_CONFIG, SHIPPING_METHOD_LABELS, DELIVERY_TARGET_LABELS, ITEM_PURPOSE_LABELS, REJECTION_REASONS, REQUEST_TYPE_LABELS } from "@/lib/constants";
-import { Package } from "lucide-react";
+import { Package, AlertTriangle } from "lucide-react";
 
 export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; onUpdate: () => void }) {
   const { data: request, isLoading } = useQuery({
@@ -37,6 +37,19 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
     enabled: !!requestId,
   });
 
+  const { data: fulfillments } = useQuery({
+    queryKey: ["request-fulfillments", requestId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("fulfillment_orders")
+        .select("id, status, bims_transfer_number, bims_invoice_number")
+        .eq("branch_request_id", requestId);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!requestId,
+  });
+
   const { data: events } = useQuery({
     queryKey: ["request-events", requestId],
     queryFn: async () => {
@@ -52,13 +65,86 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
     enabled: !!requestId,
   });
 
+  // Anomalies related to this request's fulfillments
+  const { data: relatedAnomalies } = useQuery({
+    queryKey: ["request-anomalies", requestId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("ai_anomalies")
+        .select("*")
+        .eq("is_acknowledged", false)
+        .order("created_at", { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      // Filter client-side for anomalies referencing this request or its fulfillments
+      const fulfillmentIds = fulfillments?.map(f => f.id) || [];
+      return data?.filter((a: any) => {
+        const entities = a.affected_entities || [];
+        return entities.some((e: any) =>
+          (e.type === "branch_request" && e.id === requestId) ||
+          (e.type === "fulfillment_order" && fulfillmentIds.includes(e.id))
+        );
+      }) || [];
+    },
+    enabled: !!requestId && !!fulfillments,
+  });
+
   if (isLoading) return <div className="p-4 text-muted-foreground">Cargando...</div>;
   if (!request) return <div className="p-4 text-muted-foreground">No encontrada</div>;
 
   const r = request as any;
 
+  // Compute warnings
+  const warnings: { type: string; message: string }[] = [];
+
+  // Missed cutoff: dispatched status items created > 4h ago still waiting
+  const hasMissedCutoffEvent = events?.some((e: any) => e.event_type === "missed_cutoff") || false;
+  const hasWaitingFulfillment = fulfillments?.some((f: any) => {
+    const age = (Date.now() - new Date(r.created_at).getTime()) / (1000 * 60 * 60);
+    return (f.status === "waiting_for_cut" || f.status === "waiting_for_courier") && age > 4;
+  });
+  if (hasMissedCutoffEvent || hasWaitingFulfillment) {
+    warnings.push({ type: "missed_cutoff", message: "Este pedido perdió el corte programado" });
+  }
+
+  // Prepared without BIMS
+  const hasFulfillmentWithoutBims = fulfillments?.some((f: any) =>
+    (f.status === "waiting_for_cut" || f.status === "waiting_for_courier") &&
+    !f.bims_transfer_number && !f.bims_invoice_number
+  );
+  if (hasFulfillmentWithoutBims) {
+    warnings.push({ type: "missing_bims", message: "Preparado sin documento BIMS vinculado" });
+  }
+
+  // Qty mismatch
+  const hasQtyMismatch = items?.some((item: any) =>
+    item.quantity_accepted != null && item.quantity_accepted > 0 &&
+    item.quantity_accepted !== item.quantity_requested
+  );
+  if (hasQtyMismatch) {
+    warnings.push({ type: "qty_mismatch", message: "Diferencia entre cantidad solicitada y enviada" });
+  }
+
+  // Pickup rejection
+  const hasRejection = events?.some((e: any) => e.event_type === "driver_pickup_rejected") || false;
+  if (hasRejection) {
+    warnings.push({ type: "pickup_rejected", message: "Un chofer rechazó el retiro de este pedido" });
+  }
+
   return (
     <div className="space-y-6">
+      {/* Warning panel */}
+      {warnings.length > 0 && (
+        <div className="space-y-2">
+          {warnings.map((w, i) => (
+            <div key={i} className="flex items-center gap-3 p-3 rounded-lg bg-destructive/5 border border-destructive/20 text-sm">
+              <AlertTriangle className="h-4 w-4 text-destructive shrink-0" />
+              <span className="text-foreground font-medium">{w.message}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -133,7 +219,9 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
               <div className="text-right min-w-[120px]">
                 <span className="font-mono font-semibold">{item.quantity_requested}</span>
                 {item.quantity_accepted != null && item.quantity_accepted > 0 && (
-                  <span className="text-xs text-muted-foreground ml-1">/ {item.quantity_accepted} aceptados</span>
+                  <span className={`text-xs ml-1 ${item.quantity_accepted !== item.quantity_requested ? "text-destructive font-semibold" : "text-muted-foreground"}`}>
+                    / {item.quantity_accepted} aceptados
+                  </span>
                 )}
               </div>
               {item.rejection_reason_type && (

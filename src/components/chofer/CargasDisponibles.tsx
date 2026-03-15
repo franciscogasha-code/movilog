@@ -5,8 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Package, CheckCircle2, AlertTriangle, XCircle, Truck, MapPin } from "lucide-react";
+import { Package, CheckCircle2, AlertTriangle, XCircle, Truck, MapPin, Clock } from "lucide-react";
 import { toast } from "sonner";
+import { DELIVERY_TARGET_LABELS, REQUEST_TYPE_LABELS } from "@/lib/constants";
 
 const REJECTION_REASONS = [
   { value: "no_space", label: "No entra en el móvil" },
@@ -16,11 +17,22 @@ const REJECTION_REASONS = [
   { value: "other", label: "Otro" },
 ];
 
+const DELIVERY_TARGET_BADGES: Record<string, { label: string; className: string }> = {
+  client: { label: "Cliente", className: "bg-primary/10 text-primary border-primary/20" },
+  branch: { label: "Reposición", className: "bg-muted text-muted-foreground border-border" },
+};
+
+const REQUEST_TYPE_BADGES: Record<string, { label: string; className: string }> = {
+  client: { label: "Cliente", className: "bg-primary/10 text-primary border-primary/20" },
+  online: { label: "Online", className: "bg-accent/10 text-accent border-accent/20" },
+  reposition: { label: "Reposición", className: "bg-muted text-muted-foreground border-border" },
+  redistribution: { label: "Redistribución", className: "bg-secondary/10 text-secondary border-secondary/20" },
+};
+
 export function CargasDisponibles() {
   const queryClient = useQueryClient();
   const [rejectingId, setRejectingId] = useState<string | null>(null);
 
-  // Get current user's active trip
   const { data: myDriver } = useQuery({
     queryKey: ["my-driver-record"],
     queryFn: async () => {
@@ -54,7 +66,7 @@ export function CargasDisponibles() {
       if (!myActiveTrip?.id) return [];
       const { data, error } = await supabase
         .from("fulfillment_orders")
-        .select(`*, source_branch:branches!fulfillment_orders_source_branch_id_fkey(name, code), destination_branch:branches!fulfillment_orders_destination_branch_id_fkey(name, code), branch_request:branch_requests(request_number, delivery_target)`)
+        .select(`*, source_branch:branches!fulfillment_orders_source_branch_id_fkey(name, code), destination_branch:branches!fulfillment_orders_destination_branch_id_fkey(name, code), branch_request:branch_requests(request_number, request_type, delivery_target)`)
         .eq("trip_id", myActiveTrip.id)
         .order("created_at", { ascending: true });
       if (error) throw error;
@@ -71,7 +83,7 @@ export function CargasDisponibles() {
       if (!branchId) return [];
       const { data, error } = await supabase
         .from("fulfillment_orders")
-        .select(`*, source_branch:branches!fulfillment_orders_source_branch_id_fkey(name, code), destination_branch:branches!fulfillment_orders_destination_branch_id_fkey(name, code), branch_request:branch_requests(request_number, delivery_target)`)
+        .select(`*, source_branch:branches!fulfillment_orders_source_branch_id_fkey(name, code), destination_branch:branches!fulfillment_orders_destination_branch_id_fkey(name, code), branch_request:branch_requests(request_number, request_type, delivery_target)`)
         .eq("source_branch_id", branchId)
         .in("status", ["waiting_for_cut", "waiting_for_courier", "picking"])
         .is("trip_id", null)
@@ -81,6 +93,32 @@ export function CargasDisponibles() {
       return data;
     },
     enabled: !!branchId,
+  });
+
+  // Rejection events for available loads (to show "rejected in this cutoff" badge)
+  const { data: rejectionEvents } = useQuery({
+    queryKey: ["rejection-events-recent"],
+    queryFn: async () => {
+      const since = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString();
+      const { data, error } = await supabase
+        .from("operational_events")
+        .select("reference_id, created_at, metadata")
+        .eq("event_type", "driver_pickup_rejected")
+        .gte("created_at", since)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const rejectionByFulfillment: Record<string, { at: string; reason: string }> = {};
+  rejectionEvents?.forEach((e: any) => {
+    if (!rejectionByFulfillment[e.reference_id]) {
+      rejectionByFulfillment[e.reference_id] = {
+        at: e.created_at,
+        reason: e.metadata?.rejection_reason || "",
+      };
+    }
   });
 
   // C) Movimientos fuera de corte recientes (últimas 24h)
@@ -104,6 +142,7 @@ export function CargasDisponibles() {
     queryClient.invalidateQueries({ queryKey: ["assigned-loads"] });
     queryClient.invalidateQueries({ queryKey: ["available-loads"] });
     queryClient.invalidateQueries({ queryKey: ["out-of-cutoff-events"] });
+    queryClient.invalidateQueries({ queryKey: ["rejection-events-recent"] });
   };
 
   const pickupOutOfCutoff = async (fulfillmentId: string) => {
@@ -154,7 +193,6 @@ export function CargasDisponibles() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Log rejection event — does NOT change fulfillment status
       await supabase.from("operational_events").insert({
         reference_type: "fulfillment_order",
         reference_id: fulfillmentId,
@@ -165,7 +203,6 @@ export function CargasDisponibles() {
         metadata: { rejection_reason: reason },
       });
 
-      // Generate alert
       await supabase.from("ai_anomalies").insert({
         anomaly_type: "driver_pickup_rejected",
         area: "logistics" as any,
@@ -184,38 +221,77 @@ export function CargasDisponibles() {
     }
   };
 
-  const FulfillmentRow = ({ f, showPickup = true }: { f: any; showPickup?: boolean }) => (
-    <div className="flex items-center justify-between p-3 text-sm">
-      <div className="flex items-center gap-3">
-        <div>
-          <span className="font-semibold">Pedido #{f.branch_request?.request_number || "—"}</span>
-          <span className="text-muted-foreground ml-2">→ {f.destination_branch?.code || f.destination_client_name || "—"}</span>
+  // Helper: detect if a load likely missed a cutoff (created > 4h ago and still waiting)
+  const isMissedCutoff = (f: any) => {
+    const createdAt = new Date(f.created_at).getTime();
+    const hoursOld = (Date.now() - createdAt) / (1000 * 60 * 60);
+    return hoursOld > 4 && (f.status === "waiting_for_cut" || f.status === "waiting_for_courier");
+  };
+
+  const getTypeBadge = (f: any) => {
+    const reqType = f.branch_request?.request_type;
+    const target = f.branch_request?.delivery_target;
+    if (reqType && REQUEST_TYPE_BADGES[reqType]) return REQUEST_TYPE_BADGES[reqType];
+    if (target && DELIVERY_TARGET_BADGES[target]) return DELIVERY_TARGET_BADGES[target];
+    return { label: "Transferencia", className: "bg-muted text-muted-foreground border-border" };
+  };
+
+  const FulfillmentRow = ({ f, showPickup = true }: { f: any; showPickup?: boolean }) => {
+    const typeBadge = getTypeBadge(f);
+    const missedCutoff = isMissedCutoff(f);
+    const rejection = rejectionByFulfillment[f.id];
+
+    return (
+      <div className={`flex items-center justify-between p-3 text-sm ${missedCutoff ? "bg-destructive/5" : ""}`}>
+        <div className="flex items-center gap-3 flex-1 min-w-0">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-semibold">Pedido #{f.branch_request?.request_number || "—"}</span>
+              <span className="text-muted-foreground">→ {f.destination_branch?.code || f.destination_client_name || "—"}</span>
+              <Badge variant="outline" className={`text-xs ${typeBadge.className}`}>
+                {typeBadge.label}
+              </Badge>
+              {missedCutoff && (
+                <Badge variant="destructive" className="text-xs gap-1">
+                  <AlertTriangle className="h-3 w-3" /> Perdió corte
+                </Badge>
+              )}
+              {rejection && (
+                <Badge variant="outline" className="text-xs text-destructive border-destructive/30 gap-1">
+                  <XCircle className="h-3 w-3" /> Rechazado
+                  <span className="text-muted-foreground ml-1">
+                    {new Date(rejection.at).toLocaleTimeString("es-PY", { hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                </Badge>
+              )}
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {!f.bims_transfer_number && !f.bims_invoice_number && (
+            <Badge variant="outline" className="text-xs text-secondary border-secondary/30">Sin doc. BIMS</Badge>
+          )}
+          {f.bims_transfer_number && <Badge variant="outline" className="text-xs">T: {f.bims_transfer_number}</Badge>}
+          {(f.branch_request?.delivery_target === "client" || f.shipping_method === "courier") && f.package_count > 0 && (
+            <Badge variant="secondary" className="text-xs">{f.package_count} bultos</Badge>
+          )}
+          <Badge variant="outline" className="text-xs">
+            {f.status === "waiting_for_cut" ? "Esperando corte" : f.status === "waiting_for_courier" ? "Esperando transporte" : f.status === "dispatched" ? "Retirado" : f.status}
+          </Badge>
+          {showPickup && (
+            <>
+              <Button size="sm" variant="outline" onClick={() => setRejectingId(f.id)} className="h-7 text-xs text-destructive">
+                <XCircle className="h-3 w-3 mr-1" /> Rechazar
+              </Button>
+              <Button size="sm" onClick={() => pickupOutOfCutoff(f.id)} className="h-7 text-xs gap-1">
+                <CheckCircle2 className="h-3 w-3" /> Retirar
+              </Button>
+            </>
+          )}
         </div>
       </div>
-      <div className="flex items-center gap-2">
-        {!f.bims_transfer_number && !f.bims_invoice_number && (
-          <Badge variant="outline" className="text-xs text-secondary border-secondary/30">Sin doc. BIMS</Badge>
-        )}
-        {f.bims_transfer_number && <Badge variant="outline" className="text-xs">T: {f.bims_transfer_number}</Badge>}
-        {(f.branch_request?.delivery_target === "client" || f.shipping_method === "courier") && f.package_count > 0 && (
-          <Badge variant="secondary" className="text-xs">{f.package_count} bultos</Badge>
-        )}
-        <Badge variant="outline" className="text-xs">
-          {f.status === "waiting_for_cut" ? "Esperando corte" : f.status === "waiting_for_courier" ? "Esperando transporte" : f.status === "dispatched" ? "Retirado" : f.status}
-        </Badge>
-        {showPickup && (
-          <>
-            <Button size="sm" variant="outline" onClick={() => setRejectingId(f.id)} className="h-7 text-xs text-destructive">
-              <XCircle className="h-3 w-3 mr-1" /> Rechazar
-            </Button>
-            <Button size="sm" onClick={() => pickupOutOfCutoff(f.id)} className="h-7 text-xs gap-1">
-              <CheckCircle2 className="h-3 w-3" /> Retirar
-            </Button>
-          </>
-        )}
-      </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="space-y-4">

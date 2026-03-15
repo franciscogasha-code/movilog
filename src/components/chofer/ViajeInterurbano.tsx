@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Play, Square, MapPin, Truck, Plus, CheckCircle2, Clock, AlertTriangle } from "lucide-react";
+import { Play, Square, MapPin, Truck, Plus, CheckCircle2, Route } from "lucide-react";
 import { CorteDetalle } from "./CorteDetalle";
 import { AgregarTareaViaje } from "./AgregarTareaViaje";
 import { toast } from "sonner";
@@ -109,6 +109,8 @@ export function ViajeInterurbano({ trips, activeTrip }: Props) {
   };
 
   const plannedStops = (activeTrip?.planned_stops as any[]) || [];
+  const originalTasks = plannedStops.filter((s: any) => !s.added_in_transit);
+  const transitTasks = plannedStops.filter((s: any) => s.added_in_transit);
 
   return (
     <div className="space-y-4">
@@ -155,20 +157,38 @@ export function ViajeInterurbano({ trips, activeTrip }: Props) {
               </div>
             </div>
 
-            {/* In-transit tasks */}
+            {/* Planned tasks */}
             {plannedStops.length > 0 && (
-              <div className="space-y-1.5 mt-2">
-                <h5 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Tareas del viaje</h5>
-                {plannedStops.map((stop: any, idx: number) => (
-                  <div key={stop.id || idx} className="flex items-center gap-2 p-2 rounded bg-muted/30 text-sm">
-                    <span className={`w-2 h-2 rounded-full ${stop.completed ? "bg-accent" : "bg-muted-foreground/30"}`} />
-                    <span className="font-medium">{TASK_TYPE_LABELS[stop.type] || stop.type}</span>
-                    {stop.client_name && <span className="text-muted-foreground">— {stop.client_name}</span>}
-                    {stop.added_in_transit && (
-                      <Badge variant="outline" className="text-xs ml-auto">En tránsito</Badge>
-                    )}
+              <div className="space-y-2 mt-2">
+                {originalTasks.length > 0 && (
+                  <div className="space-y-1.5">
+                    <h5 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Tareas planificadas</h5>
+                    {originalTasks.map((stop: any, idx: number) => (
+                      <div key={stop.id || idx} className="flex items-center gap-2 p-2 rounded bg-muted/30 text-sm">
+                        <span className={`w-2 h-2 rounded-full ${stop.completed ? "bg-accent" : "bg-muted-foreground/30"}`} />
+                        <span className="font-medium">{TASK_TYPE_LABELS[stop.type] || stop.type}</span>
+                        {stop.client_name && <span className="text-muted-foreground">— {stop.client_name}</span>}
+                      </div>
+                    ))}
                   </div>
-                ))}
+                )}
+                {transitTasks.length > 0 && (
+                  <div className="space-y-1.5">
+                    <h5 className="text-xs font-semibold text-secondary uppercase tracking-wider flex items-center gap-1">
+                      <Route className="h-3 w-3" /> Agregadas en ruta
+                    </h5>
+                    {transitTasks.map((stop: any, idx: number) => (
+                      <div key={stop.id || idx} className="flex items-center gap-2 p-2 rounded bg-secondary/5 border border-secondary/15 text-sm">
+                        <span className={`w-2 h-2 rounded-full ${stop.completed ? "bg-accent" : "bg-secondary/50"}`} />
+                        <span className="font-medium">{TASK_TYPE_LABELS[stop.type] || stop.type}</span>
+                        {stop.client_name && <span className="text-muted-foreground">— {stop.client_name}</span>}
+                        <Badge variant="outline" className="text-xs ml-auto text-secondary border-secondary/30">
+                          <Route className="h-3 w-3 mr-1" /> En ruta
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </CardContent>

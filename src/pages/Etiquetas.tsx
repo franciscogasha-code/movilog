@@ -2,13 +2,13 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { motion } from "framer-motion";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Printer, Tag, Package, Plus, Search } from "lucide-react";
+import { Printer, Tag, Plus, Search, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 
 export default function Etiquetas() {
@@ -16,7 +16,6 @@ export default function Etiquetas() {
   const [createForId, setCreateForId] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
-  // Only show fulfillments where labels apply: client delivery or courier
   const { data: fulfillments, isLoading } = useQuery({
     queryKey: ["fulfillments-for-labels"],
     queryFn: async () => {
@@ -32,7 +31,6 @@ export default function Etiquetas() {
         .order("created_at", { ascending: false })
         .limit(50);
       if (error) throw error;
-      // Filter client-side: only where labels make sense
       return data?.filter((f: any) =>
         f.branch_request?.delivery_target === "client" ||
         f.shipping_method === "courier" ||
@@ -108,6 +106,7 @@ export default function Etiquetas() {
                   {filtered.map((f: any) => {
                     const pkgs = packagesByFulfillment[f.id] || [];
                     const printed = pkgs.filter((p: any) => p.label_printed).length;
+                    const firstCreated = pkgs.length > 0 ? pkgs[pkgs.length - 1].created_at : null;
                     return (
                       <tr key={f.id} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
                         <td className="p-3 font-mono font-semibold">#{f.branch_request?.request_number || "—"}</td>
@@ -120,9 +119,18 @@ export default function Etiquetas() {
                         </td>
                         <td className="p-3">
                           {pkgs.length > 0 ? (
-                            <span className="text-xs">
-                              {printed}/{pkgs.length} impresas
-                            </span>
+                            <div>
+                              <div className="flex items-center gap-1.5">
+                                <CheckCircle2 className="h-3 w-3 text-accent" />
+                                <span className="text-xs font-medium">{pkgs.length} creada{pkgs.length > 1 ? "s" : ""}</span>
+                                <span className="text-xs text-muted-foreground">({printed} impresa{printed !== 1 ? "s" : ""})</span>
+                              </div>
+                              {firstCreated && (
+                                <span className="text-xs text-muted-foreground">
+                                  {new Date(firstCreated).toLocaleString("es-PY", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                                </span>
+                              )}
+                            </div>
                           ) : (
                             <span className="text-xs text-muted-foreground">Sin crear</span>
                           )}
@@ -130,11 +138,11 @@ export default function Etiquetas() {
                         <td className="p-3">
                           <div className="flex gap-1">
                             <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => setCreateForId(f.id)}>
-                              <Plus className="h-3 w-3" /> Crear
+                              <Plus className="h-3 w-3" /> {pkgs.length > 0 ? "Agregar" : "Crear"}
                             </Button>
                             {pkgs.length > 0 && (
                               <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={() => toast.info("Impresión simulada — se generarían las etiquetas")}>
-                                <Printer className="h-3 w-3" /> Imprimir
+                                <Printer className="h-3 w-3" /> Reimprimir
                               </Button>
                             )}
                           </div>
@@ -149,7 +157,6 @@ export default function Etiquetas() {
         </CardContent>
       </Card>
 
-      {/* Create label dialog */}
       <Dialog open={!!createForId} onOpenChange={(o) => !o && setCreateForId(null)}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
@@ -215,7 +222,6 @@ function LabelForm({ fulfillmentId, onSuccess }: { fulfillmentId: string; onSucc
       const { error } = await supabase.from("shipment_packages").insert(labels);
       if (error) throw error;
 
-      // Update package_count on fulfillment
       await supabase
         .from("fulfillment_orders")
         .update({ package_count: count })

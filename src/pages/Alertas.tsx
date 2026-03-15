@@ -16,6 +16,11 @@ const SEVERITY_COLORS: Record<string, string> = {
   critical: "bg-destructive/10 text-destructive",
 };
 
+const RESOLUTION_LABELS: Record<string, string> = {
+  resolved_manual: "Resuelta manualmente",
+  resolved_auto: "Resuelta automáticamente",
+};
+
 export default function Alertas() {
   const [tab, setTab] = useState<string>("branch_operational");
 
@@ -33,20 +38,27 @@ export default function Alertas() {
     },
   });
 
-  const acknowledge = async (id: string) => {
+  const acknowledge = async (id: string, resolution?: string) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
+      const updatePayload: any = {
+        is_acknowledged: true,
+        acknowledged_by: user.id,
+        acknowledged_at: new Date().toISOString(),
+      };
+      // Store resolution type in supporting_data
+      if (resolution) {
+        const existing = anomalies?.find(a => a.id === id);
+        const currentData = (existing?.supporting_data as any) || {};
+        updatePayload.supporting_data = { ...currentData, resolution_type: resolution };
+      }
       const { error } = await supabase
         .from("ai_anomalies")
-        .update({
-          is_acknowledged: true,
-          acknowledged_by: user.id,
-          acknowledged_at: new Date().toISOString(),
-        })
+        .update(updatePayload)
         .eq("id", id);
       if (error) throw error;
-      toast.success("Alerta reconocida");
+      toast.success(resolution === "resolved_auto" ? "Marcada como resuelta automáticamente" : "Alerta reconocida");
       refetch();
     } catch (err: any) {
       toast.error(err.message);
@@ -95,33 +107,53 @@ export default function Alertas() {
                 </div>
               ) : (
                 <div className="divide-y divide-border/50">
-                  {anomalies.map((a: any) => (
-                    <div key={a.id} className={`p-4 transition-colors ${a.is_acknowledged ? "opacity-60" : "hover:bg-muted/20"}`}>
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${SEVERITY_COLORS[a.severity] || SEVERITY_COLORS.info}`}>
-                              {a.severity}
-                            </span>
-                            {a.branch && <span className="text-xs text-muted-foreground">{a.branch.code}</span>}
-                            <span className="text-xs text-muted-foreground">
-                              {new Date(a.created_at).toLocaleString("es-PY", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
-                            </span>
+                  {anomalies.map((a: any) => {
+                    const resolutionType = (a.supporting_data as any)?.resolution_type;
+                    const isAutoResolved = resolutionType === "resolved_auto";
+
+                    return (
+                      <div key={a.id} className={`p-4 transition-colors ${a.is_acknowledged ? "opacity-60" : "hover:bg-muted/20"}`}>
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1 flex-wrap">
+                              <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${SEVERITY_COLORS[a.severity] || SEVERITY_COLORS.info}`}>
+                                {a.severity}
+                              </span>
+                              {a.branch && <span className="text-xs text-muted-foreground">{(a.branch as any).code}</span>}
+                              <span className="text-xs text-muted-foreground">
+                                {new Date(a.created_at).toLocaleString("es-PY", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                              </span>
+                              {a.is_acknowledged && isAutoResolved && (
+                                <Badge variant="outline" className="text-xs text-accent border-accent/30 gap-1">
+                                  <CheckCircle2 className="h-3 w-3" /> Resuelta auto
+                                </Badge>
+                              )}
+                              {a.is_acknowledged && !isAutoResolved && (
+                                <Badge variant="outline" className="text-xs text-muted-foreground gap-1">
+                                  <CheckCircle2 className="h-3 w-3" /> Reconocida
+                                </Badge>
+                              )}
+                            </div>
+                            <h4 className="font-semibold text-sm text-foreground">{a.title}</h4>
+                            <p className="text-xs text-muted-foreground mt-0.5">{a.description}</p>
+                            {a.is_recurring && (
+                              <Badge variant="outline" className="text-xs mt-1">Recurrente × {a.occurrence_count}</Badge>
+                            )}
                           </div>
-                          <h4 className="font-semibold text-sm text-foreground">{a.title}</h4>
-                          <p className="text-xs text-muted-foreground mt-0.5">{a.description}</p>
-                          {a.is_recurring && (
-                            <Badge variant="outline" className="text-xs mt-1">Recurrente × {a.occurrence_count}</Badge>
+                          {!a.is_acknowledged && (
+                            <div className="flex flex-col gap-1 shrink-0">
+                              <Button variant="outline" size="sm" onClick={() => acknowledge(a.id, "resolved_manual")} className="h-7 text-xs">
+                                Reconocer
+                              </Button>
+                              <Button variant="ghost" size="sm" onClick={() => acknowledge(a.id, "resolved_auto")} className="h-7 text-xs text-muted-foreground">
+                                Resuelta auto
+                              </Button>
+                            </div>
                           )}
                         </div>
-                        {!a.is_acknowledged && (
-                          <Button variant="outline" size="sm" onClick={() => acknowledge(a.id)} className="h-7 text-xs shrink-0">
-                            Reconocer
-                          </Button>
-                        )}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </CardContent>
