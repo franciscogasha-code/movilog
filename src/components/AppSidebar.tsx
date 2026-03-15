@@ -53,6 +53,7 @@ const coreItems = [
 const driverItems = [
   { title: "Panel Chofer", url: "/chofer", icon: User },
   { title: "Etiquetas", url: "/etiquetas", icon: Tag },
+  { title: "Rendición", url: "/rendicion", icon: Receipt },
 ];
 
 const operationItems = [
