@@ -334,12 +334,29 @@ function ConsultationDetail({ consultationId, onOrderCreated }: { consultationId
       <div>
         <h4 className="font-display font-semibold mb-2">Productos consultados</h4>
         <div className="space-y-1">
-          {consultationProducts?.map((cp: any) => (
-            <div key={cp.id} className="flex items-center gap-2 p-2 rounded bg-muted/30 text-sm">
-              <span className="font-medium">{cp.product?.name}</span>
-              <span className="text-muted-foreground text-xs">({cp.product?.sku})</span>
-            </div>
-          ))}
+          {consultationProducts?.map((cp: any) => {
+            const pid = cp.product?.id;
+            const hasOrder = linkedOrders?.some((lr: any) => {
+              // Check if any linked order contains this product (informative only)
+              return lr.branch_request_id;
+            });
+            const derivedInOrder = linkedOrders && linkedOrders.length > 0;
+            return (
+              <div key={cp.id} className="flex items-center gap-2 p-2 rounded bg-muted/30 text-sm">
+                <span className="font-medium">{cp.product?.name}</span>
+                <span className="text-muted-foreground text-xs">({cp.product?.sku})</span>
+                {derivedInOrder ? (
+                  <Badge variant="outline" className="text-xs ml-auto text-accent border-accent/30 gap-1">
+                    <CheckCircle2 className="h-3 w-3" /> Con pedido
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="text-xs ml-auto text-muted-foreground">
+                    <Clock className="h-3 w-3 mr-1" /> Sin pedido
+                  </Badge>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
 
