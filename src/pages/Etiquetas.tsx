@@ -142,9 +142,7 @@ export default function Etiquetas() {
                               <Plus className="h-3 w-3" /> {pkgs.length > 0 ? "Agregar" : "Crear"}
                             </Button>
                             {pkgs.length > 0 && (
-                              <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={() => toast.info("Impresión simulada — se generarían las etiquetas")}>
-                                <Printer className="h-3 w-3" /> Reimprimir
-                              </Button>
+                              <PrintLabelsButton packages={pkgs} />
                             )}
                           </div>
                         </td>
