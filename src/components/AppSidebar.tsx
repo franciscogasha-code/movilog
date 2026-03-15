@@ -9,9 +9,9 @@ import {
   LayoutDashboard,
   FileText,
   Lock,
-  CheckSquare,
   AlertTriangle,
   Search,
+  ClipboardList,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -36,9 +36,9 @@ const mainItems = [
 
 const coreItems = [
   { title: "Consultas", url: "/consultas", icon: Search },
-  { title: "Solicitudes", url: "/solicitudes", icon: ArrowRightLeft },
+  { title: "Pedidos", url: "/solicitudes", icon: ClipboardList },
   { title: "Stock Comprometido", url: "/stock-comprometido", icon: Lock },
-  { title: "Cumplimiento", url: "/cumplimiento", icon: CheckSquare },
+  { title: "Ejecución Física", url: "/cumplimiento", icon: Package },
   { title: "Incidencias", url: "/incidencias", icon: AlertTriangle },
   { title: "Documentos", url: "/documentos", icon: FileText },
 ];

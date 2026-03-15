@@ -2,14 +2,14 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { motion } from "framer-motion";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Search, Filter, ArrowRightLeft, Clock, Eye } from "lucide-react";
-import { REQUEST_STATUS_CONFIG, SHIPPING_METHOD_LABELS, ITEM_PURPOSE_LABELS, REJECTION_REASONS, REQUEST_TYPE_LABELS } from "@/lib/constants";
+import { Plus, Search, Filter, ArrowRightLeft, Eye } from "lucide-react";
+import { REQUEST_STATUS_CONFIG, SHIPPING_METHOD_LABELS, DELIVERY_TARGET_LABELS, REQUEST_TYPE_LABELS } from "@/lib/constants";
 import { StatusBadge } from "@/components/StatusBadge";
 import { SolicitudCreateForm } from "@/components/solicitudes/SolicitudCreateForm";
 import { SolicitudDetail } from "@/components/solicitudes/SolicitudDetail";
@@ -55,18 +55,18 @@ export default function Solicitudes() {
     <motion.div className="space-y-6" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-display text-2xl font-bold text-foreground">Solicitudes entre Sucursales</h1>
-          <p className="text-muted-foreground mt-1">Gestión de pedidos, reposiciones y solicitudes mixtas</p>
+          <h1 className="font-display text-2xl font-bold text-foreground">Pedidos</h1>
+          <p className="text-muted-foreground mt-1">Gestión de pedidos entre sucursales, clientes y reposiciones</p>
         </div>
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
           <DialogTrigger asChild>
             <Button>
-              <Plus className="h-4 w-4 mr-2" /> Nueva Solicitud
+              <Plus className="h-4 w-4 mr-2" /> Nuevo Pedido
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Crear Solicitud</DialogTitle>
+              <DialogTitle>Crear Pedido</DialogTitle>
             </DialogHeader>
             <SolicitudCreateForm onSuccess={() => { setCreateOpen(false); refetch(); }} />
           </DialogContent>
@@ -97,11 +97,11 @@ export default function Solicitudes() {
       <Card className="glass-card">
         <CardContent className="p-0">
           {isLoading ? (
-            <div className="p-8 text-center text-muted-foreground">Cargando solicitudes...</div>
+            <div className="p-8 text-center text-muted-foreground">Cargando pedidos...</div>
           ) : !filtered?.length ? (
             <div className="p-8 text-center text-muted-foreground">
               <ArrowRightLeft className="h-8 w-8 mx-auto mb-2 opacity-50" />
-              <p>No hay solicitudes {statusFilter !== "all" ? `con estado "${REQUEST_STATUS_CONFIG[statusFilter]?.label}"` : ""}</p>
+              <p>No hay pedidos {statusFilter !== "all" ? `con estado "${REQUEST_STATUS_CONFIG[statusFilter]?.label}"` : ""}</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -111,6 +111,7 @@ export default function Solicitudes() {
                     <th className="text-left p-3 font-medium text-muted-foreground">#</th>
                     <th className="text-left p-3 font-medium text-muted-foreground">Tipo</th>
                     <th className="text-left p-3 font-medium text-muted-foreground">Origen → Destino</th>
+                    <th className="text-left p-3 font-medium text-muted-foreground">Entrega</th>
                     <th className="text-left p-3 font-medium text-muted-foreground">Envío</th>
                     <th className="text-left p-3 font-medium text-muted-foreground">Estado</th>
                     <th className="text-left p-3 font-medium text-muted-foreground">Fecha</th>
@@ -131,6 +132,7 @@ export default function Solicitudes() {
                         <span className="text-muted-foreground mx-1">→</span>
                         <span className="font-medium">{r.requesting_branch?.code}</span>
                       </td>
+                      <td className="p-3 text-xs">{DELIVERY_TARGET_LABELS[r.delivery_target] || "A sucursal"}</td>
                       <td className="p-3 text-muted-foreground text-xs">{SHIPPING_METHOD_LABELS[r.shipping_method] || r.shipping_method}</td>
                       <td className="p-3">
                         <StatusBadge status={r.status} config={REQUEST_STATUS_CONFIG} />
@@ -154,7 +156,7 @@ export default function Solicitudes() {
       <Dialog open={!!selectedId} onOpenChange={(open) => !open && setSelectedId(null)}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Detalle de Solicitud</DialogTitle>
+            <DialogTitle>Detalle del Pedido</DialogTitle>
           </DialogHeader>
           {selectedId && <SolicitudDetail requestId={selectedId} onUpdate={refetch} />}
         </DialogContent>

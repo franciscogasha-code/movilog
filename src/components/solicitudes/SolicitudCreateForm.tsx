@@ -4,7 +4,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useBranches, useProducts } from "@/hooks/use-branches";
 import { Plus, Trash2 } from "lucide-react";
@@ -14,6 +13,7 @@ interface FormValues {
   requesting_branch_id: string;
   source_branch_id: string;
   request_type: string;
+  delivery_target: string;
   shipping_method: string;
   client_name?: string;
   client_address?: string;
@@ -32,9 +32,10 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
   const { data: products } = useProducts();
   const [submitting, setSubmitting] = useState(false);
 
-  const { register, handleSubmit, control, watch, setValue, formState: { errors } } = useForm<FormValues>({
+  const { register, handleSubmit, control, watch, formState: { errors } } = useForm<FormValues>({
     defaultValues: {
       request_type: "reposition",
+      delivery_target: "branch",
       shipping_method: "own_fleet",
       items: [{ product_id: "", quantity_requested: 1, item_purpose: "reposition" }],
     },
@@ -42,6 +43,7 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
 
   const { fields, append, remove } = useFieldArray({ control, name: "items" });
   const requestType = watch("request_type");
+  const deliveryTarget = watch("delivery_target");
 
   const onSubmit = async (values: FormValues) => {
     setSubmitting(true);
@@ -55,6 +57,7 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
           requesting_branch_id: values.requesting_branch_id,
           source_branch_id: values.source_branch_id,
           request_type: values.request_type as any,
+          delivery_target: values.delivery_target as any,
           shipping_method: values.shipping_method as any,
           client_name: values.client_name || null,
           client_address: values.client_address || null,
@@ -87,6 +90,8 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
     }
   };
 
+  const showClientFields = deliveryTarget === "client" || requestType === "client" || requestType === "online";
+
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
       <div className="grid grid-cols-2 gap-4">
@@ -106,15 +111,20 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-3 gap-4">
         <div className="space-y-2">
           <Label>Tipo de solicitud</Label>
           <select {...register("request_type")} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
             <option value="reposition">Reposición</option>
             <option value="client">Pedido Cliente</option>
-            <option value="mixed">Mixto</option>
             <option value="online">Pedido Online</option>
-            <option value="redistribution">Redistribución</option>
+          </select>
+        </div>
+        <div className="space-y-2">
+          <Label>Destino de entrega</Label>
+          <select {...register("delivery_target")} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+            <option value="branch">A sucursal</option>
+            <option value="client">A cliente</option>
           </select>
         </div>
         <div className="space-y-2">
@@ -122,14 +132,12 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
           <select {...register("shipping_method")} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
             <option value="own_fleet">Flota propia</option>
             <option value="courier">Encomienda</option>
-            <option value="cut">Corte</option>
             <option value="pickup">Retiro en sucursal</option>
-            <option value="direct_client">Envío directo al cliente</option>
           </select>
         </div>
       </div>
 
-      {(requestType === "client" || requestType === "mixed") && (
+      {showClientFields && (
         <div className="grid grid-cols-2 gap-4 p-3 rounded-lg bg-muted/50 border border-border/50">
           <div className="space-y-2">
             <Label>Cliente (nombre)</Label>
@@ -152,7 +160,7 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
         </div>
         {fields.map((field, idx) => (
           <div key={field.id} className="grid grid-cols-12 gap-2 items-end p-3 rounded-lg bg-muted/30 border border-border/30">
-            <div className="col-span-4 space-y-1">
+            <div className="col-span-5 space-y-1">
               <Label className="text-xs">Producto</Label>
               <select {...register(`items.${idx}.product_id`, { required: true })} className="flex h-9 w-full rounded-md border border-input bg-background px-2 py-1 text-sm">
                 <option value="">Seleccionar...</option>
@@ -170,14 +178,7 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
                 <option value="client">Cliente</option>
               </select>
             </div>
-            <div className="col-span-2 space-y-1">
-              {watch(`items.${idx}.item_purpose`) === "client" && (
-                <>
-                  <Label className="text-xs">Cliente</Label>
-                  <Input {...register(`items.${idx}.client_name`)} placeholder="Nombre" className="h-9" />
-                </>
-              )}
-            </div>
+            <div className="col-span-1" />
             <div className="col-span-1">
               {fields.length > 1 && (
                 <Button type="button" variant="ghost" size="sm" onClick={() => remove(idx)}>

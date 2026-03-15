@@ -19,6 +19,7 @@ export type Database = {
           acknowledged_at: string | null
           acknowledged_by: string | null
           affected_entities: Json | null
+          alert_level: Database["public"]["Enums"]["alert_level"]
           anomaly_type: string
           area: Database["public"]["Enums"]["kpi_area"]
           branch_id: string | null
@@ -37,6 +38,7 @@ export type Database = {
           acknowledged_at?: string | null
           acknowledged_by?: string | null
           affected_entities?: Json | null
+          alert_level?: Database["public"]["Enums"]["alert_level"]
           anomaly_type: string
           area: Database["public"]["Enums"]["kpi_area"]
           branch_id?: string | null
@@ -55,6 +57,7 @@ export type Database = {
           acknowledged_at?: string | null
           acknowledged_by?: string | null
           affected_entities?: Json | null
+          alert_level?: Database["public"]["Enums"]["alert_level"]
           anomaly_type?: string
           area?: Database["public"]["Enums"]["kpi_area"]
           branch_id?: string | null
@@ -152,7 +155,7 @@ export type Database = {
           created_at: string
           created_by: string
           id: string
-          product_id: string
+          product_id: string | null
           requesting_branch_id: string
           status: Database["public"]["Enums"]["consultation_status"]
           updated_at: string
@@ -163,7 +166,7 @@ export type Database = {
           created_at?: string
           created_by: string
           id?: string
-          product_id: string
+          product_id?: string | null
           requesting_branch_id: string
           status?: Database["public"]["Enums"]["consultation_status"]
           updated_at?: string
@@ -174,7 +177,7 @@ export type Database = {
           created_at?: string
           created_by?: string
           id?: string
-          product_id?: string
+          product_id?: string | null
           requesting_branch_id?: string
           status?: Database["public"]["Enums"]["consultation_status"]
           updated_at?: string
@@ -291,6 +294,7 @@ export type Database = {
           created_by: string
           current_custody_holder_id: string | null
           current_location_branch_id: string | null
+          delivery_target: Database["public"]["Enums"]["delivery_target"]
           expected_next_event: string | null
           expected_next_event_deadline: string | null
           id: string
@@ -331,6 +335,7 @@ export type Database = {
           created_by: string
           current_custody_holder_id?: string | null
           current_location_branch_id?: string | null
+          delivery_target?: Database["public"]["Enums"]["delivery_target"]
           expected_next_event?: string | null
           expected_next_event_deadline?: string | null
           id?: string
@@ -371,6 +376,7 @@ export type Database = {
           created_by?: string
           current_custody_holder_id?: string | null
           current_location_branch_id?: string | null
+          delivery_target?: Database["public"]["Enums"]["delivery_target"]
           expected_next_event?: string | null
           expected_next_event_deadline?: string | null
           id?: string
@@ -580,6 +586,45 @@ export type Database = {
             columns: ["consultation_id"]
             isOneToOne: false
             referencedRelation: "availability_consultations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      consultation_products: {
+        Row: {
+          consultation_id: string
+          created_at: string
+          id: string
+          notes: string | null
+          product_id: string
+        }
+        Insert: {
+          consultation_id: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          product_id: string
+        }
+        Update: {
+          consultation_id?: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          product_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consultation_products_consultation_id_fkey"
+            columns: ["consultation_id"]
+            isOneToOne: false
+            referencedRelation: "availability_consultations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consultation_products_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
             referencedColumns: ["id"]
           },
         ]
@@ -1310,8 +1355,12 @@ export type Database = {
           created_at: string
           current_custody_holder_id: string | null
           current_location_branch_id: string | null
+          damage_cause: Database["public"]["Enums"]["damage_cause"] | null
           damage_origin: Database["public"]["Enums"]["damage_origin"] | null
           description: string | null
+          detection_context:
+            | Database["public"]["Enums"]["detection_context"]
+            | null
           fulfillment_order_id: string | null
           id: string
           incident_origin: string | null
@@ -1340,8 +1389,12 @@ export type Database = {
           created_at?: string
           current_custody_holder_id?: string | null
           current_location_branch_id?: string | null
+          damage_cause?: Database["public"]["Enums"]["damage_cause"] | null
           damage_origin?: Database["public"]["Enums"]["damage_origin"] | null
           description?: string | null
+          detection_context?:
+            | Database["public"]["Enums"]["detection_context"]
+            | null
           fulfillment_order_id?: string | null
           id?: string
           incident_origin?: string | null
@@ -1370,8 +1423,12 @@ export type Database = {
           created_at?: string
           current_custody_holder_id?: string | null
           current_location_branch_id?: string | null
+          damage_cause?: Database["public"]["Enums"]["damage_cause"] | null
           damage_origin?: Database["public"]["Enums"]["damage_origin"] | null
           description?: string | null
+          detection_context?:
+            | Database["public"]["Enums"]["detection_context"]
+            | null
           fulfillment_order_id?: string | null
           id?: string
           incident_origin?: string | null
@@ -2251,6 +2308,10 @@ export type Database = {
       }
     }
     Enums: {
+      alert_level:
+        | "branch_operational"
+        | "escalable"
+        | "logistics_admin_decision"
       anomaly_severity: "info" | "warning" | "critical"
       app_role:
         | "admin"
@@ -2262,12 +2323,22 @@ export type Database = {
         | "branch_operator"
         | "viewer"
       consultation_status: "open" | "responded" | "converted" | "expired"
+      damage_cause:
+        | "collaborator"
+        | "customer"
+        | "sealed_package"
+        | "product_defect"
       damage_origin:
         | "transfer_reception"
         | "collaborator"
         | "customer"
         | "sealed_package"
         | "product_defect"
+      delivery_target: "branch" | "client"
+      detection_context:
+        | "transfer_reception"
+        | "supplier_reception"
+        | "internal"
       directed_inventory_status:
         | "planned"
         | "in_progress"
@@ -2527,6 +2598,11 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      alert_level: [
+        "branch_operational",
+        "escalable",
+        "logistics_admin_decision",
+      ],
       anomaly_severity: ["info", "warning", "critical"],
       app_role: [
         "admin",
@@ -2539,12 +2615,24 @@ export const Constants = {
         "viewer",
       ],
       consultation_status: ["open", "responded", "converted", "expired"],
+      damage_cause: [
+        "collaborator",
+        "customer",
+        "sealed_package",
+        "product_defect",
+      ],
       damage_origin: [
         "transfer_reception",
         "collaborator",
         "customer",
         "sealed_package",
         "product_defect",
+      ],
+      delivery_target: ["branch", "client"],
+      detection_context: [
+        "transfer_reception",
+        "supplier_reception",
+        "internal",
       ],
       directed_inventory_status: [
         "planned",

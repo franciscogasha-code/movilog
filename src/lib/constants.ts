@@ -63,12 +63,17 @@ export const ITEM_PURPOSE_LABELS: Record<string, string> = {
   reposition: "Reposición",
 };
 
+// Delivery target: where the goods go
+export const DELIVERY_TARGET_LABELS: Record<string, string> = {
+  branch: "A sucursal",
+  client: "A cliente",
+};
+
+// Shipping method: how the goods move
 export const SHIPPING_METHOD_LABELS: Record<string, string> = {
   own_fleet: "Flota propia",
   courier: "Encomienda",
-  cut: "Corte",
   pickup: "Retiro en sucursal",
-  direct_client: "Envío directo al cliente",
 };
 
 export const REQUEST_TYPE_LABELS: Record<string, string> = {
@@ -91,11 +96,16 @@ export const STOCK_DISPOSITION_LABELS: Record<string, string> = {
   other: "Otro",
 };
 
-export const DAMAGE_ORIGIN_LABELS: Record<string, string> = {
+export const DETECTION_CONTEXT_LABELS: Record<string, string> = {
   transfer_reception: "Recepción de transferencia",
+  supplier_reception: "Recepción de proveedor",
+  internal: "Interno de sucursal",
+};
+
+export const DAMAGE_CAUSE_LABELS: Record<string, string> = {
   collaborator: "Colaborador",
   customer: "Cliente",
-  sealed_package: "Paquete sellado (CJ/PQ)",
+  sealed_package: "CJ/PQ (paquete sellado)",
   product_defect: "Defecto de producto",
 };
 
@@ -109,4 +119,10 @@ export const CONSULTATION_STATUS_LABELS: Record<string, string> = {
   responded: "Respondida",
   converted: "Convertida a pedido",
   expired: "Expirada",
+};
+
+export const ALERT_LEVEL_LABELS: Record<string, string> = {
+  branch_operational: "Operativa sucursal",
+  escalable: "Escalable",
+  logistics_admin_decision: "Decisión logística/admin",
 };
