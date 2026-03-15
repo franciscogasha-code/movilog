@@ -21,6 +21,8 @@ import Documentos from "./pages/Documentos";
 import Chofer from "./pages/Chofer";
 import Etiquetas from "./pages/Etiquetas";
 import Alertas from "./pages/Alertas";
+import Recepcion from "./pages/Recepcion";
+import Rendicion from "./pages/Rendicion";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
