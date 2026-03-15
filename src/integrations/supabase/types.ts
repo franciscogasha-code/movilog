@@ -151,7 +151,6 @@ export type Database = {
       availability_consultations: {
         Row: {
           auto_close_at: string | null
-          converted_to_request_id: string | null
           created_at: string
           created_by: string
           id: string
@@ -162,7 +161,6 @@ export type Database = {
         }
         Insert: {
           auto_close_at?: string | null
-          converted_to_request_id?: string | null
           created_at?: string
           created_by: string
           id?: string
@@ -173,7 +171,6 @@ export type Database = {
         }
         Update: {
           auto_close_at?: string | null
-          converted_to_request_id?: string | null
           created_at?: string
           created_by?: string
           id?: string
@@ -183,13 +180,6 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "availability_consultations_converted_to_request_id_fkey"
-            columns: ["converted_to_request_id"]
-            isOneToOne: false
-            referencedRelation: "branch_requests"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "availability_consultations_product_id_fkey"
             columns: ["product_id"]
@@ -625,6 +615,42 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      consultation_requests: {
+        Row: {
+          branch_request_id: string
+          consultation_id: string
+          created_at: string
+          id: string
+        }
+        Insert: {
+          branch_request_id: string
+          consultation_id: string
+          created_at?: string
+          id?: string
+        }
+        Update: {
+          branch_request_id?: string
+          consultation_id?: string
+          created_at?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consultation_requests_branch_request_id_fkey"
+            columns: ["branch_request_id"]
+            isOneToOne: false
+            referencedRelation: "branch_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consultation_requests_consultation_id_fkey"
+            columns: ["consultation_id"]
+            isOneToOne: false
+            referencedRelation: "availability_consultations"
             referencedColumns: ["id"]
           },
         ]
