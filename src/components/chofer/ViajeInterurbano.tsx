@@ -7,8 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Play, Square, MapPin, Truck, Plus, CheckCircle2, Clock } from "lucide-react";
+import { Play, Square, MapPin, Truck, Plus, CheckCircle2, Clock, AlertTriangle } from "lucide-react";
 import { CorteDetalle } from "./CorteDetalle";
+import { AgregarTareaViaje } from "./AgregarTareaViaje";
 import { toast } from "sonner";
 
 interface Props {
@@ -16,9 +17,16 @@ interface Props {
   activeTrip: any | undefined;
 }
 
+const TASK_TYPE_LABELS: Record<string, string> = {
+  pickup_branch: "Retiro sucursal",
+  delivery_client: "Entrega cliente",
+  pickup_supplier: "Retiro proveedor",
+};
+
 export function ViajeInterurbano({ trips, activeTrip }: Props) {
   const queryClient = useQueryClient();
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [addTaskOpen, setAddTaskOpen] = useState(false);
   const [starting, setStarting] = useState(false);
   const [startMileage, setStartMileage] = useState("");
 
@@ -55,13 +63,9 @@ export function ViajeInterurbano({ trips, activeTrip }: Props) {
       if (error) throw error;
 
       await supabase.from("operational_events").insert({
-        reference_type: "trip",
-        reference_id: trip.id,
-        event_type: "trip_started",
-        category: "logistics" as any,
-        event_description: "Inicio de viaje interurbano",
-        new_status: "in_progress",
-        triggered_by: user.id,
+        reference_type: "trip", reference_id: trip.id, event_type: "trip_started",
+        category: "logistics" as any, event_description: "Inicio de viaje interurbano",
+        new_status: "in_progress", triggered_by: user.id,
         metadata: { start_mileage: parseInt(startMileage) },
       });
 
@@ -86,24 +90,14 @@ export function ViajeInterurbano({ trips, activeTrip }: Props) {
 
       const { error } = await supabase
         .from("trips")
-        .update({
-          status: "completed" as any,
-          actual_arrival: new Date().toISOString(),
-          end_mileage: parseInt(endMileage),
-        })
+        .update({ status: "completed" as any, actual_arrival: new Date().toISOString(), end_mileage: parseInt(endMileage) })
         .eq("id", activeTrip.id);
-
       if (error) throw error;
 
       await supabase.from("operational_events").insert({
-        reference_type: "trip",
-        reference_id: activeTrip.id,
-        event_type: "trip_completed",
-        category: "logistics" as any,
-        event_description: "Fin de viaje interurbano",
-        previous_status: "in_progress",
-        new_status: "completed",
-        triggered_by: user.id,
+        reference_type: "trip", reference_id: activeTrip.id, event_type: "trip_completed",
+        category: "logistics" as any, event_description: "Fin de viaje interurbano",
+        previous_status: "in_progress", new_status: "completed", triggered_by: user.id,
         metadata: { end_mileage: parseInt(endMileage) },
       });
 
@@ -113,6 +107,8 @@ export function ViajeInterurbano({ trips, activeTrip }: Props) {
       toast.error(err.message);
     }
   };
+
+  const plannedStops = (activeTrip?.planned_stops as any[]) || [];
 
   return (
     <div className="space-y-4">
@@ -135,7 +131,7 @@ export function ViajeInterurbano({ trips, activeTrip }: Props) {
         </Card>
       ) : (
         <Card className="glass-card border-accent/30">
-          <CardContent className="p-4">
+          <CardContent className="p-4 space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-2 h-2 rounded-full bg-accent animate-pulse" />
@@ -147,6 +143,9 @@ export function ViajeInterurbano({ trips, activeTrip }: Props) {
                 </div>
               </div>
               <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => setAddTaskOpen(true)} className="gap-1">
+                  <Plus className="h-3.5 w-3.5" /> Agregar tarea
+                </Button>
                 <Button variant="outline" size="sm" onClick={() => setDetailId(activeTrip.id)} className="gap-1">
                   <MapPin className="h-3.5 w-3.5" /> Detalle
                 </Button>
@@ -155,6 +154,23 @@ export function ViajeInterurbano({ trips, activeTrip }: Props) {
                 </Button>
               </div>
             </div>
+
+            {/* In-transit tasks */}
+            {plannedStops.length > 0 && (
+              <div className="space-y-1.5 mt-2">
+                <h5 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Tareas del viaje</h5>
+                {plannedStops.map((stop: any, idx: number) => (
+                  <div key={stop.id || idx} className="flex items-center gap-2 p-2 rounded bg-muted/30 text-sm">
+                    <span className={`w-2 h-2 rounded-full ${stop.completed ? "bg-accent" : "bg-muted-foreground/30"}`} />
+                    <span className="font-medium">{TASK_TYPE_LABELS[stop.type] || stop.type}</span>
+                    {stop.client_name && <span className="text-muted-foreground">— {stop.client_name}</span>}
+                    {stop.added_in_transit && (
+                      <Badge variant="outline" className="text-xs ml-auto">En tránsito</Badge>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
@@ -205,6 +221,18 @@ export function ViajeInterurbano({ trips, activeTrip }: Props) {
           {detailId && <CorteDetalle tripId={detailId} />}
         </DialogContent>
       </Dialog>
+
+      {/* Add task dialog */}
+      {activeTrip && (
+        <Dialog open={addTaskOpen} onOpenChange={setAddTaskOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Agregar tarea al viaje #{activeTrip.trip_number}</DialogTitle>
+            </DialogHeader>
+            <AgregarTareaViaje tripId={activeTrip.id} onSuccess={() => setAddTaskOpen(false)} />
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
