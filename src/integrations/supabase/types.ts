@@ -196,6 +196,63 @@ export type Database = {
           },
         ]
       }
+      bank_deposits: {
+        Row: {
+          amount: number
+          bank_name: string | null
+          created_at: string
+          deposit_date: string
+          driver_id: string
+          id: string
+          notes: string | null
+          receipt_url: string | null
+          trip_id: string | null
+          verified_at: string | null
+          verified_by: string | null
+        }
+        Insert: {
+          amount: number
+          bank_name?: string | null
+          created_at?: string
+          deposit_date?: string
+          driver_id: string
+          id?: string
+          notes?: string | null
+          receipt_url?: string | null
+          trip_id?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Update: {
+          amount?: number
+          bank_name?: string | null
+          created_at?: string
+          deposit_date?: string
+          driver_id?: string
+          id?: string
+          notes?: string | null
+          receipt_url?: string | null
+          trip_id?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bank_deposits_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
+            referencedRelation: "drivers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_deposits_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       branch_request_items: {
         Row: {
           client_address: string | null
@@ -831,6 +888,70 @@ export type Database = {
           },
         ]
       }
+      driver_collections: {
+        Row: {
+          amount: number
+          check_number: string | null
+          client_name: string | null
+          created_at: string
+          driver_id: string
+          fulfillment_order_id: string | null
+          id: string
+          notes: string | null
+          payment_method: string
+          transfer_reference: string | null
+          trip_id: string
+        }
+        Insert: {
+          amount: number
+          check_number?: string | null
+          client_name?: string | null
+          created_at?: string
+          driver_id: string
+          fulfillment_order_id?: string | null
+          id?: string
+          notes?: string | null
+          payment_method?: string
+          transfer_reference?: string | null
+          trip_id: string
+        }
+        Update: {
+          amount?: number
+          check_number?: string | null
+          client_name?: string | null
+          created_at?: string
+          driver_id?: string
+          fulfillment_order_id?: string | null
+          id?: string
+          notes?: string | null
+          payment_method?: string
+          transfer_reference?: string | null
+          trip_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "driver_collections_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
+            referencedRelation: "drivers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "driver_collections_fulfillment_order_id_fkey"
+            columns: ["fulfillment_order_id"]
+            isOneToOne: false
+            referencedRelation: "fulfillment_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "driver_collections_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       driver_settlements: {
         Row: {
           created_at: string
@@ -1087,6 +1208,7 @@ export type Database = {
       }
       fulfillment_orders: {
         Row: {
+          bims_confirmation_deadline: string | null
           bims_invoice_number: string | null
           bims_transfer_number: string | null
           bims_transfer_verified: boolean | null
@@ -1105,7 +1227,9 @@ export type Database = {
           notes: string | null
           package_count: number | null
           received_at: string | null
+          received_at_branch: string | null
           received_by: string | null
+          received_by_branch: string | null
           shipping_method: Database["public"]["Enums"]["shipping_method"]
           source_branch_id: string
           status: Database["public"]["Enums"]["fulfillment_status"]
@@ -1113,6 +1237,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          bims_confirmation_deadline?: string | null
           bims_invoice_number?: string | null
           bims_transfer_number?: string | null
           bims_transfer_verified?: boolean | null
@@ -1131,7 +1256,9 @@ export type Database = {
           notes?: string | null
           package_count?: number | null
           received_at?: string | null
+          received_at_branch?: string | null
           received_by?: string | null
+          received_by_branch?: string | null
           shipping_method: Database["public"]["Enums"]["shipping_method"]
           source_branch_id: string
           status?: Database["public"]["Enums"]["fulfillment_status"]
@@ -1139,6 +1266,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          bims_confirmation_deadline?: string | null
           bims_invoice_number?: string | null
           bims_transfer_number?: string | null
           bims_transfer_verified?: boolean | null
@@ -1157,7 +1285,9 @@ export type Database = {
           notes?: string | null
           package_count?: number | null
           received_at?: string | null
+          received_at_branch?: string | null
           received_by?: string | null
+          received_by_branch?: string | null
           shipping_method?: Database["public"]["Enums"]["shipping_method"]
           source_branch_id?: string
           status?: Database["public"]["Enums"]["fulfillment_status"]
