@@ -1,14 +1,24 @@
+import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CheckCircle2, XCircle, Package, AlertTriangle } from "lucide-react";
-import { SHIPPING_METHOD_LABELS } from "@/lib/constants";
 import { toast } from "sonner";
+
+const REJECTION_REASONS = [
+  { value: "no_space", label: "No entra en el móvil" },
+  { value: "priority", label: "Prioricé otra carga" },
+  { value: "not_ready", label: "No estaba realmente listo" },
+  { value: "missing_bims", label: "Falta documento BIMS" },
+  { value: "other", label: "Otro" },
+];
 
 export function CorteDetalle({ tripId }: { tripId: string }) {
   const queryClient = useQueryClient();
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
 
   const { data: trip } = useQuery({
     queryKey: ["trip-detail", tripId],
@@ -23,18 +33,12 @@ export function CorteDetalle({ tripId }: { tripId: string }) {
     },
   });
 
-  // Fulfillments assigned to this trip
   const { data: fulfillments } = useQuery({
     queryKey: ["trip-fulfillments", tripId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("fulfillment_orders")
-        .select(`
-          *,
-          source_branch:branches!fulfillment_orders_source_branch_id_fkey(name, code),
-          destination_branch:branches!fulfillment_orders_destination_branch_id_fkey(name, code),
-          branch_request:branch_requests(request_number, request_type, delivery_target)
-        `)
+        .select(`*, source_branch:branches!fulfillment_orders_source_branch_id_fkey(name, code), destination_branch:branches!fulfillment_orders_destination_branch_id_fkey(name, code), branch_request:branch_requests(request_number, request_type, delivery_target)`)
         .eq("trip_id", tripId);
       if (error) throw error;
       return data;
@@ -42,19 +46,13 @@ export function CorteDetalle({ tripId }: { tripId: string }) {
     enabled: !!tripId,
   });
 
-  // Fulfillments ready for pickup at the branch (not yet assigned to a trip)
   const { data: availableFulfillments } = useQuery({
     queryKey: ["available-fulfillments", trip?.origin_branch_id],
     queryFn: async () => {
       if (!trip?.origin_branch_id) return [];
       const { data, error } = await supabase
         .from("fulfillment_orders")
-        .select(`
-          *,
-          source_branch:branches!fulfillment_orders_source_branch_id_fkey(name, code),
-          destination_branch:branches!fulfillment_orders_destination_branch_id_fkey(name, code),
-          branch_request:branch_requests(request_number, request_type, delivery_target)
-        `)
+        .select(`*, source_branch:branches!fulfillment_orders_source_branch_id_fkey(name, code), destination_branch:branches!fulfillment_orders_destination_branch_id_fkey(name, code), branch_request:branch_requests(request_number, request_type, delivery_target)`)
         .eq("source_branch_id", trip.origin_branch_id)
         .in("status", ["waiting_for_cut", "waiting_for_courier"])
         .is("trip_id", null);
@@ -69,79 +67,59 @@ export function CorteDetalle({ tripId }: { tripId: string }) {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Validate BIMS
-      const { data: validation } = await supabase.rpc("fn_validate_driver_pickup", {
-        p_fulfillment_id: fulfillmentId,
-      });
-
+      const { data: validation } = await supabase.rpc("fn_validate_driver_pickup", { p_fulfillment_id: fulfillmentId });
       const result = validation as any;
-      if (!result?.allowed) {
-        toast.error(result?.reason || "No se puede retirar esta carga");
-        return;
-      }
+      if (!result?.allowed) { toast.error(result?.reason || "No se puede retirar"); return; }
 
-      // Update fulfillment
       const { error } = await supabase
         .from("fulfillment_orders")
-        .update({
-          status: "dispatched" as any,
-          trip_id: tripId,
-          dispatched_at: new Date().toISOString(),
-          dispatched_by: user.id,
-          current_custody_holder_id: user.id,
-        })
+        .update({ status: "dispatched" as any, trip_id: tripId, dispatched_at: new Date().toISOString(), dispatched_by: user.id, current_custody_holder_id: user.id })
         .eq("id", fulfillmentId);
-
       if (error) throw error;
 
-      // Log event
       await supabase.from("operational_events").insert({
-        reference_type: "fulfillment_order",
-        reference_id: fulfillmentId,
-        event_type: "driver_pickup",
-        category: "logistics" as any,
-        event_description: "Chofer confirmó retiro",
-        new_status: "dispatched",
-        new_custody_holder_id: user.id,
-        triggered_by: user.id,
+        reference_type: "fulfillment_order", reference_id: fulfillmentId, event_type: "driver_pickup",
+        category: "logistics" as any, event_description: "Chofer confirmó retiro", new_status: "dispatched",
+        new_custody_holder_id: user.id, triggered_by: user.id,
         metadata: { trip_id: tripId, out_of_cutoff: !trip || trip.status !== "in_progress" },
       });
 
       toast.success("Retiro confirmado");
       queryClient.invalidateQueries({ queryKey: ["trip-fulfillments"] });
       queryClient.invalidateQueries({ queryKey: ["available-fulfillments"] });
-    } catch (err: any) {
-      toast.error(err.message);
-    }
+    } catch (err: any) { toast.error(err.message); }
   };
 
-  const rejectPickup = async (fulfillmentId: string) => {
+  const rejectPickup = async (fulfillmentId: string, reason: string) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
       await supabase.from("operational_events").insert({
-        reference_type: "fulfillment_order",
-        reference_id: fulfillmentId,
-        event_type: "driver_pickup_rejected",
-        category: "logistics" as any,
-        event_description: "Chofer rechazó carga",
-        triggered_by: user.id,
-        metadata: { trip_id: tripId, reason: "rejected_by_driver" },
+        reference_type: "fulfillment_order", reference_id: fulfillmentId,
+        event_type: "driver_pickup_rejected", category: "logistics" as any,
+        event_description: `Chofer rechazó retiro: ${REJECTION_REASONS.find(r => r.value === reason)?.label || reason}`,
+        triggered_by: user.id, metadata: { trip_id: tripId, rejection_reason: reason },
       });
 
-      toast.info("Carga rechazada — se notificará a la sucursal");
+      await supabase.from("ai_anomalies").insert({
+        anomaly_type: "driver_pickup_rejected", area: "logistics" as any, severity: "warning" as any,
+        alert_level: "branch_operational" as any,
+        title: "Chofer rechazó retiro de carga",
+        description: `Motivo: ${REJECTION_REASONS.find(r => r.value === reason)?.label || reason}`,
+        affected_entities: [{ type: "fulfillment_order", id: fulfillmentId }],
+      });
+
+      toast.info("Carga rechazada — queda disponible para próximo corte");
+      setRejectingId(null);
       queryClient.invalidateQueries({ queryKey: ["available-fulfillments"] });
-    } catch (err: any) {
-      toast.error(err.message);
-    }
+    } catch (err: any) { toast.error(err.message); }
   };
 
   if (!trip) return <div className="p-4 text-muted-foreground">Cargando...</div>;
 
   return (
     <div className="space-y-6">
-      {/* Trip info */}
       <div className="flex items-center justify-between text-sm">
         <div>
           <span className="text-muted-foreground">Sucursal: </span>
@@ -150,9 +128,7 @@ export function CorteDetalle({ tripId }: { tripId: string }) {
         <div>
           <span className="text-muted-foreground">Inicio: </span>
           <span className="font-semibold">
-            {trip.cutoff_started_at
-              ? new Date(trip.cutoff_started_at).toLocaleTimeString("es-PY", { hour: "2-digit", minute: "2-digit" })
-              : "—"}
+            {trip.cutoff_started_at ? new Date(trip.cutoff_started_at).toLocaleTimeString("es-PY", { hour: "2-digit", minute: "2-digit" }) : "—"}
           </span>
         </div>
         <Badge variant={trip.status === "in_progress" ? "default" : "outline"}>
@@ -194,9 +170,7 @@ export function CorteDetalle({ tripId }: { tripId: string }) {
             Disponibles para retiro ({availableFulfillments?.length || 0})
           </h4>
           {!availableFulfillments?.length ? (
-            <div className="p-4 text-center text-muted-foreground text-sm">
-              No hay cargas preparadas esperando retiro
-            </div>
+            <div className="p-4 text-center text-muted-foreground text-sm">No hay cargas esperando retiro</div>
           ) : (
             <div className="space-y-2">
               {availableFulfillments.map((f: any) => (
@@ -218,7 +192,7 @@ export function CorteDetalle({ tripId }: { tripId: string }) {
                     {(f.branch_request?.delivery_target === "client" || f.shipping_method === "courier") && f.package_count > 0 && (
                       <Badge variant="secondary" className="text-xs">{f.package_count} bultos</Badge>
                     )}
-                    <Button size="sm" variant="outline" onClick={() => rejectPickup(f.id)} className="h-7 text-xs text-destructive">
+                    <Button size="sm" variant="outline" onClick={() => setRejectingId(f.id)} className="h-7 text-xs text-destructive">
                       <XCircle className="h-3 w-3 mr-1" /> Rechazar
                     </Button>
                     <Button size="sm" onClick={() => confirmPickup(f.id)} className="h-7 text-xs">
@@ -231,6 +205,23 @@ export function CorteDetalle({ tripId }: { tripId: string }) {
           )}
         </div>
       )}
+
+      {/* Rejection dialog */}
+      <Dialog open={!!rejectingId} onOpenChange={(o) => !o && setRejectingId(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Motivo del rechazo</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            {REJECTION_REASONS.map((r) => (
+              <Button key={r.value} variant="outline" className="w-full justify-start text-sm h-auto py-3"
+                onClick={() => rejectingId && rejectPickup(rejectingId, r.value)}>
+                {r.label}
+              </Button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

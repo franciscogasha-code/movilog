@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Search, MessageCircle, Clock, CheckCircle2 } from "lucide-react";
+import { Plus, Search, MessageCircle, Clock, CheckCircle2, ShoppingCart } from "lucide-react";
 import { useBranches, useProducts } from "@/hooks/use-branches";
 import { StatusBadge } from "@/components/StatusBadge";
 import { toast } from "sonner";
@@ -30,21 +30,15 @@ export default function Consultas() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("availability_consultations")
-        .select(`
-          *,
-          requesting_branch:branches!availability_consultations_requesting_branch_id_fkey(name, code)
-        `)
+        .select(`*, requesting_branch:branches!availability_consultations_requesting_branch_id_fkey(name, code)`)
         .order("created_at", { ascending: false })
         .limit(50);
       if (error) throw error;
 
-      // Fetch products for each consultation
       if (data?.length) {
         const ids = data.map(c => c.id);
-        const { data: cpData } = await supabase
-          .from("consultation_products")
-          .select("consultation_id, product:products(name, sku)")
-          .in("consultation_id", ids);
+        const { data: cpData } = await supabase.from("consultation_products").select("consultation_id, product:products(name, sku)").in("consultation_id", ids);
+        const { data: crData } = await supabase.from("consultation_requests").select("consultation_id, branch_request_id").in("consultation_id", ids);
 
         const productsByConsultation: Record<string, any[]> = {};
         cpData?.forEach((cp: any) => {
@@ -52,7 +46,16 @@ export default function Consultas() {
           productsByConsultation[cp.consultation_id].push(cp.product);
         });
 
-        return data.map(c => ({ ...c, consultation_products: productsByConsultation[c.id] || [] }));
+        const ordersByConsultation: Record<string, number> = {};
+        crData?.forEach((cr: any) => {
+          ordersByConsultation[cr.consultation_id] = (ordersByConsultation[cr.consultation_id] || 0) + 1;
+        });
+
+        return data.map(c => ({
+          ...c,
+          consultation_products: productsByConsultation[c.id] || [],
+          orders_count: ordersByConsultation[c.id] || 0,
+        }));
       }
       return data;
     },
@@ -95,6 +98,7 @@ export default function Consultas() {
                     <th className="text-left p-3 font-medium text-muted-foreground">Productos</th>
                     <th className="text-left p-3 font-medium text-muted-foreground">Sucursal</th>
                     <th className="text-left p-3 font-medium text-muted-foreground">Estado</th>
+                    <th className="text-left p-3 font-medium text-muted-foreground">Pedidos</th>
                     <th className="text-left p-3 font-medium text-muted-foreground">Cierre auto</th>
                     <th className="text-left p-3 font-medium text-muted-foreground"></th>
                   </tr>
@@ -110,6 +114,12 @@ export default function Consultas() {
                       </td>
                       <td className="p-3">{c.requesting_branch?.code}</td>
                       <td className="p-3"><StatusBadge status={c.status} config={STATUS_CONFIG} /></td>
+                      <td className="p-3">
+                        {c.orders_count > 0
+                          ? <Badge variant="secondary" className="text-xs">{c.orders_count} pedido(s)</Badge>
+                          : <span className="text-muted-foreground text-xs">—</span>
+                        }
+                      </td>
                       <td className="p-3 text-xs text-muted-foreground">
                         {c.auto_close_at ? new Date(c.auto_close_at).toLocaleString("es-PY", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—"}
                       </td>
@@ -125,13 +135,12 @@ export default function Consultas() {
         </CardContent>
       </Card>
 
-      {/* Detail dialog */}
       <Dialog open={!!selectedId} onOpenChange={(open) => !open && setSelectedId(null)}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Detalle de Consulta</DialogTitle>
           </DialogHeader>
-          {selectedId && <ConsultationDetail consultationId={selectedId} />}
+          {selectedId && <ConsultationDetail consultationId={selectedId} onOrderCreated={() => queryClient.invalidateQueries({ queryKey: ["availability-consultations"] })} />}
         </DialogContent>
       </Dialog>
     </motion.div>
@@ -160,16 +169,13 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
       const { data: consultation, error } = await supabase
         .from("availability_consultations")
         .insert({ requesting_branch_id: branchId, created_by: user.id })
-        .select()
-        .single();
+        .select().single();
       if (error) throw error;
 
-      // Insert consultation products
       const cpInsert = validProducts.map(pid => ({ consultation_id: consultation.id, product_id: pid }));
       const { error: cpErr } = await supabase.from("consultation_products").insert(cpInsert);
       if (cpErr) throw cpErr;
 
-      // Insert targets
       const targets = targetBranches.map(bid => ({ consultation_id: consultation.id, branch_id: bid }));
       const { error: tErr } = await supabase.from("consultation_targets").insert(targets);
       if (tErr) throw tErr;
@@ -183,17 +189,10 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
     }
   };
 
-  const toggleBranch = (id: string) => {
-    setTargetBranches(prev => prev.includes(id) ? prev.filter(b => b !== id) : [...prev, id]);
-  };
-
+  const toggleBranch = (id: string) => setTargetBranches(prev => prev.includes(id) ? prev.filter(b => b !== id) : [...prev, id]);
   const addProductRow = () => setSelectedProducts(prev => [...prev, ""]);
-  const updateProduct = (idx: number, val: string) => {
-    setSelectedProducts(prev => prev.map((p, i) => i === idx ? val : p));
-  };
-  const removeProduct = (idx: number) => {
-    if (selectedProducts.length > 1) setSelectedProducts(prev => prev.filter((_, i) => i !== idx));
-  };
+  const updateProduct = (idx: number, val: string) => setSelectedProducts(prev => prev.map((p, i) => i === idx ? val : p));
+  const removeProduct = (idx: number) => { if (selectedProducts.length > 1) setSelectedProducts(prev => prev.filter((_, i) => i !== idx)); };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -225,12 +224,7 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
         <Label>Consultar a sucursales</Label>
         <div className="flex flex-wrap gap-2">
           {branches?.filter(b => b.id !== branchId).map(b => (
-            <Badge
-              key={b.id}
-              variant={targetBranches.includes(b.id) ? "default" : "outline"}
-              className="cursor-pointer"
-              onClick={() => toggleBranch(b.id)}
-            >
+            <Badge key={b.id} variant={targetBranches.includes(b.id) ? "default" : "outline"} className="cursor-pointer" onClick={() => toggleBranch(b.id)}>
               {b.code}
             </Badge>
           ))}
@@ -243,15 +237,18 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
   );
 }
 
-function ConsultationDetail({ consultationId }: { consultationId: string }) {
+function ConsultationDetail({ consultationId, onOrderCreated }: { consultationId: string; onOrderCreated: () => void }) {
+  const queryClient = useQueryClient();
+  const { data: branches } = useBranches();
+  const [createOrderOpen, setCreateOrderOpen] = useState(false);
+
   const { data: consultation } = useQuery({
     queryKey: ["consultation-detail", consultationId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("availability_consultations")
         .select(`*, requesting_branch:branches!availability_consultations_requesting_branch_id_fkey(name, code)`)
-        .eq("id", consultationId)
-        .single();
+        .eq("id", consultationId).single();
       if (error) throw error;
       return data;
     },
@@ -260,10 +257,7 @@ function ConsultationDetail({ consultationId }: { consultationId: string }) {
   const { data: consultationProducts } = useQuery({
     queryKey: ["consultation-products", consultationId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("consultation_products")
-        .select(`*, product:products(name, sku)`)
-        .eq("consultation_id", consultationId);
+      const { data, error } = await supabase.from("consultation_products").select(`*, product:products(id, name, sku)`).eq("consultation_id", consultationId);
       if (error) throw error;
       return data;
     },
@@ -273,9 +267,19 @@ function ConsultationDetail({ consultationId }: { consultationId: string }) {
   const { data: targets } = useQuery({
     queryKey: ["consultation-targets", consultationId],
     queryFn: async () => {
+      const { data, error } = await supabase.from("consultation_targets").select(`*, branch:branches(name, code)`).eq("consultation_id", consultationId);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!consultationId,
+  });
+
+  const { data: linkedOrders } = useQuery({
+    queryKey: ["consultation-orders", consultationId],
+    queryFn: async () => {
       const { data, error } = await supabase
-        .from("consultation_targets")
-        .select(`*, branch:branches(name, code)`)
+        .from("consultation_requests")
+        .select(`*, branch_request:branch_requests(request_number, status, source_branch_id, requesting_branch_id, source_branch:branches!branch_requests_source_branch_id_fkey(code))`)
         .eq("consultation_id", consultationId);
       if (error) throw error;
       return data;
@@ -286,20 +290,29 @@ function ConsultationDetail({ consultationId }: { consultationId: string }) {
   const { data: messages } = useQuery({
     queryKey: ["consultation-messages", consultationId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("consultation_messages")
-        .select("*")
-        .eq("consultation_id", consultationId)
-        .order("created_at", { ascending: true });
+      const { data, error } = await supabase.from("consultation_messages").select("*").eq("consultation_id", consultationId).order("created_at", { ascending: true });
       if (error) throw error;
       return data;
     },
     enabled: !!consultationId,
   });
 
-  if (!consultation) return <div className="p-4 text-muted-foreground">Cargando...</div>;
+  const closeConsultation = async () => {
+    try {
+      const { error } = await supabase
+        .from("availability_consultations")
+        .update({ status: "converted" as any })
+        .eq("id", consultationId);
+      if (error) throw error;
+      toast.success("Consulta cerrada");
+      queryClient.invalidateQueries({ queryKey: ["consultation-detail", consultationId] });
+      onOrderCreated();
+    } catch (err: any) { toast.error(err.message); }
+  };
 
+  if (!consultation) return <div className="p-4 text-muted-foreground">Cargando...</div>;
   const c = consultation as any;
+  const canCreateOrder = c.status === "open" || c.status === "responded";
 
   return (
     <div className="space-y-6">
@@ -308,7 +321,14 @@ function ConsultationDetail({ consultationId }: { consultationId: string }) {
           <h3 className="font-display text-lg font-bold">Consulta de disponibilidad</h3>
           <p className="text-sm text-muted-foreground">Desde {c.requesting_branch?.code}</p>
         </div>
-        <StatusBadge status={c.status} config={STATUS_CONFIG} />
+        <div className="flex items-center gap-2">
+          <StatusBadge status={c.status} config={STATUS_CONFIG} />
+          {canCreateOrder && (
+            <Button size="sm" variant="outline" onClick={closeConsultation} className="text-xs">
+              Cerrar consulta
+            </Button>
+          )}
+        </div>
       </div>
 
       <div>
@@ -344,6 +364,51 @@ function ConsultationDetail({ consultationId }: { consultationId: string }) {
         </div>
       </div>
 
+      {/* Linked orders */}
+      {(linkedOrders?.length ?? 0) > 0 && (
+        <div>
+          <h4 className="font-display font-semibold mb-2">Pedidos creados</h4>
+          <div className="space-y-1">
+            {linkedOrders?.map((lr: any) => (
+              <div key={lr.id} className="flex items-center gap-2 p-2 rounded bg-accent/5 border border-accent/20 text-sm">
+                <ShoppingCart className="h-4 w-4 text-accent" />
+                <span className="font-semibold">Pedido #{lr.branch_request?.request_number}</span>
+                <span className="text-muted-foreground">desde {lr.branch_request?.source_branch?.code}</span>
+                <Badge variant="outline" className="text-xs ml-auto">{lr.branch_request?.status}</Badge>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Create order button */}
+      {canCreateOrder && (
+        <div>
+          <Dialog open={createOrderOpen} onOpenChange={setCreateOrderOpen}>
+            <DialogTrigger asChild>
+              <Button className="w-full gap-2">
+                <ShoppingCart className="h-4 w-4" /> Crear pedido desde esta consulta
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Crear pedido</DialogTitle>
+              </DialogHeader>
+              <CreateOrderFromConsultation
+                consultationId={consultationId}
+                requestingBranchId={c.requesting_branch_id}
+                products={consultationProducts || []}
+                onSuccess={() => {
+                  setCreateOrderOpen(false);
+                  queryClient.invalidateQueries({ queryKey: ["consultation-orders", consultationId] });
+                  onOrderCreated();
+                }}
+              />
+            </DialogContent>
+          </Dialog>
+        </div>
+      )}
+
       <div>
         <h4 className="font-display font-semibold mb-3">Chat</h4>
         {!messages?.length ? (
@@ -360,5 +425,128 @@ function ConsultationDetail({ consultationId }: { consultationId: string }) {
         )}
       </div>
     </div>
+  );
+}
+
+function CreateOrderFromConsultation({
+  consultationId,
+  requestingBranchId,
+  products,
+  onSuccess,
+}: {
+  consultationId: string;
+  requestingBranchId: string;
+  products: any[];
+  onSuccess: () => void;
+}) {
+  const { data: branches } = useBranches();
+  const [sourceBranchId, setSourceBranchId] = useState("");
+  const [selectedItems, setSelectedItems] = useState<Record<string, number>>(() => {
+    const init: Record<string, number> = {};
+    products.forEach(cp => { if (cp.product?.id) init[cp.product.id] = 1; });
+    return init;
+  });
+  const [submitting, setSubmitting] = useState(false);
+
+  const toggleProduct = (pid: string) => {
+    setSelectedItems(prev => {
+      const next = { ...prev };
+      if (next[pid] !== undefined) delete next[pid];
+      else next[pid] = 1;
+      return next;
+    });
+  };
+
+  const updateQty = (pid: string, qty: number) => {
+    setSelectedItems(prev => ({ ...prev, [pid]: Math.max(1, qty) }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const items = Object.entries(selectedItems).filter(([_, qty]) => qty > 0);
+    if (!items.length || !sourceBranchId) { toast.error("Seleccionar sucursal origen y al menos un producto"); return; }
+
+    setSubmitting(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { toast.error("Iniciar sesión"); return; }
+
+      // Create branch_request
+      const { data: request, error: reqErr } = await supabase
+        .from("branch_requests")
+        .insert({
+          requesting_branch_id: requestingBranchId,
+          source_branch_id: sourceBranchId,
+          created_by: user.id,
+          request_type: "reposition" as any,
+          status: "pending" as any,
+          notes: `Creado desde consulta de disponibilidad`,
+        })
+        .select().single();
+      if (reqErr) throw reqErr;
+
+      // Create items
+      const itemInserts = items.map(([product_id, qty]) => ({
+        request_id: request.id,
+        product_id,
+        quantity_requested: qty,
+      }));
+      const { error: itemErr } = await supabase.from("branch_request_items").insert(itemInserts);
+      if (itemErr) throw itemErr;
+
+      // Link consultation → request
+      const { error: linkErr } = await supabase.from("consultation_requests").insert({
+        consultation_id: consultationId,
+        branch_request_id: request.id,
+      });
+      if (linkErr) throw linkErr;
+
+      toast.success(`Pedido #${request.request_number} creado`);
+      onSuccess();
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="space-y-2">
+        <Label>Sucursal origen (de dónde pido)</Label>
+        <select value={sourceBranchId} onChange={e => setSourceBranchId(e.target.value)}
+          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+          <option value="">Seleccionar...</option>
+          {branches?.filter(b => b.id !== requestingBranchId).map(b => (
+            <option key={b.id} value={b.id}>{b.code} - {b.name}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="space-y-2">
+        <Label>Productos a pedir</Label>
+        <div className="space-y-2">
+          {products.map((cp: any) => {
+            const pid = cp.product?.id;
+            if (!pid) return null;
+            const isSelected = selectedItems[pid] !== undefined;
+            return (
+              <div key={cp.id} className="flex items-center gap-3 p-2 rounded border border-border/50">
+                <input type="checkbox" checked={isSelected} onChange={() => toggleProduct(pid)} className="rounded" />
+                <span className="flex-1 text-sm font-medium">{cp.product?.name} <span className="text-muted-foreground">({cp.product?.sku})</span></span>
+                {isSelected && (
+                  <Input type="number" min={1} value={selectedItems[pid]} onChange={e => updateQty(pid, parseInt(e.target.value) || 1)}
+                    className="w-20 h-8 text-sm" />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <Button type="submit" className="w-full" disabled={submitting}>
+        {submitting ? "Creando..." : "Crear pedido"}
+      </Button>
+    </form>
   );
 }
