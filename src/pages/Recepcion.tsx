@@ -8,13 +8,14 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { FULFILLMENT_STATUS_CONFIG } from "@/lib/constants";
 import { StatusBadge } from "@/components/StatusBadge";
-import { PackageCheck, Clock, AlertTriangle, Search, CheckCircle2 } from "lucide-react";
+import { PackageCheck, Clock, AlertTriangle, Search, CheckCircle2, Info } from "lucide-react";
 import { toast } from "sonner";
 
 export default function Recepcion() {
   const [search, setSearch] = useState("");
   const queryClient = useQueryClient();
 
+  // Pending physical confirmation + dispatched/in_transit/delivered
   const { data: pending, isLoading } = useQuery({
     queryKey: ["pending-reception"],
     queryFn: async () => {
@@ -26,7 +27,7 @@ export default function Recepcion() {
           destination_branch:branches!fulfillment_orders_destination_branch_id_fkey(name, code),
           branch_request:branch_requests(request_number, request_type, delivery_target)
         `)
-        .in("status", ["delivered", "dispatched", "in_transit"])
+        .in("status", ["delivered", "dispatched", "in_transit", "pending_physical_confirmation"] as any[])
         .order("created_at", { ascending: false })
         .limit(50);
       if (error) throw error;
@@ -47,7 +48,7 @@ export default function Recepcion() {
           destination_branch:branches!fulfillment_orders_destination_branch_id_fkey(name, code),
           branch_request:branch_requests(request_number, request_type)
         `)
-        .eq("status", "received")
+        .eq("status", "received" as any)
         .gte("received_at_branch", since)
         .order("received_at_branch", { ascending: false })
         .limit(20);
@@ -56,6 +57,39 @@ export default function Recepcion() {
     },
   });
 
+  // Driver marks drop → pending_physical_confirmation (not received)
+  const markDriverDrop = async (fulfillmentId: string) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { toast.error("Iniciá sesión"); return; }
+
+      const { error } = await supabase
+        .from("fulfillment_orders")
+        .update({
+          status: "pending_physical_confirmation" as any,
+        } as any)
+        .eq("id", fulfillmentId);
+      if (error) throw error;
+
+      await supabase.from("operational_events").insert({
+        reference_type: "fulfillment_order",
+        reference_id: fulfillmentId,
+        event_type: "driver_delivery_drop",
+        category: "logistics" as any,
+        event_description: "Chofer descargó mercadería — pendiente confirmación física de sucursal",
+        new_status: "pending_physical_confirmation",
+        triggered_by: user.id,
+        expected_next_event: "branch_physical_confirmation",
+      });
+
+      toast.success("Descarga registrada — pendiente confirmación física de sucursal");
+      queryClient.invalidateQueries({ queryKey: ["pending-reception"] });
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
+  // Branch confirms physical reception (suggested, not mandatory)
   const confirmReception = async (fulfillmentId: string) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -103,7 +137,8 @@ export default function Recepcion() {
     return { text: `${hours}h ${mins}m`, overdue: false };
   };
 
-  const pendingCount = pending?.filter(f => f.status === "delivered").length || 0;
+  const pendingDropCount = pending?.filter(f => ["dispatched", "in_transit", "delivered"].includes(f.status)).length || 0;
+  const pendingConfirmCount = pending?.filter(f => f.status === "pending_physical_confirmation").length || 0;
   const bimsOverdueCount = received?.filter((f: any) => {
     const cd = getBimsCountdown(f.bims_confirmation_deadline);
     return cd?.overdue && !f.bims_transfer_verified;
@@ -117,29 +152,41 @@ export default function Recepcion() {
       f.destination_branch?.code?.toLowerCase().includes(term);
   });
 
+  // Separate by state
+  const pendingPhysical = filtered?.filter(f => f.status === "pending_physical_confirmation") || [];
+  const inTransitOrDelivered = filtered?.filter(f => ["dispatched", "in_transit", "delivered"].includes(f.status)) || [];
+
   return (
     <motion.div className="space-y-6" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
       <div>
         <h1 className="font-display text-2xl font-bold text-foreground">Recepción en Sucursal</h1>
-        <p className="text-muted-foreground mt-1">Confirmación de recepción física y control de plazo BIMS 48h</p>
+        <p className="text-muted-foreground mt-1">Confirmación física sugerida y control de plazo BIMS 48h</p>
+      </div>
+
+      {/* Info banner: SLIS confirmation is suggested */}
+      <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/30 border border-border/50">
+        <Info className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+        <p className="text-xs text-muted-foreground">
+          La confirmación en SLIS es <strong>sugerida</strong>, no obligatoria. Si BIMS ya muestra la recepción confirmada, la recepción logística se cierra automáticamente.
+        </p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card className="glass-card">
           <CardContent className="p-5 flex items-center gap-4">
-            <div className="bg-primary/10 p-3 rounded-xl"><PackageCheck className="h-5 w-5 text-primary" /></div>
+            <div className="bg-warning/10 p-3 rounded-xl"><PackageCheck className="h-5 w-5 text-warning" /></div>
             <div>
-              <p className="text-xs text-muted-foreground uppercase">Pendientes recepción</p>
-              <p className="text-2xl font-display font-bold">{pendingCount}</p>
+              <p className="text-xs text-muted-foreground uppercase">Pend. confirmación física</p>
+              <p className="text-2xl font-display font-bold">{pendingConfirmCount}</p>
             </div>
           </CardContent>
         </Card>
         <Card className="glass-card">
           <CardContent className="p-5 flex items-center gap-4">
-            <div className="bg-accent/10 p-3 rounded-xl"><CheckCircle2 className="h-5 w-5 text-accent" /></div>
+            <div className="bg-primary/10 p-3 rounded-xl"><PackageCheck className="h-5 w-5 text-primary" /></div>
             <div>
-              <p className="text-xs text-muted-foreground uppercase">Recibidos (7 días)</p>
-              <p className="text-2xl font-display font-bold">{received?.length || 0}</p>
+              <p className="text-xs text-muted-foreground uppercase">En tránsito / entregado</p>
+              <p className="text-2xl font-display font-bold">{pendingDropCount}</p>
             </div>
           </CardContent>
         </Card>
@@ -161,18 +208,67 @@ export default function Recepcion() {
         <Input placeholder="Buscar por pedido o sucursal..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
       </div>
 
-      {/* Pending reception */}
+      {/* Pending physical confirmation - highest priority */}
+      {pendingPhysical.length > 0 && (
+        <Card className="glass-card border-warning/30">
+          <CardHeader className="pb-3">
+            <CardTitle className="font-display text-lg flex items-center gap-2">
+              <Clock className="h-4 w-4 text-warning" /> Pendiente de confirmación física
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-muted/30">
+                    <th className="text-left p-3 font-medium text-muted-foreground">Pedido</th>
+                    <th className="text-left p-3 font-medium text-muted-foreground">Origen</th>
+                    <th className="text-left p-3 font-medium text-muted-foreground">Destino</th>
+                    <th className="text-left p-3 font-medium text-muted-foreground">BIMS</th>
+                    <th className="text-left p-3 font-medium text-muted-foreground">Descargado</th>
+                    <th className="text-left p-3 font-medium text-muted-foreground"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pendingPhysical.map((f: any) => (
+                    <tr key={f.id} className="border-b border-border/50 hover:bg-muted/20 transition-colors bg-warning/5">
+                      <td className="p-3 font-mono font-semibold">#{f.branch_request?.request_number || "—"}</td>
+                      <td className="p-3">{f.source_branch?.code}</td>
+                      <td className="p-3">{f.destination_branch?.code || f.destination_client_name || "—"}</td>
+                      <td className="p-3 text-xs">
+                        {f.bims_transfer_number && <span className="text-primary font-medium">T: {f.bims_transfer_number}</span>}
+                        {f.bims_invoice_number && <span className="text-primary font-medium ml-1">F: {f.bims_invoice_number}</span>}
+                        {!f.bims_transfer_number && !f.bims_invoice_number && <Badge variant="outline" className="text-xs text-secondary">Sin doc.</Badge>}
+                      </td>
+                      <td className="p-3 text-xs text-muted-foreground">
+                        {f.dispatched_at ? new Date(f.dispatched_at).toLocaleString("es-PY", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—"}
+                      </td>
+                      <td className="p-3">
+                        <Button size="sm" onClick={() => confirmReception(f.id)} className="h-7 text-xs gap-1">
+                          <PackageCheck className="h-3 w-3" /> Confirmar recepción
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* In transit / delivered - driver can mark drop */}
       <Card className="glass-card">
         <CardHeader className="pb-3">
-          <CardTitle className="font-display text-lg">Cargas pendientes de recepción</CardTitle>
+          <CardTitle className="font-display text-lg">Cargas en camino</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           {isLoading ? (
             <div className="p-8 text-center text-muted-foreground">Cargando...</div>
-          ) : !filtered?.length ? (
+          ) : !inTransitOrDelivered.length ? (
             <div className="p-8 text-center text-muted-foreground">
               <PackageCheck className="h-8 w-8 mx-auto mb-2 opacity-50" />
-              <p>No hay cargas pendientes de recepción</p>
+              <p>No hay cargas en tránsito</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -189,7 +285,7 @@ export default function Recepcion() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((f: any) => (
+                  {inTransitOrDelivered.map((f: any) => (
                     <tr key={f.id} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
                       <td className="p-3 font-mono font-semibold">#{f.branch_request?.request_number || "—"}</td>
                       <td className="p-3">{f.source_branch?.code}</td>
@@ -204,9 +300,11 @@ export default function Recepcion() {
                         {f.dispatched_at ? new Date(f.dispatched_at).toLocaleString("es-PY", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—"}
                       </td>
                       <td className="p-3">
-                        <Button size="sm" onClick={() => confirmReception(f.id)} className="h-7 text-xs gap-1">
-                          <PackageCheck className="h-3 w-3" /> Confirmar recepción
-                        </Button>
+                        {f.status === "delivered" && (
+                          <Button size="sm" variant="outline" onClick={() => markDriverDrop(f.id)} className="h-7 text-xs gap-1">
+                            Marcar descarga
+                          </Button>
+                        )}
                       </td>
                     </tr>
                   ))}
