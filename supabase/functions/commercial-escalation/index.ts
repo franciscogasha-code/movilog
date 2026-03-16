@@ -81,13 +81,8 @@ serve(async (req) => {
 
       if (insertError) throw insertError;
 
-      // Update exception status to 'escalated' (visual flag only, no workflow change)
-      const { error: updateError } = await supabase
-        .from("fulfillment_orders")
-        .update({ commercial_exception_status: "escalated" })
-        .eq("id", fo.id);
-
-      if (updateError) throw updateError;
+      // Status remains pending_commercial — escalation is visibility only
+      // Tracked via the ai_anomalies alert record, not via fulfillment status
 
       escalatedCount++;
     }

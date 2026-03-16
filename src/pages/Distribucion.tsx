@@ -251,18 +251,19 @@ export default function Distribucion() {
                       </p>
                     </div>
                   )}
-                  {/* Sort: escalated first, then pending_commercial, then resolved */}
+                  {/* Sort: escalated (24h+) first, then pending, then resolved */}
                   {[...fulfillments].sort((a: any, b: any) => {
-                    const order: Record<string, number> = { escalated: 0, pending_commercial: 1, resolved: 2 };
-                    return (order[a.commercial_exception_status] ?? 1) - (order[b.commercial_exception_status] ?? 1);
+                    const aEsc = isEscalatedCase(a) ? 0 : a.commercial_exception_status === "pending_commercial" ? 1 : 2;
+                    const bEsc = isEscalatedCase(b) ? 0 : b.commercial_exception_status === "pending_commercial" ? 1 : 2;
+                    return aEsc - bEsc;
                   }).map((f: any) => {
                     const statusCfg = FULFILLMENT_STATUS_CONFIG[f.status] || FULFILLMENT_STATUS_CONFIG.pending;
                     const clientName = f.destination_client_name || (f.branch_request as any)?.client_name || "—";
                     const clientAddr = f.destination_client_address || (f.branch_request as any)?.client_address || "";
                     const exceptionAge = getExceptionAge(f.commercial_exception_at);
                     const timerColor = getTimerColor(exceptionAge);
-                    const isActive = f.commercial_exception_status === "pending_commercial" || f.commercial_exception_status === "escalated";
-                    const isEscalated = f.commercial_exception_status === "escalated";
+                    const isActive = f.commercial_exception_status === "pending_commercial";
+                    const isEscalated = isEscalatedCase(f);
 
                     return (
                       <div key={f.id} className={`p-4 hover:bg-muted/20 transition-colors ${isEscalated ? "bg-destructive/5 border-l-2 border-destructive" : isActive ? "bg-secondary/5" : ""}`}>
