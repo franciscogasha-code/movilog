@@ -21,6 +21,7 @@ export const FULFILLMENT_STATUS_CONFIG: Record<string, { label: string; color: s
   dispatched: { label: "Despachado", color: "bg-primary/10 text-primary" },
   in_transit: { label: "En tránsito", color: "bg-primary/10 text-primary" },
   delivered: { label: "Entregado", color: "bg-accent/10 text-accent" },
+  pending_physical_confirmation: { label: "Pend. confirmación física", color: "bg-warning/10 text-warning" },
   received: { label: "Recibido", color: "bg-accent/10 text-accent" },
   partial: { label: "Parcial", color: "bg-secondary/10 text-secondary" },
   completed: { label: "Completado", color: "bg-accent/10 text-accent" },

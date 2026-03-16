@@ -150,8 +150,14 @@ export default function Incidencias() {
                       </td>
                       <td className="p-3">
                         <div className="flex gap-1 flex-wrap">
-                          {i.pending_shipment_to_admin && (
-                            <Badge variant="outline" className="text-xs text-warning border-warning/30">Pend. envío</Badge>
+                          {i.pending_shipment_to_admin && i.status !== "closed" && i.status !== "resolved" && (
+                            <Badge variant="outline" className="text-xs text-warning border-warning/30">Pend. envío admin</Badge>
+                          )}
+                          {!i.pending_shipment_to_admin && (i.status === "resolved" || i.status === "closed") && (
+                            <Badge variant="outline" className="text-xs text-accent border-accent/30">Resuelto en sucursal</Badge>
+                          )}
+                          {i.pending_shipment_to_admin && (i.status === "resolved" || i.status === "closed") && (
+                            <Badge variant="outline" className="text-xs text-primary border-primary/30">Enviado a admin</Badge>
                           )}
                           {i.shipment_reminder_9th && (
                             <Badge variant="outline" className="text-xs text-secondary">Rec. 9</Badge>
