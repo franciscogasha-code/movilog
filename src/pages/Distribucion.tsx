@@ -87,8 +87,13 @@ export default function Distribucion() {
 
   const inTransitCount = fulfillments?.filter((f: any) => ["dispatched", "in_transit"].includes(f.status)).length || 0;
   const pendingCount = fulfillments?.filter((f: any) => ["pending", "picking", "waiting_for_cut"].includes(f.status)).length || 0;
-  const exceptionsCount = fulfillments?.filter((f: any) => f.commercial_exception_status === "pending_commercial" || f.commercial_exception_status === "escalated").length || 0;
-  const escalatedCount = fulfillments?.filter((f: any) => f.commercial_exception_status === "escalated").length || 0;
+  const exceptionsCount = fulfillments?.filter((f: any) => f.commercial_exception_status === "pending_commercial").length || 0;
+  // Escalated = pending_commercial AND older than 24h (visibility escalation, not status change)
+  const isEscalatedCase = (f: any) => {
+    if (f.commercial_exception_status !== "pending_commercial" || !f.commercial_exception_at) return false;
+    return (Date.now() - new Date(f.commercial_exception_at).getTime()) / (1000 * 60 * 60) >= ESCALATION_THRESHOLD_HOURS;
+  };
+  const escalatedCount = fulfillments?.filter((f: any) => isEscalatedCase(f)).length || 0;
 
   // Calculate exception timers
   const getExceptionAge = (exceptionAt: string | null) => {
