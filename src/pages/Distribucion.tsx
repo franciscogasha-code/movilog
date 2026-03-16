@@ -29,6 +29,12 @@ const EXCEPTION_STATUS_COLORS: Record<string, string> = {
   resolved: "bg-accent/10 text-accent",
 };
 
+const EXCEPTION_STATUS_LABELS: Record<string, string> = {
+  pending_commercial: "Comercial",
+  escalated: "Escalada (+24h)",
+  resolved: "Resuelta",
+};
+
 export default function Distribucion() {
   const [tab, setTab] = useState("en-curso");
   const [exceptionId, setExceptionId] = useState<string | null>(null);
@@ -80,7 +86,8 @@ export default function Distribucion() {
 
   const inTransitCount = fulfillments?.filter((f: any) => ["dispatched", "in_transit"].includes(f.status)).length || 0;
   const pendingCount = fulfillments?.filter((f: any) => ["pending", "picking", "waiting_for_cut"].includes(f.status)).length || 0;
-  const exceptionsCount = fulfillments?.filter((f: any) => f.commercial_exception_status === "pending_commercial").length || 0;
+  const exceptionsCount = fulfillments?.filter((f: any) => f.commercial_exception_status === "pending_commercial" || f.commercial_exception_status === "escalated").length || 0;
+  const escalatedCount = fulfillments?.filter((f: any) => f.commercial_exception_status === "escalated").length || 0;
 
   // Calculate exception timers
   const getExceptionAge = (exceptionAt: string | null) => {
@@ -91,6 +98,7 @@ export default function Distribucion() {
 
   const getTimerColor = (hours: number | null) => {
     if (!hours) return "";
+    if (hours >= 24) return "text-destructive font-bold";
     if (hours >= 5) return "text-destructive";
     if (hours >= 3) return "text-secondary";
     return "text-muted-foreground";
@@ -228,16 +236,30 @@ export default function Distribucion() {
                 </div>
               ) : (
                 <div className="divide-y divide-border/50">
-                  {fulfillments.map((f: any) => {
+                  {/* Escalated section header when on exceptions tab */}
+                  {tab === "excepciones" && escalatedCount > 0 && (
+                    <div className="p-3 bg-destructive/5 border-b border-destructive/20">
+                      <p className="text-xs font-semibold text-destructive flex items-center gap-1.5">
+                        <AlertTriangle className="h-3.5 w-3.5" />
+                        Excepciones comerciales pendientes de intervención ({escalatedCount})
+                      </p>
+                    </div>
+                  )}
+                  {/* Sort: escalated first, then pending_commercial, then resolved */}
+                  {[...fulfillments].sort((a: any, b: any) => {
+                    const order: Record<string, number> = { escalated: 0, pending_commercial: 1, resolved: 2 };
+                    return (order[a.commercial_exception_status] ?? 1) - (order[b.commercial_exception_status] ?? 1);
+                  }).map((f: any) => {
                     const statusCfg = FULFILLMENT_STATUS_CONFIG[f.status] || FULFILLMENT_STATUS_CONFIG.pending;
                     const clientName = f.destination_client_name || (f.branch_request as any)?.client_name || "—";
                     const clientAddr = f.destination_client_address || (f.branch_request as any)?.client_address || "";
                     const exceptionAge = getExceptionAge(f.commercial_exception_at);
                     const timerColor = getTimerColor(exceptionAge);
-                    const hasException = f.commercial_exception_status === "pending_commercial";
+                    const isActive = f.commercial_exception_status === "pending_commercial" || f.commercial_exception_status === "escalated";
+                    const isEscalated = f.commercial_exception_status === "escalated";
 
                     return (
-                      <div key={f.id} className={`p-4 hover:bg-muted/20 transition-colors ${hasException ? "bg-secondary/5" : ""}`}>
+                      <div key={f.id} className={`p-4 hover:bg-muted/20 transition-colors ${isEscalated ? "bg-destructive/5 border-l-2 border-destructive" : isActive ? "bg-secondary/5" : ""}`}>
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex-1">
                             <div className="flex items-center gap-2 mb-1 flex-wrap">
@@ -245,9 +267,9 @@ export default function Distribucion() {
                               {(f.branch_request as any)?.request_number && (
                                 <span className="text-xs text-muted-foreground font-mono">Ped. #{(f.branch_request as any).request_number}</span>
                               )}
-                              {hasException && exceptionAge !== null && (
-                                <Badge className={`text-xs gap-1 ${exceptionAge >= 5 ? "bg-destructive/10 text-destructive" : exceptionAge >= 3 ? "bg-secondary/10 text-secondary" : "bg-muted"}`}>
-                                  <Timer className="h-3 w-3" /> {Math.floor(exceptionAge)}h — Comercial
+                              {isActive && exceptionAge !== null && (
+                                <Badge className={`text-xs gap-1 ${exceptionAge >= 24 ? "bg-destructive/20 text-destructive font-bold" : exceptionAge >= 5 ? "bg-destructive/10 text-destructive" : exceptionAge >= 3 ? "bg-secondary/10 text-secondary" : "bg-muted"}`}>
+                                  <Timer className="h-3 w-3" /> {Math.floor(exceptionAge)}h — {isEscalated ? "ESCALADA" : "Comercial"}
                                 </Badge>
                               )}
                               {f.commercial_exception_status === "resolved" && (
@@ -274,7 +296,7 @@ export default function Distribucion() {
                                 <AlertTriangle className="h-3 w-3 mr-1" /> Excepción
                               </Button>
                             )}
-                            {hasException && (
+                            {isActive && (
                               <Button variant="outline" size="sm" className="h-6 text-xs" onClick={() => setExceptionId(f.id)}>
                                 Resolver
                               </Button>
