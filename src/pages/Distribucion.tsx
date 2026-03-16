@@ -98,6 +98,7 @@ export default function Distribucion() {
 
   const getTimerColor = (hours: number | null) => {
     if (!hours) return "";
+    if (hours >= 24) return "text-destructive font-bold";
     if (hours >= 5) return "text-destructive";
     if (hours >= 3) return "text-secondary";
     return "text-muted-foreground";
