@@ -25,15 +25,16 @@ const COMMERCIAL_RESOLUTION_TYPES: Record<string, string> = {
 
 const EXCEPTION_STATUS_COLORS: Record<string, string> = {
   pending_commercial: "bg-secondary/10 text-secondary",
-  escalated: "bg-destructive/10 text-destructive",
   resolved: "bg-accent/10 text-accent",
 };
 
 const EXCEPTION_STATUS_LABELS: Record<string, string> = {
   pending_commercial: "Comercial",
-  escalated: "Escalada (+24h)",
   resolved: "Resuelta",
 };
+
+// 24h threshold in hours for visibility escalation
+const ESCALATION_THRESHOLD_HOURS = 24;
 
 export default function Distribucion() {
   const [tab, setTab] = useState("en-curso");
@@ -86,8 +87,13 @@ export default function Distribucion() {
 
   const inTransitCount = fulfillments?.filter((f: any) => ["dispatched", "in_transit"].includes(f.status)).length || 0;
   const pendingCount = fulfillments?.filter((f: any) => ["pending", "picking", "waiting_for_cut"].includes(f.status)).length || 0;
-  const exceptionsCount = fulfillments?.filter((f: any) => f.commercial_exception_status === "pending_commercial" || f.commercial_exception_status === "escalated").length || 0;
-  const escalatedCount = fulfillments?.filter((f: any) => f.commercial_exception_status === "escalated").length || 0;
+  const exceptionsCount = fulfillments?.filter((f: any) => f.commercial_exception_status === "pending_commercial").length || 0;
+  // Escalated = pending_commercial AND older than 24h (visibility escalation, not status change)
+  const isEscalatedCase = (f: any) => {
+    if (f.commercial_exception_status !== "pending_commercial" || !f.commercial_exception_at) return false;
+    return (Date.now() - new Date(f.commercial_exception_at).getTime()) / (1000 * 60 * 60) >= ESCALATION_THRESHOLD_HOURS;
+  };
+  const escalatedCount = fulfillments?.filter((f: any) => isEscalatedCase(f)).length || 0;
 
   // Calculate exception timers
   const getExceptionAge = (exceptionAt: string | null) => {
@@ -245,18 +251,19 @@ export default function Distribucion() {
                       </p>
                     </div>
                   )}
-                  {/* Sort: escalated first, then pending_commercial, then resolved */}
+                  {/* Sort: escalated (24h+) first, then pending, then resolved */}
                   {[...fulfillments].sort((a: any, b: any) => {
-                    const order: Record<string, number> = { escalated: 0, pending_commercial: 1, resolved: 2 };
-                    return (order[a.commercial_exception_status] ?? 1) - (order[b.commercial_exception_status] ?? 1);
+                    const aEsc = isEscalatedCase(a) ? 0 : a.commercial_exception_status === "pending_commercial" ? 1 : 2;
+                    const bEsc = isEscalatedCase(b) ? 0 : b.commercial_exception_status === "pending_commercial" ? 1 : 2;
+                    return aEsc - bEsc;
                   }).map((f: any) => {
                     const statusCfg = FULFILLMENT_STATUS_CONFIG[f.status] || FULFILLMENT_STATUS_CONFIG.pending;
                     const clientName = f.destination_client_name || (f.branch_request as any)?.client_name || "—";
                     const clientAddr = f.destination_client_address || (f.branch_request as any)?.client_address || "";
                     const exceptionAge = getExceptionAge(f.commercial_exception_at);
                     const timerColor = getTimerColor(exceptionAge);
-                    const isActive = f.commercial_exception_status === "pending_commercial" || f.commercial_exception_status === "escalated";
-                    const isEscalated = f.commercial_exception_status === "escalated";
+                    const isActive = f.commercial_exception_status === "pending_commercial";
+                    const isEscalated = isEscalatedCase(f);
 
                     return (
                       <div key={f.id} className={`p-4 hover:bg-muted/20 transition-colors ${isEscalated ? "bg-destructive/5 border-l-2 border-destructive" : isActive ? "bg-secondary/5" : ""}`}>
