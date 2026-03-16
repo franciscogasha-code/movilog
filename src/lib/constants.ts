@@ -44,7 +44,7 @@ export const DOCUMENT_STATUS_CONFIG: Record<string, { label: string; color: stri
 
 export const INCIDENT_STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   open: { label: "Abierto", color: "bg-destructive/10 text-destructive" },
-  under_review: { label: "En revisión", color: "bg-warning/10 text-warning" },
+  under_review: { label: "En decisión", color: "bg-warning/10 text-warning" },
   resolved: { label: "Resuelto", color: "bg-accent/10 text-accent" },
   escalated: { label: "Escalado", color: "bg-destructive/10 text-destructive" },
   closed: { label: "Cerrado", color: "bg-muted text-muted-foreground" },
@@ -64,13 +64,11 @@ export const ITEM_PURPOSE_LABELS: Record<string, string> = {
   reposition: "Reposición",
 };
 
-// Delivery target: where the goods go
 export const DELIVERY_TARGET_LABELS: Record<string, string> = {
   branch: "A sucursal",
   client: "A cliente",
 };
 
-// Shipping method: how the goods move
 export const SHIPPING_METHOD_LABELS: Record<string, string> = {
   own_fleet: "Flota propia",
   courier: "Encomienda",
@@ -83,6 +81,7 @@ export const REQUEST_TYPE_LABELS: Record<string, string> = {
   mixed: "Mixto",
   online: "Pedido Online",
   redistribution: "Redistribución",
+  consultation: "Consulta",
 };
 
 export const STOCK_DISPOSITION_LABELS: Record<string, string> = {
@@ -126,4 +125,13 @@ export const ALERT_LEVEL_LABELS: Record<string, string> = {
   branch_operational: "Operativa sucursal",
   escalable: "Escalable",
   logistics_admin_decision: "Decisión logística/admin",
+};
+
+export const ADMIN_DISPOSITION_LABELS: Record<string, string> = {
+  send_to_admin_stock: "Enviar a stock admin",
+  sell_discounted: "Venta rebajada",
+  assign_responsibility: "Responsabilidad colaborador",
+  bims_adjustment: "Ajuste BIMS",
+  supplier_claim: "Reclamo proveedor",
+  loss_absorbed: "Pérdida absorbida",
 };
