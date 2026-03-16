@@ -2536,6 +2536,7 @@ export type Database = {
         | "dispatched"
         | "in_transit"
         | "delivered"
+        | "pending_physical_confirmation"
         | "received"
         | "partial"
         | "completed"
@@ -2835,6 +2836,7 @@ export const Constants = {
         "dispatched",
         "in_transit",
         "delivered",
+        "pending_physical_confirmation",
         "received",
         "partial",
         "completed",
