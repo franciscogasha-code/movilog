@@ -29,6 +29,12 @@ const EXCEPTION_STATUS_COLORS: Record<string, string> = {
   resolved: "bg-accent/10 text-accent",
 };
 
+const EXCEPTION_STATUS_LABELS: Record<string, string> = {
+  pending_commercial: "Comercial",
+  escalated: "Escalada (+24h)",
+  resolved: "Resuelta",
+};
+
 export default function Distribucion() {
   const [tab, setTab] = useState("en-curso");
   const [exceptionId, setExceptionId] = useState<string | null>(null);
