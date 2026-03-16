@@ -25,15 +25,16 @@ const COMMERCIAL_RESOLUTION_TYPES: Record<string, string> = {
 
 const EXCEPTION_STATUS_COLORS: Record<string, string> = {
   pending_commercial: "bg-secondary/10 text-secondary",
-  escalated: "bg-destructive/10 text-destructive",
   resolved: "bg-accent/10 text-accent",
 };
 
 const EXCEPTION_STATUS_LABELS: Record<string, string> = {
   pending_commercial: "Comercial",
-  escalated: "Escalada (+24h)",
   resolved: "Resuelta",
 };
+
+// 24h threshold in hours for visibility escalation
+const ESCALATION_THRESHOLD_HOURS = 24;
 
 export default function Distribucion() {
   const [tab, setTab] = useState("en-curso");
