@@ -86,7 +86,8 @@ export default function Distribucion() {
 
   const inTransitCount = fulfillments?.filter((f: any) => ["dispatched", "in_transit"].includes(f.status)).length || 0;
   const pendingCount = fulfillments?.filter((f: any) => ["pending", "picking", "waiting_for_cut"].includes(f.status)).length || 0;
-  const exceptionsCount = fulfillments?.filter((f: any) => f.commercial_exception_status === "pending_commercial").length || 0;
+  const exceptionsCount = fulfillments?.filter((f: any) => f.commercial_exception_status === "pending_commercial" || f.commercial_exception_status === "escalated").length || 0;
+  const escalatedCount = fulfillments?.filter((f: any) => f.commercial_exception_status === "escalated").length || 0;
 
   // Calculate exception timers
   const getExceptionAge = (exceptionAt: string | null) => {
