@@ -87,7 +87,7 @@ export default function Flota() {
   });
 
   const availableCount = vehicles?.filter(v => v.status === "available").length || 0;
-  const inUseCount = vehicles?.filter(v => v.status === "in_use").length || 0;
+  const inUseCount = vehicles?.filter(v => v.status === "in_route").length || 0;
   const maintCount = vehicles?.filter(v => v.status === "maintenance").length || 0;
   const totalVehicles = vehicles?.length || 0;
 
