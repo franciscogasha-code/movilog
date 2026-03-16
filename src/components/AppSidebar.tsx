@@ -143,7 +143,7 @@ export function AppSidebar() {
       <SidebarFooter className="p-4">
         {!collapsed && (
           <p className="text-[10px] text-sidebar-foreground/30 text-center">
-            v3.0.0 — Fase 3
+            v4.0.0 — Fase 4
           </p>
         )}
       </SidebarFooter>
