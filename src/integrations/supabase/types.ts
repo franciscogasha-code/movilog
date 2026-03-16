@@ -763,6 +763,45 @@ export type Database = {
           },
         ]
       }
+      deposit_collection_links: {
+        Row: {
+          amount: number
+          collection_id: string
+          created_at: string
+          deposit_id: string
+          id: string
+        }
+        Insert: {
+          amount: number
+          collection_id: string
+          created_at?: string
+          deposit_id: string
+          id?: string
+        }
+        Update: {
+          amount?: number
+          collection_id?: string
+          created_at?: string
+          deposit_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deposit_collection_links_collection_id_fkey"
+            columns: ["collection_id"]
+            isOneToOne: false
+            referencedRelation: "driver_collections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deposit_collection_links_deposit_id_fkey"
+            columns: ["deposit_id"]
+            isOneToOne: false
+            referencedRelation: "bank_deposits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       directed_inventories: {
         Row: {
           assigned_to: string | null
@@ -954,6 +993,10 @@ export type Database = {
       }
       driver_settlements: {
         Row: {
+          admin_deposit_instruction: string | null
+          admin_deposit_proof_url: string | null
+          advance_amount: number | null
+          advance_reconciled: boolean | null
           created_at: string
           documents_returned: Json | null
           driver_id: string
@@ -971,6 +1014,10 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          admin_deposit_instruction?: string | null
+          admin_deposit_proof_url?: string | null
+          advance_amount?: number | null
+          advance_reconciled?: boolean | null
           created_at?: string
           documents_returned?: Json | null
           driver_id: string
@@ -988,6 +1035,10 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          admin_deposit_instruction?: string | null
+          admin_deposit_proof_url?: string | null
+          advance_amount?: number | null
+          advance_reconciled?: boolean | null
           created_at?: string
           documents_returned?: Json | null
           driver_id?: string
@@ -1213,6 +1264,12 @@ export type Database = {
           bims_transfer_number: string | null
           bims_transfer_verified: boolean | null
           branch_request_id: string | null
+          commercial_exception_at: string | null
+          commercial_exception_status: string | null
+          commercial_resolution_notes: string | null
+          commercial_resolution_type: string | null
+          commercial_resolved_at: string | null
+          commercial_resolved_by: string | null
           created_at: string
           current_custody_holder_id: string | null
           current_location_branch_id: string | null
@@ -1242,6 +1299,12 @@ export type Database = {
           bims_transfer_number?: string | null
           bims_transfer_verified?: boolean | null
           branch_request_id?: string | null
+          commercial_exception_at?: string | null
+          commercial_exception_status?: string | null
+          commercial_resolution_notes?: string | null
+          commercial_resolution_type?: string | null
+          commercial_resolved_at?: string | null
+          commercial_resolved_by?: string | null
           created_at?: string
           current_custody_holder_id?: string | null
           current_location_branch_id?: string | null
@@ -1271,6 +1334,12 @@ export type Database = {
           bims_transfer_number?: string | null
           bims_transfer_verified?: boolean | null
           branch_request_id?: string | null
+          commercial_exception_at?: string | null
+          commercial_exception_status?: string | null
+          commercial_resolution_notes?: string | null
+          commercial_resolution_type?: string | null
+          commercial_resolved_at?: string | null
+          commercial_resolved_by?: string | null
           created_at?: string
           current_custody_holder_id?: string | null
           current_location_branch_id?: string | null
@@ -1505,6 +1574,10 @@ export type Database = {
       }
       logistics_incidents: {
         Row: {
+          admin_decision_at: string | null
+          admin_decision_by: string | null
+          admin_disposition: string | null
+          admin_disposition_notes: string | null
           assigned_to: string | null
           branch_id: string
           branch_request_id: string | null
@@ -1539,6 +1612,10 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          admin_decision_at?: string | null
+          admin_decision_by?: string | null
+          admin_disposition?: string | null
+          admin_disposition_notes?: string | null
           assigned_to?: string | null
           branch_id: string
           branch_request_id?: string | null
@@ -1573,6 +1650,10 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          admin_decision_at?: string | null
+          admin_decision_by?: string | null
+          admin_disposition?: string | null
+          admin_disposition_notes?: string | null
           assigned_to?: string | null
           branch_id?: string
           branch_request_id?: string | null

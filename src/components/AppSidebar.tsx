@@ -1,38 +1,14 @@
 import {
-  Truck,
-  Package,
-  ShoppingCart,
-  ArrowRightLeft,
-  MapPin,
-  CreditCard,
-  Route,
-  LayoutDashboard,
-  FileText,
-  Lock,
-  AlertTriangle,
-  Search,
-  ClipboardList,
-  User,
-  Tag,
-  Bell,
-  PackageCheck,
-  Receipt,
+  Truck, Package, ShoppingCart, ArrowRightLeft, MapPin, CreditCard,
+  Route, LayoutDashboard, FileText, Lock, AlertTriangle, Search,
+  ClipboardList, User, Tag, Bell, PackageCheck, Receipt,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
-
 import {
-  Sidebar,
-  SidebarContent,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarHeader,
-  SidebarFooter,
-  useSidebar,
+  Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
+  SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem,
+  SidebarHeader, SidebarFooter, useSidebar,
 } from "@/components/ui/sidebar";
 
 const mainItems = [
@@ -69,33 +45,17 @@ const managementItems = [
   { title: "Ruteo", url: "/ruteo", icon: Route },
 ];
 
-function MenuGroup({
-  label,
-  items,
-  collapsed,
-}: {
-  label: string;
-  items: typeof mainItems;
-  collapsed: boolean;
-}) {
+function MenuGroup({ label, items, collapsed }: { label: string; items: typeof mainItems; collapsed: boolean }) {
   const location = useLocation();
-
   return (
     <SidebarGroup>
-      <SidebarGroupLabel className="text-sidebar-foreground/50 uppercase text-[10px] tracking-widest font-semibold">
-        {label}
-      </SidebarGroupLabel>
+      <SidebarGroupLabel className="text-sidebar-foreground/50 uppercase text-[10px] tracking-widest font-semibold">{label}</SidebarGroupLabel>
       <SidebarGroupContent>
         <SidebarMenu>
           {items.map((item) => (
             <SidebarMenuItem key={item.title}>
               <SidebarMenuButton asChild>
-                <NavLink
-                  to={item.url}
-                  end={item.url === "/"}
-                  className="flex items-center gap-3 px-3 py-2 rounded-lg text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
-                  activeClassName="bg-sidebar-accent text-sidebar-primary font-semibold"
-                >
+                <NavLink to={item.url} end={item.url === "/"} className="flex items-center gap-3 px-3 py-2 rounded-lg text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors" activeClassName="bg-sidebar-accent text-sidebar-primary font-semibold">
                   <item.icon className="h-4 w-4 shrink-0" />
                   {!collapsed && <span>{item.title}</span>}
                 </NavLink>
@@ -111,7 +71,6 @@ function MenuGroup({
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
-
   return (
     <Sidebar collapsible="icon" className="border-r-0">
       <SidebarHeader className="p-4">
@@ -121,17 +80,12 @@ export function AppSidebar() {
           </div>
           {!collapsed && (
             <div>
-              <h2 className="font-display font-bold text-sm text-sidebar-foreground">
-                SANSEI
-              </h2>
-              <p className="text-[10px] text-sidebar-foreground/50 uppercase tracking-wider">
-                Logística
-              </p>
+              <h2 className="font-display font-bold text-sm text-sidebar-foreground">SANSEI</h2>
+              <p className="text-[10px] text-sidebar-foreground/50 uppercase tracking-wider">Logística</p>
             </div>
           )}
         </div>
       </SidebarHeader>
-
       <SidebarContent className="px-2">
         <MenuGroup label="Principal" items={mainItems} collapsed={collapsed} />
         <MenuGroup label="Núcleo" items={coreItems} collapsed={collapsed} />
@@ -139,13 +93,8 @@ export function AppSidebar() {
         <MenuGroup label="Operaciones" items={operationItems} collapsed={collapsed} />
         <MenuGroup label="Gestión" items={managementItems} collapsed={collapsed} />
       </SidebarContent>
-
       <SidebarFooter className="p-4">
-        {!collapsed && (
-          <p className="text-[10px] text-sidebar-foreground/30 text-center">
-            v4.0.0 — Fase 4
-          </p>
-        )}
+        {!collapsed && <p className="text-[10px] text-sidebar-foreground/30 text-center">v5.0.0 — Operacional</p>}
       </SidebarFooter>
     </Sidebar>
   );
