@@ -23,6 +23,7 @@ import Etiquetas from "./pages/Etiquetas";
 import Alertas from "./pages/Alertas";
 import Recepcion from "./pages/Recepcion";
 import Rendicion from "./pages/Rendicion";
+import Usuarios from "./pages/Usuarios";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -54,6 +55,7 @@ const App = () => (
             <Route path="/alertas" element={<Alertas />} />
             <Route path="/recepcion" element={<Recepcion />} />
             <Route path="/rendicion" element={<Rendicion />} />
+            <Route path="/usuarios" element={<Usuarios />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>
