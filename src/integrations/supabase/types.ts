@@ -2287,6 +2287,38 @@ export type Database = {
           },
         ]
       }
+      user_module_access: {
+        Row: {
+          created_at: string
+          id: string
+          is_enabled: boolean
+          module_key: string
+          profile_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_enabled?: boolean
+          module_key: string
+          profile_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_enabled?: boolean
+          module_key?: string
+          profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_module_access_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           branch_id: string | null
