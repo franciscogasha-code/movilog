@@ -11,7 +11,13 @@ function md5(message: string): string {
 }
 
 // Session cache (in-memory, per function instance)
-let cachedSession: { token: string; expiresAt: number } | null = null;
+type BimsSession = {
+  authType: "bearer" | "cookie";
+  credential: string;
+  expiresAt: number;
+};
+
+let cachedSession: BimsSession | null = null;
 
 const BIMS_API_URL = Deno.env.get("BIMS_API_URL")!;
 const BIMS_API_USER = Deno.env.get("BIMS_API_USER")!;
