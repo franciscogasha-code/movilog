@@ -17,6 +17,55 @@ type BimsSession = {
   expiresAt: number;
 };
 
+function extractArray(payload: any): any[] {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload?.results)) return payload.results;
+  if (Array.isArray(payload?.items)) return payload.items;
+  if (Array.isArray(payload?.data?.items)) return payload.data.items;
+  if (Array.isArray(payload?.warehouses)) return payload.warehouses;
+  if (Array.isArray(payload?.Warehouses)) return payload.Warehouses;
+  if (Array.isArray(payload?.data?.warehouses)) return payload.data.warehouses;
+  if (Array.isArray(payload?.data?.Warehouses)) return payload.data.Warehouses;
+  return [];
+}
+
+function normalizeWarehouse(raw: any) {
+  const item = raw?.Warehouse ?? raw?.warehouse ?? raw;
+  const idLike =
+    item?.id ??
+    item?.warehouse_id ??
+    item?.code ??
+    item?.codigo ??
+    raw?.id ??
+    raw?.warehouse_id ??
+    raw?.code ??
+    raw?.codigo;
+
+  if (idLike === undefined || idLike === null || String(idLike).trim() === "") {
+    return null;
+  }
+
+  const code = String(item?.code ?? item?.codigo ?? idLike).trim();
+  if (!code || code.toLowerCase() === "undefined" || code.toLowerCase() === "null") {
+    return null;
+  }
+
+  const name = String(
+    item?.name ?? item?.description ?? item?.nombre ?? raw?.name ?? raw?.description ?? raw?.nombre ?? `Warehouse ${code}`
+  ).trim();
+
+  const city = item?.city ?? item?.ciudad ?? raw?.city ?? raw?.ciudad ?? null;
+  const address = item?.address ?? item?.direccion ?? raw?.address ?? raw?.direccion ?? null;
+
+  return {
+    code,
+    name: name || `Warehouse ${code}`,
+    city: city ? String(city) : null,
+    address: address ? String(address) : null,
+  };
+}
+
 let cachedSession: BimsSession | null = null;
 
 const rawBimsUrl = Deno.env.get("BIMS_API_URL")!;
@@ -269,26 +318,26 @@ Deno.serve(async (req) => {
         );
 
         const warehouses = await bimsRequest("GET", `/warehouses`) as any;
-        const items = Array.isArray(warehouses) ? warehouses : warehouses?.data || warehouses?.results || [];
+        const items = extractArray(warehouses);
         
         let synced = 0;
         for (const w of items) {
-          const code = String(w.id || w.code);
-          const name = w.name || w.description || `Warehouse ${w.id}`;
+          const normalized = normalizeWarehouse(w);
+          if (!normalized) continue;
 
           const { data: existing } = await adminClient
             .from("branches")
             .select("id")
-            .eq("code", code)
+            .eq("code", normalized.code)
             .maybeSingle();
 
           if (!existing) {
             // Only create if no matching branch - don't overwrite manually configured branches
             await adminClient.from("branches").insert({
-              code,
-              name,
-              city: w.city || null,
-              address: w.address || null,
+              code: normalized.code,
+              name: normalized.name,
+              city: normalized.city,
+              address: normalized.address,
             });
           }
           synced++;

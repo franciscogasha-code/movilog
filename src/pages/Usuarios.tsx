@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -41,6 +42,7 @@ type Profile = {
   full_name: string;
   default_branch_id: string | null;
   is_active: boolean;
+  all_branches_access: boolean;
 };
 
 type ModuleAccess = {
@@ -50,6 +52,12 @@ type ModuleAccess = {
   is_enabled: boolean;
 };
 
+type ProfileBranchAccess = {
+  id: string;
+  profile_id: string;
+  branch_id: string;
+};
+
 export default function Usuarios() {
   const queryClient = useQueryClient();
   const { data: branches = [] } = useBranches();
@@ -57,13 +65,19 @@ export default function Usuarios() {
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
   const [newBranch, setNewBranch] = useState("");
+  const [newAllBranches, setNewAllBranches] = useState(false);
+  const [newAdditionalBranches, setNewAdditionalBranches] = useState<string[]>([]);
+
+  const [editDefaultBranch, setEditDefaultBranch] = useState("");
+  const [editAllBranches, setEditAllBranches] = useState(false);
+  const [editBranchIds, setEditBranchIds] = useState<string[]>([]);
 
   const { data: profiles = [], isLoading } = useQuery({
     queryKey: ["profiles"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("profiles")
-        .select("id, full_name, default_branch_id, is_active")
+        .select("id, full_name, default_branch_id, is_active, all_branches_access")
         .order("full_name");
       if (error) throw error;
       return data as Profile[];
@@ -81,15 +95,32 @@ export default function Usuarios() {
     },
   });
 
+  const { data: profileBranchAccess = [] } = useQuery({
+    queryKey: ["profile_branch_access"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profile_branch_access")
+        .select("id, profile_id, branch_id");
+      if (error) throw error;
+      return data as ProfileBranchAccess[];
+    },
+  });
+
   const createUser = useMutation({
     mutationFn: async () => {
+      const defaultBranchId = newBranch || null;
+      if (!newAllBranches && !defaultBranchId) {
+        throw new Error("Debés seleccionar una sucursal principal");
+      }
+
       // Create profile with a placeholder user_id since it's required
       const placeholderId = crypto.randomUUID();
       const { data, error } = await supabase
         .from("profiles")
         .insert({
           full_name: newName,
-          default_branch_id: newBranch || null,
+          default_branch_id: defaultBranchId,
+          all_branches_access: newAllBranches,
           user_id: placeholderId,
         })
         .select()
@@ -106,17 +137,38 @@ export default function Usuarios() {
         .from("user_module_access")
         .insert(accessRows);
       if (accessError) throw accessError;
+
+      if (!newAllBranches) {
+        const branchIds = Array.from(
+          new Set([defaultBranchId, ...newAdditionalBranches].filter(Boolean) as string[])
+        );
+
+        if (branchIds.length > 0) {
+          const rows = branchIds.map((branchId) => ({
+            profile_id: data.id,
+            branch_id: branchId,
+          }));
+          const { error: branchAccessError } = await supabase
+            .from("profile_branch_access")
+            .insert(rows);
+          if (branchAccessError) throw branchAccessError;
+        }
+      }
+
       return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["profiles"] });
       queryClient.invalidateQueries({ queryKey: ["user_module_access"] });
+      queryClient.invalidateQueries({ queryKey: ["profile_branch_access"] });
       setCreateOpen(false);
       setNewName("");
       setNewBranch("");
+      setNewAllBranches(false);
+      setNewAdditionalBranches([]);
       toast({ title: "Usuario creado correctamente" });
     },
-    onError: () => toast({ title: "Error al crear usuario", variant: "destructive" }),
+    onError: (error: Error) => toast({ title: error.message || "Error al crear usuario", variant: "destructive" }),
   });
 
   const toggleModule = useMutation({
@@ -158,6 +210,62 @@ export default function Usuarios() {
     },
   });
 
+  const saveBranchAccess = useMutation({
+    mutationFn: async ({
+      profileId,
+      defaultBranchId,
+      allBranches,
+      branchIds,
+    }: {
+      profileId: string;
+      defaultBranchId: string | null;
+      allBranches: boolean;
+      branchIds: string[];
+    }) => {
+      if (!allBranches && (!defaultBranchId || branchIds.length === 0)) {
+        throw new Error("Debés asignar al menos una sucursal");
+      }
+
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .update({
+          default_branch_id: defaultBranchId,
+          all_branches_access: allBranches,
+        })
+        .eq("id", profileId);
+      if (profileError) throw profileError;
+
+      const { error: deleteError } = await supabase
+        .from("profile_branch_access")
+        .delete()
+        .eq("profile_id", profileId);
+      if (deleteError) throw deleteError;
+
+      if (!allBranches) {
+        const uniqueBranchIds = Array.from(new Set(branchIds));
+        if (uniqueBranchIds.length > 0) {
+          const rows = uniqueBranchIds.map((branchId) => ({
+            profile_id: profileId,
+            branch_id: branchId,
+          }));
+
+          const { error: insertError } = await supabase
+            .from("profile_branch_access")
+            .insert(rows);
+          if (insertError) throw insertError;
+        }
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["profiles"] });
+      queryClient.invalidateQueries({ queryKey: ["profile_branch_access"] });
+      toast({ title: "Sucursales actualizadas" });
+    },
+    onError: (error: Error) => {
+      toast({ title: error.message || "Error al guardar sucursales", variant: "destructive" });
+    },
+  });
+
   const isModuleEnabled = (profileId: string, moduleKey: string) => {
     const access = moduleAccess.find(
       (ma) => ma.profile_id === profileId && ma.module_key === moduleKey
@@ -171,7 +279,52 @@ export default function Usuarios() {
     return branch ? branch.name : "—";
   };
 
-  const selectedProfile = profiles.find((p) => p.id === selectedUser);
+  const getBranchSummary = (profile: Profile) => {
+    if (profile.all_branches_access) return "Todas las sucursales";
+    return getBranchName(profile.default_branch_id);
+  };
+
+  const selectedProfile = useMemo(
+    () => profiles.find((p) => p.id === selectedUser),
+    [profiles, selectedUser]
+  );
+
+  useEffect(() => {
+    if (!selectedProfile) return;
+
+    const assignedBranches = profileBranchAccess
+      .filter((row) => row.profile_id === selectedProfile.id)
+      .map((row) => row.branch_id);
+
+    const merged = Array.from(
+      new Set([
+        ...(selectedProfile.default_branch_id ? [selectedProfile.default_branch_id] : []),
+        ...assignedBranches,
+      ])
+    );
+
+    setEditAllBranches(Boolean(selectedProfile.all_branches_access));
+    setEditDefaultBranch(selectedProfile.default_branch_id ?? "");
+    setEditBranchIds(merged);
+  }, [selectedProfile, profileBranchAccess]);
+
+  const toggleNewAdditionalBranch = (branchId: string, checked: boolean) => {
+    setNewAdditionalBranches((prev) => {
+      if (checked) return Array.from(new Set([...prev, branchId]));
+      return prev.filter((id) => id !== branchId);
+    });
+  };
+
+  const toggleEditBranch = (branchId: string, checked: boolean) => {
+    setEditBranchIds((prev) => {
+      if (checked) return Array.from(new Set([...prev, branchId]));
+      return prev.filter((id) => id !== branchId);
+    });
+
+    setEditDefaultBranch((currentDefault) =>
+      !checked && currentDefault === branchId ? "" : currentDefault
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -208,10 +361,44 @@ export default function Usuarios() {
                     ))}
                   </SelectContent>
                 </Select>
+                {branches.length === 0 && (
+                  <p className="text-xs text-destructive">
+                    No hay sucursales disponibles todavía. Sincronizá sucursales desde BIMS.
+                  </p>
+                )}
               </div>
+
+              <div className="rounded-md border p-3 space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm">Acceso a todas las sucursales</Label>
+                  <Switch checked={newAllBranches} onCheckedChange={setNewAllBranches} />
+                </div>
+
+                {!newAllBranches && branches.length > 0 && (
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Sucursales adicionales habilitadas</Label>
+                    <div className="max-h-40 overflow-auto space-y-2">
+                      {branches
+                        .filter((branch) => branch.id !== newBranch)
+                        .map((branch) => (
+                          <label key={branch.id} className="flex items-center gap-2 text-sm">
+                            <Checkbox
+                              checked={newAdditionalBranches.includes(branch.id)}
+                              onCheckedChange={(checked) =>
+                                toggleNewAdditionalBranch(branch.id, checked === true)
+                              }
+                            />
+                            {branch.name}
+                          </label>
+                        ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <Button
                 className="w-full"
-                disabled={!newName.trim() || createUser.isPending}
+                disabled={!newName.trim() || (!newAllBranches && !newBranch) || createUser.isPending}
                 onClick={() => createUser.mutate()}
               >
                 {createUser.isPending ? "Creando..." : "Crear usuario"}
@@ -247,7 +434,7 @@ export default function Usuarios() {
                       <div>
                         <p className="text-sm font-medium">{profile.full_name}</p>
                         <p className="text-xs text-muted-foreground">
-                          {getBranchName(profile.default_branch_id)}
+                          {getBranchSummary(profile)}
                         </p>
                       </div>
                       <Badge variant={profile.is_active ? "default" : "secondary"}>
@@ -291,33 +478,120 @@ export default function Usuarios() {
           </CardHeader>
           <CardContent>
             {selectedProfile ? (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Módulo</TableHead>
-                    <TableHead className="w-[100px] text-center">Habilitado</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {MODULES.map((mod) => (
-                    <TableRow key={mod.key}>
-                      <TableCell className="text-sm">{mod.label}</TableCell>
-                      <TableCell className="text-center">
-                        <Switch
-                          checked={isModuleEnabled(selectedProfile.id, mod.key)}
-                          onCheckedChange={(checked) =>
-                            toggleModule.mutate({
-                              profileId: selectedProfile.id,
-                              moduleKey: mod.key,
-                              enabled: checked,
-                            })
+              <div className="space-y-4">
+                <div className="rounded-lg border border-border p-4 space-y-4">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                    <div className="space-y-2 w-full md:max-w-xs">
+                      <Label>Sucursal principal</Label>
+                      <Select
+                        value={editDefaultBranch}
+                        onValueChange={(value) => {
+                          setEditDefaultBranch(value);
+                          setEditBranchIds((prev) =>
+                            prev.includes(value) ? prev : [...prev, value]
+                          );
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Seleccionar sucursal" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {branches.map((b) => (
+                            <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Label className="text-xs text-muted-foreground">Acceso a todas</Label>
+                      <Switch
+                        checked={editAllBranches}
+                        onCheckedChange={(checked) => {
+                          setEditAllBranches(checked);
+                          if (!checked && branches[0] && !editDefaultBranch) {
+                            setEditDefaultBranch(branches[0].id);
+                            setEditBranchIds((prev) =>
+                              prev.length > 0 ? prev : [branches[0].id]
+                            );
                           }
-                        />
-                      </TableCell>
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {!editAllBranches && (
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">Sucursales habilitadas</Label>
+                      {branches.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">No hay sucursales sincronizadas todavía.</p>
+                      ) : (
+                        <div className="max-h-40 overflow-auto space-y-2">
+                          {branches.map((branch) => (
+                            <label key={branch.id} className="flex items-center gap-2 text-sm">
+                              <Checkbox
+                                checked={editBranchIds.includes(branch.id)}
+                                onCheckedChange={(checked) =>
+                                  toggleEditBranch(branch.id, checked === true)
+                                }
+                              />
+                              {branch.name}
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="flex justify-end">
+                    <Button
+                      size="sm"
+                      onClick={() =>
+                        saveBranchAccess.mutate({
+                          profileId: selectedProfile.id,
+                          defaultBranchId: editDefaultBranch || null,
+                          allBranches: editAllBranches,
+                          branchIds: editAllBranches ? [] : Array.from(new Set([editDefaultBranch, ...editBranchIds].filter(Boolean) as string[])),
+                        })
+                      }
+                      disabled={
+                        saveBranchAccess.isPending ||
+                        (!editAllBranches && (!editDefaultBranch || editBranchIds.length === 0))
+                      }
+                    >
+                      {saveBranchAccess.isPending ? "Guardando..." : "Guardar sucursales"}
+                    </Button>
+                  </div>
+                </div>
+
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Módulo</TableHead>
+                      <TableHead className="w-[100px] text-center">Habilitado</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {MODULES.map((mod) => (
+                      <TableRow key={mod.key}>
+                        <TableCell className="text-sm">{mod.label}</TableCell>
+                        <TableCell className="text-center">
+                          <Switch
+                            checked={isModuleEnabled(selectedProfile.id, mod.key)}
+                            onCheckedChange={(checked) =>
+                              toggleModule.mutate({
+                                profileId: selectedProfile.id,
+                                moduleKey: mod.key,
+                                enabled: checked,
+                              })
+                            }
+                          />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             ) : (
               <div className="flex items-center justify-center h-64 text-muted-foreground text-sm">
                 Seleccioná un usuario de la lista para gestionar sus accesos

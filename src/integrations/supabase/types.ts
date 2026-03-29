@@ -1919,8 +1919,45 @@ export type Database = {
         }
         Relationships: []
       }
+      profile_branch_access: {
+        Row: {
+          branch_id: string
+          created_at: string
+          id: string
+          profile_id: string
+        }
+        Insert: {
+          branch_id: string
+          created_at?: string
+          id?: string
+          profile_id: string
+        }
+        Update: {
+          branch_id?: string
+          created_at?: string
+          id?: string
+          profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profile_branch_access_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profile_branch_access_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
+          all_branches_access: boolean
           avatar_url: string | null
           created_at: string
           default_branch_id: string | null
@@ -1932,6 +1969,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          all_branches_access?: boolean
           avatar_url?: string | null
           created_at?: string
           default_branch_id?: string | null
@@ -1943,6 +1981,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          all_branches_access?: boolean
           avatar_url?: string | null
           created_at?: string
           default_branch_id?: string | null
