@@ -164,6 +164,18 @@ export default function SincronizacionBims() {
         </Button>
       </div>
 
+      <Card>
+        <CardContent className="py-4">
+          <div className="flex items-center gap-3 text-sm">
+            <CheckCircle2 className="h-4 w-4 text-green-500" />
+            <span className="text-muted-foreground">
+              Sincronización automática configurada — se ejecuta <strong>cada hora</strong> desde BIMS.
+              Usá los botones de abajo solo si necesitás forzar una sincronización inmediata.
+            </span>
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {syncItems.map((item) => {
           const state = syncState[item.key];
