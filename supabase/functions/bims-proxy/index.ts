@@ -19,7 +19,8 @@ type BimsSession = {
 
 let cachedSession: BimsSession | null = null;
 
-const BIMS_API_URL = Deno.env.get("BIMS_API_URL")!;
+const rawBimsUrl = Deno.env.get("BIMS_API_URL")!;
+const BIMS_API_URL = rawBimsUrl.replace(/\/users\/login\/?$/i, "").replace(/\/$/, "");
 const BIMS_API_USER = Deno.env.get("BIMS_API_USER")!;
 const BIMS_API_PASSWORD = Deno.env.get("BIMS_API_PASSWORD")!;
 
