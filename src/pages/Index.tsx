@@ -225,6 +225,24 @@ export default function Index() {
                   </div>
                 </div>
               ))}
+
+              {/* BIMS Connection Test */}
+              <div className="pt-3 border-t border-border">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full gap-2"
+                  onClick={testBimsConnection}
+                  disabled={bimsLoading}
+                >
+                  {bimsLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Database className="h-4 w-4" />
+                  )}
+                  Test conexión BIMS
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </motion.div>
