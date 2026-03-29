@@ -1,17 +1,13 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { encode as hexEncode } from "https://deno.land/std@0.224.0/encoding/hex.ts";
-import { crypto as stdCrypto } from "https://deno.land/std@0.224.0/crypto/mod.ts";
+import { Md5 } from "https://deno.land/std@0.95.0/hash/md5.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-async function md5(message: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(message);
-  const hashBuffer = await stdCrypto.subtle.digest("MD5", data);
-  return new TextDecoder().decode(hexEncode(new Uint8Array(hashBuffer)));
+function md5(message: string): string {
+  return new Md5().update(message).toString();
 }
 
 let cachedSession: { token: string; expiresAt: number } | null = null;
@@ -24,7 +20,7 @@ async function getBimsSession(): Promise<string> {
   if (cachedSession && cachedSession.expiresAt > Date.now() + 300_000) {
     return cachedSession.token;
   }
-  const passwordMd5 = await md5(BIMS_API_PASSWORD);
+  const passwordMd5 = md5(BIMS_API_PASSWORD);
   const response = await fetch(`${BIMS_API_URL}/users/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
