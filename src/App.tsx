@@ -24,6 +24,7 @@ import Alertas from "./pages/Alertas";
 import Recepcion from "./pages/Recepcion";
 import Rendicion from "./pages/Rendicion";
 import Usuarios from "./pages/Usuarios";
+import SincronizacionBims from "./pages/SincronizacionBims";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -56,6 +57,7 @@ const App = () => (
             <Route path="/recepcion" element={<Recepcion />} />
             <Route path="/rendicion" element={<Rendicion />} />
             <Route path="/usuarios" element={<Usuarios />} />
+            <Route path="/sincronizacion" element={<SincronizacionBims />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>

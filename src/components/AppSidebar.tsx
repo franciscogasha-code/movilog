@@ -1,7 +1,7 @@
 import {
   Truck, Package, ShoppingCart, ArrowRightLeft, MapPin, CreditCard,
   Route, LayoutDashboard, FileText, Lock, AlertTriangle, Search,
-  ClipboardList, User, Tag, Bell, PackageCheck, Receipt, Users,
+  ClipboardList, User, Tag, Bell, PackageCheck, Receipt, Users, Database,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -15,6 +15,7 @@ const mainItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Alertas", url: "/alertas", icon: Bell },
   { title: "Usuarios", url: "/usuarios", icon: Users },
+  { title: "Sincronización BIMS", url: "/sincronizacion", icon: Database },
 ];
 
 const coreItems = [
