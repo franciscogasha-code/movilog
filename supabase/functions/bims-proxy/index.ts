@@ -11,16 +11,23 @@ function md5(message: string): string {
 }
 
 // Session cache (in-memory, per function instance)
-let cachedSession: { token: string; expiresAt: number } | null = null;
+type BimsSession = {
+  authType: "bearer" | "cookie";
+  credential: string;
+  expiresAt: number;
+};
 
-const BIMS_API_URL = Deno.env.get("BIMS_API_URL")!;
+let cachedSession: BimsSession | null = null;
+
+const rawBimsUrl = Deno.env.get("BIMS_API_URL")!;
+const BIMS_API_URL = rawBimsUrl.replace(/\/users\/login\/?$/i, "").replace(/\/$/, "");
 const BIMS_API_USER = Deno.env.get("BIMS_API_USER")!;
 const BIMS_API_PASSWORD = Deno.env.get("BIMS_API_PASSWORD")!;
 
-async function getBimsSession(): Promise<string> {
+async function getBimsSession(): Promise<BimsSession> {
   // Reuse cached session if still valid (5 min buffer)
   if (cachedSession && cachedSession.expiresAt > Date.now() + 300_000) {
-    return cachedSession.token;
+    return cachedSession;
   }
 
   const passwordMd5 = md5(BIMS_API_PASSWORD);
@@ -40,29 +47,42 @@ async function getBimsSession(): Promise<string> {
   }
 
   const data = await response.json();
-  
-  // Extract token from response - adjust based on actual BIMS response structure
-  const token = data.token || data.session || data.access_token || data.id;
-  if (!token) {
-    throw new Error(`BIMS login response missing token: ${JSON.stringify(data)}`);
+
+  const token = data?.token || data?.session || data?.access_token || data?.data?.token || data?.data?.access_token;
+  if (token) {
+    cachedSession = {
+      authType: "bearer",
+      credential: String(token),
+      expiresAt: Date.now() + 3_600_000,
+    };
+    return cachedSession;
   }
 
-  // Cache for 1 hour (adjust based on actual BIMS session duration)
-  cachedSession = {
-    token,
-    expiresAt: Date.now() + 3_600_000,
-  };
+  const setCookie = response.headers.get("set-cookie");
+  if (setCookie) {
+    cachedSession = {
+      authType: "cookie",
+      credential: setCookie.split(",")[0],
+      expiresAt: Date.now() + 3_600_000,
+    };
+    return cachedSession;
+  }
 
-  return token;
+  throw new Error(`BIMS login did not return token/cookie. Response: ${JSON.stringify(data)}`);
 }
 
 async function bimsRequest(method: string, path: string, body?: unknown): Promise<unknown> {
-  const token = await getBimsSession();
-  
+  const session = await getBimsSession();
+
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    "Authorization": `Bearer ${token}`,
   };
+
+  if (session.authType === "bearer") {
+    headers["Authorization"] = `Bearer ${session.credential}`;
+  } else {
+    headers["Cookie"] = session.credential;
+  }
 
   const options: RequestInit = { method, headers };
   if (body && method !== "GET") {
@@ -72,17 +92,27 @@ async function bimsRequest(method: string, path: string, body?: unknown): Promis
   const url = `${BIMS_API_URL}${path}`;
   const response = await fetch(url, options);
 
-  // If 401, try re-auth once
-  if (response.status === 401) {
+  // If auth error, try re-auth once
+  if (response.status === 401 || response.status === 403) {
     cachedSession = null;
-    const newToken = await getBimsSession();
-    headers["Authorization"] = `Bearer ${newToken}`;
+    const newSession = await getBimsSession();
+    if (newSession.authType === "bearer") {
+      headers["Authorization"] = `Bearer ${newSession.credential}`;
+      delete headers["Cookie"];
+    } else {
+      headers["Cookie"] = newSession.credential;
+      delete headers["Authorization"];
+    }
     const retry = await fetch(url, { ...options, headers });
     if (!retry.ok) {
       const errorText = await retry.text();
       throw new Error(`BIMS request failed after re-auth: ${retry.status} - ${errorText}`);
     }
-    return retry.json();
+    const retryPayload = await retry.json();
+    if (retryPayload?.status === "error") {
+      throw new Error(`BIMS business error after re-auth: ${retryPayload.code ?? "unknown"} - ${retryPayload.message ?? "Unknown error"}`);
+    }
+    return retryPayload;
   }
 
   if (!response.ok) {
@@ -90,7 +120,12 @@ async function bimsRequest(method: string, path: string, body?: unknown): Promis
     throw new Error(`BIMS request failed: ${response.status} - ${errorText}`);
   }
 
-  return response.json();
+  const payload = await response.json();
+  if (payload?.status === "error") {
+    throw new Error(`BIMS business error: ${payload.code ?? "unknown"} - ${payload.message ?? "Unknown error"}`);
+  }
+
+  return payload;
 }
 
 Deno.serve(async (req) => {
