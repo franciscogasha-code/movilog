@@ -22,39 +22,63 @@ const BIMS_API_URL = Deno.env.get("BIMS_API_URL")!;
 const BIMS_API_USER = Deno.env.get("BIMS_API_USER")!;
 const BIMS_API_PASSWORD = Deno.env.get("BIMS_API_PASSWORD")!;
 
-async function getBimsSession(): Promise<string> {
+async function getBimsSession(): Promise<BimsSession> {
   if (cachedSession && cachedSession.expiresAt > Date.now() + 300_000) {
-    return cachedSession.token;
+    return cachedSession;
   }
+
   const passwordMd5 = md5(BIMS_API_PASSWORD);
   const response = await fetch(`${BIMS_API_URL}/users/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ user: BIMS_API_USER, password: passwordMd5 }),
   });
+
   if (!response.ok) {
     const errorText = await response.text();
     throw new Error(`BIMS login failed: ${response.status} - ${errorText}`);
   }
+
   const data = await response.json();
-  const token = data.token || data.session || data.access_token || data.id;
-  if (!token) throw new Error(`BIMS login response missing token: ${JSON.stringify(data)}`);
-  cachedSession = { token, expiresAt: Date.now() + 3_600_000 };
-  return token;
+  const token = data?.token || data?.session || data?.access_token || data?.data?.token || data?.data?.access_token;
+  if (token) {
+    cachedSession = { authType: "bearer", credential: String(token), expiresAt: Date.now() + 3_600_000 };
+    return cachedSession;
+  }
+
+  const setCookie = response.headers.get("set-cookie");
+  if (setCookie) {
+    cachedSession = { authType: "cookie", credential: setCookie.split(",")[0], expiresAt: Date.now() + 3_600_000 };
+    return cachedSession;
+  }
+
+  throw new Error(`BIMS login did not return token/cookie. Response: ${JSON.stringify(data)}`);
 }
 
 async function bimsRequest(method: string, path: string): Promise<unknown> {
-  const token = await getBimsSession();
+  const session = await getBimsSession();
+
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    "Authorization": `Bearer ${token}`,
   };
+  if (session.authType === "bearer") {
+    headers["Authorization"] = `Bearer ${session.credential}`;
+  } else {
+    headers["Cookie"] = session.credential;
+  }
+
   const url = `${BIMS_API_URL}${path}`;
   const response = await fetch(url, { method, headers });
-  if (response.status === 401) {
+  if (response.status === 401 || response.status === 403) {
     cachedSession = null;
-    const newToken = await getBimsSession();
-    headers["Authorization"] = `Bearer ${newToken}`;
+    const newSession = await getBimsSession();
+    if (newSession.authType === "bearer") {
+      headers["Authorization"] = `Bearer ${newSession.credential}`;
+      delete headers["Cookie"];
+    } else {
+      headers["Cookie"] = newSession.credential;
+      delete headers["Authorization"];
+    }
     const retry = await fetch(url, { method, headers });
     if (!retry.ok) {
       const errorText = await retry.text();
