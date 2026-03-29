@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { motion } from "framer-motion";
 import {
   Truck,
@@ -8,8 +9,13 @@ import {
   Clock,
   AlertTriangle,
   CheckCircle2,
+  Database,
+  Loader2,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 const kpis = [
   {
@@ -72,6 +78,49 @@ const item = {
 };
 
 export default function Index() {
+  const [bimsLoading, setBimsLoading] = useState(false);
+
+  const testBimsConnection = async () => {
+    setBimsLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("bims-proxy", {
+        body: null,
+        headers: { "Content-Type": "application/json" },
+      });
+
+      // Use query params via direct fetch since invoke doesn't support them
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error("Debés iniciar sesión para probar la conexión BIMS");
+        return;
+      }
+
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/bims-proxy?action=test-connection`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          },
+        }
+      );
+
+      const result = await res.json();
+
+      if (res.ok && result.success) {
+        toast.success("✅ Conexión con BIMS exitosa");
+      } else {
+        toast.error(`Error BIMS: ${result.error || "Respuesta inesperada"}`);
+      }
+    } catch (err: any) {
+      toast.error(`Error de conexión: ${err.message}`);
+    } finally {
+      setBimsLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-8">
       {/* Header */}
@@ -176,6 +225,24 @@ export default function Index() {
                   </div>
                 </div>
               ))}
+
+              {/* BIMS Connection Test */}
+              <div className="pt-3 border-t border-border">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full gap-2"
+                  onClick={testBimsConnection}
+                  disabled={bimsLoading}
+                >
+                  {bimsLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Database className="h-4 w-4" />
+                  )}
+                  Test conexión BIMS
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </motion.div>
