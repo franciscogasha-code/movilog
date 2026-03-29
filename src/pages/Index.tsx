@@ -83,25 +83,12 @@ export default function Index() {
   const testBimsConnection = async () => {
     setBimsLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke("bims-proxy", {
-        body: null,
-        headers: { "Content-Type": "application/json" },
-      });
-
-      // Use query params via direct fetch since invoke doesn't support them
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        toast.error("Debés iniciar sesión para probar la conexión BIMS");
-        return;
-      }
-
       const res = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/bims-proxy?action=test-connection`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${session.access_token}`,
             apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
           },
         }
