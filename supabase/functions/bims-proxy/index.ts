@@ -23,7 +23,7 @@ async function getBimsSession(): Promise<string> {
     return cachedSession.token;
   }
 
-  const passwordMd5 = await md5(BIMS_API_PASSWORD);
+  const passwordMd5 = md5(BIMS_API_PASSWORD);
 
   const response = await fetch(`${BIMS_API_URL}/users/login`, {
     method: "POST",

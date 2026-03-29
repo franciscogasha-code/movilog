@@ -20,7 +20,7 @@ async function getBimsSession(): Promise<string> {
   if (cachedSession && cachedSession.expiresAt > Date.now() + 300_000) {
     return cachedSession.token;
   }
-  const passwordMd5 = await md5(BIMS_API_PASSWORD);
+  const passwordMd5 = md5(BIMS_API_PASSWORD);
   const response = await fetch(`${BIMS_API_URL}/users/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
