@@ -84,13 +84,21 @@ async function bimsRequest(method: string, path: string): Promise<unknown> {
       const errorText = await retry.text();
       throw new Error(`BIMS request failed after re-auth: ${retry.status} - ${errorText}`);
     }
-    return retry.json();
+    const retryPayload = await retry.json();
+    if (retryPayload?.status === "error") {
+      throw new Error(`BIMS business error after re-auth: ${retryPayload.code ?? "unknown"} - ${retryPayload.message ?? "Unknown error"}`);
+    }
+    return retryPayload;
   }
   if (!response.ok) {
     const errorText = await response.text();
     throw new Error(`BIMS request failed: ${response.status} - ${errorText}`);
   }
-  return response.json();
+  const payload = await response.json();
+  if (payload?.status === "error") {
+    throw new Error(`BIMS business error: ${payload.code ?? "unknown"} - ${payload.message ?? "Unknown error"}`);
+  }
+  return payload;
 }
 
 Deno.serve(async (req) => {
