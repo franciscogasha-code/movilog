@@ -17,6 +17,27 @@ type BimsSession = {
   expiresAt: number;
 };
 
+type NormalizedProduct = {
+  bims_code: string;
+  name: string;
+  sku: string | null;
+  category: string | null;
+  unit: string;
+  is_active: boolean;
+};
+
+function toText(value: unknown): string | null {
+  if (value === undefined || value === null) return null;
+
+  const normalized = String(value).trim();
+  if (!normalized) return null;
+
+  const lowered = normalized.toLowerCase();
+  if (lowered === "undefined" || lowered === "null") return null;
+
+  return normalized;
+}
+
 function extractArray(payload: any): any[] {
   if (Array.isArray(payload)) return payload;
   if (Array.isArray(payload?.data)) return payload.data;
@@ -63,6 +84,35 @@ function normalizeWarehouse(raw: any) {
     name: name || `Warehouse ${code}`,
     city: city ? String(city) : null,
     address: address ? String(address) : null,
+  };
+}
+
+function normalizeProduct(raw: any): NormalizedProduct | null {
+  const item = raw?.Product ?? raw?.product ?? raw;
+
+  const bimsCode = toText(
+    item?.id ??
+    item?.product_id ??
+    item?._id ??
+    item?.code ??
+    raw?.id ??
+    raw?.product_id ??
+    raw?._id ??
+    raw?.code
+  );
+
+  if (!bimsCode) return null;
+
+  const status = toText(item?.status ?? raw?.status)?.toLowerCase();
+  const enabledValue = item?.enabled ?? item?.active ?? raw?.enabled ?? raw?.active;
+
+  return {
+    bims_code: bimsCode,
+    name: toText(item?.name ?? item?.description ?? raw?.name ?? raw?.description) ?? `Product ${bimsCode}`,
+    sku: toText(item?.code2 ?? item?.code ?? item?.sku ?? raw?.code2 ?? raw?.code ?? raw?.sku),
+    category: toText(raw?.Ptype?.name ?? raw?.ptype?.name ?? item?.category ?? item?.group ?? raw?.category ?? raw?.group),
+    unit: toText(item?.unit ?? item?.measure_unit ?? item?.um_id ?? raw?.unit ?? raw?.measure_unit) ?? "UN",
+    is_active: enabledValue !== false && enabledValue !== 0 && enabledValue !== "0" && status !== "inactive" && status !== "disabled",
   };
 }
 
@@ -256,55 +306,48 @@ Deno.serve(async (req) => {
       }
 
       case "sync-products": {
-        // Fetch all products from BIMS and upsert into SLIS
         const adminClient = createClient(
           Deno.env.get("SUPABASE_URL")!,
           Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
         );
 
+        const PRODUCT_PAGE_SIZE = 250;
         let page = 1;
         let totalSynced = 0;
         let hasMore = true;
 
         while (hasMore) {
-          const products = await bimsRequest("GET", `/products?page=${page}&limit=100`) as any;
-          const items = Array.isArray(products) ? products : products?.data || products?.results || [];
-          
+          const products = await bimsRequest("GET", `/products?page=${page}&limit=${PRODUCT_PAGE_SIZE}`) as any;
+          const items = extractArray(products);
+
           if (items.length === 0) {
             hasMore = false;
             break;
           }
 
-          const mapped = items.map((p: any) => ({
-            bims_code: String(p.id || p.code || p.product_id),
-            name: p.name || p.description || `Product ${p.id}`,
-            sku: p.sku || p.code || null,
-            category: p.category || p.group || null,
-            unit: p.unit || p.measure_unit || 'UN',
-            is_active: p.active !== false && p.status !== 'inactive',
-          }));
+          const mapped = Array.from(
+            new Map(
+              items
+                .map((product: any) => normalizeProduct(product))
+                .filter((product): product is NormalizedProduct => product !== null)
+                .map((product) => [product.bims_code, product])
+            ).values()
+          );
 
-          // Upsert by bims_code
-          for (const product of mapped) {
-            const { data: existing } = await adminClient
-              .from("products")
-              .select("id")
-              .eq("bims_code", product.bims_code)
-              .maybeSingle();
+          if (mapped.length > 0) {
+            const { error } = await adminClient.from("products").upsert(mapped, {
+              onConflict: "bims_code",
+            });
 
-            if (existing) {
-              await adminClient
-                .from("products")
-                .update({ name: product.name, sku: product.sku, category: product.category, unit: product.unit, is_active: product.is_active })
-                .eq("id", existing.id);
-            } else {
-              await adminClient.from("products").insert(product);
+            if (error) {
+              throw new Error(`Products page ${page} upsert failed: ${error.message}`);
             }
-            totalSynced++;
+
+            totalSynced += mapped.length;
           }
 
           page++;
-          if (items.length < 100) hasMore = false;
+          if (items.length < PRODUCT_PAGE_SIZE) hasMore = false;
         }
 
         result = { success: true, synced: totalSynced };
