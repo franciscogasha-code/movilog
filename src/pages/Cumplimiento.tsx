@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/StatusBadge";
-import { FULFILLMENT_STATUS_CONFIG, SHIPPING_METHOD_LABELS, REQUEST_TYPE_LABELS } from "@/lib/constants";
+import { FULFILLMENT_STATUS_CONFIG, SHIPPING_METHOD_LABELS, REQUEST_TYPE_LABELS, COMMERCIAL_EXCEPTION_STATUS_LABELS } from "@/lib/constants";
 import { Package, Truck, MapPin, Search, Clock, User } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
