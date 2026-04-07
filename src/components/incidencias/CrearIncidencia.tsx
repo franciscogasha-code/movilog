@@ -60,7 +60,7 @@ export function CrearIncidencia({ onSuccess }: { onSuccess: () => void }) {
         product_id: productId || null,
         quantity_affected: quantity ? parseFloat(quantity) : null,
         pending_shipment_to_admin: pendingShipment,
-      };
+        photo_urls: photoUrls.length > 0 ? photoUrls : [],
 
       // Only set damage_cause for internal detection
       if (isInternal && damageCause) {
