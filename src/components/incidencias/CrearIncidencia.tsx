@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { useBranches, useProducts } from "@/hooks/use-branches";
 import { DETECTION_CONTEXT_LABELS, DAMAGE_CAUSE_LABELS } from "@/lib/constants";
+import { FileUpload } from "@/components/shared/FileUpload";
 import { toast } from "sonner";
 
 const INCIDENT_TYPES = [
