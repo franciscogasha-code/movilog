@@ -515,7 +515,7 @@ function CreateOrderFromConsultation({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const items = Object.entries(selectedItems).filter(([_, qty]) => qty > 0);
-    if (!items.length || !sourceBranchIds.length) { toast.error("Seleccionar sucursal origen y al menos un producto"); return; }
+    if (!items.length || !sourceBranchId) { toast.error("Seleccionar sucursal origen y al menos un producto"); return; }
 
     setSubmitting(true);
     try {
