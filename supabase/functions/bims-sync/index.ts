@@ -16,24 +16,12 @@ type BimsSession = {
   expiresAt: number;
 };
 
-type NormalizedProduct = {
-  bims_code: string;
-  name: string;
-  sku: string | null;
-  category: string | null;
-  unit: string;
-  is_active: boolean;
-};
-
 function toText(value: unknown): string | null {
   if (value === undefined || value === null) return null;
-
   const normalized = String(value).trim();
   if (!normalized) return null;
-
   const lowered = normalized.toLowerCase();
   if (lowered === "undefined" || lowered === "null") return null;
-
   return normalized;
 }
 
@@ -52,66 +40,81 @@ function extractArray(payload: any): any[] {
 
 function normalizeWarehouse(raw: any) {
   const item = raw?.Warehouse ?? raw?.warehouse ?? raw;
-  const idLike =
-    item?.id ??
-    item?.warehouse_id ??
-    item?.code ??
-    item?.codigo ??
-    raw?.id ??
-    raw?.warehouse_id ??
-    raw?.code ??
-    raw?.codigo;
-
-  if (idLike === undefined || idLike === null || String(idLike).trim() === "") {
-    return null;
-  }
+  const idLike = item?.id ?? item?.warehouse_id ?? item?.code ?? item?.codigo ?? raw?.id ?? raw?.warehouse_id ?? raw?.code ?? raw?.codigo;
+  if (idLike === undefined || idLike === null || String(idLike).trim() === "") return null;
 
   const code = String(item?.code ?? item?.codigo ?? idLike).trim();
-  if (!code || code.toLowerCase() === "undefined" || code.toLowerCase() === "null") {
-    return null;
-  }
-
-  const name = String(
-    item?.name ?? item?.description ?? item?.nombre ?? raw?.name ?? raw?.description ?? raw?.nombre ?? `Warehouse ${code}`
-  ).trim();
-
-  const city = item?.city ?? item?.ciudad ?? raw?.city ?? raw?.ciudad ?? null;
-  const address = item?.address ?? item?.direccion ?? raw?.address ?? raw?.direccion ?? null;
+  if (!code || code.toLowerCase() === "undefined" || code.toLowerCase() === "null") return null;
 
   return {
     code,
-    name: name || `Warehouse ${code}`,
-    city: city ? String(city) : null,
-    address: address ? String(address) : null,
+    name: String(item?.name ?? item?.description ?? item?.nombre ?? raw?.name ?? raw?.description ?? raw?.nombre ?? `Warehouse ${code}`).trim() || `Warehouse ${code}`,
+    city: item?.city ?? item?.ciudad ?? raw?.city ?? raw?.ciudad ?? null,
+    address: item?.address ?? item?.direccion ?? raw?.address ?? raw?.direccion ?? null,
   };
 }
 
-function normalizeProduct(raw: any): NormalizedProduct | null {
+function normalizeProduct(raw: any) {
   const item = raw?.Product ?? raw?.product ?? raw;
-
-  const bimsCode = toText(
-    item?.id ??
-    item?.product_id ??
-    item?._id ??
-    item?.code ??
-    raw?.id ??
-    raw?.product_id ??
-    raw?._id ??
-    raw?.code
-  );
-
+  const bimsCode = toText(item?.id ?? item?._id ?? item?.product_id ?? raw?.id ?? raw?.product_id ?? raw?._id);
   if (!bimsCode) return null;
 
   const status = toText(item?.status ?? raw?.status)?.toLowerCase();
   const enabledValue = item?.enabled ?? item?.active ?? raw?.enabled ?? raw?.active;
 
+  const code1 = toText(item?.code ?? raw?.code);
+  const code2 = toText(item?.code2 ?? raw?.code2);
+  const barcode = code1 || code2 || null;
+  const sku = code2 || code1 || null;
+
+  const description = toText(item?.notes ?? raw?.notes);
+  const imageUrl = toText(item?.image_url ?? item?.image ?? raw?.image_url ?? raw?.image);
+
+  const sellPrice = item?.sell_price != null ? parseFloat(String(item.sell_price)) : null;
+  const buyPrice = item?.buy_price != null ? parseFloat(String(item.buy_price)) : null;
+
+  const qprices = item?.Qprice ?? raw?.Qprice ?? [];
+  const priceScales = Array.isArray(qprices) ? qprices.map((q: any) => ({
+    min_quantity: parseFloat(String(q.min_quantity || 0)),
+    price: parseFloat(String(q.price || 0)),
+  })) : [];
+
+  const pricings = item?.ProductsPricing ?? raw?.ProductsPricing ?? [];
+  const priceLists = Array.isArray(pricings) ? pricings.map((p: any) => ({
+    name: p?.Pricing?.name || `Lista ${p?.pricing_id}`,
+    amount: parseFloat(String(p?.amount || 0)),
+    pricing_id: p?.pricing_id,
+  })) : [];
+
+  const availability = item?.Availability ?? raw?.Availability ?? {};
+  const stockByWarehouse: Record<string, number> = {};
+  let totalStock = 0;
+  if (typeof availability === "object" && availability !== null) {
+    for (const [whId, qty] of Object.entries(availability)) {
+      const numQty = parseFloat(String(qty));
+      if (!isNaN(numQty)) {
+        stockByWarehouse[whId] = numQty;
+        totalStock += numQty;
+      }
+    }
+  }
+
   return {
     bims_code: bimsCode,
     name: toText(item?.name ?? item?.description ?? raw?.name ?? raw?.description) ?? `Product ${bimsCode}`,
-    sku: toText(item?.code2 ?? item?.code ?? item?.sku ?? raw?.code2 ?? raw?.code ?? raw?.sku),
+    sku,
+    barcode,
     category: toText(raw?.Ptype?.name ?? raw?.ptype?.name ?? item?.category ?? item?.group ?? raw?.category ?? raw?.group),
-    unit: toText(item?.unit ?? item?.measure_unit ?? item?.um_id ?? raw?.unit ?? raw?.measure_unit) ?? "UN",
+    unit: toText(item?.um_id ?? item?.unit ?? item?.measure_unit ?? raw?.um_id ?? raw?.unit ?? raw?.measure_unit) ?? "UN",
     is_active: enabledValue !== false && enabledValue !== 0 && enabledValue !== "0" && status !== "inactive" && status !== "disabled",
+    description,
+    image_url: imageUrl,
+    sell_price: isNaN(sellPrice as number) ? null : sellPrice,
+    buy_price: isNaN(buyPrice as number) ? null : buyPrice,
+    price_scales: priceScales,
+    price_lists: priceLists,
+    stock_by_warehouse: stockByWarehouse,
+    total_stock: totalStock,
   };
 }
 
@@ -123,9 +126,7 @@ const BIMS_API_USER = Deno.env.get("BIMS_API_USER")!;
 const BIMS_API_PASSWORD = Deno.env.get("BIMS_API_PASSWORD")!;
 
 async function getBimsSession(): Promise<BimsSession> {
-  if (cachedSession && cachedSession.expiresAt > Date.now() + 300_000) {
-    return cachedSession;
-  }
+  if (cachedSession && cachedSession.expiresAt > Date.now() + 300_000) return cachedSession;
 
   const passwordMd5 = md5(BIMS_API_PASSWORD);
   const response = await fetch(`${BIMS_API_URL}/users/login`, {
@@ -152,91 +153,57 @@ async function getBimsSession(): Promise<BimsSession> {
     return cachedSession;
   }
 
-  throw new Error(`BIMS login did not return token/cookie. Response: ${JSON.stringify(data)}`);
+  throw new Error(`BIMS login did not return token/cookie.`);
 }
 
 async function bimsRequest(method: string, path: string): Promise<unknown> {
   const session = await getBimsSession();
-
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
-  if (session.authType === "bearer") {
-    headers["Authorization"] = `Bearer ${session.credential}`;
-  } else {
-    headers["Cookie"] = session.credential;
-  }
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (session.authType === "bearer") headers["Authorization"] = `Bearer ${session.credential}`;
+  else headers["Cookie"] = session.credential;
 
   const url = `${BIMS_API_URL}${path}`;
   const response = await fetch(url, { method, headers });
   if (response.status === 401 || response.status === 403) {
     cachedSession = null;
     const newSession = await getBimsSession();
-    if (newSession.authType === "bearer") {
-      headers["Authorization"] = `Bearer ${newSession.credential}`;
-      delete headers["Cookie"];
-    } else {
-      headers["Cookie"] = newSession.credential;
-      delete headers["Authorization"];
-    }
+    if (newSession.authType === "bearer") { headers["Authorization"] = `Bearer ${newSession.credential}`; delete headers["Cookie"]; }
+    else { headers["Cookie"] = newSession.credential; delete headers["Authorization"]; }
     const retry = await fetch(url, { method, headers });
-    if (!retry.ok) {
-      const errorText = await retry.text();
-      throw new Error(`BIMS request failed after re-auth: ${retry.status} - ${errorText}`);
-    }
-    const retryPayload = await retry.json();
-    if (retryPayload?.status === "error") {
-      throw new Error(`BIMS business error after re-auth: ${retryPayload.code ?? "unknown"} - ${retryPayload.message ?? "Unknown error"}`);
-    }
-    return retryPayload;
+    if (!retry.ok) throw new Error(`BIMS request failed after re-auth: ${retry.status}`);
+    return await retry.json();
   }
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`BIMS request failed: ${response.status} - ${errorText}`);
-  }
-  const payload = await response.json();
-  if (payload?.status === "error") {
-    throw new Error(`BIMS business error: ${payload.code ?? "unknown"} - ${payload.message ?? "Unknown error"}`);
-  }
-  return payload;
+  if (!response.ok) throw new Error(`BIMS request failed: ${response.status}`);
+  return await response.json();
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const adminClient = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
-
+    const adminClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const results: Record<string, unknown> = {};
 
-    // 1. Sync warehouses → branches
+    // 1. Sync warehouses
     const warehouses = await bimsRequest("GET", `/warehouses`) as any;
     const whItems = extractArray(warehouses);
     let whSynced = 0;
     for (const w of whItems) {
       const normalized = normalizeWarehouse(w);
       if (!normalized) continue;
-
-      const { data: existing } = await adminClient
-        .from("branches").select("id").eq("code", normalized.code).maybeSingle();
+      const { data: existing } = await adminClient.from("branches").select("id").eq("code", normalized.code).maybeSingle();
       if (!existing) {
         await adminClient.from("branches").insert({
-          code: normalized.code,
-          name: normalized.name,
-          city: normalized.city,
-          address: normalized.address,
+          code: normalized.code, name: normalized.name,
+          city: normalized.city ? String(normalized.city) : null,
+          address: normalized.address ? String(normalized.address) : null,
         });
       }
       whSynced++;
     }
     results.warehouses = { synced: whSynced };
 
-    // 2. Sync products
+    // 2. Sync products with full commercial data
     const PRODUCT_PAGE_SIZE = 250;
     let page = 1;
     let totalSynced = 0;
@@ -250,20 +217,14 @@ Deno.serve(async (req) => {
         new Map(
           items
             .map((product: any) => normalizeProduct(product))
-            .filter((product): product is NormalizedProduct => product !== null)
-            .map((product) => [product.bims_code, product])
+            .filter((p: any) => p !== null)
+            .map((product: any) => [product.bims_code, product])
         ).values()
       );
 
       if (mapped.length > 0) {
-        const { error } = await adminClient.from("products").upsert(mapped, {
-          onConflict: "bims_code",
-        });
-
-        if (error) {
-          throw new Error(`Products page ${page} upsert failed: ${error.message}`);
-        }
-
+        const { error } = await adminClient.from("products").upsert(mapped, { onConflict: "bims_code" });
+        if (error) throw new Error(`Products page ${page} upsert failed: ${error.message}`);
         totalSynced += mapped.length;
       }
 

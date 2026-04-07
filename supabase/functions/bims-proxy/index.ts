@@ -10,7 +10,6 @@ function md5(message: string): string {
   return new Md5().update(message).toString();
 }
 
-// Session cache (in-memory, per function instance)
 type BimsSession = {
   authType: "bearer" | "cookie";
   credential: string;
@@ -21,20 +20,26 @@ type NormalizedProduct = {
   bims_code: string;
   name: string;
   sku: string | null;
+  barcode: string | null;
   category: string | null;
   unit: string;
   is_active: boolean;
+  description: string | null;
+  image_url: string | null;
+  sell_price: number | null;
+  buy_price: number | null;
+  price_scales: any[];
+  price_lists: any[];
+  stock_by_warehouse: Record<string, number>;
+  total_stock: number;
 };
 
 function toText(value: unknown): string | null {
   if (value === undefined || value === null) return null;
-
   const normalized = String(value).trim();
   if (!normalized) return null;
-
   const lowered = normalized.toLowerCase();
   if (lowered === "undefined" || lowered === "null") return null;
-
   return normalized;
 }
 
@@ -54,36 +59,23 @@ function extractArray(payload: any): any[] {
 function normalizeWarehouse(raw: any) {
   const item = raw?.Warehouse ?? raw?.warehouse ?? raw;
   const idLike =
-    item?.id ??
-    item?.warehouse_id ??
-    item?.code ??
-    item?.codigo ??
-    raw?.id ??
-    raw?.warehouse_id ??
-    raw?.code ??
-    raw?.codigo;
+    item?.id ?? item?.warehouse_id ?? item?.code ?? item?.codigo ??
+    raw?.id ?? raw?.warehouse_id ?? raw?.code ?? raw?.codigo;
 
-  if (idLike === undefined || idLike === null || String(idLike).trim() === "") {
-    return null;
-  }
+  if (idLike === undefined || idLike === null || String(idLike).trim() === "") return null;
 
   const code = String(item?.code ?? item?.codigo ?? idLike).trim();
-  if (!code || code.toLowerCase() === "undefined" || code.toLowerCase() === "null") {
-    return null;
-  }
+  if (!code || code.toLowerCase() === "undefined" || code.toLowerCase() === "null") return null;
 
   const name = String(
     item?.name ?? item?.description ?? item?.nombre ?? raw?.name ?? raw?.description ?? raw?.nombre ?? `Warehouse ${code}`
   ).trim();
 
-  const city = item?.city ?? item?.ciudad ?? raw?.city ?? raw?.ciudad ?? null;
-  const address = item?.address ?? item?.direccion ?? raw?.address ?? raw?.direccion ?? null;
-
   return {
     code,
     name: name || `Warehouse ${code}`,
-    city: city ? String(city) : null,
-    address: address ? String(address) : null,
+    city: item?.city ?? item?.ciudad ?? raw?.city ?? raw?.ciudad ?? null,
+    address: item?.address ?? item?.direccion ?? raw?.address ?? raw?.direccion ?? null,
   };
 }
 
@@ -91,28 +83,81 @@ function normalizeProduct(raw: any): NormalizedProduct | null {
   const item = raw?.Product ?? raw?.product ?? raw;
 
   const bimsCode = toText(
-    item?.id ??
-    item?.product_id ??
-    item?._id ??
-    item?.code ??
-    raw?.id ??
-    raw?.product_id ??
-    raw?._id ??
-    raw?.code
+    item?.id ?? item?._id ?? item?.product_id ??
+    raw?.id ?? raw?.product_id ?? raw?._id
   );
-
   if (!bimsCode) return null;
 
   const status = toText(item?.status ?? raw?.status)?.toLowerCase();
   const enabledValue = item?.enabled ?? item?.active ?? raw?.enabled ?? raw?.active;
 
+  // Extract barcode from code/code2
+  const code1 = toText(item?.code ?? raw?.code);
+  const code2 = toText(item?.code2 ?? raw?.code2);
+  const barcode = code1 || code2 || null;
+  const sku = code2 || code1 || null;
+
+  // Extract description from notes
+  const description = toText(item?.notes ?? raw?.notes);
+
+  // Extract image
+  const imageUrl = toText(item?.image_url ?? item?.image ?? raw?.image_url ?? raw?.image);
+
+  // Extract prices
+  const sellPrice = item?.sell_price != null ? parseFloat(String(item.sell_price)) : null;
+  const buyPrice = item?.buy_price != null ? parseFloat(String(item.buy_price)) : null;
+
+  // Extract price scales (Qprice)
+  const qprices = item?.Qprice ?? raw?.Qprice ?? [];
+  const priceScales = Array.isArray(qprices) ? qprices.map((q: any) => ({
+    min_quantity: parseFloat(String(q.min_quantity || 0)),
+    price: parseFloat(String(q.price || 0)),
+  })) : [];
+
+  // Extract price lists (ProductsPricing)
+  const pricings = item?.ProductsPricing ?? raw?.ProductsPricing ?? [];
+  const priceLists = Array.isArray(pricings) ? pricings.map((p: any) => ({
+    name: p?.Pricing?.name || `Lista ${p?.pricing_id}`,
+    amount: parseFloat(String(p?.amount || 0)),
+    pricing_id: p?.pricing_id,
+  })) : [];
+
+  // Extract stock by warehouse (Availability)
+  const availability = item?.Availability ?? raw?.Availability ?? {};
+  const stockByWarehouse: Record<string, number> = {};
+  let totalStock = 0;
+  if (typeof availability === "object" && availability !== null) {
+    for (const [whId, qty] of Object.entries(availability)) {
+      const numQty = parseFloat(String(qty));
+      if (!isNaN(numQty)) {
+        stockByWarehouse[whId] = numQty;
+        totalStock += numQty;
+      }
+    }
+  }
+
+  // Category from Ptype
+  const category = toText(raw?.Ptype?.name ?? raw?.ptype?.name ?? item?.category ?? item?.group ?? raw?.category ?? raw?.group);
+
+  // Unit
+  const unit = toText(item?.um_id ?? item?.unit ?? item?.measure_unit ?? raw?.um_id ?? raw?.unit ?? raw?.measure_unit) ?? "UN";
+
   return {
     bims_code: bimsCode,
     name: toText(item?.name ?? item?.description ?? raw?.name ?? raw?.description) ?? `Product ${bimsCode}`,
-    sku: toText(item?.code2 ?? item?.code ?? item?.sku ?? raw?.code2 ?? raw?.code ?? raw?.sku),
-    category: toText(raw?.Ptype?.name ?? raw?.ptype?.name ?? item?.category ?? item?.group ?? raw?.category ?? raw?.group),
-    unit: toText(item?.unit ?? item?.measure_unit ?? item?.um_id ?? raw?.unit ?? raw?.measure_unit) ?? "UN",
+    sku,
+    barcode,
+    category,
+    unit,
     is_active: enabledValue !== false && enabledValue !== 0 && enabledValue !== "0" && status !== "inactive" && status !== "disabled",
+    description,
+    image_url: imageUrl,
+    sell_price: isNaN(sellPrice as number) ? null : sellPrice,
+    buy_price: isNaN(buyPrice as number) ? null : buyPrice,
+    price_scales: priceScales,
+    price_lists: priceLists,
+    stock_by_warehouse: stockByWarehouse,
+    total_stock: totalStock,
   };
 }
 
@@ -124,20 +169,15 @@ const BIMS_API_USER = Deno.env.get("BIMS_API_USER")!;
 const BIMS_API_PASSWORD = Deno.env.get("BIMS_API_PASSWORD")!;
 
 async function getBimsSession(): Promise<BimsSession> {
-  // Reuse cached session if still valid (5 min buffer)
   if (cachedSession && cachedSession.expiresAt > Date.now() + 300_000) {
     return cachedSession;
   }
 
   const passwordMd5 = md5(BIMS_API_PASSWORD);
-
   const response = await fetch(`${BIMS_API_URL}/users/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      user: BIMS_API_USER,
-      password: passwordMd5,
-    }),
+    body: JSON.stringify({ user: BIMS_API_USER, password: passwordMd5 }),
   });
 
   if (!response.ok) {
@@ -146,24 +186,15 @@ async function getBimsSession(): Promise<BimsSession> {
   }
 
   const data = await response.json();
-
   const token = data?.token || data?.session || data?.access_token || data?.data?.token || data?.data?.access_token;
   if (token) {
-    cachedSession = {
-      authType: "bearer",
-      credential: String(token),
-      expiresAt: Date.now() + 3_600_000,
-    };
+    cachedSession = { authType: "bearer", credential: String(token), expiresAt: Date.now() + 3_600_000 };
     return cachedSession;
   }
 
   const setCookie = response.headers.get("set-cookie");
   if (setCookie) {
-    cachedSession = {
-      authType: "cookie",
-      credential: setCookie.split(",")[0],
-      expiresAt: Date.now() + 3_600_000,
-    };
+    cachedSession = { authType: "cookie", credential: setCookie.split(",")[0], expiresAt: Date.now() + 3_600_000 };
     return cachedSession;
   }
 
@@ -172,10 +203,7 @@ async function getBimsSession(): Promise<BimsSession> {
 
 async function bimsRequest(method: string, path: string, body?: unknown): Promise<unknown> {
   const session = await getBimsSession();
-
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
 
   if (session.authType === "bearer") {
     headers["Authorization"] = `Bearer ${session.credential}`;
@@ -191,7 +219,6 @@ async function bimsRequest(method: string, path: string, body?: unknown): Promis
   const url = `${BIMS_API_URL}${path}`;
   const response = await fetch(url, options);
 
-  // If auth error, try re-auth once
   if (response.status === 401 || response.status === 403) {
     cachedSession = null;
     const newSession = await getBimsSession();
@@ -223,7 +250,6 @@ async function bimsRequest(method: string, path: string, body?: unknown): Promis
   if (payload?.status === "error") {
     throw new Error(`BIMS business error: ${payload.code ?? "unknown"} - ${payload.message ?? "Unknown error"}`);
   }
-
   return payload;
 }
 
@@ -236,7 +262,6 @@ Deno.serve(async (req) => {
     const url = new URL(req.url);
     const action = url.searchParams.get("action");
 
-    // Create supabase client for DB operations (no auth required)
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
@@ -306,11 +331,6 @@ Deno.serve(async (req) => {
       }
 
       case "sync-products": {
-        const adminClient = createClient(
-          Deno.env.get("SUPABASE_URL")!,
-          Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-        );
-
         const PRODUCT_PAGE_SIZE = 250;
         let page = 1;
         let totalSynced = 0;
@@ -335,7 +355,7 @@ Deno.serve(async (req) => {
           );
 
           if (mapped.length > 0) {
-            const { error } = await adminClient.from("products").upsert(mapped, {
+            const { error } = await supabase.from("products").upsert(mapped, {
               onConflict: "bims_code",
             });
 
@@ -355,11 +375,6 @@ Deno.serve(async (req) => {
       }
 
       case "sync-warehouses": {
-        const adminClient = createClient(
-          Deno.env.get("SUPABASE_URL")!,
-          Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-        );
-
         const warehouses = await bimsRequest("GET", `/warehouses`) as any;
         const items = extractArray(warehouses);
         
@@ -368,19 +383,18 @@ Deno.serve(async (req) => {
           const normalized = normalizeWarehouse(w);
           if (!normalized) continue;
 
-          const { data: existing } = await adminClient
+          const { data: existing } = await supabase
             .from("branches")
             .select("id")
             .eq("code", normalized.code)
             .maybeSingle();
 
           if (!existing) {
-            // Only create if no matching branch - don't overwrite manually configured branches
-            await adminClient.from("branches").insert({
+            await supabase.from("branches").insert({
               code: normalized.code,
               name: normalized.name,
-              city: normalized.city,
-              address: normalized.address,
+              city: normalized.city ? String(normalized.city) : null,
+              address: normalized.address ? String(normalized.address) : null,
             });
           }
           synced++;

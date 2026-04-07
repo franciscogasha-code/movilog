@@ -234,6 +234,13 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
                       productBarcode={item.product.barcode}
                       productCategory={item.product.category}
                       productUnit={item.product.unit}
+                      productDescription={(item.product as any).description}
+                      productImageUrl={(item.product as any).image_url}
+                      productSellPrice={(item.product as any).sell_price}
+                      productPriceScales={(item.product as any).price_scales}
+                      productPriceLists={(item.product as any).price_lists}
+                      productStockByWarehouse={(item.product as any).stock_by_warehouse}
+                      productTotalStock={(item.product as any).total_stock}
                       onSelectSourceBranch={handleSelectSourceFromCard}
                       compact={false}
                     />

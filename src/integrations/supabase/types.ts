@@ -1884,12 +1884,21 @@ export type Database = {
         Row: {
           barcode: string | null
           bims_code: string | null
+          bims_warehouse_id: string | null
+          buy_price: number | null
           category: string | null
           created_at: string
+          description: string | null
           id: string
+          image_url: string | null
           is_active: boolean | null
           name: string
+          price_lists: Json | null
+          price_scales: Json | null
+          sell_price: number | null
           sku: string | null
+          stock_by_warehouse: Json | null
+          total_stock: number | null
           unit: string | null
           updated_at: string
           volume_cm3: number | null
@@ -1898,12 +1907,21 @@ export type Database = {
         Insert: {
           barcode?: string | null
           bims_code?: string | null
+          bims_warehouse_id?: string | null
+          buy_price?: number | null
           category?: string | null
           created_at?: string
+          description?: string | null
           id?: string
+          image_url?: string | null
           is_active?: boolean | null
           name: string
+          price_lists?: Json | null
+          price_scales?: Json | null
+          sell_price?: number | null
           sku?: string | null
+          stock_by_warehouse?: Json | null
+          total_stock?: number | null
           unit?: string | null
           updated_at?: string
           volume_cm3?: number | null
@@ -1912,12 +1930,21 @@ export type Database = {
         Update: {
           barcode?: string | null
           bims_code?: string | null
+          bims_warehouse_id?: string | null
+          buy_price?: number | null
           category?: string | null
           created_at?: string
+          description?: string | null
           id?: string
+          image_url?: string | null
           is_active?: boolean | null
           name?: string
+          price_lists?: Json | null
+          price_scales?: Json | null
+          sell_price?: number | null
           sku?: string | null
+          stock_by_warehouse?: Json | null
+          total_stock?: number | null
           unit?: string | null
           updated_at?: string
           volume_cm3?: number | null
