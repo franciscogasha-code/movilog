@@ -15,6 +15,7 @@ import { ProductCard } from "@/components/shared/ProductCard";
 import { BranchSelector, MultiBranchSelector, useAutoDetectBranch } from "@/components/shared/BranchSelector";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { useBranches } from "@/hooks/use-branches";
 
 const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   open: { label: "Abierta", variant: "default" },
@@ -22,6 +23,8 @@ const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secon
   converted: { label: "Convertida", variant: "outline" },
   expired: { label: "Expirada", variant: "destructive" },
 };
+
+type DeliveryContext = "branch" | "client";
 
 export default function Consultas() {
   const [createOpen, setCreateOpen] = useState(false);
@@ -158,8 +161,8 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
   const [branchId, setBranchId] = useState(defaultBranchId || "");
   const [targetBranches, setTargetBranches] = useState<string[]>([]);
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
+  const [deliveryContext, setDeliveryContext] = useState<DeliveryContext>("branch");
 
-  // Auto-set branch on mount
   useEffect(() => {
     if (defaultBranchId && !branchId) setBranchId(defaultBranchId);
   }, [defaultBranchId]);
@@ -212,6 +215,24 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Delivery context */}
+      <div className="space-y-2">
+        <Label>Destino de entrega</Label>
+        <select
+          value={deliveryContext}
+          onChange={(e) => setDeliveryContext(e.target.value as DeliveryContext)}
+          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <option value="branch">A sucursal (multi-origen permitido)</option>
+          <option value="client">A cliente (origen único)</option>
+        </select>
+        <p className="text-xs text-muted-foreground">
+          {deliveryContext === "branch"
+            ? "Disponible para abastecimiento desde múltiples sucursales."
+            : "Para entrega a cliente, el pedido debe resolverse desde una única sucursal origen."}
+        </p>
+      </div>
+
       {/* Products with search */}
       <div className="space-y-2">
         <Label>Productos</Label>
@@ -253,8 +274,19 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
                       productPriceLists={(p as any).price_lists}
                       productStockByWarehouse={(p as any).stock_by_warehouse}
                       productTotalStock={(p as any).total_stock}
+                      stockMode="info_only"
                       compact={false}
                     />
+                    {deliveryContext === "branch" && (
+                      <p className="text-xs text-muted-foreground mt-2 italic">
+                        Se puede combinar stock de múltiples sucursales al crear el pedido.
+                      </p>
+                    )}
+                    {deliveryContext === "client" && (p as any).stock_by_warehouse && (
+                      <p className="text-xs text-muted-foreground mt-2 italic">
+                        Identificá la sucursal que cubra el total para origen único.
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
@@ -289,6 +321,7 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
 function ConsultationDetail({ consultationId, onOrderCreated }: { consultationId: string; onOrderCreated: () => void }) {
   const queryClient = useQueryClient();
   const [createOrderOpen, setCreateOrderOpen] = useState(false);
+  const [orderDeliveryContext, setOrderDeliveryContext] = useState<DeliveryContext>("branch");
 
   const { data: consultation } = useQuery({
     queryKey: ["consultation-detail", consultationId],
@@ -442,21 +475,48 @@ function ConsultationDetail({ consultationId, onOrderCreated }: { consultationId
       )}
 
       {canCreateOrder && (
-        <div>
+        <div className="space-y-3">
+          {/* Delivery context selector for CTA */}
+          <div className="space-y-2">
+            <Label className="text-xs text-muted-foreground">Tipo de pedido a crear</Label>
+            <div className="flex gap-2">
+              <Badge
+                variant={orderDeliveryContext === "branch" ? "default" : "outline"}
+                className="cursor-pointer"
+                onClick={() => setOrderDeliveryContext("branch")}
+              >
+                A sucursal (multi-origen)
+              </Badge>
+              <Badge
+                variant={orderDeliveryContext === "client" ? "default" : "outline"}
+                className="cursor-pointer"
+                onClick={() => setOrderDeliveryContext("client")}
+              >
+                A cliente (origen único)
+              </Badge>
+            </div>
+          </div>
+
           <Dialog open={createOrderOpen} onOpenChange={setCreateOrderOpen}>
             <DialogTrigger asChild>
               <Button className="w-full gap-2">
-                <ShoppingCart className="h-4 w-4" /> Crear pedido desde esta consulta
+                <ShoppingCart className="h-4 w-4" />
+                {orderDeliveryContext === "branch"
+                  ? "Crear pedido multi-origen"
+                  : "Crear pedido con origen único"}
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-lg">
               <DialogHeader>
-                <DialogTitle>Crear pedido</DialogTitle>
+                <DialogTitle>
+                  {orderDeliveryContext === "branch" ? "Crear transferencia(s)" : "Crear pedido"}
+                </DialogTitle>
               </DialogHeader>
               <CreateOrderFromConsultation
                 consultationId={consultationId}
                 requestingBranchId={c.requesting_branch_id}
                 products={consultationProducts || []}
+                deliveryContext={orderDeliveryContext}
                 onSuccess={() => {
                   setCreateOrderOpen(false);
                   queryClient.invalidateQueries({ queryKey: ["consultation-orders", consultationId] });
@@ -491,18 +551,26 @@ function CreateOrderFromConsultation({
   consultationId,
   requestingBranchId,
   products,
+  deliveryContext,
   onSuccess,
 }: {
   consultationId: string;
   requestingBranchId: string;
   products: any[];
+  deliveryContext: DeliveryContext;
   onSuccess: () => void;
 }) {
   const { user } = useAuth();
+  const { data: branches } = useBranches();
+  const isMultiOrigin = deliveryContext === "branch";
+
+  // Mono-origin: single source
   const [sourceBranchId, setSourceBranchId] = useState("");
-  const [selectedItems, setSelectedItems] = useState<Record<string, number>>(() => {
-    const init: Record<string, number> = {};
-    products.forEach(cp => { if (cp.product?.id) init[cp.product.id] = 1; });
+
+  // Multi-origin: per-product source
+  const [selectedItems, setSelectedItems] = useState<Record<string, { qty: number; sourceBranchId?: string }>>(() => {
+    const init: Record<string, { qty: number; sourceBranchId?: string }> = {};
+    products.forEach(cp => { if (cp.product?.id) init[cp.product.id] = { qty: 1 }; });
     return init;
   });
   const [submitting, setSubmitting] = useState(false);
@@ -511,52 +579,115 @@ function CreateOrderFromConsultation({
     setSelectedItems(prev => {
       const next = { ...prev };
       if (next[pid] !== undefined) delete next[pid];
-      else next[pid] = 1;
+      else next[pid] = { qty: 1 };
       return next;
     });
   };
 
   const updateQty = (pid: string, qty: number) => {
-    setSelectedItems(prev => ({ ...prev, [pid]: Math.max(1, qty) }));
+    setSelectedItems(prev => ({ ...prev, [pid]: { ...prev[pid], qty: Math.max(1, qty) } }));
   };
+
+  const setItemSource = (pid: string, branchId: string) => {
+    setSelectedItems(prev => ({ ...prev, [pid]: { ...prev[pid], sourceBranchId: branchId } }));
+  };
+
+  const selectedEntries = Object.entries(selectedItems).filter(([_, v]) => v.qty > 0);
+
+  const canSubmit = (() => {
+    if (!selectedEntries.length) return false;
+    if (isMultiOrigin) {
+      return selectedEntries.every(([_, v]) => !!v.sourceBranchId);
+    }
+    return !!sourceBranchId;
+  })();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const items = Object.entries(selectedItems).filter(([_, qty]) => qty > 0);
-    if (!items.length || !sourceBranchId) { toast.error("Seleccionar sucursal origen y al menos un producto"); return; }
+    if (!canSubmit) {
+      toast.error(isMultiOrigin ? "Asignar origen a cada producto" : "Seleccionar sucursal origen");
+      return;
+    }
 
     setSubmitting(true);
     try {
       if (!user) { toast.error("Iniciar sesión"); return; }
 
-      const { data: request, error: reqErr } = await supabase
-        .from("branch_requests")
-        .insert({
-          requesting_branch_id: requestingBranchId,
-          source_branch_id: sourceBranchId,
-          created_by: user.id,
-          request_type: "reposition" as any,
-          status: "pending" as any,
-          notes: `Creado desde consulta de disponibilidad`,
-        })
-        .select().single();
-      if (reqErr) throw reqErr;
+      if (isMultiOrigin) {
+        // Group by source branch
+        const bySource: Record<string, { pid: string; qty: number }[]> = {};
+        selectedEntries.forEach(([pid, v]) => {
+          const src = v.sourceBranchId!;
+          if (!bySource[src]) bySource[src] = [];
+          bySource[src].push({ pid, qty: v.qty });
+        });
 
-      const itemInserts = items.map(([product_id, qty]) => ({
-        request_id: request.id,
-        product_id,
-        quantity_requested: qty,
-      }));
-      const { error: itemErr } = await supabase.from("branch_request_items").insert(itemInserts);
-      if (itemErr) throw itemErr;
+        const createdNumbers: number[] = [];
+        for (const [srcBranch, srcItems] of Object.entries(bySource)) {
+          const { data: request, error: reqErr } = await supabase
+            .from("branch_requests")
+            .insert({
+              requesting_branch_id: requestingBranchId,
+              source_branch_id: srcBranch,
+              created_by: user.id,
+              request_type: "reposition" as any,
+              delivery_target: "branch" as any,
+              notes: `Creado desde consulta de disponibilidad`,
+            })
+            .select().single();
+          if (reqErr) throw reqErr;
 
-      const { error: linkErr } = await supabase.from("consultation_requests").insert({
-        consultation_id: consultationId,
-        branch_request_id: request.id,
-      });
-      if (linkErr) throw linkErr;
+          const itemInserts = srcItems.map(({ pid, qty }) => ({
+            request_id: request.id,
+            product_id: pid,
+            quantity_requested: qty,
+          }));
+          const { error: itemErr } = await supabase.from("branch_request_items").insert(itemInserts);
+          if (itemErr) throw itemErr;
 
-      toast.success(`Pedido #${request.request_number} creado`);
+          const { error: linkErr } = await supabase.from("consultation_requests").insert({
+            consultation_id: consultationId,
+            branch_request_id: request.id,
+          });
+          if (linkErr) throw linkErr;
+
+          createdNumbers.push(request.request_number);
+        }
+
+        toast.success(`Se crearon ${createdNumbers.length} transferencia(s): #${createdNumbers.join(", #")}`);
+      } else {
+        // Mono-origin: single request
+        const { data: request, error: reqErr } = await supabase
+          .from("branch_requests")
+          .insert({
+            requesting_branch_id: requestingBranchId,
+            source_branch_id: sourceBranchId,
+            created_by: user.id,
+            request_type: "client" as any,
+            delivery_target: "client" as any,
+            notes: `Creado desde consulta de disponibilidad`,
+          })
+          .select().single();
+        if (reqErr) throw reqErr;
+
+        const itemInserts = selectedEntries.map(([product_id, v]) => ({
+          request_id: request.id,
+          product_id,
+          quantity_requested: v.qty,
+          item_purpose: "client" as any,
+        }));
+        const { error: itemErr } = await supabase.from("branch_request_items").insert(itemInserts);
+        if (itemErr) throw itemErr;
+
+        const { error: linkErr } = await supabase.from("consultation_requests").insert({
+          consultation_id: consultationId,
+          branch_request_id: request.id,
+        });
+        if (linkErr) throw linkErr;
+
+        toast.success(`Pedido #${request.request_number} creado`);
+      }
+
       onSuccess();
     } catch (err: any) {
       toast.error(err.message);
@@ -565,14 +696,24 @@ function CreateOrderFromConsultation({
     }
   };
 
+  const itemsWithoutSource = isMultiOrigin ? selectedEntries.filter(([_, v]) => !v.sourceBranchId).length : 0;
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <BranchSelector
-        label="Sucursal origen"
-        value={sourceBranchId}
-        onChange={setSourceBranchId}
-        excludeIds={[requestingBranchId]}
-      />
+      {!isMultiOrigin && (
+        <BranchSelector
+          label="Sucursal origen (única)"
+          value={sourceBranchId}
+          onChange={setSourceBranchId}
+          excludeIds={[requestingBranchId]}
+        />
+      )}
+
+      {isMultiOrigin && (
+        <p className="text-xs text-muted-foreground">
+          Seleccioná la sucursal origen para cada producto. Se creará una transferencia por sucursal.
+        </p>
+      )}
 
       <div className="space-y-2">
         <Label>Productos a pedir</Label>
@@ -580,14 +721,32 @@ function CreateOrderFromConsultation({
           {products.map((cp: any) => {
             const pid = cp.product?.id;
             if (!pid) return null;
-            const isSelected = selectedItems[pid] !== undefined;
+            const itemState = selectedItems[pid];
+            const isSelected = itemState !== undefined;
             return (
-              <div key={cp.id} className="flex items-center gap-3 p-2 rounded border border-border/50">
-                <input type="checkbox" checked={isSelected} onChange={() => toggleProduct(pid)} className="rounded" />
-                <span className="flex-1 text-sm font-medium">{cp.product?.name} <span className="text-muted-foreground">({cp.product?.sku})</span></span>
-                {isSelected && (
-                  <Input type="number" min={1} value={selectedItems[pid]} onChange={e => updateQty(pid, parseInt(e.target.value) || 1)}
-                    className="w-20 h-8 text-sm" />
+              <div key={cp.id} className="rounded border border-border/50 overflow-hidden">
+                <div className="flex items-center gap-3 p-2">
+                  <input type="checkbox" checked={isSelected} onChange={() => toggleProduct(pid)} className="rounded" />
+                  <span className="flex-1 text-sm font-medium">{cp.product?.name} <span className="text-muted-foreground">({cp.product?.sku})</span></span>
+                  {isSelected && (
+                    <Input type="number" min={1} value={itemState.qty} onChange={e => updateQty(pid, parseInt(e.target.value) || 1)}
+                      className="w-20 h-8 text-sm" />
+                  )}
+                  {isMultiOrigin && isSelected && itemState.sourceBranchId && (
+                    <Badge variant="outline" className="text-xs">
+                      {branches?.find(b => b.id === itemState.sourceBranchId)?.name || "—"}
+                    </Badge>
+                  )}
+                </div>
+                {isMultiOrigin && isSelected && (
+                  <div className="p-2 border-t border-border/30 bg-muted/20">
+                    <Label className="text-xs text-muted-foreground mb-1 block">Sucursal origen para este producto</Label>
+                    <BranchSelector
+                      value={itemState.sourceBranchId || ""}
+                      onChange={(bid) => setItemSource(pid, bid)}
+                      excludeIds={[requestingBranchId]}
+                    />
+                  </div>
                 )}
               </div>
             );
@@ -595,8 +754,16 @@ function CreateOrderFromConsultation({
         </div>
       </div>
 
-      <Button type="submit" className="w-full" disabled={submitting || !sourceBranchId}>
-        {submitting ? "Creando..." : "Crear pedido"}
+      {isMultiOrigin && itemsWithoutSource > 0 && (
+        <p className="text-xs text-destructive">{itemsWithoutSource} producto(s) sin origen asignado</p>
+      )}
+
+      <Button type="submit" className="w-full" disabled={submitting || !canSubmit}>
+        {submitting
+          ? "Creando..."
+          : isMultiOrigin
+            ? "Crear transferencia(s)"
+            : "Crear pedido con origen único"}
       </Button>
     </form>
   );

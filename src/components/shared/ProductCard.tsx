@@ -1,8 +1,10 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Package, MapPin, DollarSign, BarChart3, Image as ImageIcon } from "lucide-react";
+import { Package, MapPin, DollarSign, BarChart3, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useBranches } from "@/hooks/use-branches";
+
+type StockMode = "select_source" | "info_only";
 
 interface ProductCardProps {
   productId: string;
@@ -20,6 +22,12 @@ interface ProductCardProps {
   productStockByWarehouse?: Record<string, number>;
   productTotalStock?: number | null;
   onSelectSourceBranch?: (branchId: string) => void;
+  /** Currently selected source branch ID – used to highlight */
+  selectedSourceBranchId?: string | null;
+  /** "select_source" = clickable to pick origin; "info_only" = display only */
+  stockMode?: StockMode;
+  /** Required quantity – used to show sufficiency indicators */
+  requiredQuantity?: number;
   className?: string;
   compact?: boolean;
 }
@@ -40,12 +48,14 @@ export function ProductCard({
   productStockByWarehouse,
   productTotalStock,
   onSelectSourceBranch,
+  selectedSourceBranchId,
+  stockMode = "select_source",
+  requiredQuantity,
   className,
   compact = false,
 }: ProductCardProps) {
   const { data: branches } = useBranches();
 
-  // Map BIMS warehouse IDs to SLIS branch names
   const getWarehouseBranchName = (warehouseId: string): string => {
     const branch = branches?.find(b => b.code === warehouseId);
     return branch?.name || `Depósito ${warehouseId}`;
@@ -59,6 +69,7 @@ export function ProductCard({
   const hasStock = productStockByWarehouse && Object.keys(productStockByWarehouse).length > 0;
   const hasPrice = productSellPrice != null && productSellPrice > 0;
   const hasPriceScales = productPriceScales && productPriceScales.length > 0;
+  const isSelectMode = stockMode === "select_source" && !!onSelectSourceBranch;
 
   if (compact) {
     return (
@@ -168,7 +179,8 @@ export function ProductCard({
         {hasStock && (
           <div className="space-y-2">
             <h4 className="text-sm font-medium flex items-center gap-1.5">
-              <BarChart3 className="h-3.5 w-3.5" /> Stock por sucursal
+              <BarChart3 className="h-3.5 w-3.5" />
+              {isSelectMode ? "Seleccionar sucursal origen para este producto" : "Stock disponible por sucursal"}
               {productTotalStock != null && (
                 <Badge variant={productTotalStock > 0 ? "default" : "destructive"} className="text-xs ml-auto">
                   Total: {Math.floor(productTotalStock)}
@@ -181,23 +193,38 @@ export function ProductCard({
                 .sort((a, b) => b[1] - a[1])
                 .map(([whId, qty]) => {
                   const branchId = getBranchIdByCode(whId);
+                  const isSelected = branchId === selectedSourceBranchId;
+                  const isSufficient = requiredQuantity ? qty >= requiredQuantity : null;
+
                   return (
                     <button
                       key={whId}
                       type="button"
-                      onClick={() => branchId && onSelectSourceBranch?.(branchId)}
-                      disabled={!branchId || !onSelectSourceBranch}
+                      onClick={() => isSelectMode && branchId && onSelectSourceBranch!(branchId)}
+                      disabled={!isSelectMode || !branchId}
                       className={cn(
-                        "flex items-center justify-between px-2.5 py-1.5 rounded text-xs text-left",
-                        branchId && onSelectSourceBranch
-                          ? "bg-muted/50 hover:bg-accent/10 transition-colors cursor-pointer"
-                          : "bg-muted/30 cursor-default"
+                        "flex items-center justify-between px-2.5 py-1.5 rounded text-xs text-left transition-colors",
+                        isSelected
+                          ? "bg-primary/10 border border-primary/30 ring-1 ring-primary/20"
+                          : isSelectMode && branchId
+                            ? "bg-muted/50 hover:bg-accent/10 cursor-pointer"
+                            : "bg-muted/30 cursor-default"
                       )}
                     >
-                      <span className="font-medium truncate">{getWarehouseBranchName(whId)}</span>
-                      <Badge variant={qty > 0 ? "default" : "secondary"} className="text-xs ml-2 shrink-0">
-                        {Math.floor(qty)}
-                      </Badge>
+                      <span className="font-medium truncate flex items-center gap-1">
+                        {isSelected && <Check className="h-3 w-3 text-primary shrink-0" />}
+                        {getWarehouseBranchName(whId)}
+                      </span>
+                      <span className="flex items-center gap-1.5 ml-2 shrink-0">
+                        {isSufficient !== null && (
+                          <span className={cn("text-[10px]", isSufficient ? "text-green-600" : "text-amber-500")}>
+                            {isSufficient ? "suficiente" : "insuficiente"}
+                          </span>
+                        )}
+                        <Badge variant={qty > 0 ? "default" : "secondary"} className="text-xs">
+                          {Math.floor(qty)}
+                        </Badge>
+                      </span>
                     </button>
                   );
                 })}
@@ -205,29 +232,45 @@ export function ProductCard({
           </div>
         )}
 
-        {/* Branch selector fallback when no stock data */}
-        {!hasStock && onSelectSourceBranch && branches && branches.length > 0 && (
+        {/* No stock fallback for select mode */}
+        {!hasStock && isSelectMode && branches && branches.length > 0 && (
           <div>
             <h4 className="text-sm font-medium mb-2 flex items-center gap-1.5">
-              <MapPin className="h-3.5 w-3.5" /> Seleccionar sucursal origen
+              <MapPin className="h-3.5 w-3.5" /> Seleccionar sucursal origen para este producto
             </h4>
             <p className="text-xs text-muted-foreground mb-2">
-              Stock no disponible para este producto. Seleccioná una sucursal basándote en conocimiento operativo.
+              Stock no disponible. Seleccioná una sucursal basándote en conocimiento operativo.
             </p>
             <div className="grid grid-cols-2 gap-1.5">
-              {branches.map((b) => (
-                <button
-                  key={b.id}
-                  type="button"
-                  onClick={() => onSelectSourceBranch(b.id)}
-                  className="flex items-center justify-between px-2.5 py-1.5 rounded text-xs bg-muted/50 hover:bg-accent/10 transition-colors text-left"
-                >
-                  <span className="font-medium">{b.name}</span>
-                  <span className="text-muted-foreground">{b.code}</span>
-                </button>
-              ))}
+              {branches.map((b) => {
+                const isSelected = b.id === selectedSourceBranchId;
+                return (
+                  <button
+                    key={b.id}
+                    type="button"
+                    onClick={() => onSelectSourceBranch!(b.id)}
+                    className={cn(
+                      "flex items-center justify-between px-2.5 py-1.5 rounded text-xs transition-colors text-left",
+                      isSelected
+                        ? "bg-primary/10 border border-primary/30 ring-1 ring-primary/20"
+                        : "bg-muted/50 hover:bg-accent/10"
+                    )}
+                  >
+                    <span className="font-medium flex items-center gap-1">
+                      {isSelected && <Check className="h-3 w-3 text-primary" />}
+                      {b.name}
+                    </span>
+                    <span className="text-muted-foreground">{b.code}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
+        )}
+
+        {/* No stock + info only */}
+        {!hasStock && stockMode === "info_only" && (
+          <p className="text-xs text-muted-foreground italic">Stock no disponible para este producto.</p>
         )}
       </CardContent>
     </Card>
