@@ -157,6 +157,9 @@ export default function Cumplimiento() {
                       const clientName = f.destination_client_name || (f.branch_request as any)?.client_name;
                       const custody = CUSTODY_LABELS[f.status] || f.status;
                       const requestType = (f.branch_request as any)?.request_type;
+                      const commExcCfg = f.commercial_exception_status
+                        ? COMMERCIAL_EXCEPTION_STATUS_LABELS[f.commercial_exception_status]
+                        : null;
 
                       return (
                         <div key={f.id} className="p-3 hover:bg-muted/20 transition-colors">
@@ -169,6 +172,11 @@ export default function Cumplimiento() {
                                 {clientName && <span className="font-semibold text-sm truncate">{clientName}</span>}
                                 {requestType && (
                                   <Badge variant="outline" className="text-[10px]">{REQUEST_TYPE_LABELS[requestType] || requestType}</Badge>
+                                )}
+                                {commExcCfg && (
+                                  <Badge className={`text-[10px] ${commExcCfg.color}`}>
+                                    {commExcCfg.label} · No bloqueante
+                                  </Badge>
                                 )}
                               </div>
                               <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
