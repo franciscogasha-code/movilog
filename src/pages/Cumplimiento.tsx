@@ -8,6 +8,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { FULFILLMENT_STATUS_CONFIG, SHIPPING_METHOD_LABELS, REQUEST_TYPE_LABELS, COMMERCIAL_EXCEPTION_STATUS_LABELS } from "@/lib/constants";
 import { Package, Truck, MapPin, Search, Clock, User } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { useUserBranchFilter } from "@/hooks/use-user-access";
 
 // MODULE 5: Priority order (visual only, no blocking)
 const PRIORITY_ORDER: Record<string, number> = {
@@ -44,11 +45,12 @@ const CUSTODY_LABELS: Record<string, string> = {
 
 export default function Cumplimiento() {
   const [search, setSearch] = useState("");
+  const { isAllBranches, allowedBranchIds } = useUserBranchFilter();
 
   const { data: fulfillments, isLoading } = useQuery({
-    queryKey: ["all-fulfillments-prioritized"],
+    queryKey: ["all-fulfillments-prioritized", isAllBranches, allowedBranchIds],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("fulfillment_orders")
         .select(`
           *,
@@ -60,6 +62,12 @@ export default function Cumplimiento() {
         .in("status", ["pending", "picking", "waiting_for_cut", "waiting_for_courier", "dispatched", "in_transit", "pending_physical_confirmation"] as any)
         .order("created_at", { ascending: false })
         .limit(100);
+
+      if (!isAllBranches && allowedBranchIds.length > 0) {
+        query = query.or(`source_branch_id.in.(${allowedBranchIds.join(",")}),destination_branch_id.in.(${allowedBranchIds.join(",")})`);
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
       return data;
     },

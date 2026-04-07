@@ -13,15 +13,17 @@ import { REQUEST_STATUS_CONFIG, SHIPPING_METHOD_LABELS, DELIVERY_TARGET_LABELS, 
 import { StatusBadge } from "@/components/StatusBadge";
 import { SolicitudCreateForm } from "@/components/solicitudes/SolicitudCreateForm";
 import { SolicitudDetail } from "@/components/solicitudes/SolicitudDetail";
+import { useUserBranchFilter } from "@/hooks/use-user-access";
 
 export default function Solicitudes() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const { isAllBranches, allowedBranchIds } = useUserBranchFilter();
 
   const { data: requests, isLoading, refetch } = useQuery({
-    queryKey: ["branch-requests", statusFilter],
+    queryKey: ["branch-requests", statusFilter, isAllBranches, allowedBranchIds],
     queryFn: async () => {
       let query = supabase
         .from("branch_requests")
@@ -32,6 +34,10 @@ export default function Solicitudes() {
         `)
         .order("created_at", { ascending: false })
         .limit(50);
+
+      if (!isAllBranches && allowedBranchIds.length > 0) {
+        query = query.or(`requesting_branch_id.in.(${allowedBranchIds.join(",")}),source_branch_id.in.(${allowedBranchIds.join(",")})`);
+      }
 
       if (statusFilter !== "all") {
         query = query.eq("status", statusFilter as any);

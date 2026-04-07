@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { useBranches, useProducts } from "@/hooks/use-branches";
 import { DETECTION_CONTEXT_LABELS, DAMAGE_CAUSE_LABELS } from "@/lib/constants";
+import { FileUpload } from "@/components/shared/FileUpload";
 import { toast } from "sonner";
 
 const INCIDENT_TYPES = [
@@ -35,7 +36,7 @@ export function CrearIncidencia({ onSuccess }: { onSuccess: () => void }) {
   const [quantity, setQuantity] = useState("");
   const [pendingShipment, setPendingShipment] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-
+  const [photoUrls, setPhotoUrls] = useState<string[]>([]);
   const isInternal = detectionContext === "internal";
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -59,8 +60,8 @@ export function CrearIncidencia({ onSuccess }: { onSuccess: () => void }) {
         product_id: productId || null,
         quantity_affected: quantity ? parseFloat(quantity) : null,
         pending_shipment_to_admin: pendingShipment,
+        photo_urls: photoUrls.length > 0 ? photoUrls : [],
       };
-
       // Only set damage_cause for internal detection
       if (isInternal && damageCause) {
         insertData.damage_cause = damageCause as any;
@@ -177,6 +178,31 @@ export function CrearIncidencia({ onSuccess }: { onSuccess: () => void }) {
         <label htmlFor="pending-shipment" className="text-sm text-muted-foreground">
           Pendiente de envío a administración
         </label>
+      </div>
+
+      <div className="space-y-2">
+        <Label>Fotos de evidencia</Label>
+        <div className="flex gap-2 flex-wrap">
+          {photoUrls.map((url, idx) => (
+            <div key={idx} className="relative">
+              <img src={url} alt={`Evidencia ${idx + 1}`} className="h-20 w-20 object-cover rounded-lg border border-border" />
+              <button
+                type="button"
+                onClick={() => setPhotoUrls(prev => prev.filter((_, i) => i !== idx))}
+                className="absolute -top-1.5 -right-1.5 bg-destructive text-destructive-foreground rounded-full p-0.5 text-xs leading-none"
+              >✕</button>
+            </div>
+          ))}
+          {photoUrls.length < 4 && (
+            <FileUpload
+              bucket="incident-photos"
+              folder="incidents"
+              label="Agregar foto"
+              onUpload={(url) => { if (url) setPhotoUrls(prev => [...prev, url]); }}
+            />
+          )}
+        </div>
+        <p className="text-xs text-muted-foreground">Máximo 4 fotos, 5MB cada una</p>
       </div>
 
       {detectionContext && !isInternal && (

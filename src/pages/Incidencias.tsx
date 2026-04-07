@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CrearIncidencia } from "@/components/incidencias/CrearIncidencia";
 import { toast } from "sonner";
+import { useUserBranchFilter } from "@/hooks/use-user-access";
 
 const INCIDENT_TYPE_LABELS: Record<string, string> = {
   damaged: "Producto averiado",
@@ -39,11 +40,12 @@ export default function Incidencias() {
   const [createOpen, setCreateOpen] = useState(false);
   const [decisionId, setDecisionId] = useState<string | null>(null);
   const queryClient = useQueryClient();
+  const { isAllBranches, allowedBranchIds } = useUserBranchFilter();
 
   const { data: incidents, isLoading } = useQuery({
-    queryKey: ["logistics-incidents"],
+    queryKey: ["logistics-incidents", isAllBranches, allowedBranchIds],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("logistics_incidents")
         .select(`
           *,
@@ -52,6 +54,12 @@ export default function Incidencias() {
         `)
         .order("created_at", { ascending: false })
         .limit(50);
+
+      if (!isAllBranches && allowedBranchIds.length > 0) {
+        query = query.in("branch_id", allowedBranchIds);
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
       return data;
     },
