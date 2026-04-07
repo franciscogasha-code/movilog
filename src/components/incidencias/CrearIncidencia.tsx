@@ -180,6 +180,31 @@ export function CrearIncidencia({ onSuccess }: { onSuccess: () => void }) {
         </label>
       </div>
 
+      <div className="space-y-2">
+        <Label>Fotos de evidencia</Label>
+        <div className="flex gap-2 flex-wrap">
+          {photoUrls.map((url, idx) => (
+            <div key={idx} className="relative">
+              <img src={url} alt={`Evidencia ${idx + 1}`} className="h-20 w-20 object-cover rounded-lg border border-border" />
+              <button
+                type="button"
+                onClick={() => setPhotoUrls(prev => prev.filter((_, i) => i !== idx))}
+                className="absolute -top-1.5 -right-1.5 bg-destructive text-destructive-foreground rounded-full p-0.5 text-xs leading-none"
+              >✕</button>
+            </div>
+          ))}
+          {photoUrls.length < 4 && (
+            <FileUpload
+              bucket="incident-photos"
+              folder="incidents"
+              label="Agregar foto"
+              onUpload={(url) => { if (url) setPhotoUrls(prev => [...prev, url]); }}
+            />
+          )}
+        </div>
+        <p className="text-xs text-muted-foreground">Máximo 4 fotos, 5MB cada una</p>
+      </div>
+
       {detectionContext && !isInternal && (
         <div className="p-3 rounded-lg bg-muted/30 text-xs text-muted-foreground">
           <strong>Nota:</strong> En {DETECTION_CONTEXT_LABELS[detectionContext]}, la causa del daño y el responsable no aplican — se registra como recibido en esa condición.
