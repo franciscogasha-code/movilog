@@ -73,6 +73,7 @@ export const SHIPPING_METHOD_LABELS: Record<string, string> = {
   own_fleet: "Flota propia",
   courier: "Encomienda",
   pickup: "Retiro en sucursal",
+  delivery: "Delivery",
 };
 
 export const REQUEST_TYPE_LABELS: Record<string, string> = {

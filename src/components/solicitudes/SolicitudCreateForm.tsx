@@ -1,67 +1,121 @@
-import { useState } from "react";
-import { useForm, useFieldArray } from "react-hook-form";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { useBranches, useProducts } from "@/hooks/use-branches";
-import { Plus, Trash2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { ProductSearch, type ProductResult } from "@/components/shared/ProductSearch";
+import { ProductCard } from "@/components/shared/ProductCard";
+import { BranchSelector, MultiBranchSelector, useAutoDetectBranch } from "@/components/shared/BranchSelector";
+import { Plus, Trash2, Package, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
 
-interface FormValues {
-  requesting_branch_id: string;
-  source_branch_id: string;
-  request_type: string;
-  delivery_target: string;
-  shipping_method: string;
-  client_name?: string;
-  client_address?: string;
-  notes?: string;
-  items: {
-    product_id: string;
-    quantity_requested: number;
-    item_purpose: string;
-    client_name?: string;
-    client_address?: string;
-  }[];
+interface SelectedItem {
+  product: ProductResult;
+  quantity: number;
 }
 
+type RequestType = "reposition" | "client" | "online";
+type DeliveryTarget = "branch" | "client";
+type ShippingMethod = "own_fleet" | "courier" | "pickup" | "delivery";
+
 export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
-  const { data: branches } = useBranches();
-  const { data: products } = useProducts();
+  const { user } = useAuth();
+  const { defaultBranchId, canChangeBranch } = useAutoDetectBranch();
+
+  // Step 1: Context
+  const [requestingBranchId, setRequestingBranchId] = useState("");
+  const [requestType, setRequestType] = useState<RequestType>("reposition");
+
+  // Step 2: Products
+  const [items, setItems] = useState<SelectedItem[]>([]);
+  const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
+
+  // Step 3: Origin (derived from availability)
+  const [sourceBranchIds, setSourceBranchIds] = useState<string[]>([]);
+
+  // Step 4: Logistics
+  const [deliveryTarget, setDeliveryTarget] = useState<DeliveryTarget>("branch");
+  const [shippingMethod, setShippingMethod] = useState<ShippingMethod>("own_fleet");
+  const [clientName, setClientName] = useState("");
+  const [clientAddress, setClientAddress] = useState("");
+  const [deliveryPaidBy, setDeliveryPaidBy] = useState<"company" | "client">("company");
+  const [notes, setNotes] = useState("");
+
   const [submitting, setSubmitting] = useState(false);
 
-  const { register, handleSubmit, control, watch, formState: { errors } } = useForm<FormValues>({
-    defaultValues: {
-      request_type: "reposition",
-      delivery_target: "branch",
-      shipping_method: "own_fleet",
-      items: [{ product_id: "", quantity_requested: 1, item_purpose: "reposition" }],
-    },
-  });
+  // Auto-detect branch
+  useEffect(() => {
+    if (defaultBranchId && !requestingBranchId) {
+      setRequestingBranchId(defaultBranchId);
+    }
+  }, [defaultBranchId, requestingBranchId]);
 
-  const { fields, append, remove } = useFieldArray({ control, name: "items" });
-  const requestType = watch("request_type");
-  const deliveryTarget = watch("delivery_target");
+  // Business rules: reset fields when type changes
+  useEffect(() => {
+    if (requestType === "reposition") {
+      setDeliveryTarget("branch");
+      setClientName("");
+      setClientAddress("");
+    }
+  }, [requestType]);
 
-  const onSubmit = async (values: FormValues) => {
+  const addProduct = (product: ProductResult) => {
+    if (items.find(i => i.product.id === product.id)) {
+      toast.info("Producto ya agregado");
+      return;
+    }
+    setItems(prev => [...prev, { product, quantity: 1 }]);
+    setExpandedProduct(product.id);
+  };
+
+  const removeProduct = (productId: string) => {
+    setItems(prev => prev.filter(i => i.product.id !== productId));
+    if (expandedProduct === productId) setExpandedProduct(null);
+  };
+
+  const updateQuantity = (productId: string, qty: number) => {
+    setItems(prev => prev.map(i => i.product.id === productId ? { ...i, quantity: Math.max(1, qty) } : i));
+  };
+
+  const handleSelectSourceFromCard = (branchId: string) => {
+    if (!sourceBranchIds.includes(branchId)) {
+      setSourceBranchIds(prev => [...prev, branchId]);
+    }
+  };
+
+  // Determine which fields to show
+  const showClientFields = deliveryTarget === "client" && (requestType === "client" || requestType === "online");
+  const showDeliveryTarget = requestType !== "reposition";
+  const showDeliveryPaidBy = shippingMethod === "delivery";
+
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!requestingBranchId || !items.length || !sourceBranchIds.length) {
+      toast.error("Completar sucursal solicitante, productos y al menos una sucursal origen");
+      return;
+    }
+
     setSubmitting(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
       if (!user) { toast.error("Debés iniciar sesión"); return; }
+
+      // Use first source branch as primary (multi-source = multiple requests in future)
+      const primarySourceId = sourceBranchIds[0];
 
       const { data: request, error } = await supabase
         .from("branch_requests")
         .insert({
-          requesting_branch_id: values.requesting_branch_id,
-          source_branch_id: values.source_branch_id,
-          request_type: values.request_type as any,
-          delivery_target: values.delivery_target as any,
-          shipping_method: values.shipping_method as any,
-          client_name: values.client_name || null,
-          client_address: values.client_address || null,
-          notes: values.notes || null,
+          requesting_branch_id: requestingBranchId,
+          source_branch_id: primarySourceId,
+          request_type: requestType as any,
+          delivery_target: deliveryTarget as any,
+          shipping_method: shippingMethod as any,
+          client_name: showClientFields ? (clientName || null) : null,
+          client_address: showClientFields ? (clientAddress || null) : null,
+          notes: notes || null,
           created_by: user.id,
         })
         .select()
@@ -69,134 +123,228 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
 
       if (error) throw error;
 
-      const itemsToInsert = values.items.map((item) => ({
+      // Item purpose matches request type (no per-item purpose)
+      const itemPurpose = requestType === "client" || requestType === "online" ? "client" : "reposition";
+
+      const itemsToInsert = items.map((item) => ({
         request_id: request.id,
-        product_id: item.product_id,
-        quantity_requested: item.quantity_requested,
-        item_purpose: item.item_purpose as any,
-        client_name: item.item_purpose === "client" ? (item.client_name || values.client_name || null) : null,
-        client_address: item.item_purpose === "client" ? (item.client_address || values.client_address || null) : null,
+        product_id: item.product.id,
+        quantity_requested: item.quantity,
+        item_purpose: itemPurpose as any,
+        client_name: showClientFields ? (clientName || null) : null,
+        client_address: showClientFields ? (clientAddress || null) : null,
       }));
 
       const { error: itemsError } = await supabase.from("branch_request_items").insert(itemsToInsert);
       if (itemsError) throw itemsError;
 
-      toast.success(`Solicitud #${request.request_number} creada`);
+      toast.success(`Pedido #${request.request_number} creado`);
       onSuccess();
     } catch (err: any) {
-      toast.error(err.message || "Error al crear solicitud");
+      toast.error(err.message || "Error al crear pedido");
     } finally {
       setSubmitting(false);
     }
   };
 
-  const showClientFields = deliveryTarget === "client" || requestType === "client" || requestType === "online";
-
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label>Sucursal solicitante</Label>
-          <select {...register("requesting_branch_id", { required: true })} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
-            <option value="">Seleccionar...</option>
-            {branches?.map((b) => <option key={b.id} value={b.id}>{b.code} - {b.name}</option>)}
-          </select>
-        </div>
-        <div className="space-y-2">
-          <Label>Sucursal origen</Label>
-          <select {...register("source_branch_id", { required: true })} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
-            <option value="">Seleccionar...</option>
-            {branches?.map((b) => <option key={b.id} value={b.id}>{b.code} - {b.name}</option>)}
-          </select>
+    <form onSubmit={onSubmit} className="space-y-6">
+      {/* STEP 1: Context */}
+      <div className="space-y-4">
+        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">1. Contexto</h3>
+        <div className="grid grid-cols-2 gap-4">
+          <BranchSelector
+            label="Sucursal solicitante"
+            value={requestingBranchId}
+            onChange={setRequestingBranchId}
+            disabled={!canChangeBranch && !!defaultBranchId}
+          />
+          <div className="space-y-2">
+            <Label>Tipo de solicitud</Label>
+            <select
+              value={requestType}
+              onChange={(e) => setRequestType(e.target.value as RequestType)}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <option value="reposition">Reposición</option>
+              <option value="client">Pedido Cliente</option>
+              <option value="online">Pedido Online</option>
+            </select>
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
-        <div className="space-y-2">
-          <Label>Tipo de solicitud</Label>
-          <select {...register("request_type")} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
-            <option value="reposition">Reposición</option>
-            <option value="client">Pedido Cliente</option>
-            <option value="online">Pedido Online</option>
-          </select>
-        </div>
-        <div className="space-y-2">
-          <Label>Destino de entrega</Label>
-          <select {...register("delivery_target")} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
-            <option value="branch">A sucursal</option>
-            <option value="client">A cliente</option>
-          </select>
-        </div>
-        <div className="space-y-2">
-          <Label>Método de envío</Label>
-          <select {...register("shipping_method")} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
-            <option value="own_fleet">Flota propia</option>
-            <option value="courier">Encomienda</option>
-            <option value="pickup">Retiro en sucursal</option>
-          </select>
-        </div>
-      </div>
-
-      {showClientFields && (
-        <div className="grid grid-cols-2 gap-4 p-3 rounded-lg bg-muted/50 border border-border/50">
-          <div className="space-y-2">
-            <Label>Cliente (nombre)</Label>
-            <Input {...register("client_name")} placeholder="Nombre del cliente" />
-          </div>
-          <div className="space-y-2">
-            <Label>Dirección de entrega</Label>
-            <Input {...register("client_address")} placeholder="Dirección" />
-          </div>
-        </div>
-      )}
-
-      {/* Items */}
+      {/* STEP 2: Products */}
       <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <Label className="text-base font-semibold">Ítems</Label>
-          <Button type="button" variant="outline" size="sm" onClick={() => append({ product_id: "", quantity_requested: 1, item_purpose: requestType === "client" ? "client" : "reposition" })}>
-            <Plus className="h-4 w-4 mr-1" /> Agregar ítem
-          </Button>
+        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">2. Productos</h3>
+        <ProductSearch
+          onSelect={addProduct}
+          excludeIds={items.map(i => i.product.id)}
+        />
+
+        {items.length > 0 && (
+          <div className="space-y-2">
+            {items.map((item) => (
+              <div key={item.product.id} className="border border-border rounded-lg overflow-hidden">
+                <div className="flex items-center gap-3 p-3 bg-muted/30">
+                  <Package className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{item.product.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {item.product.sku && `SKU: ${item.product.sku}`}
+                      {item.product.bims_code && ` • Cód: ${item.product.bims_code}`}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Label className="text-xs shrink-0">Cant:</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={item.quantity}
+                      onChange={(e) => updateQuantity(item.product.id, parseInt(e.target.value) || 1)}
+                      className="w-20 h-8 text-sm"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setExpandedProduct(expandedProduct === item.product.id ? null : item.product.id)}
+                    >
+                      {expandedProduct === item.product.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    </Button>
+                    <Button type="button" variant="ghost" size="sm" onClick={() => removeProduct(item.product.id)}>
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Expanded: Product card with stock / actions */}
+                {expandedProduct === item.product.id && (
+                  <div className="p-3 border-t border-border/50">
+                    <ProductCard
+                      productId={item.product.id}
+                      productName={item.product.name}
+                      productSku={item.product.sku}
+                      productBimsCode={item.product.bims_code}
+                      productCategory={item.product.category}
+                      productUnit={item.product.unit}
+                      onSelectSourceBranch={handleSelectSourceFromCard}
+                      compact={false}
+                    />
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {items.length === 0 && (
+          <div className="text-center p-6 rounded-lg border border-dashed border-border text-muted-foreground text-sm">
+            <Package className="h-8 w-8 mx-auto mb-2 opacity-50" />
+            Buscá y agregá productos usando el buscador
+          </div>
+        )}
+      </div>
+
+      {/* STEP 3: Origin */}
+      <div className="space-y-3">
+        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">3. Origen del stock</h3>
+        <p className="text-xs text-muted-foreground">Seleccioná la(s) sucursal(es) de donde se enviará la mercadería. Podés elegir desde la ficha del producto.</p>
+        <MultiBranchSelector
+          selected={sourceBranchIds}
+          onChange={setSourceBranchIds}
+          excludeIds={requestingBranchId ? [requestingBranchId] : []}
+          label="Sucursales origen"
+        />
+      </div>
+
+      {/* STEP 4: Logistics */}
+      <div className="space-y-4">
+        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">4. Logística</h3>
+
+        <div className="grid grid-cols-2 gap-4">
+          {showDeliveryTarget && (
+            <div className="space-y-2">
+              <Label>Destino de entrega</Label>
+              <select
+                value={deliveryTarget}
+                onChange={(e) => setDeliveryTarget(e.target.value as DeliveryTarget)}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <option value="branch">A sucursal</option>
+                <option value="client">A cliente</option>
+              </select>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <Label>Método de envío</Label>
+            <select
+              value={shippingMethod}
+              onChange={(e) => setShippingMethod(e.target.value as ShippingMethod)}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <option value="own_fleet">Flota propia</option>
+              <option value="courier">Encomienda</option>
+              <option value="pickup">Retiro en sucursal</option>
+              <option value="delivery">Delivery</option>
+            </select>
+          </div>
         </div>
-        {fields.map((field, idx) => (
-          <div key={field.id} className="grid grid-cols-12 gap-2 items-end p-3 rounded-lg bg-muted/30 border border-border/30">
-            <div className="col-span-5 space-y-1">
-              <Label className="text-xs">Producto</Label>
-              <select {...register(`items.${idx}.product_id`, { required: true })} className="flex h-9 w-full rounded-md border border-input bg-background px-2 py-1 text-sm">
-                <option value="">Seleccionar...</option>
-                {products?.map((p) => <option key={p.id} value={p.id}>{p.sku || p.bims_code} - {p.name}</option>)}
-              </select>
-            </div>
-            <div className="col-span-2 space-y-1">
-              <Label className="text-xs">Cantidad</Label>
-              <Input type="number" min={1} {...register(`items.${idx}.quantity_requested`, { required: true, valueAsNumber: true })} className="h-9" />
-            </div>
-            <div className="col-span-3 space-y-1">
-              <Label className="text-xs">Propósito</Label>
-              <select {...register(`items.${idx}.item_purpose`)} className="flex h-9 w-full rounded-md border border-input bg-background px-2 py-1 text-sm">
-                <option value="reposition">Reposición</option>
-                <option value="client">Cliente</option>
-              </select>
-            </div>
-            <div className="col-span-1" />
-            <div className="col-span-1">
-              {fields.length > 1 && (
-                <Button type="button" variant="ghost" size="sm" onClick={() => remove(idx)}>
-                  <Trash2 className="h-4 w-4 text-destructive" />
-                </Button>
-              )}
+
+        {/* Delivery payer */}
+        {showDeliveryPaidBy && (
+          <div className="space-y-2 p-3 rounded-lg bg-muted/50 border border-border/50">
+            <Label>¿Quién paga el delivery?</Label>
+            <div className="flex gap-3">
+              <Badge
+                variant={deliveryPaidBy === "company" ? "default" : "outline"}
+                className="cursor-pointer"
+                onClick={() => setDeliveryPaidBy("company")}
+              >
+                Empresa paga
+              </Badge>
+              <Badge
+                variant={deliveryPaidBy === "client" ? "default" : "outline"}
+                className="cursor-pointer"
+                onClick={() => setDeliveryPaidBy("client")}
+              >
+                Cliente paga
+              </Badge>
             </div>
           </div>
-        ))}
+        )}
+
+        {/* Client fields */}
+        {showClientFields && (
+          <div className="grid grid-cols-2 gap-4 p-3 rounded-lg bg-muted/50 border border-border/50">
+            <div className="space-y-2">
+              <Label>Cliente (nombre)</Label>
+              <Input
+                value={clientName}
+                onChange={(e) => setClientName(e.target.value)}
+                placeholder="Nombre del cliente"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Dirección de entrega</Label>
+              <Input
+                value={clientAddress}
+                onChange={(e) => setClientAddress(e.target.value)}
+                placeholder="Dirección"
+              />
+            </div>
+          </div>
+        )}
+
+        <div className="space-y-2">
+          <Label>Notas</Label>
+          <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Observaciones adicionales..." rows={2} />
+        </div>
       </div>
 
-      <div className="space-y-2">
-        <Label>Notas</Label>
-        <Textarea {...register("notes")} placeholder="Observaciones adicionales..." rows={2} />
-      </div>
-
-      <Button type="submit" className="w-full" disabled={submitting}>
-        {submitting ? "Creando..." : "Crear Solicitud"}
+      <Button type="submit" className="w-full" disabled={submitting || !items.length || !sourceBranchIds.length}>
+        {submitting ? "Creando..." : `Crear Pedido (${items.length} producto${items.length !== 1 ? "s" : ""})`}
       </Button>
     </form>
   );
