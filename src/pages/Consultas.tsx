@@ -8,10 +8,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Search, MessageCircle, Clock, CheckCircle2, ShoppingCart } from "lucide-react";
-import { useBranches, useProducts } from "@/hooks/use-branches";
+import { Plus, Search, MessageCircle, Clock, CheckCircle2, ShoppingCart, Package, Trash2 } from "lucide-react";
 import { StatusBadge } from "@/components/StatusBadge";
+import { ProductSearch, type ProductResult } from "@/components/shared/ProductSearch";
+import { ProductCard } from "@/components/shared/ProductCard";
+import { BranchSelector, MultiBranchSelector, useAutoDetectBranch } from "@/components/shared/BranchSelector";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
 
 const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   open: { label: "Abierta", variant: "default" },
@@ -112,7 +115,7 @@ export default function Consultas() {
                           : <span className="text-muted-foreground">Sin productos</span>
                         }
                       </td>
-                      <td className="p-3">{c.requesting_branch?.code}</td>
+                      <td className="p-3">{c.requesting_branch?.name} ({c.requesting_branch?.code})</td>
                       <td className="p-3"><StatusBadge status={c.status} config={STATUS_CONFIG} /></td>
                       <td className="p-3">
                         {c.orders_count > 0
@@ -148,22 +151,40 @@ export default function Consultas() {
 }
 
 function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
-  const { data: branches } = useBranches();
-  const { data: products } = useProducts();
+  const { user } = useAuth();
+  const { defaultBranchId, canChangeBranch } = useAutoDetectBranch();
   const [submitting, setSubmitting] = useState(false);
-  const [selectedProducts, setSelectedProducts] = useState<string[]>([""]);
-  const [branchId, setBranchId] = useState("");
+  const [selectedProducts, setSelectedProducts] = useState<ProductResult[]>([]);
+  const [branchId, setBranchId] = useState(defaultBranchId || "");
   const [targetBranches, setTargetBranches] = useState<string[]>([]);
+  const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
+
+  // Auto-set branch
+  useState(() => {
+    if (defaultBranchId) setBranchId(defaultBranchId);
+  });
+
+  const addProduct = (product: ProductResult) => {
+    if (selectedProducts.find(p => p.id === product.id)) {
+      toast.info("Producto ya agregado");
+      return;
+    }
+    setSelectedProducts(prev => [...prev, product]);
+    setExpandedProduct(product.id);
+  };
+
+  const removeProduct = (productId: string) => {
+    setSelectedProducts(prev => prev.filter(p => p.id !== productId));
+    if (expandedProduct === productId) setExpandedProduct(null);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const validProducts = selectedProducts.filter(Boolean);
-    if (!validProducts.length || !branchId || !targetBranches.length) {
+    if (!selectedProducts.length || !branchId || !targetBranches.length) {
       toast.error("Completar todos los campos"); return;
     }
     setSubmitting(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
       if (!user) { toast.error("Debés iniciar sesión"); return; }
 
       const { data: consultation, error } = await supabase
@@ -172,7 +193,7 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
         .select().single();
       if (error) throw error;
 
-      const cpInsert = validProducts.map(pid => ({ consultation_id: consultation.id, product_id: pid }));
+      const cpInsert = selectedProducts.map(p => ({ consultation_id: consultation.id, product_id: p.id }));
       const { error: cpErr } = await supabase.from("consultation_products").insert(cpInsert);
       if (cpErr) throw cpErr;
 
@@ -189,48 +210,68 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
     }
   };
 
-  const toggleBranch = (id: string) => setTargetBranches(prev => prev.includes(id) ? prev.filter(b => b !== id) : [...prev, id]);
-  const addProductRow = () => setSelectedProducts(prev => [...prev, ""]);
-  const updateProduct = (idx: number, val: string) => setSelectedProducts(prev => prev.map((p, i) => i === idx ? val : p));
-  const removeProduct = (idx: number) => { if (selectedProducts.length > 1) setSelectedProducts(prev => prev.filter((_, i) => i !== idx)); };
-
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Products with search */}
       <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <Label>Productos</Label>
-          <Button type="button" variant="ghost" size="sm" onClick={addProductRow}>+ Agregar</Button>
-        </div>
-        {selectedProducts.map((pid, idx) => (
-          <div key={idx} className="flex gap-2">
-            <select value={pid} onChange={e => updateProduct(idx, e.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
-              <option value="">Seleccionar producto...</option>
-              {products?.map(p => <option key={p.id} value={p.id}>{p.sku} - {p.name}</option>)}
-            </select>
-            {selectedProducts.length > 1 && (
-              <Button type="button" variant="ghost" size="sm" onClick={() => removeProduct(idx)} className="shrink-0">✕</Button>
-            )}
+        <Label>Productos</Label>
+        <ProductSearch
+          onSelect={addProduct}
+          excludeIds={selectedProducts.map(p => p.id)}
+          placeholder="Buscar producto..."
+        />
+
+        {selectedProducts.length > 0 && (
+          <div className="space-y-2 mt-2">
+            {selectedProducts.map((p) => (
+              <div key={p.id} className="border border-border rounded-lg overflow-hidden">
+                <div className="flex items-center gap-2 p-2 bg-muted/30">
+                  <Package className="h-4 w-4 text-muted-foreground" />
+                  <span className="flex-1 text-sm font-medium truncate">{p.name}</span>
+                  <span className="text-xs text-muted-foreground">{p.sku}</span>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setExpandedProduct(expandedProduct === p.id ? null : p.id)}>
+                    {expandedProduct === p.id ? "▲" : "▼"}
+                  </Button>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => removeProduct(p.id)}>
+                    <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                  </Button>
+                </div>
+                {expandedProduct === p.id && (
+                  <div className="p-2 border-t border-border/50">
+                    <ProductCard
+                      productId={p.id}
+                      productName={p.name}
+                      productSku={p.sku}
+                      productBimsCode={p.bims_code}
+                      productCategory={p.category}
+                      productUnit={p.unit}
+                      compact={false}
+                    />
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
-        ))}
+        )}
       </div>
-      <div className="space-y-2">
-        <Label>Mi sucursal</Label>
-        <select value={branchId} onChange={e => setBranchId(e.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
-          <option value="">Seleccionar...</option>
-          {branches?.map(b => <option key={b.id} value={b.id}>{b.code} - {b.name}</option>)}
-        </select>
-      </div>
-      <div className="space-y-2">
-        <Label>Consultar a sucursales</Label>
-        <div className="flex flex-wrap gap-2">
-          {branches?.filter(b => b.id !== branchId).map(b => (
-            <Badge key={b.id} variant={targetBranches.includes(b.id) ? "default" : "outline"} className="cursor-pointer" onClick={() => toggleBranch(b.id)}>
-              {b.code}
-            </Badge>
-          ))}
-        </div>
-      </div>
-      <Button type="submit" className="w-full" disabled={submitting}>
+
+      {/* Branch */}
+      <BranchSelector
+        label="Mi sucursal"
+        value={branchId}
+        onChange={setBranchId}
+        disabled={!canChangeBranch && !!defaultBranchId}
+      />
+
+      {/* Target branches */}
+      <MultiBranchSelector
+        label="Consultar a sucursales"
+        selected={targetBranches}
+        onChange={setTargetBranches}
+        excludeIds={branchId ? [branchId] : []}
+      />
+
+      <Button type="submit" className="w-full" disabled={submitting || !selectedProducts.length}>
         {submitting ? "Enviando..." : "Enviar Consulta"}
       </Button>
     </form>
@@ -239,7 +280,6 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
 
 function ConsultationDetail({ consultationId, onOrderCreated }: { consultationId: string; onOrderCreated: () => void }) {
   const queryClient = useQueryClient();
-  const { data: branches } = useBranches();
   const [createOrderOpen, setCreateOrderOpen] = useState(false);
 
   const { data: consultation } = useQuery({
@@ -257,7 +297,7 @@ function ConsultationDetail({ consultationId, onOrderCreated }: { consultationId
   const { data: consultationProducts } = useQuery({
     queryKey: ["consultation-products", consultationId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("consultation_products").select(`*, product:products(id, name, sku)`).eq("consultation_id", consultationId);
+      const { data, error } = await supabase.from("consultation_products").select(`*, product:products(id, name, sku, bims_code)`).eq("consultation_id", consultationId);
       if (error) throw error;
       return data;
     },
@@ -279,7 +319,7 @@ function ConsultationDetail({ consultationId, onOrderCreated }: { consultationId
     queryFn: async () => {
       const { data, error } = await supabase
         .from("consultation_requests")
-        .select(`*, branch_request:branch_requests(request_number, status, source_branch_id, requesting_branch_id, source_branch:branches!branch_requests_source_branch_id_fkey(code))`)
+        .select(`*, branch_request:branch_requests(request_number, status, source_branch_id, requesting_branch_id, source_branch:branches!branch_requests_source_branch_id_fkey(name, code))`)
         .eq("consultation_id", consultationId);
       if (error) throw error;
       return data;
@@ -319,7 +359,7 @@ function ConsultationDetail({ consultationId, onOrderCreated }: { consultationId
       <div className="flex items-center justify-between">
         <div>
           <h3 className="font-display text-lg font-bold">Consulta de disponibilidad</h3>
-          <p className="text-sm text-muted-foreground">Desde {c.requesting_branch?.code}</p>
+          <p className="text-sm text-muted-foreground">Desde {c.requesting_branch?.name} ({c.requesting_branch?.code})</p>
         </div>
         <div className="flex items-center gap-2">
           <StatusBadge status={c.status} config={STATUS_CONFIG} />
@@ -335,11 +375,6 @@ function ConsultationDetail({ consultationId, onOrderCreated }: { consultationId
         <h4 className="font-display font-semibold mb-2">Productos consultados</h4>
         <div className="space-y-1">
           {consultationProducts?.map((cp: any) => {
-            const pid = cp.product?.id;
-            const hasOrder = linkedOrders?.some((lr: any) => {
-              // Check if any linked order contains this product (informative only)
-              return lr.branch_request_id;
-            });
             const derivedInOrder = linkedOrders && linkedOrders.length > 0;
             return (
               <div key={cp.id} className="flex items-center gap-2 p-2 rounded bg-muted/30 text-sm">
@@ -365,7 +400,8 @@ function ConsultationDetail({ consultationId, onOrderCreated }: { consultationId
         <div className="space-y-2">
           {targets?.map((t: any) => (
             <div key={t.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 border border-border/30 text-sm">
-              <span className="font-semibold min-w-[60px]">{t.branch?.code}</span>
+              <span className="font-semibold min-w-[80px]">{t.branch?.name}</span>
+              <span className="text-xs text-muted-foreground">({t.branch?.code})</span>
               {t.responded_at ? (
                 <>
                   <CheckCircle2 className="h-4 w-4 text-accent" />
@@ -381,7 +417,6 @@ function ConsultationDetail({ consultationId, onOrderCreated }: { consultationId
         </div>
       </div>
 
-      {/* Linked orders */}
       {(linkedOrders?.length ?? 0) > 0 && (
         <div>
           <h4 className="font-display font-semibold mb-2">Pedidos creados</h4>
@@ -390,7 +425,7 @@ function ConsultationDetail({ consultationId, onOrderCreated }: { consultationId
               <div key={lr.id} className="flex items-center gap-2 p-2 rounded bg-accent/5 border border-accent/20 text-sm">
                 <ShoppingCart className="h-4 w-4 text-accent" />
                 <span className="font-semibold">Pedido #{lr.branch_request?.request_number}</span>
-                <span className="text-muted-foreground">desde {lr.branch_request?.source_branch?.code}</span>
+                <span className="text-muted-foreground">desde {lr.branch_request?.source_branch?.name} ({lr.branch_request?.source_branch?.code})</span>
                 <Badge variant="outline" className="text-xs ml-auto">{lr.branch_request?.status}</Badge>
               </div>
             ))}
@@ -398,7 +433,6 @@ function ConsultationDetail({ consultationId, onOrderCreated }: { consultationId
         </div>
       )}
 
-      {/* Create order button */}
       {canCreateOrder && (
         <div>
           <Dialog open={createOrderOpen} onOpenChange={setCreateOrderOpen}>
@@ -456,8 +490,8 @@ function CreateOrderFromConsultation({
   products: any[];
   onSuccess: () => void;
 }) {
-  const { data: branches } = useBranches();
-  const [sourceBranchId, setSourceBranchId] = useState("");
+  const { user } = useAuth();
+  const [sourceBranchIds, setSourceBranchIds] = useState<string[]>([]);
   const [selectedItems, setSelectedItems] = useState<Record<string, number>>(() => {
     const init: Record<string, number> = {};
     products.forEach(cp => { if (cp.product?.id) init[cp.product.id] = 1; });
@@ -481,19 +515,19 @@ function CreateOrderFromConsultation({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const items = Object.entries(selectedItems).filter(([_, qty]) => qty > 0);
-    if (!items.length || !sourceBranchId) { toast.error("Seleccionar sucursal origen y al menos un producto"); return; }
+    if (!items.length || !sourceBranchIds.length) { toast.error("Seleccionar sucursal origen y al menos un producto"); return; }
 
     setSubmitting(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
       if (!user) { toast.error("Iniciar sesión"); return; }
 
-      // Create branch_request
+      const primarySourceId = sourceBranchIds[0];
+
       const { data: request, error: reqErr } = await supabase
         .from("branch_requests")
         .insert({
           requesting_branch_id: requestingBranchId,
-          source_branch_id: sourceBranchId,
+          source_branch_id: primarySourceId,
           created_by: user.id,
           request_type: "reposition" as any,
           status: "pending" as any,
@@ -502,7 +536,6 @@ function CreateOrderFromConsultation({
         .select().single();
       if (reqErr) throw reqErr;
 
-      // Create items
       const itemInserts = items.map(([product_id, qty]) => ({
         request_id: request.id,
         product_id,
@@ -511,7 +544,6 @@ function CreateOrderFromConsultation({
       const { error: itemErr } = await supabase.from("branch_request_items").insert(itemInserts);
       if (itemErr) throw itemErr;
 
-      // Link consultation → request
       const { error: linkErr } = await supabase.from("consultation_requests").insert({
         consultation_id: consultationId,
         branch_request_id: request.id,
@@ -529,16 +561,12 @@ function CreateOrderFromConsultation({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="space-y-2">
-        <Label>Sucursal origen (de dónde pido)</Label>
-        <select value={sourceBranchId} onChange={e => setSourceBranchId(e.target.value)}
-          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
-          <option value="">Seleccionar...</option>
-          {branches?.filter(b => b.id !== requestingBranchId).map(b => (
-            <option key={b.id} value={b.id}>{b.code} - {b.name}</option>
-          ))}
-        </select>
-      </div>
+      <MultiBranchSelector
+        label="Sucursal(es) origen"
+        selected={sourceBranchIds}
+        onChange={setSourceBranchIds}
+        excludeIds={[requestingBranchId]}
+      />
 
       <div className="space-y-2">
         <Label>Productos a pedir</Label>
@@ -561,7 +589,7 @@ function CreateOrderFromConsultation({
         </div>
       </div>
 
-      <Button type="submit" className="w-full" disabled={submitting}>
+      <Button type="submit" className="w-full" disabled={submitting || !sourceBranchIds.length}>
         {submitting ? "Creando..." : "Crear pedido"}
       </Button>
     </form>
