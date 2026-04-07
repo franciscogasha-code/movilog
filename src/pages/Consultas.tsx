@@ -491,7 +491,7 @@ function CreateOrderFromConsultation({
   onSuccess: () => void;
 }) {
   const { user } = useAuth();
-  const [sourceBranchIds, setSourceBranchIds] = useState<string[]>([]);
+  const [sourceBranchId, setSourceBranchId] = useState("");
   const [selectedItems, setSelectedItems] = useState<Record<string, number>>(() => {
     const init: Record<string, number> = {};
     products.forEach(cp => { if (cp.product?.id) init[cp.product.id] = 1; });
