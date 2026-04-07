@@ -587,7 +587,7 @@ function CreateOrderFromConsultation({
         </div>
       </div>
 
-      <Button type="submit" className="w-full" disabled={submitting || !sourceBranchIds.length}>
+      <Button type="submit" className="w-full" disabled={submitting || !sourceBranchId}>
         {submitting ? "Creando..." : "Crear pedido"}
       </Button>
     </form>
