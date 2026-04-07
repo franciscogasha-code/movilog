@@ -15,6 +15,7 @@ import { ProductCard } from "@/components/shared/ProductCard";
 import { BranchSelector, MultiBranchSelector, useAutoDetectBranch } from "@/components/shared/BranchSelector";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { useBranches } from "@/hooks/use-branches";
 
 const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   open: { label: "Abierta", variant: "default" },
