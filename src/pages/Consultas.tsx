@@ -159,10 +159,10 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
   const [targetBranches, setTargetBranches] = useState<string[]>([]);
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
 
-  // Auto-set branch
-  useState(() => {
-    if (defaultBranchId) setBranchId(defaultBranchId);
-  });
+  // Auto-set branch on mount
+  useEffect(() => {
+    if (defaultBranchId && !branchId) setBranchId(defaultBranchId);
+  }, [defaultBranchId]);
 
   const addProduct = (product: ProductResult) => {
     if (selectedProducts.find(p => p.id === product.id)) {
