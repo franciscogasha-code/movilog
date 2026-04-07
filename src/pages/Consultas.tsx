@@ -525,7 +525,7 @@ function CreateOrderFromConsultation({
         .from("branch_requests")
         .insert({
           requesting_branch_id: requestingBranchId,
-          source_branch_id: primarySourceId,
+          source_branch_id: sourceBranchId,
           created_by: user.id,
           request_type: "reposition" as any,
           status: "pending" as any,
