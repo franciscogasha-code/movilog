@@ -127,6 +127,13 @@ export const ALERT_LEVEL_LABELS: Record<string, string> = {
   logistics_admin_decision: "Decisión logística/admin",
 };
 
+export const COMMERCIAL_EXCEPTION_STATUS_LABELS: Record<string, { label: string; color: string; blocking: boolean }> = {
+  pending_commercial: { label: "Excepción comercial", color: "bg-warning/10 text-warning", blocking: false },
+  escalated: { label: "Excepción +24h escalada", color: "bg-destructive/10 text-destructive", blocking: false },
+  auto_closed: { label: "Cerrada automáticamente", color: "bg-accent/10 text-accent", blocking: false },
+  resolved_manual: { label: "Resuelta manualmente", color: "bg-accent/10 text-accent", blocking: false },
+};
+
 export const ADMIN_DISPOSITION_LABELS: Record<string, string> = {
   send_to_admin_stock: "Enviar a stock admin",
   sell_discounted: "Venta rebajada",

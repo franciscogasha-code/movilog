@@ -1,8 +1,17 @@
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { Outlet } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 
 export function AppLayout() {
+  const { profile } = useAuth();
+  const initials = profile?.full_name
+    ?.split(" ")
+    .map((w) => w[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase() || "??";
+
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full">
@@ -12,8 +21,13 @@ export function AppLayout() {
             <SidebarTrigger className="mr-4" />
             <div className="flex-1" />
             <div className="flex items-center gap-3">
+              {profile && (
+                <span className="text-xs text-muted-foreground hidden sm:inline">
+                  {profile.full_name}
+                </span>
+              )}
               <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-semibold text-primary">
-                SA
+                {initials}
               </div>
             </div>
           </header>
