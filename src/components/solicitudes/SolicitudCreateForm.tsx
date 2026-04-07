@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { ProductSearch, type ProductResult } from "@/components/shared/ProductSearch";
 import { ProductCard } from "@/components/shared/ProductCard";
-import { BranchSelector, MultiBranchSelector, useAutoDetectBranch } from "@/components/shared/BranchSelector";
+import { BranchSelector, useAutoDetectBranch } from "@/components/shared/BranchSelector";
 import { Plus, Trash2, Package, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -33,8 +33,8 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
   const [items, setItems] = useState<SelectedItem[]>([]);
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
 
-  // Step 3: Origin (derived from availability)
-  const [sourceBranchIds, setSourceBranchIds] = useState<string[]>([]);
+  // Step 3: Origin — single source (aligned with backend)
+  const [sourceBranchId, setSourceBranchId] = useState("");
 
   // Step 4: Logistics
   const [deliveryTarget, setDeliveryTarget] = useState<DeliveryTarget>("branch");
@@ -62,6 +62,14 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
     }
   }, [requestType]);
 
+  // Clear client fields when delivery target changes to branch
+  useEffect(() => {
+    if (deliveryTarget === "branch") {
+      setClientName("");
+      setClientAddress("");
+    }
+  }, [deliveryTarget]);
+
   const addProduct = (product: ProductResult) => {
     if (items.find(i => i.product.id === product.id)) {
       toast.info("Producto ya agregado");
@@ -81,9 +89,7 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
   };
 
   const handleSelectSourceFromCard = (branchId: string) => {
-    if (!sourceBranchIds.includes(branchId)) {
-      setSourceBranchIds(prev => [...prev, branchId]);
-    }
+    setSourceBranchId(branchId);
   };
 
   // Determine which fields to show
@@ -93,28 +99,29 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!requestingBranchId || !items.length || !sourceBranchIds.length) {
-      toast.error("Completar sucursal solicitante, productos y al menos una sucursal origen");
+    if (!requestingBranchId || !items.length || !sourceBranchId) {
+      toast.error("Completar sucursal solicitante, productos y sucursal origen");
       return;
     }
+
+    // Validate: no double charge
+    // (delivery_payer handles who pays; shipping_origin_paid and shipping_destination_paid are set independently)
 
     setSubmitting(true);
     try {
       if (!user) { toast.error("Debés iniciar sesión"); return; }
 
-      // Use first source branch as primary (multi-source = multiple requests in future)
-      const primarySourceId = sourceBranchIds[0];
-
       const { data: request, error } = await supabase
         .from("branch_requests")
         .insert({
           requesting_branch_id: requestingBranchId,
-          source_branch_id: primarySourceId,
+          source_branch_id: sourceBranchId,
           request_type: requestType as any,
           delivery_target: deliveryTarget as any,
           shipping_method: shippingMethod as any,
           client_name: showClientFields ? (clientName || null) : null,
           client_address: showClientFields ? (clientAddress || null) : null,
+          delivery_payer: showDeliveryPaidBy ? deliveryPaidBy : null,
           notes: notes || null,
           created_by: user.id,
         })
@@ -123,7 +130,6 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
 
       if (error) throw error;
 
-      // Item purpose matches request type (no per-item purpose)
       const itemPurpose = requestType === "client" || requestType === "online" ? "client" : "reposition";
 
       const itemsToInsert = items.map((item) => ({
@@ -218,7 +224,6 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
                   </div>
                 </div>
 
-                {/* Expanded: Product card with stock / actions */}
                 {expandedProduct === item.product.id && (
                   <div className="p-3 border-t border-border/50">
                     <ProductCard
@@ -226,6 +231,7 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
                       productName={item.product.name}
                       productSku={item.product.sku}
                       productBimsCode={item.product.bims_code}
+                      productBarcode={item.product.barcode}
                       productCategory={item.product.category}
                       productUnit={item.product.unit}
                       onSelectSourceBranch={handleSelectSourceFromCard}
@@ -246,15 +252,15 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
         )}
       </div>
 
-      {/* STEP 3: Origin */}
+      {/* STEP 3: Origin — single branch, derived from availability */}
       <div className="space-y-3">
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">3. Origen del stock</h3>
-        <p className="text-xs text-muted-foreground">Seleccioná la(s) sucursal(es) de donde se enviará la mercadería. Podés elegir desde la ficha del producto.</p>
-        <MultiBranchSelector
-          selected={sourceBranchIds}
-          onChange={setSourceBranchIds}
+        <p className="text-xs text-muted-foreground">Seleccioná la sucursal de donde se enviará la mercadería. Podés elegir desde la ficha del producto.</p>
+        <BranchSelector
+          label="Sucursal origen"
+          value={sourceBranchId}
+          onChange={setSourceBranchId}
           excludeIds={requestingBranchId ? [requestingBranchId] : []}
-          label="Sucursales origen"
         />
       </div>
 
@@ -343,7 +349,7 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
         </div>
       </div>
 
-      <Button type="submit" className="w-full" disabled={submitting || !items.length || !sourceBranchIds.length}>
+      <Button type="submit" className="w-full" disabled={submitting || !items.length || !sourceBranchId}>
         {submitting ? "Creando..." : `Crear Pedido (${items.length} producto${items.length !== 1 ? "s" : ""})`}
       </Button>
     </form>

@@ -9,6 +9,7 @@ export type ProductResult = {
   name: string;
   sku: string | null;
   bims_code: string | null;
+  barcode: string | null;
   category: string | null;
   unit: string | null;
 };
@@ -20,7 +21,7 @@ interface ProductSearchProps {
   excludeIds?: string[];
 }
 
-export function ProductSearch({ onSelect, placeholder = "Buscar producto por nombre, código o código de barras...", className, excludeIds = [] }: ProductSearchProps) {
+export function ProductSearch({ onSelect, placeholder = "Buscar producto por nombre, código, SKU o código de barras...", className, excludeIds = [] }: ProductSearchProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<ProductResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -36,16 +37,29 @@ export function ProductSearch({ onSelect, placeholder = "Buscar producto por nom
     }
     setLoading(true);
     try {
-      // Search local products table first (already synced from BIMS)
       const likeTerm = `%${term}%`;
-      let q = supabase
+      
+      // Build OR filter: name, sku, bims_code, barcode (full & partial)
+      // Also support last-4-digits barcode search
+      const orFilters = [
+        `name.ilike.${likeTerm}`,
+        `sku.ilike.${likeTerm}`,
+        `bims_code.ilike.${likeTerm}`,
+        `barcode.ilike.${likeTerm}`,
+      ];
+      
+      // If term is 4 digits, also match last 4 of barcode
+      if (/^\d{3,4}$/.test(term)) {
+        orFilters.push(`barcode.ilike.%${term}`);
+      }
+
+      const { data, error } = await supabase
         .from("products")
-        .select("id, name, sku, bims_code, category, unit")
+        .select("id, name, sku, bims_code, barcode, category, unit")
         .eq("is_active", true)
-        .or(`name.ilike.${likeTerm},sku.ilike.${likeTerm},bims_code.ilike.${likeTerm}`)
+        .or(orFilters.join(","))
         .limit(20);
 
-      const { data, error } = await q;
       if (error) throw error;
 
       const filtered = (data || []).filter(p => !excludeIds.includes(p.id));
@@ -110,6 +124,7 @@ export function ProductSearch({ onSelect, placeholder = "Buscar producto por nom
                 <p className="text-xs text-muted-foreground">
                   {p.sku && <span>SKU: {p.sku}</span>}
                   {p.bims_code && <span className="ml-2">Cód: {p.bims_code}</span>}
+                  {p.barcode && <span className="ml-2">CB: {p.barcode}</span>}
                   {p.category && <span className="ml-2">• {p.category}</span>}
                 </p>
               </div>

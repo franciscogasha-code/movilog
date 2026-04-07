@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { motion } from "framer-motion";
@@ -159,10 +159,10 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
   const [targetBranches, setTargetBranches] = useState<string[]>([]);
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
 
-  // Auto-set branch
-  useState(() => {
-    if (defaultBranchId) setBranchId(defaultBranchId);
-  });
+  // Auto-set branch on mount
+  useEffect(() => {
+    if (defaultBranchId && !branchId) setBranchId(defaultBranchId);
+  }, [defaultBranchId]);
 
   const addProduct = (product: ProductResult) => {
     if (selectedProducts.find(p => p.id === product.id)) {
@@ -491,7 +491,7 @@ function CreateOrderFromConsultation({
   onSuccess: () => void;
 }) {
   const { user } = useAuth();
-  const [sourceBranchIds, setSourceBranchIds] = useState<string[]>([]);
+  const [sourceBranchId, setSourceBranchId] = useState("");
   const [selectedItems, setSelectedItems] = useState<Record<string, number>>(() => {
     const init: Record<string, number> = {};
     products.forEach(cp => { if (cp.product?.id) init[cp.product.id] = 1; });
@@ -515,19 +515,17 @@ function CreateOrderFromConsultation({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const items = Object.entries(selectedItems).filter(([_, qty]) => qty > 0);
-    if (!items.length || !sourceBranchIds.length) { toast.error("Seleccionar sucursal origen y al menos un producto"); return; }
+    if (!items.length || !sourceBranchId) { toast.error("Seleccionar sucursal origen y al menos un producto"); return; }
 
     setSubmitting(true);
     try {
       if (!user) { toast.error("Iniciar sesión"); return; }
 
-      const primarySourceId = sourceBranchIds[0];
-
       const { data: request, error: reqErr } = await supabase
         .from("branch_requests")
         .insert({
           requesting_branch_id: requestingBranchId,
-          source_branch_id: primarySourceId,
+          source_branch_id: sourceBranchId,
           created_by: user.id,
           request_type: "reposition" as any,
           status: "pending" as any,
@@ -561,10 +559,10 @@ function CreateOrderFromConsultation({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <MultiBranchSelector
-        label="Sucursal(es) origen"
-        selected={sourceBranchIds}
-        onChange={setSourceBranchIds}
+      <BranchSelector
+        label="Sucursal origen"
+        value={sourceBranchId}
+        onChange={setSourceBranchId}
         excludeIds={[requestingBranchId]}
       />
 
@@ -589,7 +587,7 @@ function CreateOrderFromConsultation({
         </div>
       </div>
 
-      <Button type="submit" className="w-full" disabled={submitting || !sourceBranchIds.length}>
+      <Button type="submit" className="w-full" disabled={submitting || !sourceBranchId}>
         {submitting ? "Creando..." : "Crear pedido"}
       </Button>
     </form>

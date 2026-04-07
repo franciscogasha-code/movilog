@@ -341,6 +341,7 @@ export type Database = {
           created_by: string
           current_custody_holder_id: string | null
           current_location_branch_id: string | null
+          delivery_payer: string | null
           delivery_target: Database["public"]["Enums"]["delivery_target"]
           expected_next_event: string | null
           expected_next_event_deadline: string | null
@@ -382,6 +383,7 @@ export type Database = {
           created_by: string
           current_custody_holder_id?: string | null
           current_location_branch_id?: string | null
+          delivery_payer?: string | null
           delivery_target?: Database["public"]["Enums"]["delivery_target"]
           expected_next_event?: string | null
           expected_next_event_deadline?: string | null
@@ -423,6 +425,7 @@ export type Database = {
           created_by?: string
           current_custody_holder_id?: string | null
           current_location_branch_id?: string | null
+          delivery_payer?: string | null
           delivery_target?: Database["public"]["Enums"]["delivery_target"]
           expected_next_event?: string | null
           expected_next_event_deadline?: string | null
@@ -1879,6 +1882,7 @@ export type Database = {
       }
       products: {
         Row: {
+          barcode: string | null
           bims_code: string | null
           category: string | null
           created_at: string
@@ -1892,6 +1896,7 @@ export type Database = {
           weight_kg: number | null
         }
         Insert: {
+          barcode?: string | null
           bims_code?: string | null
           category?: string | null
           created_at?: string
@@ -1905,6 +1910,7 @@ export type Database = {
           weight_kg?: number | null
         }
         Update: {
+          barcode?: string | null
           bims_code?: string | null
           category?: string | null
           created_at?: string
