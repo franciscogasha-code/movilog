@@ -36,7 +36,7 @@ export function CrearIncidencia({ onSuccess }: { onSuccess: () => void }) {
   const [quantity, setQuantity] = useState("");
   const [pendingShipment, setPendingShipment] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-
+  const [photoUrls, setPhotoUrls] = useState<string[]>([]);
   const isInternal = detectionContext === "internal";
 
   const handleSubmit = async (e: React.FormEvent) => {
