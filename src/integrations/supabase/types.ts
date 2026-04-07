@@ -2757,6 +2757,7 @@ export type Database = {
         | "pickup"
         | "direct_client"
         | "cut_shipment"
+        | "delivery"
       stock_disposition:
         | "ajuste_inventario"
         | "reclamo_proveedor"
@@ -3065,6 +3066,7 @@ export const Constants = {
         "pickup",
         "direct_client",
         "cut_shipment",
+        "delivery",
       ],
       stock_disposition: [
         "ajuste_inventario",
