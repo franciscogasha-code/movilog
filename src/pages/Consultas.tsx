@@ -521,8 +521,6 @@ function CreateOrderFromConsultation({
     try {
       if (!user) { toast.error("Iniciar sesión"); return; }
 
-      const primarySourceId = sourceBranchIds[0];
-
       const { data: request, error: reqErr } = await supabase
         .from("branch_requests")
         .insert({
