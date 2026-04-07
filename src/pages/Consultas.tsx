@@ -243,8 +243,16 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
                       productName={p.name}
                       productSku={p.sku}
                       productBimsCode={p.bims_code}
+                      productBarcode={(p as any).barcode}
                       productCategory={p.category}
                       productUnit={p.unit}
+                      productDescription={(p as any).description}
+                      productImageUrl={(p as any).image_url}
+                      productSellPrice={(p as any).sell_price}
+                      productPriceScales={(p as any).price_scales}
+                      productPriceLists={(p as any).price_lists}
+                      productStockByWarehouse={(p as any).stock_by_warehouse}
+                      productTotalStock={(p as any).total_stock}
                       compact={false}
                     />
                   </div>
