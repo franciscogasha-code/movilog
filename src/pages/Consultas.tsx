@@ -559,10 +559,10 @@ function CreateOrderFromConsultation({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <MultiBranchSelector
-        label="Sucursal(es) origen"
-        selected={sourceBranchIds}
-        onChange={setSourceBranchIds}
+      <BranchSelector
+        label="Sucursal origen"
+        value={sourceBranchId}
+        onChange={setSourceBranchId}
         excludeIds={[requestingBranchId]}
       />
 
