@@ -16,6 +16,20 @@ type BimsSession = {
   expiresAt: number;
 };
 
+interface SyncStats {
+  total_received: number;
+  total_processed: number;
+  total_inserted: number;
+  total_updated: number;
+  total_failed: number;
+  total_skipped: number;
+  errors: { code: string; message: string; stage: string; timestamp: string }[];
+}
+
+function newStats(): SyncStats {
+  return { total_received: 0, total_processed: 0, total_inserted: 0, total_updated: 0, total_failed: 0, total_skipped: 0, errors: [] };
+}
+
 function toText(value: unknown): string | null {
   if (value === undefined || value === null) return null;
   const normalized = String(value).trim();
@@ -54,68 +68,79 @@ function normalizeWarehouse(raw: any) {
   };
 }
 
-function normalizeProduct(raw: any) {
-  const item = raw?.Product ?? raw?.product ?? raw;
-  const bimsCode = toText(item?.id ?? item?._id ?? item?.product_id ?? raw?.id ?? raw?.product_id ?? raw?._id);
-  if (!bimsCode) return null;
+function normalizeProduct(raw: any): any | null {
+  try {
+    const item = raw?.Product ?? raw?.product ?? raw;
+    const bimsCode = toText(item?.id ?? item?._id ?? item?.product_id ?? raw?.id ?? raw?.product_id ?? raw?._id);
+    if (!bimsCode) return null;
 
-  const status = toText(item?.status ?? raw?.status)?.toLowerCase();
-  const enabledValue = item?.enabled ?? item?.active ?? raw?.enabled ?? raw?.active;
+    const name = toText(item?.name ?? item?.description ?? raw?.name ?? raw?.description);
+    if (!name) return null; // description is mandatory
 
-  const code1 = toText(item?.code ?? raw?.code);
-  const code2 = toText(item?.code2 ?? raw?.code2);
-  const barcode = code1 || code2 || null;
-  const sku = code2 || code1 || null;
+    const status = toText(item?.status ?? raw?.status)?.toLowerCase();
+    const enabledValue = item?.enabled ?? item?.active ?? raw?.enabled ?? raw?.active;
 
-  const description = toText(item?.notes ?? raw?.notes);
-  const imageUrl = toText(item?.image_url ?? item?.image ?? raw?.image_url ?? raw?.image);
+    const code1 = toText(item?.code ?? raw?.code);
+    const code2 = toText(item?.code2 ?? raw?.code2);
+    const barcode = code1 || code2 || null;
+    const sku = code2 || code1 || null;
 
-  const sellPrice = item?.sell_price != null ? parseFloat(String(item.sell_price)) : null;
-  const buyPrice = item?.buy_price != null ? parseFloat(String(item.buy_price)) : null;
+    const description = toText(item?.notes ?? raw?.notes);
+    const imageUrl = toText(item?.image_url ?? item?.image ?? raw?.image_url ?? raw?.image);
 
-  const qprices = item?.Qprice ?? raw?.Qprice ?? [];
-  const priceScales = Array.isArray(qprices) ? qprices.map((q: any) => ({
-    min_quantity: parseFloat(String(q.min_quantity || 0)),
-    price: parseFloat(String(q.price || 0)),
-  })) : [];
+    const sellPrice = item?.sell_price != null ? parseFloat(String(item.sell_price)) : null;
+    const buyPrice = item?.buy_price != null ? parseFloat(String(item.buy_price)) : null;
 
-  const pricings = item?.ProductsPricing ?? raw?.ProductsPricing ?? [];
-  const priceLists = Array.isArray(pricings) ? pricings.map((p: any) => ({
-    name: p?.Pricing?.name || `Lista ${p?.pricing_id}`,
-    amount: parseFloat(String(p?.amount || 0)),
-    pricing_id: p?.pricing_id,
-  })) : [];
+    const qprices = item?.Qprice ?? raw?.Qprice ?? [];
+    const priceScales = Array.isArray(qprices) ? qprices.map((q: any) => ({
+      min_quantity: parseFloat(String(q.min_quantity || 0)),
+      price: parseFloat(String(q.price || 0)),
+    })) : [];
 
-  const availability = item?.Availability ?? raw?.Availability ?? {};
-  const stockByWarehouse: Record<string, number> = {};
-  let totalStock = 0;
-  if (typeof availability === "object" && availability !== null) {
-    for (const [whId, qty] of Object.entries(availability)) {
-      const numQty = parseFloat(String(qty));
-      if (!isNaN(numQty)) {
-        stockByWarehouse[whId] = numQty;
-        totalStock += numQty;
+    const pricings = item?.ProductsPricing ?? raw?.ProductsPricing ?? [];
+    const priceLists = Array.isArray(pricings) ? pricings.map((p: any) => ({
+      name: p?.Pricing?.name || `Lista ${p?.pricing_id}`,
+      amount: parseFloat(String(p?.amount || 0)),
+      pricing_id: p?.pricing_id,
+    })) : [];
+
+    const availability = item?.Availability ?? raw?.Availability ?? {};
+    const stockByWarehouse: Record<string, number> = {};
+    let totalStock = 0;
+    if (typeof availability === "object" && availability !== null) {
+      for (const [whId, qty] of Object.entries(availability)) {
+        const numQty = parseFloat(String(qty));
+        if (!isNaN(numQty)) {
+          stockByWarehouse[whId] = numQty;
+          totalStock += numQty;
+        }
       }
     }
-  }
 
-  return {
-    bims_code: bimsCode,
-    name: toText(item?.name ?? item?.description ?? raw?.name ?? raw?.description) ?? `Product ${bimsCode}`,
-    sku,
-    barcode,
-    category: toText(raw?.Ptype?.name ?? raw?.ptype?.name ?? item?.category ?? item?.group ?? raw?.category ?? raw?.group),
-    unit: toText(item?.um_id ?? item?.unit ?? item?.measure_unit ?? raw?.um_id ?? raw?.unit ?? raw?.measure_unit) ?? "UN",
-    is_active: enabledValue !== false && enabledValue !== 0 && enabledValue !== "0" && status !== "inactive" && status !== "disabled",
-    description,
-    image_url: imageUrl,
-    sell_price: isNaN(sellPrice as number) ? null : sellPrice,
-    buy_price: isNaN(buyPrice as number) ? null : buyPrice,
-    price_scales: priceScales,
-    price_lists: priceLists,
-    stock_by_warehouse: stockByWarehouse,
-    total_stock: totalStock,
-  };
+    const unit = toText(item?.um_id ?? item?.unit ?? item?.measure_unit ?? raw?.um_id ?? raw?.unit ?? raw?.measure_unit) ?? "UN";
+    // Validate unit is a reasonable string
+    if (unit.length > 20) return null;
+
+    return {
+      bims_code: bimsCode,
+      name,
+      sku,
+      barcode,
+      category: toText(raw?.Ptype?.name ?? raw?.ptype?.name ?? item?.category ?? item?.group ?? raw?.category ?? raw?.group),
+      unit,
+      is_active: enabledValue !== false && enabledValue !== 0 && enabledValue !== "0" && status !== "inactive" && status !== "disabled",
+      description,
+      image_url: imageUrl,
+      sell_price: isNaN(sellPrice as number) ? null : sellPrice,
+      buy_price: isNaN(buyPrice as number) ? null : buyPrice,
+      price_scales: priceScales,
+      price_lists: priceLists,
+      stock_by_warehouse: stockByWarehouse,
+      total_stock: totalStock,
+    };
+  } catch (e) {
+    return null;
+  }
 }
 
 let cachedSession: BimsSession | null = null;
@@ -180,65 +205,183 @@ async function bimsRequest(method: string, path: string): Promise<unknown> {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
+  const adminClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+  const results: Record<string, SyncStats> = {};
+
   try {
-    const adminClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-    const results: Record<string, unknown> = {};
+    // ── 1. Sync warehouses ──
+    const whStats = newStats();
+    try {
+      const warehouses = await bimsRequest("GET", `/warehouses`) as any;
+      const whItems = extractArray(warehouses);
+      whStats.total_received = whItems.length;
 
-    // 1. Sync warehouses
-    const warehouses = await bimsRequest("GET", `/warehouses`) as any;
-    const whItems = extractArray(warehouses);
-    let whSynced = 0;
-    for (const w of whItems) {
-      const normalized = normalizeWarehouse(w);
-      if (!normalized) continue;
-      const { data: existing } = await adminClient.from("branches").select("id").eq("code", normalized.code).maybeSingle();
-      if (!existing) {
-        await adminClient.from("branches").insert({
-          code: normalized.code, name: normalized.name,
-          city: normalized.city ? String(normalized.city) : null,
-          address: normalized.address ? String(normalized.address) : null,
-        });
+      for (const w of whItems) {
+        try {
+          const normalized = normalizeWarehouse(w);
+          if (!normalized) { whStats.total_skipped++; continue; }
+          if (!normalized.code) {
+            whStats.total_skipped++;
+            continue;
+          }
+
+          const { data: existing } = await adminClient.from("branches").select("id").eq("code", normalized.code).maybeSingle();
+          if (existing) {
+            whStats.total_updated++;
+          } else {
+            const { error } = await adminClient.from("branches").insert({
+              code: normalized.code, name: normalized.name,
+              city: normalized.city ? String(normalized.city) : null,
+              address: normalized.address ? String(normalized.address) : null,
+            });
+            if (error) throw error;
+            whStats.total_inserted++;
+          }
+          whStats.total_processed++;
+        } catch (e: any) {
+          whStats.total_failed++;
+          whStats.errors.push({
+            code: String(w?.code ?? w?.id ?? "unknown"),
+            message: e.message,
+            stage: "upsert",
+            timestamp: new Date().toISOString(),
+          });
+        }
       }
-      whSynced++;
+    } catch (e: any) {
+      whStats.total_failed = -1;
+      whStats.errors.push({ code: "GLOBAL", message: e.message, stage: "fetch", timestamp: new Date().toISOString() });
     }
-    results.warehouses = { synced: whSynced };
+    results.warehouses = whStats;
 
-    // 2. Sync products with full commercial data
-    const PRODUCT_PAGE_SIZE = 250;
+    // Log warehouse sync
+    await adminClient.from("sync_logs").insert({
+      entity: "warehouses",
+      status: whStats.total_failed > 0 ? (whStats.total_processed > 0 ? "partial" : "error") : "success",
+      ...whStats,
+      completed_at: new Date().toISOString(),
+    });
+
+    // ── 2. Sync products in batches ──
+    const prodStats = newStats();
+    const BATCH_SIZE = 100;
     let page = 1;
-    let totalSynced = 0;
     let hasMore = true;
-    while (hasMore) {
-      const products = await bimsRequest("GET", `/products?page=${page}&limit=${PRODUCT_PAGE_SIZE}`) as any;
-      const items = extractArray(products);
-      if (items.length === 0) { hasMore = false; break; }
 
-      const mapped = Array.from(
-        new Map(
-          items
-            .map((product: any) => normalizeProduct(product))
-            .filter((p: any) => p !== null)
-            .map((product: any) => [product.bims_code, product])
-        ).values()
-      );
+    try {
+      while (hasMore) {
+        const products = await bimsRequest("GET", `/products?page=${page}&limit=${BATCH_SIZE}`) as any;
+        const items = extractArray(products);
+        if (items.length === 0) { hasMore = false; break; }
 
-      if (mapped.length > 0) {
-        const { error } = await adminClient.from("products").upsert(mapped, { onConflict: "bims_code" });
-        if (error) throw new Error(`Products page ${page} upsert failed: ${error.message}`);
-        totalSynced += mapped.length;
+        prodStats.total_received += items.length;
+
+        // Normalize and deduplicate batch
+        const batchMap = new Map<string, any>();
+        for (const raw of items) {
+          try {
+            const normalized = normalizeProduct(raw);
+            if (!normalized) {
+              prodStats.total_skipped++;
+              continue;
+            }
+            // Validation: mandatory fields
+            if (!normalized.bims_code || !normalized.name) {
+              prodStats.total_skipped++;
+              prodStats.errors.push({
+                code: String(raw?.id ?? "unknown"),
+                message: "Missing mandatory fields (bims_code or name)",
+                stage: "validation",
+                timestamp: new Date().toISOString(),
+              });
+              continue;
+            }
+            batchMap.set(normalized.bims_code, normalized);
+          } catch (e: any) {
+            prodStats.total_failed++;
+            prodStats.errors.push({
+              code: String(raw?.id ?? "unknown"),
+              message: e.message,
+              stage: "transform",
+              timestamp: new Date().toISOString(),
+            });
+          }
+        }
+
+        const batch = Array.from(batchMap.values());
+        if (batch.length > 0) {
+          // Check which already exist
+          const bimsCodes = batch.map(p => p.bims_code);
+          const { data: existing } = await adminClient.from("products").select("bims_code").in("bims_code", bimsCodes);
+          const existingSet = new Set(existing?.map(e => e.bims_code) || []);
+
+          const { error } = await adminClient.from("products").upsert(batch, { onConflict: "bims_code" });
+          if (error) {
+            // Try one-by-one fallback
+            for (const product of batch) {
+              try {
+                const { error: singleErr } = await adminClient.from("products").upsert(product, { onConflict: "bims_code" });
+                if (singleErr) throw singleErr;
+                if (existingSet.has(product.bims_code)) {
+                  prodStats.total_updated++;
+                } else {
+                  prodStats.total_inserted++;
+                }
+                prodStats.total_processed++;
+              } catch (e: any) {
+                prodStats.total_failed++;
+                prodStats.errors.push({
+                  code: product.bims_code,
+                  message: e.message,
+                  stage: "upsert",
+                  timestamp: new Date().toISOString(),
+                });
+              }
+            }
+          } else {
+            // Batch succeeded
+            for (const p of batch) {
+              if (existingSet.has(p.bims_code)) {
+                prodStats.total_updated++;
+              } else {
+                prodStats.total_inserted++;
+              }
+            }
+            prodStats.total_processed += batch.length;
+          }
+        }
+
+        page++;
+        if (items.length < BATCH_SIZE) hasMore = false;
       }
-
-      page++;
-      if (items.length < PRODUCT_PAGE_SIZE) hasMore = false;
+    } catch (e: any) {
+      prodStats.errors.push({ code: "GLOBAL", message: e.message, stage: "fetch", timestamp: new Date().toISOString() });
     }
-    results.products = { synced: totalSynced };
+    results.products = prodStats;
 
-    console.log("BIMS auto-sync completed:", JSON.stringify(results));
+    // Determine overall status
+    const prodStatus = prodStats.total_failed > 0
+      ? (prodStats.total_processed > 0 ? "partial" : "error")
+      : "success";
+
+    // Log product sync
+    await adminClient.from("sync_logs").insert({
+      entity: "products",
+      status: prodStatus,
+      ...prodStats,
+      errors: prodStats.errors.slice(0, 100), // Cap errors to 100
+      completed_at: new Date().toISOString(),
+    });
+
+    console.log("BIMS auto-sync completed:", JSON.stringify({
+      warehouses: { processed: whStats.total_processed, failed: whStats.total_failed },
+      products: { processed: prodStats.total_processed, failed: prodStats.total_failed },
+    }));
 
     return new Response(JSON.stringify({ success: true, results }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("BIMS auto-sync error:", error);
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
