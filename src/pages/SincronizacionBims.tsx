@@ -108,8 +108,8 @@ const PAGE_SIZE = 100;
 
 function emptyProgress(): PageSyncProgress {
   return {
-    currentPage: 0, totalProcessed: 0, totalInserted: 0, totalUpdated: 0,
-    totalFailed: 0, totalSkipped: 0, totalReceived: 0, errors: [],
+    currentPage: 0, totalPages: 0, totalProcessed: 0, totalInserted: 0, totalUpdated: 0,
+    totalFailed: 0, totalSkipped: 0, totalReceived: 0, bimsTotalCount: null, errors: [],
     isRunning: false, status: "idle", startedAt: null, durationMs: 0, failedPages: [],
   };
 }
