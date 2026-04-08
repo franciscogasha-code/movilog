@@ -298,16 +298,24 @@ export default function SincronizacionBims() {
         totalSkipped += s.total_skipped || 0;
         if (s.errors?.length) allErrors.push(...s.errors);
         if (s.total_failed > 0) newFailedPages.push(pageNum);
+        pagesProcessed++;
+
+        // Capture BIMS total count if returned
+        if (data.bims_total_count != null && !isNaN(Number(data.bims_total_count))) {
+          bimsTotalCount = Number(data.bims_total_count);
+        }
 
         setProdProgress(prev => ({
           ...prev,
           currentPage: pageNum,
+          totalPages: pagesProcessed,
           totalProcessed,
           totalInserted,
           totalUpdated,
           totalFailed,
           totalSkipped,
           totalReceived,
+          bimsTotalCount,
           errors: allErrors.slice(0, 200),
           durationMs: Date.now() - startTime,
         }));
