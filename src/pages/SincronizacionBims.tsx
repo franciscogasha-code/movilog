@@ -154,6 +154,23 @@ export default function SincronizacionBims() {
     },
   });
 
+  // Separate query: sum all product page logs from the last sync run for coverage calculation
+  const { data: syncRunTotals } = useQuery({
+    queryKey: ["sync-run-totals"],
+    queryFn: async () => {
+      // Get all product sync logs from the last hour to calculate total received across all pages
+      const oneHourAgo = new Date(Date.now() - 3600000).toISOString();
+      const { data } = await supabase
+        .from("sync_logs")
+        .select("total_received, total_processed, total_failed, status, triggered_by")
+        .eq("entity", "products")
+        .gte("created_at", oneHourAgo)
+        .order("created_at", { ascending: false })
+        .limit(500); // Up to 500 pages
+      return data || [];
+    },
+  });
+
   const lastSuccessSync = lastLogs?.find((l: any) => l.entity === "products" && l.status === "success");
 
   // Calculate real BIMS total from the last complete sync run:
