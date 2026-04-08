@@ -156,11 +156,31 @@ export default function SincronizacionBims() {
 
   const lastSuccessSync = lastLogs?.find((l: any) => l.entity === "products" && l.status === "success");
 
-  // Estimated catalog size from last full sync received count
-  const estimatedCatalogSize = lastLogs
-    ?.filter((l: any) => l.entity === "products")
-    ?.reduce((max: number, l: any) => Math.max(max, l.total_received || 0), 0) || 0;
-  const catalogCoverage = estimatedCatalogSize > 0 ? productCount / estimatedCatalogSize : 1;
+  // Calculate real BIMS total from the last complete sync run:
+  // SUM all total_received from product page logs in the most recent run
+  const lastSyncRun = (() => {
+    if (!lastLogs?.length) return { totalReceived: 0, totalPages: 0, failedPages: 0 };
+    const productLogs = lastLogs.filter((l: any) => l.entity === "products" && l.triggered_by?.startsWith("page_"));
+    if (!productLogs.length) return { totalReceived: 0, totalPages: 0, failedPages: 0 };
+    // All recent product page logs belong to the last run (query is limited to 20 most recent)
+    const totalReceived = productLogs.reduce((sum: number, l: any) => sum + (l.total_received || 0), 0);
+    const failedPages = productLogs.filter((l: any) => l.status !== "success").length;
+    return { totalReceived, totalPages: productLogs.length, failedPages };
+  })();
+
+  // Use bimsTotalCount from live sync if available, otherwise estimate from log sum
+  // The live sync accumulates totalReceived across ALL pages (not just last 20 logs)
+  const bimsTotalFromLiveSync = prodProgress.bimsTotalCount;
+  const bimsTotalFromAccumulated = prodProgress.totalReceived > 0 ? prodProgress.totalReceived : 0;
+  
+  // Best estimate of BIMS universe size (prefer BIMS-reported total, then accumulated from full sync)
+  const estimatedCatalogSize = bimsTotalFromLiveSync
+    ?? (bimsTotalFromAccumulated > lastSyncRun.totalReceived ? bimsTotalFromAccumulated : lastSyncRun.totalReceived)
+    || 0;
+
+  const catalogCoverage = estimatedCatalogSize > 0
+    ? Math.min(productCount / estimatedCatalogSize, 1) // Never exceed 100%
+    : (productCount > 0 ? -1 : 0); // -1 = unknown reference
   const catalogStatus = getCatalogSyncStatus(productCount, estimatedCatalogSize, prodProgress.isRunning);
   const catalogHealthy = catalogStatus === "complete";
 
