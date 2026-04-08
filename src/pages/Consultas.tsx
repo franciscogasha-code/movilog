@@ -8,14 +8,22 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Search, MessageCircle, Clock, CheckCircle2, ShoppingCart, Package, Trash2 } from "lucide-react";
+import { Plus, Search, MessageCircle, Clock, CheckCircle2, ShoppingCart, Package, Trash2, XCircle, AlertTriangle } from "lucide-react";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ProductSearch, type ProductResult } from "@/components/shared/ProductSearch";
 import { ProductCard } from "@/components/shared/ProductCard";
 import { BranchSelector, MultiBranchSelector, useAutoDetectBranch } from "@/components/shared/BranchSelector";
+import { ContextBanner } from "@/components/solicitudes/ContextBanner";
+import { DemandAlert } from "@/components/solicitudes/DemandAlert";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBranches } from "@/hooks/use-branches";
+import {
+  type RequestType,
+  type DeliveryTarget,
+  getOriginMode,
+  getAllowedDeliveryTargets,
+} from "@/lib/business-rules";
 
 const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   open: { label: "Abierta", variant: "default" },
@@ -23,8 +31,6 @@ const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secon
   converted: { label: "Convertida", variant: "outline" },
   expired: { label: "Expirada", variant: "destructive" },
 };
-
-type DeliveryContext = "branch" | "client";
 
 export default function Consultas() {
   const [createOpen, setCreateOpen] = useState(false);
@@ -79,9 +85,7 @@ export default function Consultas() {
             <Button><Plus className="h-4 w-4 mr-2" /> Nueva Consulta</Button>
           </DialogTrigger>
           <DialogContent className="max-w-lg">
-            <DialogHeader>
-              <DialogTitle>Consultar Disponibilidad</DialogTitle>
-            </DialogHeader>
+            <DialogHeader><DialogTitle>Consultar Disponibilidad</DialogTitle></DialogHeader>
             <ConsultationForm onSuccess={() => { setCreateOpen(false); queryClient.invalidateQueries({ queryKey: ["availability-consultations"] }); }} />
           </DialogContent>
         </Dialog>
@@ -115,23 +119,19 @@ export default function Consultas() {
                       <td className="p-3 font-medium">
                         {c.consultation_products?.length > 0
                           ? c.consultation_products.map((p: any) => p?.name).filter(Boolean).join(", ")
-                          : <span className="text-muted-foreground">Sin productos</span>
-                        }
+                          : <span className="text-muted-foreground">Sin productos</span>}
                       </td>
                       <td className="p-3">{c.requesting_branch?.name} ({c.requesting_branch?.code})</td>
                       <td className="p-3"><StatusBadge status={c.status} config={STATUS_CONFIG} /></td>
                       <td className="p-3">
                         {c.orders_count > 0
                           ? <Badge variant="secondary" className="text-xs">{c.orders_count} pedido(s)</Badge>
-                          : <span className="text-muted-foreground text-xs">—</span>
-                        }
+                          : <span className="text-muted-foreground text-xs">—</span>}
                       </td>
                       <td className="p-3 text-xs text-muted-foreground">
                         {c.auto_close_at ? new Date(c.auto_close_at).toLocaleString("es-PY", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—"}
                       </td>
-                      <td className="p-3">
-                        <Button variant="ghost" size="sm"><MessageCircle className="h-4 w-4" /></Button>
-                      </td>
+                      <td className="p-3"><Button variant="ghost" size="sm"><MessageCircle className="h-4 w-4" /></Button></td>
                     </tr>
                   ))}
                 </tbody>
@@ -143,9 +143,7 @@ export default function Consultas() {
 
       <Dialog open={!!selectedId} onOpenChange={(open) => !open && setSelectedId(null)}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Detalle de Consulta</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>Detalle de Consulta</DialogTitle></DialogHeader>
           {selectedId && <ConsultationDetail consultationId={selectedId} onOrderCreated={() => queryClient.invalidateQueries({ queryKey: ["availability-consultations"] })} />}
         </DialogContent>
       </Dialog>
@@ -161,17 +159,14 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
   const [branchId, setBranchId] = useState(defaultBranchId || "");
   const [targetBranches, setTargetBranches] = useState<string[]>([]);
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
-  const [deliveryContext, setDeliveryContext] = useState<DeliveryContext>("branch");
+  const [deliveryContext, setDeliveryContext] = useState<DeliveryTarget>("branch");
 
   useEffect(() => {
     if (defaultBranchId && !branchId) setBranchId(defaultBranchId);
   }, [defaultBranchId]);
 
   const addProduct = (product: ProductResult) => {
-    if (selectedProducts.find(p => p.id === product.id)) {
-      toast.info("Producto ya agregado");
-      return;
-    }
+    if (selectedProducts.find(p => p.id === product.id)) { toast.info("Producto ya agregado"); return; }
     setSelectedProducts(prev => [...prev, product]);
     setExpandedProduct(product.id);
   };
@@ -183,13 +178,10 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedProducts.length || !branchId || !targetBranches.length) {
-      toast.error("Completar todos los campos"); return;
-    }
+    if (!selectedProducts.length || !branchId || !targetBranches.length) { toast.error("Completar todos los campos"); return; }
     setSubmitting(true);
     try {
       if (!user) { toast.error("Debés iniciar sesión"); return; }
-
       const { data: consultation, error } = await supabase
         .from("availability_consultations")
         .insert({ requesting_branch_id: branchId, created_by: user.id })
@@ -206,23 +198,16 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
 
       toast.success("Consulta creada");
       onSuccess();
-    } catch (err: any) {
-      toast.error(err.message);
-    } finally {
-      setSubmitting(false);
-    }
+    } catch (err: any) { toast.error(err.message); }
+    finally { setSubmitting(false); }
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {/* Delivery context */}
       <div className="space-y-2">
-        <Label>Destino de entrega</Label>
-        <select
-          value={deliveryContext}
-          onChange={(e) => setDeliveryContext(e.target.value as DeliveryContext)}
-          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
+        <Label>Destino de entrega (contexto)</Label>
+        <select value={deliveryContext} onChange={(e) => setDeliveryContext(e.target.value as DeliveryTarget)}
+          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
           <option value="branch">A sucursal (multi-origen permitido)</option>
           <option value="client">A cliente (origen único)</option>
         </select>
@@ -233,15 +218,9 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
         </p>
       </div>
 
-      {/* Products with search */}
       <div className="space-y-2">
         <Label>Productos</Label>
-        <ProductSearch
-          onSelect={addProduct}
-          excludeIds={selectedProducts.map(p => p.id)}
-          placeholder="Buscar producto..."
-        />
-
+        <ProductSearch onSelect={addProduct} excludeIds={selectedProducts.map(p => p.id)} placeholder="Buscar producto..." />
         {selectedProducts.length > 0 && (
           <div className="space-y-2 mt-2">
             {selectedProducts.map((p) => (
@@ -258,34 +237,24 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
                   </Button>
                 </div>
                 {expandedProduct === p.id && (
-                  <div className="p-2 border-t border-border/50">
+                  <div className="p-2 border-t border-border/50 space-y-2">
+                    <DemandAlert productId={p.id} />
                     <ProductCard
-                      productId={p.id}
-                      productName={p.name}
-                      productSku={p.sku}
-                      productBimsCode={p.bims_code}
-                      productBarcode={(p as any).barcode}
-                      productCategory={p.category}
-                      productUnit={p.unit}
-                      productDescription={(p as any).description}
-                      productImageUrl={(p as any).image_url}
-                      productSellPrice={(p as any).sell_price}
-                      productPriceScales={(p as any).price_scales}
+                      productId={p.id} productName={p.name} productSku={p.sku}
+                      productBimsCode={p.bims_code} productBarcode={(p as any).barcode}
+                      productCategory={p.category} productUnit={p.unit}
+                      productDescription={(p as any).description} productImageUrl={(p as any).image_url}
+                      productSellPrice={(p as any).sell_price} productPriceScales={(p as any).price_scales}
                       productPriceLists={(p as any).price_lists}
                       productStockByWarehouse={(p as any).stock_by_warehouse}
                       productTotalStock={(p as any).total_stock}
-                      stockMode="info_only"
-                      compact={false}
+                      stockMode="info_only" compact={false}
                     />
                     {deliveryContext === "branch" && (
-                      <p className="text-xs text-muted-foreground mt-2 italic">
-                        Se puede combinar stock de múltiples sucursales al crear el pedido.
-                      </p>
+                      <p className="text-xs text-muted-foreground italic">Se puede combinar stock de múltiples sucursales al crear el pedido.</p>
                     )}
-                    {deliveryContext === "client" && (p as any).stock_by_warehouse && (
-                      <p className="text-xs text-muted-foreground mt-2 italic">
-                        Identificá la sucursal que cubra el total para origen único.
-                      </p>
+                    {deliveryContext === "client" && (
+                      <p className="text-xs text-muted-foreground italic">Identificá la sucursal que cubra el total para origen único.</p>
                     )}
                   </div>
                 )}
@@ -295,21 +264,8 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
         )}
       </div>
 
-      {/* Branch */}
-      <BranchSelector
-        label="Mi sucursal"
-        value={branchId}
-        onChange={setBranchId}
-        disabled={!canChangeBranch && !!defaultBranchId}
-      />
-
-      {/* Target branches */}
-      <MultiBranchSelector
-        label="Consultar a sucursales"
-        selected={targetBranches}
-        onChange={setTargetBranches}
-        excludeIds={branchId ? [branchId] : []}
-      />
+      <BranchSelector label="Mi sucursal" value={branchId} onChange={setBranchId} disabled={!canChangeBranch && !!defaultBranchId} />
+      <MultiBranchSelector label="Consultar a sucursales" selected={targetBranches} onChange={setTargetBranches} excludeIds={branchId ? [branchId] : []} />
 
       <Button type="submit" className="w-full" disabled={submitting || !selectedProducts.length}>
         {submitting ? "Enviando..." : "Enviar Consulta"}
@@ -321,7 +277,18 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
 function ConsultationDetail({ consultationId, onOrderCreated }: { consultationId: string; onOrderCreated: () => void }) {
   const queryClient = useQueryClient();
   const [createOrderOpen, setCreateOrderOpen] = useState(false);
-  const [orderDeliveryContext, setOrderDeliveryContext] = useState<DeliveryContext>("branch");
+  const [orderRequestType, setOrderRequestType] = useState<RequestType>("reposition");
+  const [orderDeliveryTarget, setOrderDeliveryTarget] = useState<DeliveryTarget>("branch");
+
+  const orderMode = getOriginMode(orderRequestType, orderDeliveryTarget);
+  const allowedTargets = getAllowedDeliveryTargets(orderRequestType);
+
+  // Enforce allowed targets
+  useEffect(() => {
+    if (!allowedTargets.includes(orderDeliveryTarget)) {
+      setOrderDeliveryTarget(allowedTargets[0]);
+    }
+  }, [orderRequestType]);
 
   const { data: consultation } = useQuery({
     queryKey: ["consultation-detail", consultationId],
@@ -338,7 +305,9 @@ function ConsultationDetail({ consultationId, onOrderCreated }: { consultationId
   const { data: consultationProducts } = useQuery({
     queryKey: ["consultation-products", consultationId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("consultation_products").select(`*, product:products(id, name, sku, bims_code)`).eq("consultation_id", consultationId);
+      const { data, error } = await supabase.from("consultation_products")
+        .select(`*, product:products(id, name, sku, bims_code, stock_by_warehouse, total_stock)`)
+        .eq("consultation_id", consultationId);
       if (error) throw error;
       return data;
     },
@@ -380,10 +349,7 @@ function ConsultationDetail({ consultationId, onOrderCreated }: { consultationId
 
   const closeConsultation = async () => {
     try {
-      const { error } = await supabase
-        .from("availability_consultations")
-        .update({ status: "converted" as any })
-        .eq("id", consultationId);
+      const { error } = await supabase.from("availability_consultations").update({ status: "converted" as any }).eq("id", consultationId);
       if (error) throw error;
       toast.success("Consulta cerrada");
       queryClient.invalidateQueries({ queryKey: ["consultation-detail", consultationId] });
@@ -405,9 +371,7 @@ function ConsultationDetail({ consultationId, onOrderCreated }: { consultationId
         <div className="flex items-center gap-2">
           <StatusBadge status={c.status} config={STATUS_CONFIG} />
           {canCreateOrder && (
-            <Button size="sm" variant="outline" onClick={closeConsultation} className="text-xs">
-              Cerrar consulta
-            </Button>
+            <Button size="sm" variant="outline" onClick={closeConsultation} className="text-xs">Cerrar consulta</Button>
           )}
         </div>
       </div>
@@ -421,14 +385,15 @@ function ConsultationDetail({ consultationId, onOrderCreated }: { consultationId
               <div key={cp.id} className="flex items-center gap-2 p-2 rounded bg-muted/30 text-sm">
                 <span className="font-medium">{cp.product?.name}</span>
                 <span className="text-muted-foreground text-xs">({cp.product?.sku})</span>
+                {cp.product?.total_stock != null && (
+                  <Badge variant={cp.product.total_stock > 0 ? "default" : "destructive"} className="text-xs">
+                    Stock: {Math.floor(cp.product.total_stock)}
+                  </Badge>
+                )}
                 {derivedInOrder ? (
-                  <Badge variant="outline" className="text-xs ml-auto text-accent border-accent/30 gap-1">
-                    <CheckCircle2 className="h-3 w-3" /> Con pedido
-                  </Badge>
+                  <Badge variant="outline" className="text-xs ml-auto gap-1"><CheckCircle2 className="h-3 w-3" /> Con pedido</Badge>
                 ) : (
-                  <Badge variant="outline" className="text-xs ml-auto text-muted-foreground">
-                    <Clock className="h-3 w-3 mr-1" /> Sin pedido
-                  </Badge>
+                  <Badge variant="outline" className="text-xs ml-auto text-muted-foreground"><Clock className="h-3 w-3 mr-1" /> Sin pedido</Badge>
                 )}
               </div>
             );
@@ -476,47 +441,51 @@ function ConsultationDetail({ consultationId, onOrderCreated }: { consultationId
 
       {canCreateOrder && (
         <div className="space-y-3">
-          {/* Delivery context selector for CTA */}
-          <div className="space-y-2">
-            <Label className="text-xs text-muted-foreground">Tipo de pedido a crear</Label>
-            <div className="flex gap-2">
-              <Badge
-                variant={orderDeliveryContext === "branch" ? "default" : "outline"}
-                className="cursor-pointer"
-                onClick={() => setOrderDeliveryContext("branch")}
-              >
-                A sucursal (multi-origen)
-              </Badge>
-              <Badge
-                variant={orderDeliveryContext === "client" ? "default" : "outline"}
-                className="cursor-pointer"
-                onClick={() => setOrderDeliveryContext("client")}
-              >
-                A cliente (origen único)
-              </Badge>
+          <h4 className="font-display font-semibold mb-1">Crear pedido desde consulta</h4>
+
+          {/* Request type + delivery target */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Tipo de solicitud</Label>
+              <select value={orderRequestType} onChange={(e) => setOrderRequestType(e.target.value as RequestType)}
+                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm">
+                <option value="reposition">Reposición</option>
+                <option value="client">Pedido Cliente</option>
+                <option value="online">Pedido Online</option>
+              </select>
             </div>
+            {allowedTargets.length > 1 && (
+              <div className="space-y-1">
+                <Label className="text-xs">Destino de entrega</Label>
+                <select value={orderDeliveryTarget} onChange={(e) => setOrderDeliveryTarget(e.target.value as DeliveryTarget)}
+                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm">
+                  {allowedTargets.map(t => (
+                    <option key={t} value={t}>{t === "branch" ? "A sucursal" : "A cliente"}</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
+
+          <ContextBanner requestType={orderRequestType} deliveryTarget={orderDeliveryTarget} />
 
           <Dialog open={createOrderOpen} onOpenChange={setCreateOrderOpen}>
             <DialogTrigger asChild>
               <Button className="w-full gap-2">
                 <ShoppingCart className="h-4 w-4" />
-                {orderDeliveryContext === "branch"
-                  ? "Crear pedido multi-origen"
-                  : "Crear pedido con origen único"}
+                {orderMode === "multi" ? "Crear transferencia(s) multi-origen" : "Crear pedido con origen único"}
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-lg">
               <DialogHeader>
-                <DialogTitle>
-                  {orderDeliveryContext === "branch" ? "Crear transferencia(s)" : "Crear pedido"}
-                </DialogTitle>
+                <DialogTitle>{orderMode === "multi" ? "Crear transferencia(s)" : "Crear pedido"}</DialogTitle>
               </DialogHeader>
               <CreateOrderFromConsultation
                 consultationId={consultationId}
                 requestingBranchId={c.requesting_branch_id}
                 products={consultationProducts || []}
-                deliveryContext={orderDeliveryContext}
+                requestType={orderRequestType}
+                deliveryTarget={orderDeliveryTarget}
                 onSuccess={() => {
                   setCreateOrderOpen(false);
                   queryClient.invalidateQueries({ queryKey: ["consultation-orders", consultationId] });
@@ -548,26 +517,21 @@ function ConsultationDetail({ consultationId, onOrderCreated }: { consultationId
 }
 
 function CreateOrderFromConsultation({
-  consultationId,
-  requestingBranchId,
-  products,
-  deliveryContext,
-  onSuccess,
+  consultationId, requestingBranchId, products, requestType, deliveryTarget, onSuccess,
 }: {
   consultationId: string;
   requestingBranchId: string;
   products: any[];
-  deliveryContext: DeliveryContext;
+  requestType: RequestType;
+  deliveryTarget: DeliveryTarget;
   onSuccess: () => void;
 }) {
   const { user } = useAuth();
   const { data: branches } = useBranches();
-  const isMultiOrigin = deliveryContext === "branch";
+  const originMode = getOriginMode(requestType, deliveryTarget);
+  const isMultiOrigin = originMode === "multi";
 
-  // Mono-origin: single source
   const [sourceBranchId, setSourceBranchId] = useState("");
-
-  // Multi-origin: per-product source
   const [selectedItems, setSelectedItems] = useState<Record<string, { qty: number; sourceBranchId?: string }>>(() => {
     const init: Record<string, { qty: number; sourceBranchId?: string }> = {};
     products.forEach(cp => { if (cp.product?.id) init[cp.product.id] = { qty: 1 }; });
@@ -596,9 +560,7 @@ function CreateOrderFromConsultation({
 
   const canSubmit = (() => {
     if (!selectedEntries.length) return false;
-    if (isMultiOrigin) {
-      return selectedEntries.every(([_, v]) => !!v.sourceBranchId);
-    }
+    if (isMultiOrigin) return selectedEntries.every(([_, v]) => !!v.sourceBranchId);
     return !!sourceBranchId;
   })();
 
@@ -614,7 +576,20 @@ function CreateOrderFromConsultation({
       if (!user) { toast.error("Iniciar sesión"); return; }
 
       if (isMultiOrigin) {
-        // Group by source branch
+        // Create parent
+        const { data: parentReq, error: parentErr } = await supabase
+          .from("branch_requests")
+          .insert({
+            requesting_branch_id: requestingBranchId,
+            source_branch_id: requestingBranchId,
+            created_by: user.id,
+            request_type: requestType as any,
+            delivery_target: deliveryTarget as any,
+            notes: `[Pedido padre] Creado desde consulta`,
+          })
+          .select().single();
+        if (parentErr) throw parentErr;
+
         const bySource: Record<string, { pid: string; qty: number }[]> = {};
         selectedEntries.forEach(([pid, v]) => {
           const src = v.sourceBranchId!;
@@ -629,10 +604,11 @@ function CreateOrderFromConsultation({
             .insert({
               requesting_branch_id: requestingBranchId,
               source_branch_id: srcBranch,
+              parent_request_id: parentReq.id,
               created_by: user.id,
-              request_type: "reposition" as any,
-              delivery_target: "branch" as any,
-              notes: `Creado desde consulta de disponibilidad`,
+              request_type: requestType as any,
+              delivery_target: deliveryTarget as any,
+              notes: `Creado desde consulta`,
             })
             .select().single();
           if (reqErr) throw reqErr;
@@ -641,6 +617,7 @@ function CreateOrderFromConsultation({
             request_id: request.id,
             product_id: pid,
             quantity_requested: qty,
+            item_purpose: (requestType === "client" || requestType === "online" ? "client" : "reposition") as any,
           }));
           const { error: itemErr } = await supabase.from("branch_request_items").insert(itemInserts);
           if (itemErr) throw itemErr;
@@ -654,18 +631,20 @@ function CreateOrderFromConsultation({
           createdNumbers.push(request.request_number);
         }
 
-        toast.success(`Se crearon ${createdNumbers.length} transferencia(s): #${createdNumbers.join(", #")}`);
+        // Link parent too
+        await supabase.from("consultation_requests").insert({ consultation_id: consultationId, branch_request_id: parentReq.id });
+
+        toast.success(`Pedido #${parentReq.request_number} con ${createdNumbers.length} transferencia(s)`);
       } else {
-        // Mono-origin: single request
         const { data: request, error: reqErr } = await supabase
           .from("branch_requests")
           .insert({
             requesting_branch_id: requestingBranchId,
             source_branch_id: sourceBranchId,
             created_by: user.id,
-            request_type: "client" as any,
-            delivery_target: "client" as any,
-            notes: `Creado desde consulta de disponibilidad`,
+            request_type: requestType as any,
+            delivery_target: deliveryTarget as any,
+            notes: `Creado desde consulta`,
           })
           .select().single();
         if (reqErr) throw reqErr;
@@ -674,45 +653,33 @@ function CreateOrderFromConsultation({
           request_id: request.id,
           product_id,
           quantity_requested: v.qty,
-          item_purpose: "client" as any,
+          item_purpose: (requestType === "client" || requestType === "online" ? "client" : "reposition") as any,
         }));
         const { error: itemErr } = await supabase.from("branch_request_items").insert(itemInserts);
         if (itemErr) throw itemErr;
 
-        const { error: linkErr } = await supabase.from("consultation_requests").insert({
-          consultation_id: consultationId,
-          branch_request_id: request.id,
-        });
-        if (linkErr) throw linkErr;
+        await supabase.from("consultation_requests").insert({ consultation_id: consultationId, branch_request_id: request.id });
 
         toast.success(`Pedido #${request.request_number} creado`);
       }
 
       onSuccess();
-    } catch (err: any) {
-      toast.error(err.message);
-    } finally {
-      setSubmitting(false);
-    }
+    } catch (err: any) { toast.error(err.message); }
+    finally { setSubmitting(false); }
   };
 
   const itemsWithoutSource = isMultiOrigin ? selectedEntries.filter(([_, v]) => !v.sourceBranchId).length : 0;
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      <ContextBanner requestType={requestType} deliveryTarget={deliveryTarget} />
+
       {!isMultiOrigin && (
-        <BranchSelector
-          label="Sucursal origen (única)"
-          value={sourceBranchId}
-          onChange={setSourceBranchId}
-          excludeIds={[requestingBranchId]}
-        />
+        <BranchSelector label="Sucursal origen (única)" value={sourceBranchId} onChange={setSourceBranchId} excludeIds={[requestingBranchId]} />
       )}
 
       {isMultiOrigin && (
-        <p className="text-xs text-muted-foreground">
-          Seleccioná la sucursal origen para cada producto. Se creará una transferencia por sucursal.
-        </p>
+        <p className="text-xs text-muted-foreground">Seleccioná la sucursal origen para cada producto. Se creará una transferencia por sucursal.</p>
       )}
 
       <div className="space-y-2">
@@ -729,23 +696,16 @@ function CreateOrderFromConsultation({
                   <input type="checkbox" checked={isSelected} onChange={() => toggleProduct(pid)} className="rounded" />
                   <span className="flex-1 text-sm font-medium">{cp.product?.name} <span className="text-muted-foreground">({cp.product?.sku})</span></span>
                   {isSelected && (
-                    <Input type="number" min={1} value={itemState.qty} onChange={e => updateQty(pid, parseInt(e.target.value) || 1)}
-                      className="w-20 h-8 text-sm" />
+                    <Input type="number" min={1} value={itemState.qty} onChange={e => updateQty(pid, parseInt(e.target.value) || 1)} className="w-20 h-8 text-sm" />
                   )}
                   {isMultiOrigin && isSelected && itemState.sourceBranchId && (
-                    <Badge variant="outline" className="text-xs">
-                      {branches?.find(b => b.id === itemState.sourceBranchId)?.name || "—"}
-                    </Badge>
+                    <Badge variant="outline" className="text-xs">{branches?.find(b => b.id === itemState.sourceBranchId)?.name || "—"}</Badge>
                   )}
                 </div>
                 {isMultiOrigin && isSelected && (
                   <div className="p-2 border-t border-border/30 bg-muted/20">
                     <Label className="text-xs text-muted-foreground mb-1 block">Sucursal origen para este producto</Label>
-                    <BranchSelector
-                      value={itemState.sourceBranchId || ""}
-                      onChange={(bid) => setItemSource(pid, bid)}
-                      excludeIds={[requestingBranchId]}
-                    />
+                    <BranchSelector value={itemState.sourceBranchId || ""} onChange={(bid) => setItemSource(pid, bid)} excludeIds={[requestingBranchId]} />
                   </div>
                 )}
               </div>
@@ -755,15 +715,13 @@ function CreateOrderFromConsultation({
       </div>
 
       {isMultiOrigin && itemsWithoutSource > 0 && (
-        <p className="text-xs text-destructive">{itemsWithoutSource} producto(s) sin origen asignado</p>
+        <p className="text-xs text-destructive flex items-center gap-1">
+          <AlertTriangle className="h-3 w-3" /> {itemsWithoutSource} producto(s) sin origen asignado
+        </p>
       )}
 
       <Button type="submit" className="w-full" disabled={submitting || !canSubmit}>
-        {submitting
-          ? "Creando..."
-          : isMultiOrigin
-            ? "Crear transferencia(s)"
-            : "Crear pedido con origen único"}
+        {submitting ? "Creando..." : isMultiOrigin ? "Crear transferencia(s)" : "Crear pedido con origen único"}
       </Button>
     </form>
   );
