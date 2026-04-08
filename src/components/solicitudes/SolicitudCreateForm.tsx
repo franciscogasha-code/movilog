@@ -183,10 +183,10 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
   // Validation
   const canSubmit = useMemo(() => {
     if (!requestingBranchId || !items.length) return false;
-    if (hasStockErrors) return false;
+    if (hasStockErrors || shippingError) return false;
     if (isMultiOrigin) return items.every(i => !!i.sourceBranchId);
     return !!sourceBranchId;
-  }, [requestingBranchId, items, isMultiOrigin, sourceBranchId, hasStockErrors]);
+  }, [requestingBranchId, items, isMultiOrigin, sourceBranchId, hasStockErrors, shippingError]);
 
   // Re-validate stock from DB right before confirmation
   const revalidateStock = async (): Promise<Record<string, string>> => {
