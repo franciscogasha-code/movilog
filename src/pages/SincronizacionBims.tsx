@@ -27,12 +27,14 @@ interface SyncError { code: string; message: string; stage: string; timestamp: s
 
 interface PageSyncProgress {
   currentPage: number;
+  totalPages: number;
   totalProcessed: number;
   totalInserted: number;
   totalUpdated: number;
   totalFailed: number;
   totalSkipped: number;
   totalReceived: number;
+  bimsTotalCount: number | null;
   errors: SyncError[];
   isRunning: boolean;
   status: SyncStatus;
@@ -106,8 +108,8 @@ const PAGE_SIZE = 100;
 
 function emptyProgress(): PageSyncProgress {
   return {
-    currentPage: 0, totalProcessed: 0, totalInserted: 0, totalUpdated: 0,
-    totalFailed: 0, totalSkipped: 0, totalReceived: 0, errors: [],
+    currentPage: 0, totalPages: 0, totalProcessed: 0, totalInserted: 0, totalUpdated: 0,
+    totalFailed: 0, totalSkipped: 0, totalReceived: 0, bimsTotalCount: null, errors: [],
     isRunning: false, status: "idle", startedAt: null, durationMs: 0, failedPages: [],
   };
 }
@@ -152,15 +154,52 @@ export default function SincronizacionBims() {
     },
   });
 
+  // Separate query: sum all product page logs from the last sync run for coverage calculation
+  const { data: syncRunTotals } = useQuery({
+    queryKey: ["sync-run-totals"],
+    queryFn: async () => {
+      // Get all product sync logs from the last hour to calculate total received across all pages
+      const oneHourAgo = new Date(Date.now() - 3600000).toISOString();
+      const { data } = await supabase
+        .from("sync_logs")
+        .select("total_received, total_processed, total_failed, status, triggered_by")
+        .eq("entity", "products")
+        .gte("created_at", oneHourAgo)
+        .order("created_at", { ascending: false })
+        .limit(500); // Up to 500 pages
+      return data || [];
+    },
+  });
+
   const lastSuccessSync = lastLogs?.find((l: any) => l.entity === "products" && l.status === "success");
 
-  // Estimated catalog size from last full sync received count
-  const estimatedCatalogSize = lastLogs
-    ?.filter((l: any) => l.entity === "products")
-    ?.reduce((max: number, l: any) => Math.max(max, l.total_received || 0), 0) || 0;
-  const catalogCoverage = estimatedCatalogSize > 0 ? productCount / estimatedCatalogSize : 1;
-  const catalogStatus = getCatalogSyncStatus(productCount, estimatedCatalogSize, prodProgress.isRunning);
+  // Calculate real BIMS total from the last complete sync run:
+  // SUM all total_received from product page logs in the most recent run
+  const lastSyncRun = (() => {
+    if (!syncRunTotals?.length) return { totalReceived: 0, totalPages: 0, failedPages: 0 };
+    const pageLogs = syncRunTotals.filter((l: any) => l.triggered_by?.startsWith("page_"));
+    if (!pageLogs.length) return { totalReceived: 0, totalPages: 0, failedPages: 0 };
+    const totalReceived = pageLogs.reduce((sum: number, l: any) => sum + (l.total_received || 0), 0);
+    const failedPages = pageLogs.filter((l: any) => l.status !== "success").length;
+    return { totalReceived, totalPages: pageLogs.length, failedPages };
+  })();
+
+  // Use bimsTotalCount from live sync if available, otherwise estimate from log sum
+  // The live sync accumulates totalReceived across ALL pages (not just last 20 logs)
+  const bimsTotalFromLiveSync = prodProgress.bimsTotalCount;
+  const bimsTotalFromAccumulated = prodProgress.totalReceived > 0 ? prodProgress.totalReceived : 0;
+  
+  // Best estimate of BIMS universe size
+  const estimatedCatalogSize = bimsTotalFromLiveSync
+    ?? (bimsTotalFromAccumulated > lastSyncRun.totalReceived ? bimsTotalFromAccumulated : lastSyncRun.totalReceived);
+  const effectiveCatalogSize = estimatedCatalogSize ?? 0;
+
+  const catalogCoverage = effectiveCatalogSize > 0
+    ? Math.min(productCount / effectiveCatalogSize, 1) // Never exceed 100%
+    : (productCount > 0 ? -1 : 0); // -1 = unknown reference
+  const catalogStatus = getCatalogSyncStatus(productCount, effectiveCatalogSize, prodProgress.isRunning);
   const catalogHealthy = catalogStatus === "complete";
+  const totalMissing = effectiveCatalogSize > 0 ? Math.max(effectiveCatalogSize - productCount, 0) : 0;
 
   const testConnection = async () => {
     setConnStatus("loading");
@@ -239,6 +278,8 @@ export default function SincronizacionBims() {
     let totalFailed = 0;
     let totalSkipped = 0;
     let totalReceived = retryPages ? prodProgress.totalReceived : 0;
+    let bimsTotalCount: number | null = retryPages ? prodProgress.bimsTotalCount : null;
+    let pagesProcessed = 0;
     const allErrors: SyncError[] = [];
     const newFailedPages: number[] = [];
 
@@ -273,16 +314,24 @@ export default function SincronizacionBims() {
         totalSkipped += s.total_skipped || 0;
         if (s.errors?.length) allErrors.push(...s.errors);
         if (s.total_failed > 0) newFailedPages.push(pageNum);
+        pagesProcessed++;
+
+        // Capture BIMS total count if returned
+        if (data.bims_total_count != null && !isNaN(Number(data.bims_total_count))) {
+          bimsTotalCount = Number(data.bims_total_count);
+        }
 
         setProdProgress(prev => ({
           ...prev,
           currentPage: pageNum,
+          totalPages: pagesProcessed,
           totalProcessed,
           totalInserted,
           totalUpdated,
           totalFailed,
           totalSkipped,
           totalReceived,
+          bimsTotalCount,
           errors: allErrors.slice(0, 200),
           durationMs: Date.now() - startTime,
         }));
@@ -304,12 +353,14 @@ export default function SincronizacionBims() {
       ...prev,
       isRunning: false,
       status: finalStatus,
+      totalPages: pagesProcessed,
       totalProcessed,
       totalInserted,
       totalUpdated,
       totalFailed,
       totalSkipped,
       totalReceived,
+      bimsTotalCount,
       errors: allErrors.slice(0, 200),
       failedPages: newFailedPages,
       durationMs: Date.now() - startTime,
@@ -318,6 +369,7 @@ export default function SincronizacionBims() {
     queryClient.invalidateQueries({ queryKey: ["products-count"] });
     queryClient.invalidateQueries({ queryKey: ["products"] });
     queryClient.invalidateQueries({ queryKey: ["sync-logs-recent"] });
+    queryClient.invalidateQueries({ queryKey: ["sync-run-totals"] });
 
     if (finalStatus === "success") {
       toast.success(`Productos: ${totalProcessed} sincronizados en ${formatDuration(Date.now() - startTime)}`);
@@ -381,9 +433,10 @@ export default function SincronizacionBims() {
                 </p>
                 <p className="text-muted-foreground">
                   {CATALOG_STATUS_DESCRIPTIONS[catalogStatus]}
-                  {estimatedCatalogSize > 0 && (
+                  {effectiveCatalogSize > 0 && (
                     <span className="ml-1">
-                      ({productCount} de {estimatedCatalogSize} productos — {Math.round(catalogCoverage * 100)}%)
+                      ({productCount} de {effectiveCatalogSize} productos — {Math.round(catalogCoverage * 100)}%)
+                      {totalMissing > 0 && <span className="text-destructive font-medium"> — {totalMissing} faltantes</span>}
                     </span>
                   )}
                 </p>
@@ -403,7 +456,7 @@ export default function SincronizacionBims() {
                   Catálogo completo — Sistema operativo
                 </p>
                 <p className="text-muted-foreground">
-                  {productCount} productos sincronizados al 100%.
+                  {productCount} de {effectiveCatalogSize} productos sincronizados (100%).
                   {lastSuccessSync && (
                     <span className="ml-1">
                       Última sincronización: {new Date(lastSuccessSync.created_at).toLocaleString("es-PY", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
@@ -416,8 +469,8 @@ export default function SincronizacionBims() {
         </Card>
       )}
 
-      {/* Current counts */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Metrics grid */}
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
         <Card>
           <CardContent className="py-4 flex items-center gap-3">
             <Building2 className="h-5 w-5 text-muted-foreground" />
@@ -432,30 +485,36 @@ export default function SincronizacionBims() {
             <Package className="h-5 w-5 text-muted-foreground" />
             <div>
               <p className="text-2xl font-bold">{productCount}</p>
-              <p className="text-xs text-muted-foreground">Productos</p>
+              <p className="text-xs text-muted-foreground">Sincronizados en SLIS</p>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="py-4 flex items-center gap-3">
-            <Database className="h-5 w-5 text-muted-foreground" />
-            <div>
-              <p className="text-sm font-medium">Estado</p>
-              <Badge variant={catalogHealthy ? "default" : "destructive"} className="text-[10px]">
-                {CATALOG_STATUS_LABELS[catalogStatus]}
-              </Badge>
-            </div>
+          <CardContent className="py-4">
+            <p className="text-2xl font-bold">{effectiveCatalogSize > 0 ? effectiveCatalogSize : "—"}</p>
+            <p className="text-xs text-muted-foreground">Esperados desde BIMS</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="py-4 flex items-center gap-3">
-            <Info className="h-5 w-5 text-muted-foreground" />
-            <div>
-              <p className="text-sm font-medium">Cobertura</p>
-              <p className={`text-xs ${catalogHealthy ? "text-green-600" : "text-destructive"} font-medium`}>
-                {estimatedCatalogSize > 0 ? `${Math.round(catalogCoverage * 100)}% (${productCount}/${estimatedCatalogSize})` : "Sin referencia"}
-              </p>
-            </div>
+          <CardContent className="py-4">
+            <p className={`text-2xl font-bold ${totalMissing > 0 ? "text-destructive" : ""}`}>{effectiveCatalogSize > 0 ? totalMissing : "—"}</p>
+            <p className="text-xs text-muted-foreground">Faltantes</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="py-4">
+            <Badge variant={catalogHealthy ? "default" : "destructive"} className="text-[10px]">
+              {CATALOG_STATUS_LABELS[catalogStatus]}
+            </Badge>
+            <p className="text-xs text-muted-foreground mt-1">Estado</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="py-4">
+            <p className={`text-lg font-bold ${catalogHealthy ? "text-green-600" : catalogCoverage < 0 ? "text-muted-foreground" : "text-destructive"}`}>
+              {catalogCoverage >= 0 ? `${Math.round(catalogCoverage * 100)}%` : "Sin ref."}
+            </p>
+            <p className="text-xs text-muted-foreground">Cobertura</p>
           </CardContent>
         </Card>
       </div>
