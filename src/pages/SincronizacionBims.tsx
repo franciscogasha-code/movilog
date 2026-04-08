@@ -27,12 +27,14 @@ interface SyncError { code: string; message: string; stage: string; timestamp: s
 
 interface PageSyncProgress {
   currentPage: number;
+  totalPages: number;
   totalProcessed: number;
   totalInserted: number;
   totalUpdated: number;
   totalFailed: number;
   totalSkipped: number;
   totalReceived: number;
+  bimsTotalCount: number | null;
   errors: SyncError[];
   isRunning: boolean;
   status: SyncStatus;
