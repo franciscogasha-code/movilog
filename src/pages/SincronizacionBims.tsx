@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
-import { Database, RefreshCw, Loader2, CheckCircle2, AlertTriangle, Building2, Package, ChevronDown, ChevronUp, XCircle, Clock, Timer } from "lucide-react";
+import { Database, RefreshCw, Loader2, CheckCircle2, AlertTriangle, Building2, Package, ChevronDown, ChevronUp, XCircle, Timer, ShieldAlert } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -18,18 +19,20 @@ type SyncStatus = "idle" | "loading" | "success" | "partial" | "error";
 
 interface SyncError { code: string; message: string; stage: string; timestamp: string }
 
-interface SyncResult {
+interface PageSyncProgress {
+  currentPage: number;
+  totalProcessed: number;
+  totalInserted: number;
+  totalUpdated: number;
+  totalFailed: number;
+  totalSkipped: number;
+  totalReceived: number;
+  errors: SyncError[];
+  isRunning: boolean;
   status: SyncStatus;
-  message?: string;
-  totalProcessed?: number;
-  totalFailed?: number;
-  totalInserted?: number;
-  totalUpdated?: number;
-  totalReceived?: number;
-  totalSkipped?: number;
-  errors?: SyncError[];
-  lastSync?: Date;
-  durationMs?: number;
+  startedAt: Date | null;
+  durationMs: number;
+  failedPages: number[];
 }
 
 const STAGE_LABELS: Record<string, string> = {
@@ -38,6 +41,9 @@ const STAGE_LABELS: Record<string, string> = {
   transform: "Transformación",
   upsert: "Guardado",
 };
+
+/** Catalog health threshold: below this % we warn the user */
+const CATALOG_HEALTH_THRESHOLD = 0.8; // 80%
 
 function StatusIcon({ status }: { status: SyncStatus }) {
   switch (status) {
@@ -91,13 +97,27 @@ function ErrorsByStage({ errors }: { errors: SyncError[] }) {
   );
 }
 
+const PAGE_SIZE = 100;
+
+function emptyProgress(): PageSyncProgress {
+  return {
+    currentPage: 0, totalProcessed: 0, totalInserted: 0, totalUpdated: 0,
+    totalFailed: 0, totalSkipped: 0, totalReceived: 0, errors: [],
+    isRunning: false, status: "idle", startedAt: null, durationMs: 0, failedPages: [],
+  };
+}
+
 export default function SincronizacionBims() {
   const queryClient = useQueryClient();
-  const [syncState, setSyncState] = useState<Record<string, SyncResult>>({
-    connection: { status: "idle" },
-    full: { status: "idle" },
-  });
-  const [showErrors, setShowErrors] = useState<string | null>(null);
+  const [connStatus, setConnStatus] = useState<SyncStatus>("idle");
+  const [connMessage, setConnMessage] = useState("");
+
+  // Warehouse sync state
+  const [whState, setWhState] = useState<{ status: SyncStatus; stats?: any; durationMs?: number }>({ status: "idle" });
+
+  // Product paginated sync state
+  const [prodProgress, setProdProgress] = useState<PageSyncProgress>(emptyProgress());
+  const [showErrors, setShowErrors] = useState(false);
 
   const { data: branchCount = 0 } = useQuery({
     queryKey: ["branches-count"],
@@ -127,91 +147,190 @@ export default function SincronizacionBims() {
     },
   });
 
-  // Derived: last successful full sync
   const lastSuccessSync = lastLogs?.find((l: any) => l.entity === "products" && l.status === "success");
-  const lastPartialSync = lastLogs?.find((l: any) => l.entity === "products" && l.status === "partial");
 
-  const updateSync = (key: string, result: SyncResult) => {
-    setSyncState((prev) => ({ ...prev, [key]: result }));
-  };
+  // Estimated catalog size from last full sync received count
+  const estimatedCatalogSize = lastLogs
+    ?.filter((l: any) => l.entity === "products")
+    ?.reduce((max: number, l: any) => Math.max(max, l.total_received || 0), 0) || 0;
+  const catalogCoverage = estimatedCatalogSize > 0 ? productCount / estimatedCatalogSize : 1;
+  const catalogHealthy = catalogCoverage >= CATALOG_HEALTH_THRESHOLD;
 
   const testConnection = async () => {
-    updateSync("connection", { status: "loading" });
+    setConnStatus("loading");
     try {
       const res = await fetch(`${BIMS_URL}?action=test-connection`, { method: "POST", headers: HEADERS });
       const data = await res.json();
       if (res.ok && data.success) {
-        updateSync("connection", { status: "success", message: "Conexión exitosa", lastSync: new Date() });
+        setConnStatus("success");
+        setConnMessage("Conexión exitosa");
         toast.success("Conexión con BIMS exitosa");
       } else {
-        updateSync("connection", { status: "error", message: data.error || "Error desconocido" });
+        setConnStatus("error");
+        setConnMessage(data.error || "Error desconocido");
         toast.error(`Error BIMS: ${data.error}`);
       }
     } catch (err: any) {
-      updateSync("connection", { status: "error", message: err.message });
+      setConnStatus("error");
+      setConnMessage(err.message);
       toast.error(`Error: ${err.message}`);
     }
   };
 
-  const runFullSync = async () => {
-    const startTime = Date.now();
-    updateSync("full", { status: "loading", message: "Sincronizando..." });
+  const syncWarehouses = async () => {
+    setWhState({ status: "loading" });
+    const start = Date.now();
     try {
-      const res = await fetch(BIMS_SYNC_URL, { method: "POST", headers: HEADERS });
+      const res = await fetch(`${BIMS_SYNC_URL}?entity=warehouses`, { method: "POST", headers: HEADERS });
       const data = await res.json();
-      const durationMs = Date.now() - startTime;
-
+      const duration = Date.now() - start;
       if (res.ok && data.success) {
-        const whR = data.results?.warehouses;
-        const prR = data.results?.products;
-        const totalFailed = (whR?.total_failed || 0) + (prR?.total_failed || 0);
-        const totalProcessed = (whR?.total_processed || 0) + (prR?.total_processed || 0);
-        const allErrors = [...(whR?.errors || []), ...(prR?.errors || [])];
-
-        const status: SyncStatus = totalFailed > 0 ? (totalProcessed > 0 ? "partial" : "error") : "success";
-        const statusLabel = status === "success"
-          ? `Sincronizado en ${formatDuration(durationMs)}`
-          : status === "partial"
-            ? `Sincronización parcial (${formatDuration(durationMs)})`
-            : "Error en sincronización";
-
-        updateSync("full", {
-          status,
-          message: statusLabel,
-          totalReceived: (whR?.total_received || 0) + (prR?.total_received || 0),
-          totalProcessed,
-          totalInserted: (whR?.total_inserted || 0) + (prR?.total_inserted || 0),
-          totalUpdated: (whR?.total_updated || 0) + (prR?.total_updated || 0),
-          totalFailed,
-          totalSkipped: (whR?.total_skipped || 0) + (prR?.total_skipped || 0),
-          errors: allErrors,
-          lastSync: new Date(),
-          durationMs,
-        });
-
-        if (status === "success") {
-          toast.success(`Sincronización completa: ${totalProcessed} registros en ${formatDuration(durationMs)}`);
-        } else {
-          toast.warning(`Sincronización parcial: ${totalProcessed} OK, ${totalFailed} fallidos`);
-        }
-
-        queryClient.invalidateQueries({ queryKey: ["branches"] });
+        setWhState({ status: data.stats.total_failed > 0 ? "partial" : "success", stats: data.stats, durationMs: duration });
+        toast.success(`Sucursales: ${data.stats.total_processed} procesadas`);
         queryClient.invalidateQueries({ queryKey: ["branches-count"] });
-        queryClient.invalidateQueries({ queryKey: ["products"] });
-        queryClient.invalidateQueries({ queryKey: ["products-count"] });
-        queryClient.invalidateQueries({ queryKey: ["sync-logs-recent"] });
+        queryClient.invalidateQueries({ queryKey: ["branches"] });
       } else {
-        updateSync("full", { status: "error", message: data.error || "Error desconocido", durationMs });
-        toast.error(`Error: ${data.error}`);
+        setWhState({ status: "error", durationMs: duration });
+        toast.error(data.error || "Error sincronizando sucursales");
       }
     } catch (err: any) {
-      updateSync("full", { status: "error", message: err.message, durationMs: Date.now() - startTime });
-      toast.error(`Error: ${err.message}`);
+      setWhState({ status: "error", durationMs: Date.now() - start });
+      toast.error(err.message);
     }
   };
 
-  const fullState = syncState.full;
-  const connState = syncState.connection;
+  /**
+   * Paginated product sync: calls bims-sync?entity=products&page=N&limit=100
+   * one page at a time. Stops when has_more=false.
+   * Optionally accepts specific pages to retry (failedPages).
+   */
+  const syncProducts = useCallback(async (retryPages?: number[]) => {
+    const startTime = Date.now();
+    setProdProgress(prev => ({
+      ...emptyProgress(),
+      isRunning: true,
+      status: "loading",
+      startedAt: new Date(),
+      // Keep accumulated totals if retrying
+      ...(retryPages ? {
+        totalProcessed: prev.totalProcessed,
+        totalInserted: prev.totalInserted,
+        totalUpdated: prev.totalUpdated,
+        totalReceived: prev.totalReceived,
+      } : {}),
+    }));
+
+    const pages = retryPages || (() => {
+      // Sequential pages starting from 1
+      const arr: number[] = [];
+      for (let i = 1; i <= 500; i++) arr.push(i); // max 500 pages = 50k products
+      return arr;
+    })();
+
+    let totalProcessed = retryPages ? prodProgress.totalProcessed : 0;
+    let totalInserted = retryPages ? prodProgress.totalInserted : 0;
+    let totalUpdated = retryPages ? prodProgress.totalUpdated : 0;
+    let totalFailed = 0;
+    let totalSkipped = 0;
+    let totalReceived = retryPages ? prodProgress.totalReceived : 0;
+    const allErrors: SyncError[] = [];
+    const newFailedPages: number[] = [];
+
+    for (const pageNum of pages) {
+      try {
+        const res = await fetch(`${BIMS_SYNC_URL}?entity=products&page=${pageNum}&limit=${PAGE_SIZE}`, {
+          method: "POST",
+          headers: HEADERS,
+        });
+
+        if (!res.ok) {
+          newFailedPages.push(pageNum);
+          totalFailed++;
+          allErrors.push({ code: `page_${pageNum}`, message: `HTTP ${res.status}`, stage: "fetch", timestamp: new Date().toISOString() });
+          continue;
+        }
+
+        const data = await res.json();
+        if (!data.success) {
+          newFailedPages.push(pageNum);
+          totalFailed++;
+          allErrors.push({ code: `page_${pageNum}`, message: data.error || "Unknown", stage: "fetch", timestamp: new Date().toISOString() });
+          continue;
+        }
+
+        const s = data.stats;
+        totalReceived += s.total_received || 0;
+        totalProcessed += s.total_processed || 0;
+        totalInserted += s.total_inserted || 0;
+        totalUpdated += s.total_updated || 0;
+        totalFailed += s.total_failed || 0;
+        totalSkipped += s.total_skipped || 0;
+        if (s.errors?.length) allErrors.push(...s.errors);
+        if (s.total_failed > 0) newFailedPages.push(pageNum);
+
+        setProdProgress(prev => ({
+          ...prev,
+          currentPage: pageNum,
+          totalProcessed,
+          totalInserted,
+          totalUpdated,
+          totalFailed,
+          totalSkipped,
+          totalReceived,
+          errors: allErrors.slice(0, 200),
+          durationMs: Date.now() - startTime,
+        }));
+
+        // Stop if no more pages (non-retry mode)
+        if (!retryPages && !data.has_more) break;
+      } catch (err: any) {
+        newFailedPages.push(pageNum);
+        totalFailed++;
+        allErrors.push({ code: `page_${pageNum}`, message: err.message, stage: "fetch", timestamp: new Date().toISOString() });
+      }
+    }
+
+    const finalStatus: SyncStatus = totalFailed > 0
+      ? (totalProcessed > 0 ? "partial" : "error")
+      : "success";
+
+    setProdProgress(prev => ({
+      ...prev,
+      isRunning: false,
+      status: finalStatus,
+      totalProcessed,
+      totalInserted,
+      totalUpdated,
+      totalFailed,
+      totalSkipped,
+      totalReceived,
+      errors: allErrors.slice(0, 200),
+      failedPages: newFailedPages,
+      durationMs: Date.now() - startTime,
+    }));
+
+    queryClient.invalidateQueries({ queryKey: ["products-count"] });
+    queryClient.invalidateQueries({ queryKey: ["products"] });
+    queryClient.invalidateQueries({ queryKey: ["sync-logs-recent"] });
+
+    if (finalStatus === "success") {
+      toast.success(`Productos: ${totalProcessed} sincronizados en ${formatDuration(Date.now() - startTime)}`);
+    } else if (finalStatus === "partial") {
+      toast.warning(`Sincronización parcial: ${totalProcessed} OK, ${totalFailed} con error (${newFailedPages.length} páginas fallidas)`);
+    } else {
+      toast.error("Error en sincronización de productos");
+    }
+  }, [prodProgress]);
+
+  const runFullSync = async () => {
+    await syncWarehouses();
+    await syncProducts();
+  };
+
+  const isAnySyncing = whState.status === "loading" || prodProgress.isRunning;
+  const progressPercent = prodProgress.totalReceived > 0
+    ? Math.round((prodProgress.totalProcessed / prodProgress.totalReceived) * 100)
+    : (prodProgress.isRunning ? 0 : 0);
 
   return (
     <div className="space-y-6">
@@ -221,30 +340,48 @@ export default function SincronizacionBims() {
           <p className="text-sm text-muted-foreground">Importar y actualizar datos maestros desde BIMS ERP</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={testConnection} disabled={connState.status === "loading"}>
-            {connState.status === "loading" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Database className="h-4 w-4 mr-2" />}
+          <Button variant="outline" onClick={testConnection} disabled={connStatus === "loading" || isAnySyncing}>
+            {connStatus === "loading" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Database className="h-4 w-4 mr-2" />}
             Probar conexión
           </Button>
-          <Button onClick={runFullSync} disabled={fullState.status === "loading"}>
-            {fullState.status === "loading" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+          <Button onClick={runFullSync} disabled={isAnySyncing}>
+            {isAnySyncing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
             Sincronizar todo
           </Button>
         </div>
       </div>
 
       {/* Connection status */}
-      {connState.status !== "idle" && (
+      {connStatus !== "idle" && (
         <Card>
           <CardContent className="py-3">
             <div className="flex items-center gap-3 text-sm">
-              <StatusIcon status={connState.status} />
-              <span>{connState.message}</span>
+              <StatusIcon status={connStatus} />
+              <span>{connMessage}</span>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Current counts + last sync info */}
+      {/* Catalog health warning */}
+      {!catalogHealthy && productCount > 0 && estimatedCatalogSize > 0 && (
+        <Card className="border-amber-500/30 bg-amber-500/5">
+          <CardContent className="py-3">
+            <div className="flex items-start gap-3 text-sm">
+              <ShieldAlert className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-medium text-foreground">Catálogo incompleto</p>
+                <p className="text-muted-foreground">
+                  Solo {productCount} de ~{estimatedCatalogSize} productos sincronizados ({Math.round(catalogCoverage * 100)}%).
+                  Ejecute una sincronización completa antes de operar.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Current counts */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardContent className="py-4 flex items-center gap-3">
@@ -279,89 +416,107 @@ export default function SincronizacionBims() {
         </Card>
         <Card>
           <CardContent className="py-4 flex items-center gap-3">
-            <AlertTriangle className="h-5 w-5 text-amber-500" />
+            <Database className="h-5 w-5 text-muted-foreground" />
             <div>
-              <p className="text-sm font-medium">Última parcial</p>
-              <p className="text-xs text-muted-foreground">
-                {lastPartialSync
-                  ? new Date(lastPartialSync.created_at).toLocaleString("es-PY", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })
-                  : "—"}
+              <p className="text-sm font-medium">Cobertura</p>
+              <p className={`text-xs ${catalogHealthy ? "text-green-600" : "text-amber-600"} font-medium`}>
+                {estimatedCatalogSize > 0 ? `${Math.round(catalogCoverage * 100)}%` : "—"}
               </p>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Sync results */}
-      {fullState.status !== "idle" && fullState.status !== "loading" && (
+      {/* Warehouse sync result */}
+      {whState.status !== "idle" && whState.status !== "loading" && whState.stats && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <StatusIcon status={whState.status} />
+              Sucursales — {whState.stats.total_processed} procesadas
+              {whState.durationMs != null && <span className="text-xs text-muted-foreground ml-auto">{formatDuration(whState.durationMs)}</span>}
+            </CardTitle>
+          </CardHeader>
+        </Card>
+      )}
+
+      {/* Product sync progress */}
+      {(prodProgress.isRunning || prodProgress.status !== "idle") && (
         <Card>
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
-                <StatusIcon status={fullState.status} />
-                {fullState.message}
+                <StatusIcon status={prodProgress.status} />
+                Productos
+                {prodProgress.isRunning && <span className="text-xs text-muted-foreground">Página {prodProgress.currentPage}...</span>}
               </CardTitle>
               <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                {fullState.durationMs != null && (
-                  <span className="flex items-center gap-1"><Timer className="h-3 w-3" />{formatDuration(fullState.durationMs)}</span>
-                )}
-                {fullState.lastSync && (
-                  <span>{fullState.lastSync.toLocaleString("es-PY")}</span>
+                {prodProgress.durationMs > 0 && (
+                  <span className="flex items-center gap-1"><Timer className="h-3 w-3" />{formatDuration(prodProgress.durationMs)}</span>
                 )}
               </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
+            {/* Progress bar */}
+            {prodProgress.isRunning && (
+              <div className="space-y-1">
+                <Progress value={progressPercent} className="h-2" />
+                <p className="text-xs text-muted-foreground text-center">
+                  {prodProgress.totalProcessed} procesados • Página {prodProgress.currentPage}
+                </p>
+              </div>
+            )}
+
+            {/* Stats grid */}
             <div className="grid grid-cols-6 gap-3 text-center">
               {[
-                { label: "Recibidos", value: fullState.totalReceived },
-                { label: "Procesados", value: fullState.totalProcessed },
-                { label: "Insertados", value: fullState.totalInserted },
-                { label: "Actualizados", value: fullState.totalUpdated },
-                { label: "Omitidos", value: fullState.totalSkipped },
-                { label: "Fallidos", value: fullState.totalFailed, isError: true },
+                { label: "Recibidos", value: prodProgress.totalReceived },
+                { label: "Procesados", value: prodProgress.totalProcessed },
+                { label: "Insertados", value: prodProgress.totalInserted },
+                { label: "Actualizados", value: prodProgress.totalUpdated },
+                { label: "Omitidos", value: prodProgress.totalSkipped },
+                { label: "Fallidos", value: prodProgress.totalFailed, isError: true },
               ].map(({ label, value, isError }) => (
                 <div key={label} className="p-2 rounded bg-muted/30 border border-border/30">
-                  <p className={`text-lg font-bold ${isError && (value ?? 0) > 0 ? "text-destructive" : ""}`}>{value ?? 0}</p>
+                  <p className={`text-lg font-bold ${isError && value > 0 ? "text-destructive" : ""}`}>{value}</p>
                   <p className="text-xs text-muted-foreground">{label}</p>
                 </div>
               ))}
             </div>
 
-            {(fullState.errors?.length ?? 0) > 0 && (
+            {/* Errors */}
+            {prodProgress.errors.length > 0 && (
               <div>
-                <Button
-                  variant="ghost" size="sm"
-                  onClick={() => setShowErrors(showErrors === "full" ? null : "full")}
-                  className="text-xs gap-1"
-                >
-                  {showErrors === "full" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                  Ver {fullState.errors!.length} error(es) por etapa
+                <Button variant="ghost" size="sm" onClick={() => setShowErrors(!showErrors)} className="text-xs gap-1">
+                  {showErrors ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                  Ver {prodProgress.errors.length} error(es) por etapa
                 </Button>
-                {showErrors === "full" && (
+                {showErrors && (
                   <div className="mt-2 max-h-[300px] overflow-y-auto">
-                    <ErrorsByStage errors={fullState.errors!} />
+                    <ErrorsByStage errors={prodProgress.errors} />
                   </div>
                 )}
               </div>
             )}
 
-            {fullState.status === "partial" && (
-              <Button variant="outline" size="sm" onClick={runFullSync} className="gap-1">
-                <RefreshCw className="h-3.5 w-3.5" /> Reintentar sincronización
+            {/* Retry failed pages */}
+            {!prodProgress.isRunning && prodProgress.failedPages.length > 0 && (
+              <Button variant="outline" size="sm" onClick={() => syncProducts(prodProgress.failedPages)} className="gap-1">
+                <RefreshCw className="h-3.5 w-3.5" />
+                Reintentar {prodProgress.failedPages.length} página(s) fallida(s)
               </Button>
             )}
           </CardContent>
         </Card>
       )}
 
-      {/* Loading state */}
-      {fullState.status === "loading" && (
+      {/* Loading state for warehouses */}
+      {whState.status === "loading" && (
         <Card>
-          <CardContent className="py-8 text-center space-y-2">
-            <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
-            <p className="text-sm text-muted-foreground">Sincronizando datos desde BIMS...</p>
-            <p className="text-xs text-muted-foreground">Esto puede tardar varios minutos para catálogos grandes.</p>
+          <CardContent className="py-6 text-center space-y-2">
+            <Loader2 className="h-6 w-6 animate-spin mx-auto text-primary" />
+            <p className="text-sm text-muted-foreground">Sincronizando sucursales...</p>
           </CardContent>
         </Card>
       )}
@@ -385,6 +540,7 @@ export default function SincronizacionBims() {
                     <th className="text-right p-2">Actualizados</th>
                     <th className="text-right p-2">Fallidos</th>
                     <th className="text-right p-2">Duración</th>
+                    <th className="text-left p-2">Origen</th>
                     <th className="text-left p-2">Fecha</th>
                   </tr>
                 </thead>
@@ -392,9 +548,7 @@ export default function SincronizacionBims() {
                   {lastLogs.map((log: any) => {
                     const duration = log.duration_seconds != null
                       ? formatDuration(log.duration_seconds * 1000)
-                      : log.completed_at && log.started_at
-                        ? formatDuration(new Date(log.completed_at).getTime() - new Date(log.started_at).getTime())
-                        : "—";
+                      : "—";
                     return (
                       <tr key={log.id} className="border-b border-border/30">
                         <td className="p-2 font-medium capitalize">{log.entity}</td>
@@ -412,6 +566,7 @@ export default function SincronizacionBims() {
                         <td className="p-2 text-right">{log.total_updated ?? 0}</td>
                         <td className="p-2 text-right text-destructive">{log.total_failed ?? 0}</td>
                         <td className="p-2 text-right text-muted-foreground">{duration}</td>
+                        <td className="p-2 text-muted-foreground">{log.triggered_by || "system"}</td>
                         <td className="p-2 text-muted-foreground">
                           {new Date(log.created_at).toLocaleString("es-PY", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
                         </td>

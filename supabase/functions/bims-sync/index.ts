@@ -56,10 +56,8 @@ function normalizeWarehouse(raw: any) {
   const item = raw?.Warehouse ?? raw?.warehouse ?? raw;
   const idLike = item?.id ?? item?.warehouse_id ?? item?.code ?? item?.codigo ?? raw?.id ?? raw?.warehouse_id ?? raw?.code ?? raw?.codigo;
   if (idLike === undefined || idLike === null || String(idLike).trim() === "") return null;
-
   const code = String(item?.code ?? item?.codigo ?? idLike).trim();
   if (!code || code.toLowerCase() === "undefined" || code.toLowerCase() === "null") return null;
-
   return {
     code,
     name: String(item?.name ?? item?.description ?? item?.nombre ?? raw?.name ?? raw?.description ?? raw?.nombre ?? `Warehouse ${code}`).trim() || `Warehouse ${code}`,
@@ -137,7 +135,7 @@ function normalizeProduct(raw: any): any | null {
       stock_by_warehouse: stockByWarehouse,
       total_stock: totalStock,
     };
-  } catch (e) {
+  } catch {
     return null;
   }
 }
@@ -201,110 +199,106 @@ async function bimsRequest(method: string, path: string): Promise<unknown> {
   return await response.json();
 }
 
+/**
+ * Supports two modes:
+ * 
+ * 1. ?entity=warehouses  — sync all warehouses (fast, single call)
+ * 2. ?entity=products&page=N&limit=M  — sync one page of products
+ * 3. No params (legacy) — sync warehouses + all products (may timeout on large catalogs)
+ * 
+ * The frontend drives pagination by calling page=1, page=2, etc.
+ * and stops when has_more=false.
+ */
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
+  const url = new URL(req.url);
+  const entity = url.searchParams.get("entity"); // "warehouses" | "products" | null (legacy full)
+  const page = parseInt(url.searchParams.get("page") || "1");
+  const limit = parseInt(url.searchParams.get("limit") || "100");
+
   const syncStartTime = Date.now();
   const adminClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-  const results: Record<string, SyncStats> = {};
 
   try {
-    // ── 1. Sync warehouses ──
-    const whStats = newStats();
-    const whStartTime = Date.now();
-    try {
-      const warehouses = await bimsRequest("GET", `/warehouses`) as any;
-      const whItems = extractArray(warehouses);
-      whStats.total_received = whItems.length;
+    // ── Warehouses only ──
+    if (entity === "warehouses") {
+      const stats = newStats();
+      try {
+        const warehouses = await bimsRequest("GET", `/warehouses`) as any;
+        const whItems = extractArray(warehouses);
+        stats.total_received = whItems.length;
 
-      for (const w of whItems) {
-        try {
-          const normalized = normalizeWarehouse(w);
-          if (!normalized) { whStats.total_skipped++; continue; }
-          if (!normalized.code) { whStats.total_skipped++; continue; }
+        for (const w of whItems) {
+          try {
+            const normalized = normalizeWarehouse(w);
+            if (!normalized || !normalized.code) { stats.total_skipped++; continue; }
 
-          const { data: existing } = await adminClient.from("branches").select("id").eq("code", normalized.code).maybeSingle();
-          if (existing) {
-            whStats.total_updated++;
-          } else {
-            const { error } = await adminClient.from("branches").insert({
-              code: normalized.code, name: normalized.name,
-              city: normalized.city ? String(normalized.city) : null,
-              address: normalized.address ? String(normalized.address) : null,
-            });
-            if (error) throw error;
-            whStats.total_inserted++;
+            const { data: existing } = await adminClient.from("branches").select("id").eq("code", normalized.code).maybeSingle();
+            if (existing) {
+              stats.total_updated++;
+            } else {
+              const { error } = await adminClient.from("branches").insert({
+                code: normalized.code, name: normalized.name,
+                city: normalized.city ? String(normalized.city) : null,
+                address: normalized.address ? String(normalized.address) : null,
+              });
+              if (error) throw error;
+              stats.total_inserted++;
+            }
+            stats.total_processed++;
+          } catch (e: any) {
+            stats.total_failed++;
+            stats.errors.push({ code: String(w?.code ?? w?.id ?? "unknown"), message: e.message, stage: "upsert", timestamp: new Date().toISOString() });
           }
-          whStats.total_processed++;
-        } catch (e: any) {
-          whStats.total_failed++;
-          whStats.errors.push({
-            code: String(w?.code ?? w?.id ?? "unknown"),
-            message: e.message,
-            stage: "upsert",
-            timestamp: new Date().toISOString(),
-          });
         }
+      } catch (e: any) {
+        stats.total_failed = -1;
+        stats.errors.push({ code: "GLOBAL", message: e.message, stage: "fetch", timestamp: new Date().toISOString() });
       }
-    } catch (e: any) {
-      whStats.total_failed = -1;
-      whStats.errors.push({ code: "GLOBAL", message: e.message, stage: "fetch", timestamp: new Date().toISOString() });
+
+      const duration = (Date.now() - syncStartTime) / 1000;
+      await adminClient.from("sync_logs").insert({
+        entity: "warehouses",
+        status: stats.total_failed > 0 ? (stats.total_processed > 0 ? "partial" : "error") : "success",
+        ...stats,
+        errors: stats.errors.slice(0, 50),
+        completed_at: new Date().toISOString(),
+        duration_seconds: duration,
+      });
+
+      return new Response(JSON.stringify({ success: true, entity: "warehouses", stats, duration_seconds: duration }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
-    results.warehouses = whStats;
 
-    const whDuration = (Date.now() - whStartTime) / 1000;
-    await adminClient.from("sync_logs").insert({
-      entity: "warehouses",
-      status: whStats.total_failed > 0 ? (whStats.total_processed > 0 ? "partial" : "error") : "success",
-      ...whStats,
-      errors: whStats.errors.slice(0, 50),
-      completed_at: new Date().toISOString(),
-      duration_seconds: whDuration,
-    });
+    // ── Products: single page ──
+    if (entity === "products") {
+      const stats = newStats();
+      let hasMore = true;
 
-    // ── 2. Sync products in batches ──
-    const prodStats = newStats();
-    const prodStartTime = Date.now();
-    const BATCH_SIZE = 100;
-    let page = 1;
-    let hasMore = true;
-
-    try {
-      while (hasMore) {
-        const products = await bimsRequest("GET", `/products?page=${page}&limit=${BATCH_SIZE}`) as any;
+      try {
+        const products = await bimsRequest("GET", `/products?page=${page}&limit=${limit}`) as any;
         const items = extractArray(products);
-        if (items.length === 0) { hasMore = false; break; }
-
-        prodStats.total_received += items.length;
+        stats.total_received = items.length;
+        if (items.length < limit) hasMore = false;
+        if (items.length === 0) hasMore = false;
 
         // Normalize and deduplicate batch
         const batchMap = new Map<string, any>();
         for (const raw of items) {
           try {
             const normalized = normalizeProduct(raw);
-            if (!normalized) {
-              prodStats.total_skipped++;
-              continue;
-            }
+            if (!normalized) { stats.total_skipped++; continue; }
             if (!normalized.bims_code || !normalized.name) {
-              prodStats.total_skipped++;
-              prodStats.errors.push({
-                code: String(raw?.id ?? "unknown"),
-                message: "Missing mandatory fields (bims_code or name)",
-                stage: "validation",
-                timestamp: new Date().toISOString(),
-              });
+              stats.total_skipped++;
+              stats.errors.push({ code: String(raw?.id ?? "unknown"), message: "Missing mandatory fields", stage: "validation", timestamp: new Date().toISOString() });
               continue;
             }
             batchMap.set(normalized.bims_code, normalized);
           } catch (e: any) {
-            prodStats.total_failed++;
-            prodStats.errors.push({
-              code: String(raw?.id ?? "unknown"),
-              message: e.message,
-              stage: "transform",
-              timestamp: new Date().toISOString(),
-            });
+            stats.total_failed++;
+            stats.errors.push({ code: String(raw?.id ?? "unknown"), message: e.message, stage: "transform", timestamp: new Date().toISOString() });
           }
         }
 
@@ -321,17 +315,123 @@ Deno.serve(async (req) => {
               try {
                 const { error: singleErr } = await adminClient.from("products").upsert(product, { onConflict: "bims_code" });
                 if (singleErr) throw singleErr;
+                if (existingSet.has(product.bims_code)) stats.total_updated++;
+                else stats.total_inserted++;
+                stats.total_processed++;
+              } catch (e: any) {
+                stats.total_failed++;
+                stats.errors.push({ code: product.bims_code, message: e.message, stage: "upsert", timestamp: new Date().toISOString() });
+              }
+            }
+          } else {
+            for (const p of batch) {
+              if (existingSet.has(p.bims_code)) stats.total_updated++;
+              else stats.total_inserted++;
+            }
+            stats.total_processed += batch.length;
+          }
+        }
+      } catch (e: any) {
+        stats.errors.push({ code: "GLOBAL", message: e.message, stage: "fetch", timestamp: new Date().toISOString() });
+      }
+
+      const duration = (Date.now() - syncStartTime) / 1000;
+      const status = stats.total_failed > 0
+        ? (stats.total_processed > 0 ? "partial" : "error")
+        : "success";
+
+      // Log per page
+      await adminClient.from("sync_logs").insert({
+        entity: "products",
+        status,
+        ...stats,
+        errors: stats.errors.slice(0, 100),
+        completed_at: new Date().toISOString(),
+        duration_seconds: duration,
+        triggered_by: `page_${page}`,
+      });
+
+      return new Response(JSON.stringify({
+        success: true,
+        entity: "products",
+        page,
+        limit,
+        has_more: hasMore,
+        stats,
+        duration_seconds: duration,
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ── Legacy: full sync (warehouses + all products) ──
+    // Kept for backward compatibility but will timeout on large catalogs.
+    const results: Record<string, SyncStats> = {};
+
+    // Warehouses
+    const whStats = newStats();
+    try {
+      const warehouses = await bimsRequest("GET", `/warehouses`) as any;
+      const whItems = extractArray(warehouses);
+      whStats.total_received = whItems.length;
+      for (const w of whItems) {
+        try {
+          const normalized = normalizeWarehouse(w);
+          if (!normalized || !normalized.code) { whStats.total_skipped++; continue; }
+          const { data: existing } = await adminClient.from("branches").select("id").eq("code", normalized.code).maybeSingle();
+          if (existing) { whStats.total_updated++; }
+          else {
+            const { error } = await adminClient.from("branches").insert({ code: normalized.code, name: normalized.name, city: normalized.city ? String(normalized.city) : null, address: normalized.address ? String(normalized.address) : null });
+            if (error) throw error;
+            whStats.total_inserted++;
+          }
+          whStats.total_processed++;
+        } catch (e: any) {
+          whStats.total_failed++;
+          whStats.errors.push({ code: String(w?.code ?? w?.id ?? "unknown"), message: e.message, stage: "upsert", timestamp: new Date().toISOString() });
+        }
+      }
+    } catch (e: any) {
+      whStats.errors.push({ code: "GLOBAL", message: e.message, stage: "fetch", timestamp: new Date().toISOString() });
+    }
+    results.warehouses = whStats;
+
+    // Products — paginated
+    const prodStats = newStats();
+    let prodPage = 1;
+    let prodHasMore = true;
+    const BATCH_SIZE = 100;
+
+    try {
+      while (prodHasMore) {
+        const products = await bimsRequest("GET", `/products?page=${prodPage}&limit=${BATCH_SIZE}`) as any;
+        const items = extractArray(products);
+        if (items.length === 0) { prodHasMore = false; break; }
+        prodStats.total_received += items.length;
+
+        const batchMap = new Map<string, any>();
+        for (const raw of items) {
+          const normalized = normalizeProduct(raw);
+          if (!normalized || !normalized.bims_code || !normalized.name) { prodStats.total_skipped++; continue; }
+          batchMap.set(normalized.bims_code, normalized);
+        }
+        const batch = Array.from(batchMap.values());
+        if (batch.length > 0) {
+          const bimsCodes = batch.map(p => p.bims_code);
+          const { data: existing } = await adminClient.from("products").select("bims_code").in("bims_code", bimsCodes);
+          const existingSet = new Set(existing?.map(e => e.bims_code) || []);
+          const { error } = await adminClient.from("products").upsert(batch, { onConflict: "bims_code" });
+          if (error) {
+            for (const product of batch) {
+              try {
+                const { error: singleErr } = await adminClient.from("products").upsert(product, { onConflict: "bims_code" });
+                if (singleErr) throw singleErr;
                 if (existingSet.has(product.bims_code)) prodStats.total_updated++;
                 else prodStats.total_inserted++;
                 prodStats.total_processed++;
               } catch (e: any) {
                 prodStats.total_failed++;
-                prodStats.errors.push({
-                  code: product.bims_code,
-                  message: e.message,
-                  stage: "upsert",
-                  timestamp: new Date().toISOString(),
-                });
+                prodStats.errors.push({ code: product.bims_code, message: e.message, stage: "upsert", timestamp: new Date().toISOString() });
               }
             }
           } else {
@@ -342,36 +442,15 @@ Deno.serve(async (req) => {
             prodStats.total_processed += batch.length;
           }
         }
-
-        page++;
-        if (items.length < BATCH_SIZE) hasMore = false;
+        prodPage++;
+        if (items.length < BATCH_SIZE) prodHasMore = false;
       }
     } catch (e: any) {
       prodStats.errors.push({ code: "GLOBAL", message: e.message, stage: "fetch", timestamp: new Date().toISOString() });
     }
     results.products = prodStats;
 
-    const prodDuration = (Date.now() - prodStartTime) / 1000;
-    const prodStatus = prodStats.total_failed > 0
-      ? (prodStats.total_processed > 0 ? "partial" : "error")
-      : "success";
-
-    await adminClient.from("sync_logs").insert({
-      entity: "products",
-      status: prodStatus,
-      ...prodStats,
-      errors: prodStats.errors.slice(0, 100),
-      completed_at: new Date().toISOString(),
-      duration_seconds: prodDuration,
-    });
-
     const totalDuration = (Date.now() - syncStartTime) / 1000;
-    console.log("BIMS sync completed:", JSON.stringify({
-      duration_s: totalDuration,
-      warehouses: { processed: whStats.total_processed, failed: whStats.total_failed },
-      products: { processed: prodStats.total_processed, failed: prodStats.total_failed },
-    }));
-
     return new Response(JSON.stringify({ success: true, results, duration_seconds: totalDuration }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
