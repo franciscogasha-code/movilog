@@ -176,13 +176,12 @@ export default function SincronizacionBims() {
   // Calculate real BIMS total from the last complete sync run:
   // SUM all total_received from product page logs in the most recent run
   const lastSyncRun = (() => {
-    if (!lastLogs?.length) return { totalReceived: 0, totalPages: 0, failedPages: 0 };
-    const productLogs = lastLogs.filter((l: any) => l.entity === "products" && l.triggered_by?.startsWith("page_"));
-    if (!productLogs.length) return { totalReceived: 0, totalPages: 0, failedPages: 0 };
-    // All recent product page logs belong to the last run (query is limited to 20 most recent)
-    const totalReceived = productLogs.reduce((sum: number, l: any) => sum + (l.total_received || 0), 0);
-    const failedPages = productLogs.filter((l: any) => l.status !== "success").length;
-    return { totalReceived, totalPages: productLogs.length, failedPages };
+    if (!syncRunTotals?.length) return { totalReceived: 0, totalPages: 0, failedPages: 0 };
+    const pageLogs = syncRunTotals.filter((l: any) => l.triggered_by?.startsWith("page_"));
+    if (!pageLogs.length) return { totalReceived: 0, totalPages: 0, failedPages: 0 };
+    const totalReceived = pageLogs.reduce((sum: number, l: any) => sum + (l.total_received || 0), 0);
+    const failedPages = pageLogs.filter((l: any) => l.status !== "success").length;
+    return { totalReceived, totalPages: pageLogs.length, failedPages };
   })();
 
   // Use bimsTotalCount from live sync if available, otherwise estimate from log sum
