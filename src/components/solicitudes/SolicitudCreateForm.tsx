@@ -24,7 +24,7 @@ import {
   validateShippingMethod,
 } from "@/lib/business-rules";
 
-type ShippingMethod = "own_fleet" | "courier" | "pickup" | "delivery";
+// ShippingMethod imported from business-rules
 
 interface SelectedItem {
   product: ProductResult;
