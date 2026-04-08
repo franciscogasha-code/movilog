@@ -17,9 +17,11 @@ import { DemandAlert } from "./DemandAlert";
 import {
   type RequestType,
   type DeliveryTarget,
+  type ShippingMethod,
   getOriginMode,
   getAllowedDeliveryTargets,
   shouldShowClientFields,
+  validateShippingMethod,
 } from "@/lib/business-rules";
 
 type ShippingMethod = "own_fleet" | "courier" | "pickup" | "delivery";
