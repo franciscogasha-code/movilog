@@ -178,11 +178,12 @@ export default function SincronizacionBims() {
     ?? (bimsTotalFromAccumulated > lastSyncRun.totalReceived ? bimsTotalFromAccumulated : lastSyncRun.totalReceived);
   const effectiveCatalogSize = estimatedCatalogSize ?? 0;
 
-  const catalogCoverage = estimatedCatalogSize > 0
-    ? Math.min(productCount / estimatedCatalogSize, 1) // Never exceed 100%
+  const catalogCoverage = effectiveCatalogSize > 0
+    ? Math.min(productCount / effectiveCatalogSize, 1) // Never exceed 100%
     : (productCount > 0 ? -1 : 0); // -1 = unknown reference
-  const catalogStatus = getCatalogSyncStatus(productCount, estimatedCatalogSize, prodProgress.isRunning);
+  const catalogStatus = getCatalogSyncStatus(productCount, effectiveCatalogSize, prodProgress.isRunning);
   const catalogHealthy = catalogStatus === "complete";
+  const totalMissing = effectiveCatalogSize > 0 ? Math.max(effectiveCatalogSize - productCount, 0) : 0;
 
   const testConnection = async () => {
     setConnStatus("loading");
