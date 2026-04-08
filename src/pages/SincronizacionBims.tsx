@@ -369,6 +369,7 @@ export default function SincronizacionBims() {
     queryClient.invalidateQueries({ queryKey: ["products-count"] });
     queryClient.invalidateQueries({ queryKey: ["products"] });
     queryClient.invalidateQueries({ queryKey: ["sync-logs-recent"] });
+    queryClient.invalidateQueries({ queryKey: ["sync-run-totals"] });
 
     if (finalStatus === "success") {
       toast.success(`Productos: ${totalProcessed} sincronizados en ${formatDuration(Date.now() - startTime)}`);
