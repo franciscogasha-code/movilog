@@ -532,12 +532,14 @@ function CreateOrderFromConsultation({
   const isMultiOrigin = originMode === "multi";
 
   const [sourceBranchId, setSourceBranchId] = useState("");
+  const [shippingMethod, setShippingMethod] = useState<"own_fleet" | "courier" | "pickup" | "delivery">("own_fleet");
   const [selectedItems, setSelectedItems] = useState<Record<string, { qty: number; sourceBranchId?: string }>>(() => {
     const init: Record<string, { qty: number; sourceBranchId?: string }> = {};
     products.forEach(cp => { if (cp.product?.id) init[cp.product.id] = { qty: 1 }; });
     return init;
   });
   const [submitting, setSubmitting] = useState(false);
+  const [showConfirmation, setShowConfirmation] = useState(false);
 
   const toggleProduct = (pid: string) => {
     setSelectedItems(prev => {
@@ -564,8 +566,47 @@ function CreateOrderFromConsultation({
     return !!sourceBranchId;
   })();
 
+  // Stock revalidation before persist
+  const revalidateStock = async (): Promise<Record<string, string>> => {
+    const productIds = selectedEntries.map(([pid]) => pid);
+    const { data: freshProducts } = await supabase
+      .from("products")
+      .select("id, stock_by_warehouse")
+      .in("id", productIds);
+
+    if (!freshProducts) return {};
+
+    const freshMap = new Map(freshProducts.map(p => [p.id, p.stock_by_warehouse as Record<string, number> | null]));
+    const errors: Record<string, string> = {};
+
+    for (const [pid, v] of selectedEntries) {
+      const sbw = freshMap.get(pid);
+      if (!sbw) continue;
+
+      const srcBid = isMultiOrigin ? v.sourceBranchId : sourceBranchId;
+      if (!srcBid) continue;
+
+      const branchCode = branches?.find(b => b.id === srcBid)?.code;
+      if (branchCode) {
+        const available = sbw[branchCode] ?? 0;
+        if (available < v.qty) {
+          const productName = products.find(cp => cp.product?.id === pid)?.product?.name || pid;
+          errors[pid] = `${productName}: disponible ${Math.floor(available)}, solicitado ${v.qty}`;
+        }
+      }
+    }
+    return errors;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Show confirmation step first
+    if (!showConfirmation && canSubmit) {
+      setShowConfirmation(true);
+      return;
+    }
+
     if (!canSubmit) {
       toast.error(isMultiOrigin ? "Asignar origen a cada producto" : "Seleccionar sucursal origen");
       return;
@@ -573,7 +614,16 @@ function CreateOrderFromConsultation({
 
     setSubmitting(true);
     try {
-      if (!user) { toast.error("Iniciar sesión"); return; }
+      // Revalidate stock
+      const freshErrors = await revalidateStock();
+      if (Object.keys(freshErrors).length > 0) {
+        toast.error(`Stock insuficiente: ${Object.values(freshErrors).join("; ")}`);
+        setShowConfirmation(false);
+        setSubmitting(false);
+        return;
+      }
+
+      if (!user) { toast.error("Iniciar sesión"); setSubmitting(false); return; }
 
       if (isMultiOrigin) {
         // Create parent
@@ -585,6 +635,7 @@ function CreateOrderFromConsultation({
             created_by: user.id,
             request_type: requestType as any,
             delivery_target: deliveryTarget as any,
+            shipping_method: shippingMethod as any,
             notes: `[Pedido padre] Creado desde consulta`,
           })
           .select().single();
@@ -598,40 +649,63 @@ function CreateOrderFromConsultation({
         });
 
         const createdNumbers: number[] = [];
-        for (const [srcBranch, srcItems] of Object.entries(bySource)) {
-          const { data: request, error: reqErr } = await supabase
-            .from("branch_requests")
-            .insert({
-              requesting_branch_id: requestingBranchId,
-              source_branch_id: srcBranch,
-              parent_request_id: parentReq.id,
-              created_by: user.id,
-              request_type: requestType as any,
-              delivery_target: deliveryTarget as any,
-              notes: `Creado desde consulta`,
-            })
-            .select().single();
-          if (reqErr) throw reqErr;
+        const createdIds: string[] = [];
 
-          const itemInserts = srcItems.map(({ pid, qty }) => ({
-            request_id: request.id,
-            product_id: pid,
-            quantity_requested: qty,
-            item_purpose: (requestType === "client" || requestType === "online" ? "client" : "reposition") as any,
-          }));
-          const { error: itemErr } = await supabase.from("branch_request_items").insert(itemInserts);
-          if (itemErr) throw itemErr;
+        try {
+          for (const [srcBranch, srcItems] of Object.entries(bySource)) {
+            const { data: request, error: reqErr } = await supabase
+              .from("branch_requests")
+              .insert({
+                requesting_branch_id: requestingBranchId,
+                source_branch_id: srcBranch,
+                parent_request_id: parentReq.id,
+                created_by: user.id,
+                request_type: requestType as any,
+                delivery_target: deliveryTarget as any,
+                shipping_method: shippingMethod as any,
+                notes: `Creado desde consulta`,
+              })
+              .select().single();
+            if (reqErr) throw reqErr;
 
-          const { error: linkErr } = await supabase.from("consultation_requests").insert({
-            consultation_id: consultationId,
-            branch_request_id: request.id,
-          });
-          if (linkErr) throw linkErr;
+            createdIds.push(request.id);
 
-          createdNumbers.push(request.request_number);
+            const itemInserts = srcItems.map(({ pid, qty }) => ({
+              request_id: request.id,
+              product_id: pid,
+              quantity_requested: qty,
+              item_purpose: (requestType === "client" || requestType === "online" ? "client" : "reposition") as any,
+            }));
+            const { error: itemErr } = await supabase.from("branch_request_items").insert(itemInserts);
+            if (itemErr) throw itemErr;
+
+            await supabase.from("consultation_requests").insert({
+              consultation_id: consultationId,
+              branch_request_id: request.id,
+            });
+
+            createdNumbers.push(request.request_number);
+          }
+        } catch (childErr: any) {
+          // Rollback: mark parent and created children as rejected
+          await supabase.from("branch_requests").update({
+            status: "rejected" as any,
+            rejection_reason: `Error al crear transferencias: ${childErr.message}`,
+            rejected_at: new Date().toISOString(),
+          }).eq("id", parentReq.id);
+
+          if (createdIds.length > 0) {
+            await supabase.from("branch_requests").update({
+              status: "rejected" as any,
+              rejection_reason: `Rollback por error en creación multi-origen`,
+              rejected_at: new Date().toISOString(),
+            }).in("id", createdIds);
+          }
+
+          throw new Error(`Error al crear transferencias: ${childErr.message}. El pedido fue cancelado.`);
         }
 
-        // Link parent too
+        // Link parent to consultation
         await supabase.from("consultation_requests").insert({ consultation_id: consultationId, branch_request_id: parentReq.id });
 
         toast.success(`Pedido #${parentReq.request_number} con ${createdNumbers.length} transferencia(s)`);
@@ -644,6 +718,7 @@ function CreateOrderFromConsultation({
             created_by: user.id,
             request_type: requestType as any,
             delivery_target: deliveryTarget as any,
+            shipping_method: shippingMethod as any,
             notes: `Creado desde consulta`,
           })
           .select().single();
@@ -665,14 +740,60 @@ function CreateOrderFromConsultation({
 
       onSuccess();
     } catch (err: any) { toast.error(err.message); }
-    finally { setSubmitting(false); }
+    finally { setSubmitting(false); setShowConfirmation(false); }
   };
 
   const itemsWithoutSource = isMultiOrigin ? selectedEntries.filter(([_, v]) => !v.sourceBranchId).length : 0;
 
+  // Confirmation view
+  if (showConfirmation) {
+    return (
+      <div className="space-y-4">
+        <h3 className="text-sm font-semibold text-foreground">Confirmar pedido desde consulta</h3>
+        <ContextBanner requestType={requestType} deliveryTarget={deliveryTarget} />
+
+        <div className="space-y-2">
+          {selectedEntries.map(([pid, v]) => {
+            const cp = products.find(p => p.product?.id === pid);
+            const srcName = isMultiOrigin
+              ? branches?.find(b => b.id === v.sourceBranchId)?.name || "—"
+              : branches?.find(b => b.id === sourceBranchId)?.name || "—";
+            return (
+              <div key={pid} className="flex items-center justify-between p-2 rounded bg-muted/30 border border-border/30 text-sm">
+                <div className="flex-1 min-w-0">
+                  <span className="font-medium truncate">{cp?.product?.name || pid}</span>
+                  <span className="text-muted-foreground ml-2">x{v.qty}</span>
+                </div>
+                <span className="text-xs text-muted-foreground">Origen: {srcName}</span>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="flex gap-2">
+          <Button variant="outline" className="flex-1" onClick={() => setShowConfirmation(false)}>Volver</Button>
+          <Button className="flex-1" onClick={handleSubmit} disabled={submitting}>
+            {submitting ? "Verificando y creando..." : "Confirmar"}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <ContextBanner requestType={requestType} deliveryTarget={deliveryTarget} />
+
+      <div className="space-y-2">
+        <Label className="text-xs">Método de envío</Label>
+        <select value={shippingMethod} onChange={(e) => setShippingMethod(e.target.value as any)}
+          className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm">
+          <option value="own_fleet">Flota propia</option>
+          <option value="courier">Encomienda</option>
+          <option value="pickup">Retiro en sucursal</option>
+          <option value="delivery">Delivery</option>
+        </select>
+      </div>
 
       {!isMultiOrigin && (
         <BranchSelector label="Sucursal origen (única)" value={sourceBranchId} onChange={setSourceBranchId} excludeIds={[requestingBranchId]} />
@@ -721,7 +842,7 @@ function CreateOrderFromConsultation({
       )}
 
       <Button type="submit" className="w-full" disabled={submitting || !canSubmit}>
-        {submitting ? "Creando..." : isMultiOrigin ? "Crear transferencia(s)" : "Crear pedido con origen único"}
+        {submitting ? "Creando..." : isMultiOrigin ? "Revisar y crear transferencia(s)" : "Revisar y crear pedido"}
       </Button>
     </form>
   );
