@@ -65,6 +65,7 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
   const allowedTargets = getAllowedDeliveryTargets(requestType);
   const showClientFieldsFlag = shouldShowClientFields(requestType, deliveryTarget);
   const showDeliveryPaidBy = shippingMethod === "delivery";
+  const shippingError = validateShippingMethod(requestType, deliveryTarget, shippingMethod);
 
   // Auto-detect branch
   useEffect(() => {
