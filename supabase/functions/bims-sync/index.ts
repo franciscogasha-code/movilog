@@ -277,12 +277,24 @@ Deno.serve(async (req) => {
       const stats = newStats();
       let hasMore = true;
 
+      // Try to get total count from BIMS for coverage calculation
+      let bimsTotalCount: number | null = null;
+
       try {
         const products = await bimsRequest("GET", `/products?page=${page}&limit=${limit}`) as any;
         const items = extractArray(products);
         stats.total_received = items.length;
         if (items.length < limit) hasMore = false;
         if (items.length === 0) hasMore = false;
+
+        // Extract total count from BIMS response metadata (many REST APIs include this)
+        const rawTotal = products?.total ?? products?.total_count ?? products?.count
+          ?? products?.data?.total ?? products?.data?.total_count ?? products?.data?.count
+          ?? products?.meta?.total ?? products?.meta?.total_count
+          ?? products?.pagination?.total ?? products?.pagination?.total_items;
+        if (rawTotal != null && !isNaN(Number(rawTotal))) {
+          bimsTotalCount = Number(rawTotal);
+        }
 
         // Normalize and deduplicate batch
         const batchMap = new Map<string, any>();
@@ -359,6 +371,7 @@ Deno.serve(async (req) => {
         has_more: hasMore,
         stats,
         duration_seconds: duration,
+        ...(bimsTotalCount != null ? { bims_total_count: bimsTotalCount } : {}),
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
