@@ -159,7 +159,8 @@ export default function SincronizacionBims() {
     ?.filter((l: any) => l.entity === "products")
     ?.reduce((max: number, l: any) => Math.max(max, l.total_received || 0), 0) || 0;
   const catalogCoverage = estimatedCatalogSize > 0 ? productCount / estimatedCatalogSize : 1;
-  const catalogHealthy = catalogCoverage >= CATALOG_HEALTH_THRESHOLD;
+  const catalogStatus = getCatalogSyncStatus(productCount, estimatedCatalogSize, prodProgress.isRunning);
+  const catalogHealthy = catalogStatus === "complete";
 
   const testConnection = async () => {
     setConnStatus("loading");
