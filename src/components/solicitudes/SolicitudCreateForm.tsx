@@ -9,20 +9,26 @@ import { ProductSearch, type ProductResult } from "@/components/shared/ProductSe
 import { ProductCard } from "@/components/shared/ProductCard";
 import { BranchSelector, useAutoDetectBranch } from "@/components/shared/BranchSelector";
 import { useBranches } from "@/hooks/use-branches";
-import { Plus, Trash2, Package, ChevronDown, ChevronUp, AlertTriangle } from "lucide-react";
+import { Plus, Trash2, Package, ChevronDown, ChevronUp, AlertTriangle, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { ContextBanner } from "./ContextBanner";
+import { DemandAlert } from "./DemandAlert";
+import {
+  type RequestType,
+  type DeliveryTarget,
+  getOriginMode,
+  getAllowedDeliveryTargets,
+  shouldShowClientFields,
+} from "@/lib/business-rules";
+
+type ShippingMethod = "own_fleet" | "courier" | "pickup" | "delivery";
 
 interface SelectedItem {
   product: ProductResult;
   quantity: number;
-  /** Per-product source branch (used in multi-origin mode) */
   sourceBranchId?: string;
 }
-
-type RequestType = "reposition" | "client" | "online";
-type DeliveryTarget = "branch" | "client";
-type ShippingMethod = "own_fleet" | "courier" | "pickup" | "delivery";
 
 export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
   const { user } = useAuth();
@@ -32,6 +38,7 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
   // Step 1: Context
   const [requestingBranchId, setRequestingBranchId] = useState("");
   const [requestType, setRequestType] = useState<RequestType>("reposition");
+  const [deliveryTarget, setDeliveryTarget] = useState<DeliveryTarget>("branch");
 
   // Step 2: Products
   const [items, setItems] = useState<SelectedItem[]>([]);
@@ -41,59 +48,70 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
   const [sourceBranchId, setSourceBranchId] = useState("");
 
   // Step 4: Logistics
-  const [deliveryTarget, setDeliveryTarget] = useState<DeliveryTarget>("branch");
   const [shippingMethod, setShippingMethod] = useState<ShippingMethod>("own_fleet");
   const [clientName, setClientName] = useState("");
   const [clientAddress, setClientAddress] = useState("");
   const [deliveryPaidBy, setDeliveryPaidBy] = useState<"company" | "client">("company");
   const [notes, setNotes] = useState("");
-
   const [submitting, setSubmitting] = useState(false);
+  const [showConfirmation, setShowConfirmation] = useState(false);
 
-  // Derived: is multi-origin allowed?
-  const isMultiOrigin = deliveryTarget === "branch";
-  const isMonoOrigin = deliveryTarget === "client";
+  // Derived from business rules matrix
+  const originMode = getOriginMode(requestType, deliveryTarget);
+  const isMultiOrigin = originMode === "multi";
+  const allowedTargets = getAllowedDeliveryTargets(requestType);
+  const showClientFieldsFlag = shouldShowClientFields(requestType, deliveryTarget);
+  const showDeliveryPaidBy = shippingMethod === "delivery";
 
   // Auto-detect branch
   useEffect(() => {
-    if (defaultBranchId && !requestingBranchId) {
-      setRequestingBranchId(defaultBranchId);
-    }
+    if (defaultBranchId && !requestingBranchId) setRequestingBranchId(defaultBranchId);
   }, [defaultBranchId, requestingBranchId]);
 
-  // Business rules: reset fields when type changes
+  // Business rules: enforce allowed delivery targets
   useEffect(() => {
-    if (requestType === "reposition") {
-      setDeliveryTarget("branch");
-      setClientName("");
-      setClientAddress("");
+    if (!allowedTargets.includes(deliveryTarget)) {
+      setDeliveryTarget(allowedTargets[0]);
     }
   }, [requestType]);
 
-  // Clear client fields when delivery target changes to branch
+  // Clear client fields when not needed
   useEffect(() => {
-    if (deliveryTarget === "branch") {
+    if (!showClientFieldsFlag) {
       setClientName("");
       setClientAddress("");
     }
-  }, [deliveryTarget]);
+  }, [showClientFieldsFlag]);
 
-  // When switching from multi to mono origin, clear per-product sources and reset global
+  // When switching from multi to mono, clear per-product sources
   useEffect(() => {
-    if (isMonoOrigin) {
+    if (!isMultiOrigin) {
       setItems(prev => prev.map(i => ({ ...i, sourceBranchId: undefined })));
-    }
-    if (isMultiOrigin) {
+    } else {
       setSourceBranchId("");
     }
-  }, [isMultiOrigin, isMonoOrigin]);
+  }, [isMultiOrigin]);
 
   const addProduct = (product: ProductResult) => {
     if (items.find(i => i.product.id === product.id)) {
       toast.info("Producto ya agregado");
       return;
     }
-    setItems(prev => [...prev, { product, quantity: 1 }]);
+    // Auto-suggest: pick branch with most stock
+    let autoSource: string | undefined;
+    const sbw = (product as any).stock_by_warehouse;
+    if (isMultiOrigin && sbw && typeof sbw === "object") {
+      let maxQty = 0;
+      let maxWhId = "";
+      for (const [whId, qty] of Object.entries(sbw)) {
+        if ((qty as number) > maxQty) { maxQty = qty as number; maxWhId = whId; }
+      }
+      if (maxWhId) {
+        const branch = branches?.find(b => b.code === maxWhId);
+        if (branch) autoSource = branch.id;
+      }
+    }
+    setItems(prev => [...prev, { product, quantity: 1, sourceBranchId: autoSource }]);
     setExpandedProduct(product.id);
   };
 
@@ -110,44 +128,77 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
     setItems(prev => prev.map(i => i.product.id === productId ? { ...i, sourceBranchId: branchId } : i));
   };
 
-  // Multi-origin summary: group items by source branch
+  // Stock validation errors
+  const stockErrors = useMemo(() => {
+    const errors: Record<string, string> = {};
+    for (const item of items) {
+      const sbw = (item.product as any).stock_by_warehouse as Record<string, number> | undefined;
+      if (!sbw) continue;
+
+      if (isMultiOrigin && item.sourceBranchId) {
+        const branchCode = branches?.find(b => b.id === item.sourceBranchId)?.code;
+        if (branchCode) {
+          const available = sbw[branchCode] ?? 0;
+          if (available < item.quantity) {
+            errors[item.product.id] = `Stock insuficiente en origen (disponible: ${Math.floor(available)}, solicitado: ${item.quantity})`;
+          }
+        }
+      } else if (!isMultiOrigin && sourceBranchId) {
+        const branchCode = branches?.find(b => b.id === sourceBranchId)?.code;
+        if (branchCode) {
+          const available = sbw[branchCode] ?? 0;
+          if (available < item.quantity) {
+            errors[item.product.id] = `Stock insuficiente (disponible: ${Math.floor(available)}, solicitado: ${item.quantity})`;
+          }
+        }
+      }
+    }
+    return errors;
+  }, [items, isMultiOrigin, sourceBranchId, branches]);
+
+  const hasStockErrors = Object.keys(stockErrors).length > 0;
+
+  // Multi-origin summary
   const originSummary = useMemo(() => {
     if (!isMultiOrigin) return null;
-    const grouped: Record<string, { branchName: string; count: number }> = {};
+    const grouped: Record<string, { branchName: string; count: number; products: string[] }> = {};
     items.forEach(item => {
       const bid = item.sourceBranchId;
       if (!bid) return;
       if (!grouped[bid]) {
         const branch = branches?.find(b => b.id === bid);
-        grouped[bid] = { branchName: branch?.name || bid, count: 0 };
+        grouped[bid] = { branchName: branch?.name || bid, count: 0, products: [] };
       }
       grouped[bid].count++;
+      grouped[bid].products.push(item.product.name);
     });
     return grouped;
   }, [items, isMultiOrigin, branches]);
 
   const itemsWithoutSource = items.filter(i => !i.sourceBranchId);
 
-  // Determine which fields to show
-  const showClientFields = deliveryTarget === "client" && (requestType === "client" || requestType === "online");
-  const showDeliveryTarget = requestType !== "reposition";
-  const showDeliveryPaidBy = shippingMethod === "delivery";
-
   // Validation
   const canSubmit = useMemo(() => {
     if (!requestingBranchId || !items.length) return false;
-    if (isMultiOrigin) {
-      return items.every(i => !!i.sourceBranchId);
-    } else {
-      return !!sourceBranchId;
-    }
-  }, [requestingBranchId, items, isMultiOrigin, sourceBranchId]);
+    if (hasStockErrors) return false;
+    if (isMultiOrigin) return items.every(i => !!i.sourceBranchId);
+    return !!sourceBranchId;
+  }, [requestingBranchId, items, isMultiOrigin, sourceBranchId, hasStockErrors]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Show confirmation step first
+    if (!showConfirmation && canSubmit) {
+      setShowConfirmation(true);
+      return;
+    }
+
     if (!canSubmit) {
       if (isMultiOrigin && itemsWithoutSource.length > 0) {
         toast.error(`Falta asignar origen a ${itemsWithoutSource.length} producto(s)`);
+      } else if (hasStockErrors) {
+        toast.error("Hay productos con stock insuficiente en el origen seleccionado");
       } else {
         toast.error("Completar todos los campos obligatorios");
       }
@@ -159,7 +210,25 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
       if (!user) { toast.error("Debés iniciar sesión"); return; }
 
       if (isMultiOrigin) {
-        // Multi-origin: create one request per source branch (child transfers)
+        // Create parent request first
+        const { data: parentRequest, error: parentErr } = await supabase
+          .from("branch_requests")
+          .insert({
+            requesting_branch_id: requestingBranchId,
+            source_branch_id: requestingBranchId, // placeholder
+            request_type: requestType as any,
+            delivery_target: deliveryTarget as any,
+            shipping_method: shippingMethod as any,
+            delivery_payer: showDeliveryPaidBy ? deliveryPaidBy : null,
+            notes: notes ? `[Pedido padre multi-origen] ${notes}` : "[Pedido padre multi-origen]",
+            created_by: user.id,
+            status: "pending" as any,
+          })
+          .select()
+          .single();
+        if (parentErr) throw parentErr;
+
+        // Group by source branch
         const bySource: Record<string, SelectedItem[]> = {};
         items.forEach(item => {
           const bid = item.sourceBranchId!;
@@ -168,13 +237,13 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
         });
 
         const createdNumbers: number[] = [];
-
         for (const [srcBranch, srcItems] of Object.entries(bySource)) {
           const { data: request, error } = await supabase
             .from("branch_requests")
             .insert({
               requesting_branch_id: requestingBranchId,
               source_branch_id: srcBranch,
+              parent_request_id: parentRequest.id,
               request_type: requestType as any,
               delivery_target: deliveryTarget as any,
               shipping_method: shippingMethod as any,
@@ -192,14 +261,13 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
             quantity_requested: item.quantity,
             item_purpose: (requestType === "client" || requestType === "online" ? "client" : "reposition") as any,
           }));
-
           const { error: itemsError } = await supabase.from("branch_request_items").insert(itemsToInsert);
           if (itemsError) throw itemsError;
 
           createdNumbers.push(request.request_number);
         }
 
-        toast.success(`Se crearon ${createdNumbers.length} transferencia(s): #${createdNumbers.join(", #")}`);
+        toast.success(`Pedido #${parentRequest.request_number} creado con ${createdNumbers.length} transferencia(s): #${createdNumbers.join(", #")}`);
       } else {
         // Mono-origin: single request
         const { data: request, error } = await supabase
@@ -210,8 +278,8 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
             request_type: requestType as any,
             delivery_target: deliveryTarget as any,
             shipping_method: shippingMethod as any,
-            client_name: showClientFields ? (clientName || null) : null,
-            client_address: showClientFields ? (clientAddress || null) : null,
+            client_name: showClientFieldsFlag ? (clientName || null) : null,
+            client_address: showClientFieldsFlag ? (clientAddress || null) : null,
             delivery_payer: showDeliveryPaidBy ? deliveryPaidBy : null,
             notes: notes || null,
             created_by: user.id,
@@ -225,10 +293,9 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
           product_id: item.product.id,
           quantity_requested: item.quantity,
           item_purpose: (requestType === "client" || requestType === "online" ? "client" : "reposition") as any,
-          client_name: showClientFields ? (clientName || null) : null,
-          client_address: showClientFields ? (clientAddress || null) : null,
+          client_name: showClientFieldsFlag ? (clientName || null) : null,
+          client_address: showClientFieldsFlag ? (clientAddress || null) : null,
         }));
-
         const { error: itemsError } = await supabase.from("branch_request_items").insert(itemsToInsert);
         if (itemsError) throw itemsError;
 
@@ -240,11 +307,67 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
       toast.error(err.message || "Error al crear pedido");
     } finally {
       setSubmitting(false);
+      setShowConfirmation(false);
     }
   };
 
+  // Confirmation summary view
+  if (showConfirmation) {
+    return (
+      <div className="space-y-4">
+        <h3 className="text-sm font-semibold text-foreground">Confirmar pedido</h3>
+        <ContextBanner requestType={requestType} deliveryTarget={deliveryTarget} />
+
+        <div className="space-y-2">
+          <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Productos</h4>
+          {items.map(item => (
+            <div key={item.product.id} className="flex items-center justify-between p-2 rounded bg-muted/30 border border-border/30 text-sm">
+              <div className="flex-1 min-w-0">
+                <span className="font-medium truncate">{item.product.name}</span>
+                <span className="text-muted-foreground ml-2">x{item.quantity}</span>
+              </div>
+              <span className="text-xs text-muted-foreground">
+                {isMultiOrigin
+                  ? `Origen: ${branches?.find(b => b.id === item.sourceBranchId)?.name || "—"}`
+                  : `Origen: ${branches?.find(b => b.id === sourceBranchId)?.name || "—"}`
+                }
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {isMultiOrigin && originSummary && Object.keys(originSummary).length > 0 && (
+          <div className="p-3 rounded-lg bg-muted/50 border border-border/50 space-y-2">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Resumen de abastecimiento</p>
+            {Object.entries(originSummary).map(([bid, info]) => (
+              <div key={bid} className="flex items-center justify-between text-sm">
+                <span className="font-medium">{info.branchName}</span>
+                <Badge variant="outline" className="text-xs">{info.count} producto(s)</Badge>
+              </div>
+            ))}
+            <p className="text-xs text-muted-foreground mt-1 pt-2 border-t border-border/30">
+              Se crearán <strong>{Object.keys(originSummary).length}</strong> transferencia(s) internas + 1 pedido padre.
+            </p>
+          </div>
+        )}
+
+        <div className="flex gap-2">
+          <Button variant="outline" className="flex-1" onClick={() => setShowConfirmation(false)}>
+            Volver a editar
+          </Button>
+          <Button className="flex-1" onClick={onSubmit} disabled={submitting}>
+            {submitting ? "Creando..." : "Confirmar pedido"}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <form onSubmit={onSubmit} className="space-y-6">
+      {/* Context Banner */}
+      <ContextBanner requestType={requestType} deliveryTarget={deliveryTarget} />
+
       {/* STEP 1: Context */}
       <div className="space-y-4">
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">1. Contexto</h3>
@@ -269,38 +392,29 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
           </div>
         </div>
 
-        {/* Delivery target - shown early since it determines origin behavior */}
-        <div className="grid grid-cols-2 gap-4">
-          {showDeliveryTarget && (
-            <div className="space-y-2">
-              <Label>Destino de entrega</Label>
-              <select
-                value={deliveryTarget}
-                onChange={(e) => setDeliveryTarget(e.target.value as DeliveryTarget)}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <option value="branch">A sucursal</option>
-                <option value="client">A cliente</option>
-              </select>
-            </div>
-          )}
-          <div className="flex items-end">
-            <Badge variant="outline" className="text-xs h-6">
-              {isMultiOrigin ? "Multi-origen habilitado" : "Origen único"}
-            </Badge>
+        {/* Delivery target */}
+        {allowedTargets.length > 1 && (
+          <div className="space-y-2">
+            <Label>Destino de entrega</Label>
+            <select
+              value={deliveryTarget}
+              onChange={(e) => setDeliveryTarget(e.target.value as DeliveryTarget)}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {allowedTargets.map(t => (
+                <option key={t} value={t}>{t === "branch" ? "A sucursal" : "A cliente"}</option>
+              ))}
+            </select>
           </div>
-        </div>
+        )}
       </div>
 
       {/* STEP 2: Products */}
       <div className="space-y-3">
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">2. Productos</h3>
-        <ProductSearch
-          onSelect={addProduct}
-          excludeIds={items.map(i => i.product.id)}
-        />
+        <ProductSearch onSelect={addProduct} excludeIds={items.map(i => i.product.id)} />
 
-        {items.length > 0 && (
+        {items.length > 0 ? (
           <div className="space-y-2">
             {items.map((item) => (
               <div key={item.product.id} className="border border-border rounded-lg overflow-hidden">
@@ -320,22 +434,21 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
                         <span className="ml-1 text-amber-500">• Sin origen asignado</span>
                       )}
                     </p>
+                    {stockErrors[item.product.id] && (
+                      <p className="text-xs text-destructive flex items-center gap-1 mt-0.5">
+                        <XCircle className="h-3 w-3" /> {stockErrors[item.product.id]}
+                      </p>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     <Label className="text-xs shrink-0">Cant:</Label>
                     <Input
-                      type="number"
-                      min={1}
-                      value={item.quantity}
+                      type="number" min={1} value={item.quantity}
                       onChange={(e) => updateQuantity(item.product.id, parseInt(e.target.value) || 1)}
                       className="w-20 h-8 text-sm"
                     />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setExpandedProduct(expandedProduct === item.product.id ? null : item.product.id)}
-                    >
+                    <Button type="button" variant="ghost" size="sm"
+                      onClick={() => setExpandedProduct(expandedProduct === item.product.id ? null : item.product.id)}>
                       {expandedProduct === item.product.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                     </Button>
                     <Button type="button" variant="ghost" size="sm" onClick={() => removeProduct(item.product.id)}>
@@ -345,7 +458,8 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
                 </div>
 
                 {expandedProduct === item.product.id && (
-                  <div className="p-3 border-t border-border/50">
+                  <div className="p-3 border-t border-border/50 space-y-2">
+                    <DemandAlert productId={item.product.id} />
                     <ProductCard
                       productId={item.product.id}
                       productName={item.product.name}
@@ -372,9 +486,7 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
               </div>
             ))}
           </div>
-        )}
-
-        {items.length === 0 && (
+        ) : (
           <div className="text-center p-6 rounded-lg border border-dashed border-border text-muted-foreground text-sm">
             <Package className="h-8 w-8 mx-auto mb-2 opacity-50" />
             Buscá y agregá productos usando el buscador
@@ -387,15 +499,14 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">3. Origen del stock</h3>
 
         {isMultiOrigin ? (
-          /* Multi-origin: summary derived from per-product selections */
           <div className="space-y-3">
             <p className="text-xs text-muted-foreground">
               Seleccioná la sucursal origen desde la ficha de cada producto. Se creará una transferencia por cada sucursal origen.
             </p>
 
             {itemsWithoutSource.length > 0 && (
-              <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-sm text-amber-700">
-                <AlertTriangle className="h-4 w-4 shrink-0" />
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-sm text-foreground">
+                <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
                 <span>{itemsWithoutSource.length} producto(s) sin origen asignado</span>
               </div>
             )}
@@ -416,7 +527,6 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
             )}
           </div>
         ) : (
-          /* Mono-origin: single branch selector */
           <div>
             <p className="text-xs text-muted-foreground mb-2">
               Para entrega a cliente, todo el pedido debe salir desde una única sucursal origen.
@@ -434,7 +544,6 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
       {/* STEP 4: Logistics */}
       <div className="space-y-4">
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">4. Logística</h3>
-
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label>Método de envío</Label>
@@ -451,47 +560,29 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
           </div>
         </div>
 
-        {/* Delivery payer */}
         {showDeliveryPaidBy && (
           <div className="space-y-2 p-3 rounded-lg bg-muted/50 border border-border/50">
             <Label>¿Quién paga el delivery?</Label>
             <div className="flex gap-3">
-              <Badge
-                variant={deliveryPaidBy === "company" ? "default" : "outline"}
-                className="cursor-pointer"
-                onClick={() => setDeliveryPaidBy("company")}
-              >
+              <Badge variant={deliveryPaidBy === "company" ? "default" : "outline"} className="cursor-pointer" onClick={() => setDeliveryPaidBy("company")}>
                 Empresa paga
               </Badge>
-              <Badge
-                variant={deliveryPaidBy === "client" ? "default" : "outline"}
-                className="cursor-pointer"
-                onClick={() => setDeliveryPaidBy("client")}
-              >
+              <Badge variant={deliveryPaidBy === "client" ? "default" : "outline"} className="cursor-pointer" onClick={() => setDeliveryPaidBy("client")}>
                 Cliente paga
               </Badge>
             </div>
           </div>
         )}
 
-        {/* Client fields */}
-        {showClientFields && (
+        {showClientFieldsFlag && (
           <div className="grid grid-cols-2 gap-4 p-3 rounded-lg bg-muted/50 border border-border/50">
             <div className="space-y-2">
               <Label>Cliente (nombre)</Label>
-              <Input
-                value={clientName}
-                onChange={(e) => setClientName(e.target.value)}
-                placeholder="Nombre del cliente"
-              />
+              <Input value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Nombre del cliente" />
             </div>
             <div className="space-y-2">
               <Label>Dirección de entrega</Label>
-              <Input
-                value={clientAddress}
-                onChange={(e) => setClientAddress(e.target.value)}
-                placeholder="Dirección"
-              />
+              <Input value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} placeholder="Dirección" />
             </div>
           </div>
         )}
@@ -502,12 +593,19 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
         </div>
       </div>
 
+      {hasStockErrors && (
+        <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-sm text-destructive">
+          <XCircle className="h-4 w-4 shrink-0" />
+          <span>Hay productos con stock insuficiente. Corregí las cantidades o cambiá el origen antes de continuar.</span>
+        </div>
+      )}
+
       <Button type="submit" className="w-full" disabled={submitting || !canSubmit}>
         {submitting
           ? "Creando..."
           : isMultiOrigin
-            ? `Crear ${Object.keys(originSummary || {}).length || 0} Transferencia(s) (${items.length} producto${items.length !== 1 ? "s" : ""})`
-            : `Crear Pedido (${items.length} producto${items.length !== 1 ? "s" : ""})`
+            ? `Revisar y crear ${Object.keys(originSummary || {}).length || 0} transferencia(s)`
+            : `Revisar y crear pedido (${items.length} producto${items.length !== 1 ? "s" : ""})`
         }
       </Button>
     </form>

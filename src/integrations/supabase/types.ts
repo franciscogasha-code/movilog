@@ -349,6 +349,7 @@ export type Database = {
           logistic_closed_at: string | null
           logistic_closed_by: string | null
           notes: string | null
+          parent_request_id: string | null
           priority: string | null
           rejected_at: string | null
           rejected_by: string | null
@@ -391,6 +392,7 @@ export type Database = {
           logistic_closed_at?: string | null
           logistic_closed_by?: string | null
           notes?: string | null
+          parent_request_id?: string | null
           priority?: string | null
           rejected_at?: string | null
           rejected_by?: string | null
@@ -433,6 +435,7 @@ export type Database = {
           logistic_closed_at?: string | null
           logistic_closed_by?: string | null
           notes?: string | null
+          parent_request_id?: string | null
           priority?: string | null
           rejected_at?: string | null
           rejected_by?: string | null
@@ -458,6 +461,13 @@ export type Database = {
             columns: ["current_location_branch_id"]
             isOneToOne: false
             referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "branch_requests_parent_request_id_fkey"
+            columns: ["parent_request_id"]
+            isOneToOne: false
+            referencedRelation: "branch_requests"
             referencedColumns: ["id"]
           },
           {
@@ -2160,6 +2170,57 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      sync_logs: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          entity: string
+          errors: Json | null
+          id: string
+          started_at: string
+          status: string
+          total_failed: number | null
+          total_inserted: number | null
+          total_processed: number | null
+          total_received: number | null
+          total_skipped: number | null
+          total_updated: number | null
+          triggered_by: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          entity: string
+          errors?: Json | null
+          id?: string
+          started_at?: string
+          status?: string
+          total_failed?: number | null
+          total_inserted?: number | null
+          total_processed?: number | null
+          total_received?: number | null
+          total_skipped?: number | null
+          total_updated?: number | null
+          triggered_by?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          entity?: string
+          errors?: Json | null
+          id?: string
+          started_at?: string
+          status?: string
+          total_failed?: number | null
+          total_inserted?: number | null
+          total_processed?: number | null
+          total_received?: number | null
+          total_skipped?: number | null
+          total_updated?: number | null
+          triggered_by?: string | null
+        }
+        Relationships: []
       }
       tracked_documents: {
         Row: {
