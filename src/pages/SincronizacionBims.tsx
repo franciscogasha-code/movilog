@@ -4,9 +4,15 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
-import { Database, RefreshCw, Loader2, CheckCircle2, AlertTriangle, Building2, Package, ChevronDown, ChevronUp, XCircle, Timer, ShieldAlert } from "lucide-react";
+import { Database, RefreshCw, Loader2, CheckCircle2, AlertTriangle, Building2, Package, ChevronDown, ChevronUp, XCircle, Timer, ShieldAlert, Info } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  getCatalogSyncStatus,
+  CATALOG_STATUS_LABELS,
+  CATALOG_STATUS_DESCRIPTIONS,
+  type CatalogSyncStatus,
+} from "@/lib/business-rules";
 
 const BIMS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/bims-proxy`;
 const BIMS_SYNC_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/bims-sync`;
@@ -42,8 +48,7 @@ const STAGE_LABELS: Record<string, string> = {
   upsert: "Guardado",
 };
 
-/** Catalog health threshold: below this % we warn the user */
-const CATALOG_HEALTH_THRESHOLD = 0.8; // 80%
+/** Catalog health: only 100% is operationally valid */
 
 function StatusIcon({ status }: { status: SyncStatus }) {
   switch (status) {
@@ -154,7 +159,8 @@ export default function SincronizacionBims() {
     ?.filter((l: any) => l.entity === "products")
     ?.reduce((max: number, l: any) => Math.max(max, l.total_received || 0), 0) || 0;
   const catalogCoverage = estimatedCatalogSize > 0 ? productCount / estimatedCatalogSize : 1;
-  const catalogHealthy = catalogCoverage >= CATALOG_HEALTH_THRESHOLD;
+  const catalogStatus = getCatalogSyncStatus(productCount, estimatedCatalogSize, prodProgress.isRunning);
+  const catalogHealthy = catalogStatus === "complete";
 
   const testConnection = async () => {
     setConnStatus("loading");
@@ -363,17 +369,46 @@ export default function SincronizacionBims() {
         </Card>
       )}
 
-      {/* Catalog health warning */}
-      {!catalogHealthy && productCount > 0 && estimatedCatalogSize > 0 && (
-        <Card className="border-amber-500/30 bg-amber-500/5">
+      {/* Catalog status banner */}
+      {catalogStatus !== "complete" && catalogStatus !== "in_progress" && (
+        <Card className={`border-destructive/30 ${catalogStatus === "unknown" ? "bg-muted/30" : "bg-destructive/5"}`}>
           <CardContent className="py-3">
             <div className="flex items-start gap-3 text-sm">
-              <ShieldAlert className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+              <ShieldAlert className={`h-5 w-5 shrink-0 mt-0.5 ${catalogStatus === "unknown" ? "text-muted-foreground" : "text-destructive"}`} />
               <div>
-                <p className="font-medium text-foreground">Catálogo incompleto</p>
+                <p className="font-medium text-foreground">
+                  Estado del catálogo: {CATALOG_STATUS_LABELS[catalogStatus]}
+                </p>
                 <p className="text-muted-foreground">
-                  Solo {productCount} de ~{estimatedCatalogSize} productos sincronizados ({Math.round(catalogCoverage * 100)}%).
-                  Ejecute una sincronización completa antes de operar.
+                  {CATALOG_STATUS_DESCRIPTIONS[catalogStatus]}
+                  {estimatedCatalogSize > 0 && (
+                    <span className="ml-1">
+                      ({productCount} de {estimatedCatalogSize} productos — {Math.round(catalogCoverage * 100)}%)
+                    </span>
+                  )}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {catalogStatus === "complete" && (
+        <Card className="border-green-500/30 bg-green-500/5">
+          <CardContent className="py-3">
+            <div className="flex items-start gap-3 text-sm">
+              <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-medium text-foreground">
+                  Catálogo completo — Sistema operativo
+                </p>
+                <p className="text-muted-foreground">
+                  {productCount} productos sincronizados al 100%.
+                  {lastSuccessSync && (
+                    <span className="ml-1">
+                      Última sincronización: {new Date(lastSuccessSync.created_at).toLocaleString("es-PY", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  )}
                 </p>
               </div>
             </div>
@@ -403,24 +438,22 @@ export default function SincronizacionBims() {
         </Card>
         <Card>
           <CardContent className="py-4 flex items-center gap-3">
-            <CheckCircle2 className="h-5 w-5 text-green-500" />
+            <Database className="h-5 w-5 text-muted-foreground" />
             <div>
-              <p className="text-sm font-medium">Última exitosa</p>
-              <p className="text-xs text-muted-foreground">
-                {lastSuccessSync
-                  ? new Date(lastSuccessSync.created_at).toLocaleString("es-PY", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })
-                  : "—"}
-              </p>
+              <p className="text-sm font-medium">Estado</p>
+              <Badge variant={catalogHealthy ? "default" : "destructive"} className="text-[10px]">
+                {CATALOG_STATUS_LABELS[catalogStatus]}
+              </Badge>
             </div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="py-4 flex items-center gap-3">
-            <Database className="h-5 w-5 text-muted-foreground" />
+            <Info className="h-5 w-5 text-muted-foreground" />
             <div>
               <p className="text-sm font-medium">Cobertura</p>
-              <p className={`text-xs ${catalogHealthy ? "text-green-600" : "text-amber-600"} font-medium`}>
-                {estimatedCatalogSize > 0 ? `${Math.round(catalogCoverage * 100)}%` : "—"}
+              <p className={`text-xs ${catalogHealthy ? "text-green-600" : "text-destructive"} font-medium`}>
+                {estimatedCatalogSize > 0 ? `${Math.round(catalogCoverage * 100)}% (${productCount}/${estimatedCatalogSize})` : "Sin referencia"}
               </p>
             </div>
           </CardContent>
