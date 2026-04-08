@@ -262,6 +262,8 @@ export default function SincronizacionBims() {
     let totalFailed = 0;
     let totalSkipped = 0;
     let totalReceived = retryPages ? prodProgress.totalReceived : 0;
+    let bimsTotalCount: number | null = retryPages ? prodProgress.bimsTotalCount : null;
+    let pagesProcessed = 0;
     const allErrors: SyncError[] = [];
     const newFailedPages: number[] = [];
 
