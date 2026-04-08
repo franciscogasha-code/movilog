@@ -1,29 +1,16 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { AlertTriangle, Info } from "lucide-react";
+import { getDemandSeverity, DEMAND_SEVERITY_LABELS, type DemandSeverity } from "@/lib/business-rules";
 
 interface DemandAlertProps {
   productId: string;
-}
-
-type DemandSeverity = "low" | "medium" | "high";
-
-function getSeverity(count: number): DemandSeverity {
-  if (count >= 5) return "high";
-  if (count >= 3) return "medium";
-  return "low";
 }
 
 const SEVERITY_STYLES: Record<DemandSeverity, { bg: string; border: string; icon: string }> = {
   low: { bg: "bg-blue-500/10", border: "border-blue-500/20", icon: "text-blue-600" },
   medium: { bg: "bg-amber-500/10", border: "border-amber-500/20", icon: "text-amber-600" },
   high: { bg: "bg-destructive/10", border: "border-destructive/20", icon: "text-destructive" },
-};
-
-const SEVERITY_LABELS: Record<DemandSeverity, string> = {
-  low: "Demanda baja",
-  medium: "Demanda media",
-  high: "Demanda alta",
 };
 
 export function DemandAlert({ productId }: DemandAlertProps) {
@@ -72,7 +59,8 @@ export function DemandAlert({ productId }: DemandAlertProps) {
 
   if (!openDemand) return null;
 
-  const severity = getSeverity(openDemand.count);
+  // Use centralized algorithm from business-rules
+  const severity = getDemandSeverity(openDemand.count);
   const styles = SEVERITY_STYLES[severity];
   const IconComp = severity === "low" ? Info : AlertTriangle;
 
@@ -81,7 +69,7 @@ export function DemandAlert({ productId }: DemandAlertProps) {
       <IconComp className={`h-3.5 w-3.5 ${styles.icon} shrink-0 mt-0.5`} />
       <div>
         <p className="font-medium text-foreground">
-          {SEVERITY_LABELS[severity]}: {openDemand.count} solicitud(es) pendientes
+          {DEMAND_SEVERITY_LABELS[severity]}: {openDemand.count} solicitud(es) pendientes
         </p>
         <p className="text-muted-foreground mt-0.5">
           Sucursales: {openDemand.branches.join(", ")} • Total solicitado: {openDemand.totalQty} un.

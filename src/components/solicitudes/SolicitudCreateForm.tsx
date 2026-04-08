@@ -17,12 +17,14 @@ import { DemandAlert } from "./DemandAlert";
 import {
   type RequestType,
   type DeliveryTarget,
+  type ShippingMethod,
   getOriginMode,
   getAllowedDeliveryTargets,
   shouldShowClientFields,
+  validateShippingMethod,
 } from "@/lib/business-rules";
 
-type ShippingMethod = "own_fleet" | "courier" | "pickup" | "delivery";
+// ShippingMethod imported from business-rules
 
 interface SelectedItem {
   product: ProductResult;
@@ -63,6 +65,7 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
   const allowedTargets = getAllowedDeliveryTargets(requestType);
   const showClientFieldsFlag = shouldShowClientFields(requestType, deliveryTarget);
   const showDeliveryPaidBy = shippingMethod === "delivery";
+  const shippingError = validateShippingMethod(requestType, deliveryTarget, shippingMethod);
 
   // Auto-detect branch
   useEffect(() => {
@@ -180,10 +183,10 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
   // Validation
   const canSubmit = useMemo(() => {
     if (!requestingBranchId || !items.length) return false;
-    if (hasStockErrors) return false;
+    if (hasStockErrors || shippingError) return false;
     if (isMultiOrigin) return items.every(i => !!i.sourceBranchId);
     return !!sourceBranchId;
-  }, [requestingBranchId, items, isMultiOrigin, sourceBranchId, hasStockErrors]);
+  }, [requestingBranchId, items, isMultiOrigin, sourceBranchId, hasStockErrors, shippingError]);
 
   // Re-validate stock from DB right before confirmation
   const revalidateStock = async (): Promise<Record<string, string>> => {
