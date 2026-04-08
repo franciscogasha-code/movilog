@@ -48,8 +48,7 @@ const STAGE_LABELS: Record<string, string> = {
   upsert: "Guardado",
 };
 
-/** Catalog health threshold: below this % we warn the user */
-const CATALOG_HEALTH_THRESHOLD = 0.8; // 80%
+/** Catalog health: only 100% is operationally valid */
 
 function StatusIcon({ status }: { status: SyncStatus }) {
   switch (status) {
