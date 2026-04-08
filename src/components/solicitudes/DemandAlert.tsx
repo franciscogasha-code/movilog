@@ -24,7 +24,7 @@ export function DemandAlert({ productId }: DemandAlertProps) {
         .from("branch_requests")
         .select("id, status, requesting_branch_id, created_at")
         .in("id", requestIds)
-        .in("status", ["pending", "accepted", "in_preparation"]);
+        .in("status", ["pending", "accepted", "picking", "ready_to_ship"]);
 
       if (!requests || requests.length === 0) return null;
 
