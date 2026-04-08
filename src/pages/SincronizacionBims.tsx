@@ -173,10 +173,10 @@ export default function SincronizacionBims() {
   const bimsTotalFromLiveSync = prodProgress.bimsTotalCount;
   const bimsTotalFromAccumulated = prodProgress.totalReceived > 0 ? prodProgress.totalReceived : 0;
   
-  // Best estimate of BIMS universe size (prefer BIMS-reported total, then accumulated from full sync)
+  // Best estimate of BIMS universe size
   const estimatedCatalogSize = bimsTotalFromLiveSync
-    ?? (bimsTotalFromAccumulated > lastSyncRun.totalReceived ? bimsTotalFromAccumulated : lastSyncRun.totalReceived)
-    || 0;
+    ?? (bimsTotalFromAccumulated > lastSyncRun.totalReceived ? bimsTotalFromAccumulated : lastSyncRun.totalReceived);
+  const effectiveCatalogSize = estimatedCatalogSize ?? 0;
 
   const catalogCoverage = estimatedCatalogSize > 0
     ? Math.min(productCount / estimatedCatalogSize, 1) // Never exceed 100%
