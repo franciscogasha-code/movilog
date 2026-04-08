@@ -416,9 +416,10 @@ export default function SincronizacionBims() {
                 </p>
                 <p className="text-muted-foreground">
                   {CATALOG_STATUS_DESCRIPTIONS[catalogStatus]}
-                  {estimatedCatalogSize > 0 && (
+                  {effectiveCatalogSize > 0 && (
                     <span className="ml-1">
-                      ({productCount} de {estimatedCatalogSize} productos — {Math.round(catalogCoverage * 100)}%)
+                      ({productCount} de {effectiveCatalogSize} productos — {Math.round(catalogCoverage * 100)}%)
+                      {totalMissing > 0 && <span className="text-destructive font-medium"> — {totalMissing} faltantes</span>}
                     </span>
                   )}
                 </p>
@@ -438,7 +439,7 @@ export default function SincronizacionBims() {
                   Catálogo completo — Sistema operativo
                 </p>
                 <p className="text-muted-foreground">
-                  {productCount} productos sincronizados al 100%.
+                  {productCount} de {effectiveCatalogSize} productos sincronizados (100%).
                   {lastSuccessSync && (
                     <span className="ml-1">
                       Última sincronización: {new Date(lastSuccessSync.created_at).toLocaleString("es-PY", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
@@ -451,8 +452,8 @@ export default function SincronizacionBims() {
         </Card>
       )}
 
-      {/* Current counts */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Metrics grid */}
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
         <Card>
           <CardContent className="py-4 flex items-center gap-3">
             <Building2 className="h-5 w-5 text-muted-foreground" />
@@ -467,30 +468,36 @@ export default function SincronizacionBims() {
             <Package className="h-5 w-5 text-muted-foreground" />
             <div>
               <p className="text-2xl font-bold">{productCount}</p>
-              <p className="text-xs text-muted-foreground">Productos</p>
+              <p className="text-xs text-muted-foreground">Sincronizados en SLIS</p>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="py-4 flex items-center gap-3">
-            <Database className="h-5 w-5 text-muted-foreground" />
-            <div>
-              <p className="text-sm font-medium">Estado</p>
-              <Badge variant={catalogHealthy ? "default" : "destructive"} className="text-[10px]">
-                {CATALOG_STATUS_LABELS[catalogStatus]}
-              </Badge>
-            </div>
+          <CardContent className="py-4">
+            <p className="text-2xl font-bold">{effectiveCatalogSize > 0 ? effectiveCatalogSize : "—"}</p>
+            <p className="text-xs text-muted-foreground">Esperados desde BIMS</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="py-4 flex items-center gap-3">
-            <Info className="h-5 w-5 text-muted-foreground" />
-            <div>
-              <p className="text-sm font-medium">Cobertura</p>
-              <p className={`text-xs ${catalogHealthy ? "text-green-600" : "text-destructive"} font-medium`}>
-                {estimatedCatalogSize > 0 ? `${Math.round(catalogCoverage * 100)}% (${productCount}/${estimatedCatalogSize})` : "Sin referencia"}
-              </p>
-            </div>
+          <CardContent className="py-4">
+            <p className={`text-2xl font-bold ${totalMissing > 0 ? "text-destructive" : ""}`}>{effectiveCatalogSize > 0 ? totalMissing : "—"}</p>
+            <p className="text-xs text-muted-foreground">Faltantes</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="py-4">
+            <Badge variant={catalogHealthy ? "default" : "destructive"} className="text-[10px]">
+              {CATALOG_STATUS_LABELS[catalogStatus]}
+            </Badge>
+            <p className="text-xs text-muted-foreground mt-1">Estado</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="py-4">
+            <p className={`text-lg font-bold ${catalogHealthy ? "text-green-600" : catalogCoverage < 0 ? "text-muted-foreground" : "text-destructive"}`}>
+              {catalogCoverage >= 0 ? `${Math.round(catalogCoverage * 100)}%` : "Sin ref."}
+            </p>
+            <p className="text-xs text-muted-foreground">Cobertura</p>
           </CardContent>
         </Card>
       </div>
