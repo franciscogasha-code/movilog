@@ -2175,6 +2175,7 @@ export type Database = {
         Row: {
           completed_at: string | null
           created_at: string
+          duration_seconds: number | null
           entity: string
           errors: Json | null
           id: string
@@ -2191,6 +2192,7 @@ export type Database = {
         Insert: {
           completed_at?: string | null
           created_at?: string
+          duration_seconds?: number | null
           entity: string
           errors?: Json | null
           id?: string
@@ -2207,6 +2209,7 @@ export type Database = {
         Update: {
           completed_at?: string | null
           created_at?: string
+          duration_seconds?: number | null
           entity?: string
           errors?: Json | null
           id?: string

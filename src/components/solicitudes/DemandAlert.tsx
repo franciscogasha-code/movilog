@@ -1,16 +1,35 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Info } from "lucide-react";
 
 interface DemandAlertProps {
   productId: string;
 }
 
+type DemandSeverity = "low" | "medium" | "high";
+
+function getSeverity(count: number): DemandSeverity {
+  if (count >= 5) return "high";
+  if (count >= 3) return "medium";
+  return "low";
+}
+
+const SEVERITY_STYLES: Record<DemandSeverity, { bg: string; border: string; icon: string }> = {
+  low: { bg: "bg-blue-500/10", border: "border-blue-500/20", icon: "text-blue-600" },
+  medium: { bg: "bg-amber-500/10", border: "border-amber-500/20", icon: "text-amber-600" },
+  high: { bg: "bg-destructive/10", border: "border-destructive/20", icon: "text-destructive" },
+};
+
+const SEVERITY_LABELS: Record<DemandSeverity, string> = {
+  low: "Demanda baja",
+  medium: "Demanda media",
+  high: "Demanda alta",
+};
+
 export function DemandAlert({ productId }: DemandAlertProps) {
   const { data: openDemand } = useQuery({
     queryKey: ["demand-alert", productId],
     queryFn: async () => {
-      // Get open request items for this product
       const { data: items } = await supabase
         .from("branch_request_items")
         .select("quantity_requested, request_id")
@@ -18,7 +37,6 @@ export function DemandAlert({ productId }: DemandAlertProps) {
 
       if (!items || items.length === 0) return null;
 
-      // Get corresponding requests that are still open
       const requestIds = items.map(i => i.request_id);
       const { data: requests } = await supabase
         .from("branch_requests")
@@ -32,7 +50,6 @@ export function DemandAlert({ productId }: DemandAlertProps) {
       const openItems = items.filter(i => openReqIds.has(i.request_id));
       if (openItems.length === 0) return null;
 
-      // Get branch names
       const branchIds = [...new Set(requests.map(r => r.requesting_branch_id))];
       const { data: branches } = await supabase
         .from("branches")
@@ -55,12 +72,16 @@ export function DemandAlert({ productId }: DemandAlertProps) {
 
   if (!openDemand) return null;
 
+  const severity = getSeverity(openDemand.count);
+  const styles = SEVERITY_STYLES[severity];
+  const IconComp = severity === "low" ? Info : AlertTriangle;
+
   return (
-    <div className="flex items-start gap-2 p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs">
-      <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0 mt-0.5" />
+    <div className={`flex items-start gap-2 p-2.5 rounded-lg ${styles.bg} ${styles.border} border text-xs`}>
+      <IconComp className={`h-3.5 w-3.5 ${styles.icon} shrink-0 mt-0.5`} />
       <div>
         <p className="font-medium text-foreground">
-          Demanda activa: {openDemand.count} solicitud(es) pendientes
+          {SEVERITY_LABELS[severity]}: {openDemand.count} solicitud(es) pendientes
         </p>
         <p className="text-muted-foreground mt-0.5">
           Sucursales: {openDemand.branches.join(", ")} • Total solicitado: {openDemand.totalQty} un.
