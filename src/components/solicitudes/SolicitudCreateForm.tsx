@@ -9,7 +9,7 @@ import { ProductSearch, type ProductResult } from "@/components/shared/ProductSe
 import { ProductCard } from "@/components/shared/ProductCard";
 import { BranchSelector, useAutoDetectBranch } from "@/components/shared/BranchSelector";
 import { useBranches } from "@/hooks/use-branches";
-import { Plus, Trash2, Package, ChevronDown, ChevronUp, AlertTriangle, XCircle } from "lucide-react";
+import { Plus, Trash2, Package, ChevronDown, ChevronUp, AlertTriangle, XCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { ContextBanner } from "./ContextBanner";
@@ -55,6 +55,7 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [revalidating, setRevalidating] = useState(false);
 
   // Derived from business rules matrix
   const originMode = getOriginMode(requestType, deliveryTarget);
@@ -97,7 +98,6 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
       toast.info("Producto ya agregado");
       return;
     }
-    // Auto-suggest: pick branch with most stock
     let autoSource: string | undefined;
     const sbw = (product as any).stock_by_warehouse;
     if (isMultiOrigin && sbw && typeof sbw === "object") {
@@ -128,7 +128,7 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
     setItems(prev => prev.map(i => i.product.id === productId ? { ...i, sourceBranchId: branchId } : i));
   };
 
-  // Stock validation errors
+  // Stock validation errors (uses current product data)
   const stockErrors = useMemo(() => {
     const errors: Record<string, string> = {};
     for (const item of items) {
@@ -185,6 +185,37 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
     return !!sourceBranchId;
   }, [requestingBranchId, items, isMultiOrigin, sourceBranchId, hasStockErrors]);
 
+  // Re-validate stock from DB right before confirmation
+  const revalidateStock = async (): Promise<Record<string, string>> => {
+    const productIds = items.map(i => i.product.id);
+    const { data: freshProducts } = await supabase
+      .from("products")
+      .select("id, stock_by_warehouse")
+      .in("id", productIds);
+
+    if (!freshProducts) return {};
+
+    const freshMap = new Map(freshProducts.map(p => [p.id, p.stock_by_warehouse as Record<string, number> | null]));
+    const errors: Record<string, string> = {};
+
+    for (const item of items) {
+      const sbw = freshMap.get(item.product.id);
+      if (!sbw) continue;
+
+      const srcBid = isMultiOrigin ? item.sourceBranchId : sourceBranchId;
+      if (!srcBid) continue;
+
+      const branchCode = branches?.find(b => b.id === srcBid)?.code;
+      if (branchCode) {
+        const available = sbw[branchCode] ?? 0;
+        if (available < item.quantity) {
+          errors[item.product.id] = `Stock cambió: disponible ${Math.floor(available)}, solicitado ${item.quantity}`;
+        }
+      }
+    }
+    return errors;
+  };
+
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -206,8 +237,25 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
     }
 
     setSubmitting(true);
+    setRevalidating(true);
+
     try {
-      if (!user) { toast.error("Debés iniciar sesión"); return; }
+      // Revalidate stock before persisting
+      const freshErrors = await revalidateStock();
+      setRevalidating(false);
+
+      if (Object.keys(freshErrors).length > 0) {
+        const errorProducts = Object.keys(freshErrors).map(pid => {
+          const item = items.find(i => i.product.id === pid);
+          return item?.product.name || pid;
+        });
+        toast.error(`Stock insuficiente al confirmar: ${errorProducts.join(", ")}`);
+        setShowConfirmation(false);
+        setSubmitting(false);
+        return;
+      }
+
+      if (!user) { toast.error("Debés iniciar sesión"); setSubmitting(false); return; }
 
       if (isMultiOrigin) {
         // Create parent request first
@@ -215,7 +263,7 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
           .from("branch_requests")
           .insert({
             requesting_branch_id: requestingBranchId,
-            source_branch_id: requestingBranchId, // placeholder
+            source_branch_id: requestingBranchId, // placeholder for parent
             request_type: requestType as any,
             delivery_target: deliveryTarget as any,
             shipping_method: shippingMethod as any,
@@ -237,34 +285,58 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
         });
 
         const createdNumbers: number[] = [];
-        for (const [srcBranch, srcItems] of Object.entries(bySource)) {
-          const { data: request, error } = await supabase
-            .from("branch_requests")
-            .insert({
-              requesting_branch_id: requestingBranchId,
-              source_branch_id: srcBranch,
-              parent_request_id: parentRequest.id,
-              request_type: requestType as any,
-              delivery_target: deliveryTarget as any,
-              shipping_method: shippingMethod as any,
-              delivery_payer: showDeliveryPaidBy ? deliveryPaidBy : null,
-              notes: notes || null,
-              created_by: user.id,
-            })
-            .select()
-            .single();
-          if (error) throw error;
+        const createdIds: string[] = [];
 
-          const itemsToInsert = srcItems.map((item) => ({
-            request_id: request.id,
-            product_id: item.product.id,
-            quantity_requested: item.quantity,
-            item_purpose: (requestType === "client" || requestType === "online" ? "client" : "reposition") as any,
-          }));
-          const { error: itemsError } = await supabase.from("branch_request_items").insert(itemsToInsert);
-          if (itemsError) throw itemsError;
+        try {
+          for (const [srcBranch, srcItems] of Object.entries(bySource)) {
+            const { data: request, error } = await supabase
+              .from("branch_requests")
+              .insert({
+                requesting_branch_id: requestingBranchId,
+                source_branch_id: srcBranch,
+                parent_request_id: parentRequest.id,
+                request_type: requestType as any,
+                delivery_target: deliveryTarget as any,
+                shipping_method: shippingMethod as any,
+                delivery_payer: showDeliveryPaidBy ? deliveryPaidBy : null,
+                notes: notes || null,
+                created_by: user.id,
+              })
+              .select()
+              .single();
+            if (error) throw error;
 
-          createdNumbers.push(request.request_number);
+            createdIds.push(request.id);
+
+            const itemsToInsert = srcItems.map((item) => ({
+              request_id: request.id,
+              product_id: item.product.id,
+              quantity_requested: item.quantity,
+              item_purpose: (requestType === "client" || requestType === "online" ? "client" : "reposition") as any,
+            }));
+            const { error: itemsError } = await supabase.from("branch_request_items").insert(itemsToInsert);
+            if (itemsError) throw itemsError;
+
+            createdNumbers.push(request.request_number);
+          }
+        } catch (childErr: any) {
+          // Rollback: mark parent as rejected to avoid orphan state
+          await supabase.from("branch_requests").update({
+            status: "rejected" as any,
+            rejection_reason: `Error al crear transferencias hijas: ${childErr.message}`,
+            rejected_at: new Date().toISOString(),
+          }).eq("id", parentRequest.id);
+
+          // Mark any created children as rejected too
+          if (createdIds.length > 0) {
+            await supabase.from("branch_requests").update({
+              status: "rejected" as any,
+              rejection_reason: `Rollback por error en creación multi-origen`,
+              rejected_at: new Date().toISOString(),
+            }).in("id", createdIds);
+          }
+
+          throw new Error(`Error al crear transferencias: ${childErr.message}. El pedido fue cancelado.`);
         }
 
         toast.success(`Pedido #${parentRequest.request_number} creado con ${createdNumbers.length} transferencia(s): #${createdNumbers.join(", #")}`);
@@ -307,6 +379,7 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
       toast.error(err.message || "Error al crear pedido");
     } finally {
       setSubmitting(false);
+      setRevalidating(false);
       setShowConfirmation(false);
     }
   };
@@ -356,7 +429,13 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
             Volver a editar
           </Button>
           <Button className="flex-1" onClick={onSubmit} disabled={submitting}>
-            {submitting ? "Creando..." : "Confirmar pedido"}
+            {revalidating ? (
+              <><Loader2 className="h-4 w-4 animate-spin mr-2" />Verificando stock...</>
+            ) : submitting ? (
+              "Creando..."
+            ) : (
+              "Confirmar pedido"
+            )}
           </Button>
         </div>
       </div>

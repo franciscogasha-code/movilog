@@ -75,7 +75,7 @@ function normalizeProduct(raw: any): any | null {
     if (!bimsCode) return null;
 
     const name = toText(item?.name ?? item?.description ?? raw?.name ?? raw?.description);
-    if (!name) return null; // description is mandatory
+    if (!name) return null;
 
     const status = toText(item?.status ?? raw?.status)?.toLowerCase();
     const enabledValue = item?.enabled ?? item?.active ?? raw?.enabled ?? raw?.active;
@@ -118,7 +118,6 @@ function normalizeProduct(raw: any): any | null {
     }
 
     const unit = toText(item?.um_id ?? item?.unit ?? item?.measure_unit ?? raw?.um_id ?? raw?.unit ?? raw?.measure_unit) ?? "UN";
-    // Validate unit is a reasonable string
     if (unit.length > 20) return null;
 
     return {
@@ -205,12 +204,14 @@ async function bimsRequest(method: string, path: string): Promise<unknown> {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
+  const syncStartTime = Date.now();
   const adminClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   const results: Record<string, SyncStats> = {};
 
   try {
     // ── 1. Sync warehouses ──
     const whStats = newStats();
+    const whStartTime = Date.now();
     try {
       const warehouses = await bimsRequest("GET", `/warehouses`) as any;
       const whItems = extractArray(warehouses);
@@ -220,10 +221,7 @@ Deno.serve(async (req) => {
         try {
           const normalized = normalizeWarehouse(w);
           if (!normalized) { whStats.total_skipped++; continue; }
-          if (!normalized.code) {
-            whStats.total_skipped++;
-            continue;
-          }
+          if (!normalized.code) { whStats.total_skipped++; continue; }
 
           const { data: existing } = await adminClient.from("branches").select("id").eq("code", normalized.code).maybeSingle();
           if (existing) {
@@ -254,16 +252,19 @@ Deno.serve(async (req) => {
     }
     results.warehouses = whStats;
 
-    // Log warehouse sync
+    const whDuration = (Date.now() - whStartTime) / 1000;
     await adminClient.from("sync_logs").insert({
       entity: "warehouses",
       status: whStats.total_failed > 0 ? (whStats.total_processed > 0 ? "partial" : "error") : "success",
       ...whStats,
+      errors: whStats.errors.slice(0, 50),
       completed_at: new Date().toISOString(),
+      duration_seconds: whDuration,
     });
 
     // ── 2. Sync products in batches ──
     const prodStats = newStats();
+    const prodStartTime = Date.now();
     const BATCH_SIZE = 100;
     let page = 1;
     let hasMore = true;
@@ -285,7 +286,6 @@ Deno.serve(async (req) => {
               prodStats.total_skipped++;
               continue;
             }
-            // Validation: mandatory fields
             if (!normalized.bims_code || !normalized.name) {
               prodStats.total_skipped++;
               prodStats.errors.push({
@@ -310,23 +310,19 @@ Deno.serve(async (req) => {
 
         const batch = Array.from(batchMap.values());
         if (batch.length > 0) {
-          // Check which already exist
           const bimsCodes = batch.map(p => p.bims_code);
           const { data: existing } = await adminClient.from("products").select("bims_code").in("bims_code", bimsCodes);
           const existingSet = new Set(existing?.map(e => e.bims_code) || []);
 
           const { error } = await adminClient.from("products").upsert(batch, { onConflict: "bims_code" });
           if (error) {
-            // Try one-by-one fallback
+            // One-by-one fallback
             for (const product of batch) {
               try {
                 const { error: singleErr } = await adminClient.from("products").upsert(product, { onConflict: "bims_code" });
                 if (singleErr) throw singleErr;
-                if (existingSet.has(product.bims_code)) {
-                  prodStats.total_updated++;
-                } else {
-                  prodStats.total_inserted++;
-                }
+                if (existingSet.has(product.bims_code)) prodStats.total_updated++;
+                else prodStats.total_inserted++;
                 prodStats.total_processed++;
               } catch (e: any) {
                 prodStats.total_failed++;
@@ -339,13 +335,9 @@ Deno.serve(async (req) => {
               }
             }
           } else {
-            // Batch succeeded
             for (const p of batch) {
-              if (existingSet.has(p.bims_code)) {
-                prodStats.total_updated++;
-              } else {
-                prodStats.total_inserted++;
-              }
+              if (existingSet.has(p.bims_code)) prodStats.total_updated++;
+              else prodStats.total_inserted++;
             }
             prodStats.total_processed += batch.length;
           }
@@ -359,30 +351,32 @@ Deno.serve(async (req) => {
     }
     results.products = prodStats;
 
-    // Determine overall status
+    const prodDuration = (Date.now() - prodStartTime) / 1000;
     const prodStatus = prodStats.total_failed > 0
       ? (prodStats.total_processed > 0 ? "partial" : "error")
       : "success";
 
-    // Log product sync
     await adminClient.from("sync_logs").insert({
       entity: "products",
       status: prodStatus,
       ...prodStats,
-      errors: prodStats.errors.slice(0, 100), // Cap errors to 100
+      errors: prodStats.errors.slice(0, 100),
       completed_at: new Date().toISOString(),
+      duration_seconds: prodDuration,
     });
 
-    console.log("BIMS auto-sync completed:", JSON.stringify({
+    const totalDuration = (Date.now() - syncStartTime) / 1000;
+    console.log("BIMS sync completed:", JSON.stringify({
+      duration_s: totalDuration,
       warehouses: { processed: whStats.total_processed, failed: whStats.total_failed },
       products: { processed: prodStats.total_processed, failed: prodStats.total_failed },
     }));
 
-    return new Response(JSON.stringify({ success: true, results }), {
+    return new Response(JSON.stringify({ success: true, results, duration_seconds: totalDuration }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error: any) {
-    console.error("BIMS auto-sync error:", error);
+    console.error("BIMS sync error:", error);
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
