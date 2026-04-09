@@ -12,6 +12,13 @@ export type ProductResult = {
   barcode: string | null;
   category: string | null;
   unit: string | null;
+  description: string | null;
+  image_url: string | null;
+  sell_price: number | null;
+  price_scales: { min_quantity: number; price: number }[] | null;
+  price_lists: { name: string; amount: number }[] | null;
+  stock_by_warehouse: Record<string, number> | null;
+  total_stock: number | null;
 };
 
 interface ProductSearchProps {
@@ -55,7 +62,7 @@ export function ProductSearch({ onSelect, placeholder = "Buscar producto por nom
 
       const { data, error } = await supabase
         .from("products")
-        .select("id, name, sku, bims_code, barcode, category, unit")
+        .select("id, name, sku, bims_code, barcode, category, unit, description, image_url, sell_price, price_scales, price_lists, stock_by_warehouse, total_stock")
         .eq("is_active", true)
         .or(orFilters.join(","))
         .limit(20);

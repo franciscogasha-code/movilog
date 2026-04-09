@@ -56,6 +56,10 @@ export function ProductCard({
 }: ProductCardProps) {
   const { data: branches } = useBranches();
 
+  const isValidWarehouseKey = (key: string): boolean => {
+    return !!key && key !== "undefined" && key !== "null" && key.trim() !== "";
+  };
+
   const getWarehouseBranchName = (warehouseId: string): string => {
     const branch = branches?.find(b => b.code === warehouseId);
     return branch?.name || `Depósito ${warehouseId}`;
@@ -66,7 +70,10 @@ export function ProductCard({
     return branch?.id || null;
   };
 
-  const hasStock = productStockByWarehouse && Object.keys(productStockByWarehouse).length > 0;
+  const filteredStockEntries = productStockByWarehouse
+    ? Object.entries(productStockByWarehouse).filter(([key]) => isValidWarehouseKey(key))
+    : [];
+  const hasStock = filteredStockEntries.length > 0;
   const hasPrice = productSellPrice != null && productSellPrice > 0;
   const hasPriceScales = productPriceScales && productPriceScales.length > 0;
   const isSelectMode = stockMode === "select_source" && !!onSelectSourceBranch;
@@ -104,23 +111,16 @@ export function ProductCard({
       <CardContent className="p-4 space-y-4">
         {/* Header */}
         <div className="flex gap-4">
-          {productImageUrl ? (
-            <img
-              src={productImageUrl}
-              alt={productName}
-              className="h-20 w-20 rounded-lg object-cover shrink-0 border border-border"
-              onError={(e) => {
-                const target = e.target as HTMLImageElement;
-                target.style.display = 'none';
-                target.nextElementSibling?.classList.remove('hidden');
-              }}
-            />
-          ) : null}
-          <div className={cn("h-20 w-20 rounded-lg bg-muted flex items-center justify-center shrink-0", productImageUrl && "hidden")}>
-            <Package className="h-10 w-10 text-muted-foreground" />
-          </div>
+          <ProductImage url={productImageUrl} name={productName} />
           <div className="flex-1 min-w-0">
-            <h3 className="font-semibold text-base leading-tight">{productName}</h3>
+            <div className="flex items-start justify-between gap-2">
+              <h3 className="font-semibold text-base leading-tight">{productName}</h3>
+              {productTotalStock != null && (
+                <Badge variant={productTotalStock > 0 ? "default" : "destructive"} className="text-xs shrink-0">
+                  Stock: {Math.floor(productTotalStock)}
+                </Badge>
+              )}
+            </div>
             <div className="flex flex-wrap gap-2 mt-1.5">
               {productSku && <Badge variant="outline" className="text-xs font-mono">SKU: {productSku}</Badge>}
               {productBimsCode && <Badge variant="outline" className="text-xs font-mono">Cód: {productBimsCode}</Badge>}
@@ -129,6 +129,7 @@ export function ProductCard({
             <div className="flex items-center gap-2 mt-1.5">
               {productCategory && <span className="text-xs text-muted-foreground">{productCategory}</span>}
               {productUnit && <span className="text-xs text-muted-foreground">• Unidad: {productUnit}</span>}
+              {hasPrice && <span className="text-xs font-medium text-foreground">• ₲{productSellPrice!.toLocaleString()}</span>}
             </div>
           </div>
         </div>
@@ -188,7 +189,7 @@ export function ProductCard({
               )}
             </h4>
             <div className="grid grid-cols-2 gap-1.5">
-              {Object.entries(productStockByWarehouse!)
+              {filteredStockEntries
                 .filter(([, qty]) => qty > 0)
                 .sort((a, b) => b[1] - a[1])
                 .map(([whId, qty]) => {
