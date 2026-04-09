@@ -137,7 +137,7 @@ export default function SincronizacionBims() {
   const { data: productCount = 0 } = useQuery({
     queryKey: ["products-count"],
     queryFn: async () => {
-      const { count } = await supabase.from("products").select("*", { count: "exact", head: true });
+      const { count } = await supabase.from("products").select("*", { count: "exact", head: true }).eq("is_active", true);
       return count || 0;
     },
   });
