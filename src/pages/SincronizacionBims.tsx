@@ -256,7 +256,6 @@ export default function SincronizacionBims() {
       isRunning: true,
       status: "loading",
       startedAt: new Date(),
-      // Keep accumulated totals if retrying
       ...(retryPages ? {
         totalProcessed: prev.totalProcessed,
         totalInserted: prev.totalInserted,
@@ -266,9 +265,8 @@ export default function SincronizacionBims() {
     }));
 
     const pages = retryPages || (() => {
-      // Sequential pages starting from 1
       const arr: number[] = [];
-      for (let i = 1; i <= 500; i++) arr.push(i); // max 500 pages = 50k products
+      for (let i = 1; i <= 500; i++) arr.push(i);
       return arr;
     })();
 
@@ -282,6 +280,9 @@ export default function SincronizacionBims() {
     let pagesProcessed = 0;
     const allErrors: SyncError[] = [];
     const newFailedPages: number[] = [];
+    // Collect all active bims_codes across all pages for deactivation step
+    const allActiveBimsCodes: string[] = [];
+    let totalInactiveSkipped = 0;
 
     for (const pageNum of pages) {
       try {
@@ -316,7 +317,14 @@ export default function SincronizacionBims() {
         if (s.total_failed > 0) newFailedPages.push(pageNum);
         pagesProcessed++;
 
-        // Capture BIMS total count if returned
+        // Collect active bims codes from this page
+        if (Array.isArray(data.active_bims_codes)) {
+          allActiveBimsCodes.push(...data.active_bims_codes);
+        }
+        if (data.total_inactive_skipped) {
+          totalInactiveSkipped += data.total_inactive_skipped;
+        }
+
         if (data.bims_total_count != null && !isNaN(Number(data.bims_total_count))) {
           bimsTotalCount = Number(data.bims_total_count);
         }
@@ -336,12 +344,29 @@ export default function SincronizacionBims() {
           durationMs: Date.now() - startTime,
         }));
 
-        // Stop if no more pages (non-retry mode)
         if (!retryPages && !data.has_more) break;
       } catch (err: any) {
         newFailedPages.push(pageNum);
         totalFailed++;
         allErrors.push({ code: `page_${pageNum}`, message: err.message, stage: "fetch", timestamp: new Date().toISOString() });
+      }
+    }
+
+    // After all pages: deactivate products not seen in BIMS (baja lógica)
+    if (!retryPages && allActiveBimsCodes.length > 0 && newFailedPages.length === 0) {
+      try {
+        const deactivateRes = await fetch(`${BIMS_SYNC_URL}?entity=products&action=deactivate_missing`, {
+          method: "POST",
+          headers: { ...HEADERS, "Content-Type": "application/json" },
+          body: JSON.stringify({ active_bims_codes: allActiveBimsCodes }),
+        });
+        const deactivateData = await deactivateRes.json();
+        if (deactivateData.success && deactivateData.total_deactivated > 0) {
+          toast.info(`${deactivateData.total_deactivated} productos marcados como inactivos (baja lógica)`);
+        }
+      } catch (err: any) {
+        console.error("Error deactivating missing products:", err);
+        allErrors.push({ code: "deactivate", message: err.message, stage: "deactivate", timestamp: new Date().toISOString() });
       }
     }
 
@@ -372,7 +397,8 @@ export default function SincronizacionBims() {
     queryClient.invalidateQueries({ queryKey: ["sync-run-totals"] });
 
     if (finalStatus === "success") {
-      toast.success(`Productos: ${totalProcessed} sincronizados en ${formatDuration(Date.now() - startTime)}`);
+      const inactiveMsg = totalInactiveSkipped > 0 ? ` (${totalInactiveSkipped} inactivos omitidos)` : "";
+      toast.success(`Productos: ${totalProcessed} activos sincronizados en ${formatDuration(Date.now() - startTime)}${inactiveMsg}`);
     } else if (finalStatus === "partial") {
       toast.warning(`Sincronización parcial: ${totalProcessed} OK, ${totalFailed} con error (${newFailedPages.length} páginas fallidas)`);
     } else {
