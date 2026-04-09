@@ -14,6 +14,7 @@ import { proxyImageUrl } from "@/lib/image-utils";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ProductSearch, type ProductResult } from "@/components/shared/ProductSearch";
 import { ProductCard } from "@/components/shared/ProductCard";
+import { useLiveStock } from "@/hooks/use-live-stock";
 import { BranchSelector, useAutoDetectBranch } from "@/components/shared/BranchSelector";
 import { cn } from "@/lib/utils";
 import { DemandAlert } from "@/components/solicitudes/DemandAlert";
