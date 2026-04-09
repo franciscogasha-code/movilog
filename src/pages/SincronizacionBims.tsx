@@ -32,7 +32,7 @@ const HEADERS = {
 };
 
 // Sync process states (state machine)
-type SyncPhase = "idle" | "syncing" | "completed" | "incomplete" | "error" | "awaiting_confirmation";
+type SyncPhase = "idle" | "syncing" | "completed" | "completed_with_observations" | "incomplete" | "error" | "awaiting_confirmation";
 type SyncStatus = "idle" | "loading" | "success" | "partial" | "error";
 
 interface SyncError { code: string; message: string; stage: string; timestamp: string }
@@ -83,6 +83,7 @@ const PHASE_LABELS: Record<SyncPhase, string> = {
   idle: "Sin ejecutar",
   syncing: "En proceso",
   completed: "Completado correctamente",
+  completed_with_observations: "Completado con observaciones",
   incomplete: "Incompleto",
   error: "Error",
   awaiting_confirmation: "Requiere confirmación",
@@ -92,6 +93,7 @@ const PHASE_COLORS: Record<SyncPhase, string> = {
   idle: "text-muted-foreground",
   syncing: "text-primary",
   completed: "text-green-600",
+  completed_with_observations: "text-green-600",
   incomplete: "text-amber-500",
   error: "text-destructive",
   awaiting_confirmation: "text-amber-600",
@@ -111,6 +113,7 @@ function PhaseIcon({ phase }: { phase: SyncPhase }) {
   switch (phase) {
     case "syncing": return <Loader2 className="h-4 w-4 animate-spin text-primary" />;
     case "completed": return <ShieldCheck className="h-4 w-4 text-green-500" />;
+    case "completed_with_observations": return <CheckCircle2 className="h-4 w-4 text-green-500" />;
     case "incomplete": return <AlertTriangle className="h-4 w-4 text-amber-500" />;
     case "error": return <XCircle className="h-4 w-4 text-destructive" />;
     case "awaiting_confirmation": return <ShieldAlert className="h-4 w-4 text-amber-600" />;
@@ -251,7 +254,7 @@ export default function SincronizacionBims() {
     ? Math.min(productCount / effectiveCatalogSize, 1)
     : (productCount > 0 ? -1 : 0);
   const catalogStatus = getCatalogSyncStatus(productCount, effectiveCatalogSize, prodProgress.isRunning);
-  const catalogHealthy = catalogStatus === "complete";
+  const catalogHealthy = catalogStatus === "complete" || catalogStatus === "complete_with_observations";
   const totalMissing = effectiveCatalogSize > 0 ? Math.max(effectiveCatalogSize - productCount, 0) : 0;
 
   const testConnection = async () => {
@@ -517,6 +520,7 @@ export default function SincronizacionBims() {
 
     // Determine sync completion status
     const syncCompletedCleanly = batchErrors === 0 && failedOffsets.length === 0 && !duplicateBlockDetected;
+    const hasMinorIssues = (totalFailed > 0 || totalSkipped > 0) && syncCompletedCleanly;
 
     let phase: SyncPhase;
     if (duplicateBlockDetected) {
@@ -527,9 +531,9 @@ export default function SincronizacionBims() {
       if (deactivateResult === "threshold") {
         phase = "awaiting_confirmation";
       } else if (deactivateResult === "success") {
-        phase = "completed";
+        phase = hasMinorIssues ? "completed_with_observations" : "completed";
       } else {
-        phase = "completed";
+        phase = hasMinorIssues ? "completed_with_observations" : "completed";
       }
     } else if (!syncCompletedCleanly) {
       phase = batchErrors > 0 ? (totalProcessed > 0 ? "incomplete" : "error") : "incomplete";
@@ -537,7 +541,7 @@ export default function SincronizacionBims() {
         toast.warning("Sincronización incompleta. No se ejecutó baja lógica para proteger datos.");
       }
     } else {
-      phase = totalProcessed > 0 ? "completed" : "error";
+      phase = totalProcessed > 0 ? (hasMinorIssues ? "completed_with_observations" : "completed") : "error";
     }
 
     const finalStatus: SyncStatus = totalFailed > 0
@@ -573,9 +577,10 @@ export default function SincronizacionBims() {
     queryClient.invalidateQueries({ queryKey: ["sync-logs-recent"] });
     queryClient.invalidateQueries({ queryKey: ["sync-run-totals"] });
 
-    if (finalStatus === "success" && phase === "completed") {
+    if (finalStatus === "success" && (phase === "completed" || phase === "completed_with_observations")) {
       const inactiveMsg = totalInactiveSkipped > 0 ? ` (${totalInactiveSkipped} inactivos omitidos)` : "";
-      toast.success(`Productos: ${uniqueBimsCodes.size} únicos persistidos en ${formatDuration(Date.now() - startTime)}${inactiveMsg}`);
+      const obsMsg = phase === "completed_with_observations" ? " con observaciones" : "";
+      toast.success(`Productos: ${uniqueBimsCodes.size} únicos persistidos${obsMsg} en ${formatDuration(Date.now() - startTime)}${inactiveMsg}`);
     } else if (finalStatus === "partial") {
       toast.warning(`Sincronización parcial: ${totalProcessed} OK, ${totalFailed} con error (${failedOffsets.length} lotes fallidos)`);
     }
@@ -625,7 +630,7 @@ export default function SincronizacionBims() {
       {/* Sync phase banner */}
       {prodProgress.phase !== "idle" && prodProgress.phase !== "syncing" && (
         <Card className={`border ${
-          prodProgress.phase === "completed" ? "border-green-500/30 bg-green-500/5" :
+          prodProgress.phase === "completed" || prodProgress.phase === "completed_with_observations" ? "border-green-500/30 bg-green-500/5" :
           prodProgress.phase === "incomplete" ? "border-amber-500/30 bg-amber-500/5" :
           prodProgress.phase === "awaiting_confirmation" ? "border-amber-500/30 bg-amber-500/5" :
           prodProgress.phase === "error" ? "border-destructive/30 bg-destructive/5" : ""
@@ -639,6 +644,13 @@ export default function SincronizacionBims() {
                 </p>
                 <p className="text-muted-foreground text-xs mt-0.5">
                   {prodProgress.phase === "completed" && "Todos los datos son confiables y están actualizados."}
+                  {prodProgress.phase === "completed_with_observations" && (
+                    <>
+                      El catálogo está operativo. {prodProgress.totalSkipped > 0 && `${prodProgress.totalSkipped} producto(s) omitido(s). `}
+                      {prodProgress.totalFailed > 0 && `${prodProgress.totalFailed} producto(s) fallido(s). `}
+                      Estos registros no afectan la cobertura operativa.
+                    </>
+                  )}
                   {prodProgress.phase === "incomplete" && (
                     <>
                       {prodProgress.totalBatchErrors} lote(s) con error. 
@@ -660,7 +672,7 @@ export default function SincronizacionBims() {
       )}
 
       {/* Catalog status banner */}
-      {catalogStatus !== "complete" && catalogStatus !== "in_progress" && prodProgress.phase === "idle" && (
+      {catalogStatus !== "complete" && catalogStatus !== "complete_with_observations" && catalogStatus !== "in_progress" && prodProgress.phase === "idle" && (
         <Card className={`border-destructive/30 ${catalogStatus === "unknown" ? "bg-muted/30" : "bg-destructive/5"}`}>
           <CardContent className="py-3">
             <div className="flex items-start gap-3 text-sm">
@@ -684,17 +696,24 @@ export default function SincronizacionBims() {
         </Card>
       )}
 
-      {catalogStatus === "complete" && prodProgress.phase === "idle" && (
+      {(catalogStatus === "complete" || catalogStatus === "complete_with_observations") && prodProgress.phase === "idle" && (
         <Card className="border-green-500/30 bg-green-500/5">
           <CardContent className="py-3">
             <div className="flex items-start gap-3 text-sm">
               <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0 mt-0.5" />
               <div>
                 <p className="font-medium text-foreground">
-                  Catálogo completo — Sistema operativo
+                  {catalogStatus === "complete"
+                    ? "Catálogo completo — Sistema operativo"
+                    : "Catálogo operativo — Completado con observaciones"}
                 </p>
                 <p className="text-muted-foreground">
-                  {productCount} de {effectiveCatalogSize} productos sincronizados (100%).
+                  {productCount} de {effectiveCatalogSize} productos sincronizados ({Math.round(catalogCoverage * 100)}%).
+                  {totalMissing > 0 && (
+                    <span className="ml-1">
+                      {totalMissing} producto(s) no persistido(s) (omitidos o fallidos en origen).
+                    </span>
+                  )}
                   {lastSuccessSync && (
                     <span className="ml-1">
                       Última sincronización: {new Date(lastSuccessSync.created_at).toLocaleString("es-PY", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
