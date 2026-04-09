@@ -1,40 +1,34 @@
 
 
-## Plan: Crear usuarios reales con contraseña temporal
+## Plan: Limpiar datos de prueba de Consultas y Pedidos
 
-### Problema
-El código actual inserta un perfil con un UUID aleatorio como `user_id`, pero `profiles.user_id` tiene una foreign key a `auth.users`. Como no se crea un usuario real en el sistema de autenticación, falla con error `23503` (FK violation).
+### Datos encontrados
 
-### Solución
-Crear una función backend que use la Admin API para crear el usuario real en `auth.users` con email + contraseña temporal. El trigger `fn_handle_new_user` ya existente creará automáticamente el perfil base, y luego el frontend actualiza ese perfil con el rol y sucursales.
+| Tabla | Registros |
+|-------|-----------|
+| availability_consultations | 3 |
+| consultation_products | 5 |
+| consultation_messages | 2 |
+| consultation_requests | 0 |
+| branch_requests | 8 |
+| branch_request_items | 6 |
+| fulfillment_orders | 0 |
+| fulfillment_items | 0 |
+| operational_events | 0 |
 
-### Cambios
+### Accion
 
-**1. Nueva Edge Function: `supabase/functions/create-user/index.ts`**
-- Recibe: `email`, `password`, `full_name`, `role`, `default_branch_id`, `all_branches_access`, `additional_branch_ids`, `modules`
-- Valida que el caller sea admin (verificando `user_roles`)
-- Usa `supabase.auth.admin.createUser()` con `email_confirm: true` para crear el usuario
-- Espera a que el trigger cree el perfil, luego actualiza el perfil con `default_branch_id`, `all_branches_access`
-- Inserta el rol en `user_roles`
-- Inserta acceso a módulos en `user_module_access`
-- Inserta acceso a sucursales en `profile_branch_access`
-- Retorna el perfil creado
+Crear una migración SQL que elimine todos los registros de estas tablas en el orden correcto (tablas hijas primero para respetar foreign keys):
 
-**2. Actualizar `src/pages/Usuarios.tsx`**
-- Agregar campo de contraseña temporal al formulario de creación (con valor por defecto sugerido como `Sansei2026!`)
-- Reemplazar la mutación `createUser` para llamar a la edge function en vez de insertar directamente
-- Mostrar la contraseña asignada en el toast de éxito para que el admin la comunique al usuario
-- El campo de email pasa a ser obligatorio
+1. `DELETE FROM consultation_messages`
+2. `DELETE FROM consultation_products`
+3. `DELETE FROM consultation_requests`
+4. `DELETE FROM availability_consultations`
+5. `DELETE FROM branch_request_items`
+6. `DELETE FROM branch_requests`
 
-### Flujo resultante
-1. Admin llena: nombre, email, contraseña temporal, rol, sucursal
-2. Se llama a la edge function → crea usuario real en auth.users
-3. Trigger `fn_handle_new_user` crea perfil base automáticamente
-4. Edge function actualiza perfil con datos operativos (rol, sucursales, módulos)
-5. Admin comunica email + contraseña al nuevo usuario
-6. Usuario puede iniciar sesión y cambiar su contraseña después
+No se tocan tablas de usuarios, productos, sucursales ni configuración.
 
-### Archivos
-- `supabase/functions/create-user/index.ts` (nuevo)
-- `src/pages/Usuarios.tsx` (modificar formulario y mutación de creación)
+### Archivo modificado
+- Nueva migración SQL (via herramienta de migración)
 
