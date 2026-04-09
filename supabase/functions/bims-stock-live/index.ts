@@ -127,21 +127,29 @@ Deno.serve(async (req) => {
 
     const result: Record<string, { stock_by_warehouse: Record<string, number>; total_stock: number }> = {};
 
-    // Fetch products in parallel (max 20, so concurrency is safe)
+    // Fetch each product individually. Try /products/{id} first, fall back to /products?id={id}
     const promises = bimsCodes.map(async (code) => {
       try {
-        const data = await bimsGet(`/products/${code}`);
-        // Could be single product or wrapped
+        let data: any;
+        try {
+          data = await bimsGet(`/products/${code}`);
+        } catch {
+          // Fallback: try query param approach
+          data = await bimsGet(`/products?id=${code}`);
+        }
+        
+        // Handle array or single response
         const items = extractArray(data);
         if (items.length > 0) {
           result[code] = extractAvailability(items[0]);
-        } else {
-          // Single product response
-          result[code] = extractAvailability(data);
+        } else if (data && typeof data === "object") {
+          const stock = extractAvailability(data);
+          if (stock.total_stock > 0 || Object.keys(stock.stock_by_warehouse).length > 0) {
+            result[code] = stock;
+          }
         }
       } catch (err) {
         console.error(`Failed to fetch stock for ${code}:`, err);
-        // Skip failed codes - frontend will use local data as fallback
       }
     });
 
