@@ -395,6 +395,22 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
         </div>
       )}
 
+      {/* Initial message */}
+      <div className="space-y-2">
+        <Label className="text-xs font-medium flex items-center gap-1.5">
+          <MessageCircle className="h-3.5 w-3.5" />
+          Mensaje inicial (opcional)
+        </Label>
+        <Textarea
+          value={initialMessage}
+          onChange={(e) => setInitialMessage(e.target.value)}
+          placeholder="Ej: ¿Tienen este producto en azul y verde?"
+          rows={2}
+          className="text-sm resize-none"
+        />
+        <p className="text-[11px] text-muted-foreground">Se enviará como primer mensaje del chat con las sucursales consultadas.</p>
+      </div>
+
       <Button type="submit" className="w-full" disabled={submitting || !selectedProducts.length || !allProductsHaveSource}>
         {submitting ? "Enviando..." : "Enviar Consulta"}
       </Button>
