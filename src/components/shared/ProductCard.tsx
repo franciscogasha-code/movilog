@@ -27,7 +27,7 @@ function ProductImage({ url, name }: { url?: string | null; name: string }) {
   );
 }
 
-type StockMode = "select_source" | "info_only";
+type StockMode = "select_source" | "select_multi" | "info_only";
 
 interface ProductCardProps {
   productId: string;
@@ -47,10 +47,14 @@ interface ProductCardProps {
   onSelectSourceBranch?: (branchId: string) => void;
   /** Currently selected source branch ID – used to highlight */
   selectedSourceBranchId?: string | null;
-  /** "select_source" = clickable to pick origin; "info_only" = display only */
+  /** "select_source" = clickable to pick origin; "select_multi" = multi-select; "info_only" = display only */
   stockMode?: StockMode;
   /** Required quantity – used to show sufficiency indicators */
   requiredQuantity?: number;
+  /** Selected branch IDs for select_multi mode */
+  selectedBranchIds?: Set<string>;
+  /** Toggle branch selection in select_multi mode */
+  onToggleBranch?: (branchId: string) => void;
   className?: string;
   compact?: boolean;
 }
@@ -74,6 +78,8 @@ export function ProductCard({
   selectedSourceBranchId,
   stockMode = "select_source",
   requiredQuantity,
+  selectedBranchIds,
+  onToggleBranch,
   className,
   compact = false,
 }: ProductCardProps) {
@@ -100,6 +106,7 @@ export function ProductCard({
   const hasPrice = productSellPrice != null && productSellPrice > 0;
   const hasPriceScales = productPriceScales && productPriceScales.length > 0;
   const isSelectMode = stockMode === "select_source" && !!onSelectSourceBranch;
+  const isMultiSelectMode = stockMode === "select_multi" && !!onToggleBranch;
 
   if (compact) {
     return (
@@ -199,7 +206,7 @@ export function ProductCard({
           <div className="space-y-2">
             <h4 className="text-sm font-medium flex items-center gap-1.5">
               <BarChart3 className="h-3.5 w-3.5" />
-              {isSelectMode ? "Seleccionar sucursal origen para este producto" : "Stock disponible por sucursal"}
+              {isSelectMode ? "Seleccionar sucursal origen para este producto" : isMultiSelectMode ? "Stock disponible — click para seleccionar" : "Stock disponible por sucursal"}
               {productTotalStock != null && (
                 <Badge variant={productTotalStock > 0 ? "default" : "destructive"} className="text-xs ml-auto">
                   Total: {Math.floor(productTotalStock)}
@@ -212,20 +219,26 @@ export function ProductCard({
                 .sort((a, b) => b[1] - a[1])
                 .map(([whId, qty]) => {
                   const branchId = getBranchIdByCode(whId);
-                  const isSelected = branchId === selectedSourceBranchId;
+                  const isSelected = isMultiSelectMode
+                    ? !!(branchId && selectedBranchIds?.has(branchId))
+                    : branchId === selectedSourceBranchId;
                   const isSufficient = requiredQuantity ? qty >= requiredQuantity : null;
+                  const isClickable = (isSelectMode && !!branchId) || (isMultiSelectMode && !!branchId);
 
                   return (
                     <button
                       key={whId}
                       type="button"
-                      onClick={() => isSelectMode && branchId && onSelectSourceBranch!(branchId)}
-                      disabled={!isSelectMode || !branchId}
+                      onClick={() => {
+                        if (isMultiSelectMode && branchId) onToggleBranch!(branchId);
+                        else if (isSelectMode && branchId) onSelectSourceBranch!(branchId);
+                      }}
+                      disabled={!isClickable}
                       className={cn(
                         "flex items-center justify-between px-2.5 py-1.5 rounded text-xs text-left transition-colors",
                         isSelected
                           ? "bg-primary/10 border border-primary/30 ring-1 ring-primary/20"
-                          : isSelectMode && branchId
+                          : isClickable
                             ? "bg-muted/50 hover:bg-accent/10 cursor-pointer"
                             : "bg-muted/30 cursor-default"
                       )}
