@@ -1,10 +1,20 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
-import { Database, RefreshCw, Loader2, CheckCircle2, AlertTriangle, Building2, Package, ChevronDown, ChevronUp, XCircle, Timer, ShieldAlert, Info } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Database, RefreshCw, Loader2, CheckCircle2, AlertTriangle, Building2, Package, ChevronDown, ChevronUp, XCircle, Timer, ShieldAlert, ShieldCheck, Ban } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -21,6 +31,8 @@ const HEADERS = {
   apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
 };
 
+// Sync process states (state machine)
+type SyncPhase = "idle" | "syncing" | "completed" | "incomplete" | "error" | "awaiting_confirmation";
 type SyncStatus = "idle" | "loading" | "success" | "partial" | "error";
 
 interface SyncError { code: string; message: string; stage: string; timestamp: string }
@@ -38,9 +50,22 @@ interface PageSyncProgress {
   errors: SyncError[];
   isRunning: boolean;
   status: SyncStatus;
+  phase: SyncPhase;
   startedAt: Date | null;
   durationMs: number;
   failedPages: number[];
+  totalPagesAttempted: number;
+  totalPageErrors: number;
+}
+
+interface ThresholdAlert {
+  total_to_deactivate: number;
+  total_current_active: number;
+  deactivate_percent: number;
+  threshold_percent: number;
+  products_to_deactivate: { bims_code: string }[];
+  activeBimsCodes: string[];
+  totalPagesProcessed: number;
 }
 
 const STAGE_LABELS: Record<string, string> = {
@@ -48,9 +73,27 @@ const STAGE_LABELS: Record<string, string> = {
   validation: "Validación",
   transform: "Transformación",
   upsert: "Guardado",
+  deactivation: "Baja lógica",
+  deactivate: "Baja lógica",
 };
 
-/** Catalog health: only 100% is operationally valid */
+const PHASE_LABELS: Record<SyncPhase, string> = {
+  idle: "Sin ejecutar",
+  syncing: "En proceso",
+  completed: "Completado correctamente",
+  incomplete: "Incompleto",
+  error: "Error",
+  awaiting_confirmation: "Requiere confirmación",
+};
+
+const PHASE_COLORS: Record<SyncPhase, string> = {
+  idle: "text-muted-foreground",
+  syncing: "text-primary",
+  completed: "text-green-600",
+  incomplete: "text-amber-500",
+  error: "text-destructive",
+  awaiting_confirmation: "text-amber-600",
+};
 
 function StatusIcon({ status }: { status: SyncStatus }) {
   switch (status) {
@@ -58,6 +101,17 @@ function StatusIcon({ status }: { status: SyncStatus }) {
     case "success": return <CheckCircle2 className="h-4 w-4 text-green-500" />;
     case "partial": return <AlertTriangle className="h-4 w-4 text-amber-500" />;
     case "error": return <XCircle className="h-4 w-4 text-destructive" />;
+    default: return null;
+  }
+}
+
+function PhaseIcon({ phase }: { phase: SyncPhase }) {
+  switch (phase) {
+    case "syncing": return <Loader2 className="h-4 w-4 animate-spin text-primary" />;
+    case "completed": return <ShieldCheck className="h-4 w-4 text-green-500" />;
+    case "incomplete": return <AlertTriangle className="h-4 w-4 text-amber-500" />;
+    case "error": return <XCircle className="h-4 w-4 text-destructive" />;
+    case "awaiting_confirmation": return <ShieldAlert className="h-4 w-4 text-amber-600" />;
     default: return null;
   }
 }
@@ -110,7 +164,8 @@ function emptyProgress(): PageSyncProgress {
   return {
     currentPage: 0, totalPages: 0, totalProcessed: 0, totalInserted: 0, totalUpdated: 0,
     totalFailed: 0, totalSkipped: 0, totalReceived: 0, bimsTotalCount: null, errors: [],
-    isRunning: false, status: "idle", startedAt: null, durationMs: 0, failedPages: [],
+    isRunning: false, status: "idle", phase: "idle", startedAt: null, durationMs: 0,
+    failedPages: [], totalPagesAttempted: 0, totalPageErrors: 0,
   };
 }
 
@@ -118,6 +173,7 @@ export default function SincronizacionBims() {
   const queryClient = useQueryClient();
   const [connStatus, setConnStatus] = useState<SyncStatus>("idle");
   const [connMessage, setConnMessage] = useState("");
+  const syncLockRef = useRef(false);
 
   // Warehouse sync state
   const [whState, setWhState] = useState<{ status: SyncStatus; stats?: any; durationMs?: number }>({ status: "idle" });
@@ -125,6 +181,9 @@ export default function SincronizacionBims() {
   // Product paginated sync state
   const [prodProgress, setProdProgress] = useState<PageSyncProgress>(emptyProgress());
   const [showErrors, setShowErrors] = useState(false);
+
+  // Threshold confirmation dialog
+  const [thresholdAlert, setThresholdAlert] = useState<ThresholdAlert | null>(null);
 
   const { data: branchCount = 0 } = useQuery({
     queryKey: ["branches-count"],
@@ -154,11 +213,9 @@ export default function SincronizacionBims() {
     },
   });
 
-  // Separate query: sum all product page logs from the last sync run for coverage calculation
   const { data: syncRunTotals } = useQuery({
     queryKey: ["sync-run-totals"],
     queryFn: async () => {
-      // Get all product sync logs from the last hour to calculate total received across all pages
       const oneHourAgo = new Date(Date.now() - 3600000).toISOString();
       const { data } = await supabase
         .from("sync_logs")
@@ -166,15 +223,13 @@ export default function SincronizacionBims() {
         .eq("entity", "products")
         .gte("created_at", oneHourAgo)
         .order("created_at", { ascending: false })
-        .limit(500); // Up to 500 pages
+        .limit(500);
       return data || [];
     },
   });
 
   const lastSuccessSync = lastLogs?.find((l: any) => l.entity === "products" && l.status === "success");
 
-  // Calculate real BIMS total from the last complete sync run:
-  // SUM all total_received from product page logs in the most recent run
   const lastSyncRun = (() => {
     if (!syncRunTotals?.length) return { totalReceived: 0, totalPages: 0, failedPages: 0 };
     const pageLogs = syncRunTotals.filter((l: any) => l.triggered_by?.startsWith("page_"));
@@ -184,19 +239,15 @@ export default function SincronizacionBims() {
     return { totalReceived, totalPages: pageLogs.length, failedPages };
   })();
 
-  // Use bimsTotalCount from live sync if available, otherwise estimate from log sum
-  // The live sync accumulates totalReceived across ALL pages (not just last 20 logs)
   const bimsTotalFromLiveSync = prodProgress.bimsTotalCount;
   const bimsTotalFromAccumulated = prodProgress.totalReceived > 0 ? prodProgress.totalReceived : 0;
-  
-  // Best estimate of BIMS universe size
   const estimatedCatalogSize = bimsTotalFromLiveSync
     ?? (bimsTotalFromAccumulated > lastSyncRun.totalReceived ? bimsTotalFromAccumulated : lastSyncRun.totalReceived);
   const effectiveCatalogSize = estimatedCatalogSize ?? 0;
 
   const catalogCoverage = effectiveCatalogSize > 0
-    ? Math.min(productCount / effectiveCatalogSize, 1) // Never exceed 100%
-    : (productCount > 0 ? -1 : 0); // -1 = unknown reference
+    ? Math.min(productCount / effectiveCatalogSize, 1)
+    : (productCount > 0 ? -1 : 0);
   const catalogStatus = getCatalogSyncStatus(productCount, effectiveCatalogSize, prodProgress.isRunning);
   const catalogHealthy = catalogStatus === "complete";
   const totalMissing = effectiveCatalogSize > 0 ? Math.max(effectiveCatalogSize - productCount, 0) : 0;
@@ -244,25 +295,105 @@ export default function SincronizacionBims() {
     }
   };
 
+  /** Execute the deactivation step with all validations */
+  const executeDeactivation = useCallback(async (
+    activeBimsCodes: string[],
+    totalPagesProcessed: number,
+    totalPageErrors: number,
+    forceConfirmed = false,
+  ): Promise<"success" | "threshold" | "error" | "blocked"> => {
+    try {
+      const res = await fetch(`${BIMS_SYNC_URL}?entity=products&action=deactivate_missing`, {
+        method: "POST",
+        headers: { ...HEADERS, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          active_bims_codes: activeBimsCodes,
+          sync_completed: true,
+          total_pages_processed: totalPagesProcessed,
+          total_errors: totalPageErrors,
+          force_confirmed: forceConfirmed,
+        }),
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        if (data.total_deactivated > 0) {
+          toast.info(`${data.total_deactivated} productos dados de baja lógica`);
+        }
+        return "success";
+      }
+
+      if (data.reason === "threshold_exceeded" && data.requires_confirmation) {
+        setThresholdAlert({
+          ...data,
+          activeBimsCodes,
+          totalPagesProcessed,
+        });
+        return "threshold";
+      }
+
+      if (data.reason === "sync_incomplete" || data.reason === "sync_had_errors") {
+        toast.warning(data.error);
+        return "blocked";
+      }
+
+      toast.error(data.error || "Error en desactivación");
+      return "error";
+    } catch (err: any) {
+      console.error("Deactivation error:", err);
+      toast.error(`Error en baja lógica: ${err.message}`);
+      return "error";
+    }
+  }, []);
+
+  /** Handle threshold confirmation */
+  const handleThresholdConfirm = useCallback(async () => {
+    if (!thresholdAlert) return;
+    const result = await executeDeactivation(
+      thresholdAlert.activeBimsCodes,
+      thresholdAlert.totalPagesProcessed,
+      0,
+      true, // force confirmed
+    );
+    setThresholdAlert(null);
+    if (result === "success") {
+      setProdProgress(prev => ({ ...prev, phase: "completed" }));
+      queryClient.invalidateQueries({ queryKey: ["products-count"] });
+      queryClient.invalidateQueries({ queryKey: ["sync-logs-recent"] });
+    }
+  }, [thresholdAlert, executeDeactivation, queryClient]);
+
+  const handleThresholdCancel = useCallback(() => {
+    setThresholdAlert(null);
+    setProdProgress(prev => ({ ...prev, phase: "completed" }));
+    toast.info("Desactivación cancelada. Los productos existentes no fueron modificados.");
+  }, []);
+
   /**
-   * Paginated product sync: calls bims-sync?entity=products&page=N&limit=100
-   * one page at a time. Stops when has_more=false.
-   * Optionally accepts specific pages to retry (failedPages).
+   * Paginated product sync with full validation
    */
   const syncProducts = useCallback(async (retryPages?: number[]) => {
+    // RULE 7: Prevent parallel syncs
+    if (syncLockRef.current) {
+      toast.warning("Ya hay una sincronización en curso");
+      return;
+    }
+    syncLockRef.current = true;
+
     const startTime = Date.now();
-    setProdProgress(prev => ({
+    setProdProgress({
       ...emptyProgress(),
       isRunning: true,
       status: "loading",
+      phase: "syncing",
       startedAt: new Date(),
       ...(retryPages ? {
-        totalProcessed: prev.totalProcessed,
-        totalInserted: prev.totalInserted,
-        totalUpdated: prev.totalUpdated,
-        totalReceived: prev.totalReceived,
+        totalProcessed: prodProgress.totalProcessed,
+        totalInserted: prodProgress.totalInserted,
+        totalUpdated: prodProgress.totalUpdated,
+        totalReceived: prodProgress.totalReceived,
       } : {}),
-    }));
+    });
 
     const pages = retryPages || (() => {
       const arr: number[] = [];
@@ -278,13 +409,15 @@ export default function SincronizacionBims() {
     let totalReceived = retryPages ? prodProgress.totalReceived : 0;
     let bimsTotalCount: number | null = retryPages ? prodProgress.bimsTotalCount : null;
     let pagesProcessed = 0;
+    let pagesAttempted = 0;
+    let pageErrors = 0;
     const allErrors: SyncError[] = [];
     const newFailedPages: number[] = [];
-    // Collect all active bims_codes across all pages for deactivation step
     const allActiveBimsCodes: string[] = [];
     let totalInactiveSkipped = 0;
 
     for (const pageNum of pages) {
+      pagesAttempted++;
       try {
         const res = await fetch(`${BIMS_SYNC_URL}?entity=products&page=${pageNum}&limit=${PAGE_SIZE}`, {
           method: "POST",
@@ -293,6 +426,7 @@ export default function SincronizacionBims() {
 
         if (!res.ok) {
           newFailedPages.push(pageNum);
+          pageErrors++;
           totalFailed++;
           allErrors.push({ code: `page_${pageNum}`, message: `HTTP ${res.status}`, stage: "fetch", timestamp: new Date().toISOString() });
           continue;
@@ -301,6 +435,7 @@ export default function SincronizacionBims() {
         const data = await res.json();
         if (!data.success) {
           newFailedPages.push(pageNum);
+          pageErrors++;
           totalFailed++;
           allErrors.push({ code: `page_${pageNum}`, message: data.error || "Unknown", stage: "fetch", timestamp: new Date().toISOString() });
           continue;
@@ -317,7 +452,6 @@ export default function SincronizacionBims() {
         if (s.total_failed > 0) newFailedPages.push(pageNum);
         pagesProcessed++;
 
-        // Collect active bims codes from this page
         if (Array.isArray(data.active_bims_codes)) {
           allActiveBimsCodes.push(...data.active_bims_codes);
         }
@@ -342,32 +476,41 @@ export default function SincronizacionBims() {
           bimsTotalCount,
           errors: allErrors.slice(0, 200),
           durationMs: Date.now() - startTime,
+          totalPagesAttempted: pagesAttempted,
+          totalPageErrors: pageErrors,
         }));
 
         if (!retryPages && !data.has_more) break;
       } catch (err: any) {
         newFailedPages.push(pageNum);
+        pageErrors++;
         totalFailed++;
         allErrors.push({ code: `page_${pageNum}`, message: err.message, stage: "fetch", timestamp: new Date().toISOString() });
       }
     }
 
-    // After all pages: deactivate products not seen in BIMS (baja lógica)
-    if (!retryPages && allActiveBimsCodes.length > 0 && newFailedPages.length === 0) {
-      try {
-        const deactivateRes = await fetch(`${BIMS_SYNC_URL}?entity=products&action=deactivate_missing`, {
-          method: "POST",
-          headers: { ...HEADERS, "Content-Type": "application/json" },
-          body: JSON.stringify({ active_bims_codes: allActiveBimsCodes }),
-        });
-        const deactivateData = await deactivateRes.json();
-        if (deactivateData.success && deactivateData.total_deactivated > 0) {
-          toast.info(`${deactivateData.total_deactivated} productos marcados como inactivos (baja lógica)`);
-        }
-      } catch (err: any) {
-        console.error("Error deactivating missing products:", err);
-        allErrors.push({ code: "deactivate", message: err.message, stage: "deactivate", timestamp: new Date().toISOString() });
+    // Determine sync completion status
+    const syncCompletedCleanly = pageErrors === 0 && newFailedPages.length === 0;
+
+    // RULE 1: Only deactivate if sync completed without ANY errors
+    let phase: SyncPhase;
+    if (!retryPages && allActiveBimsCodes.length > 0 && syncCompletedCleanly) {
+      const deactivateResult = await executeDeactivation(allActiveBimsCodes, pagesProcessed, 0);
+      if (deactivateResult === "threshold") {
+        phase = "awaiting_confirmation";
+      } else if (deactivateResult === "success") {
+        phase = "completed";
+      } else {
+        phase = "completed"; // Deactivation failed but sync itself completed
       }
+    } else if (!syncCompletedCleanly) {
+      // RULE 1: Sync incomplete — do NOT deactivate
+      phase = pageErrors > 0 ? (totalProcessed > 0 ? "incomplete" : "error") : "incomplete";
+      if (!retryPages) {
+        toast.warning("Sincronización incompleta. No se ejecutó baja lógica para proteger datos.");
+      }
+    } else {
+      phase = totalProcessed > 0 ? "completed" : "error";
     }
 
     const finalStatus: SyncStatus = totalFailed > 0
@@ -378,6 +521,7 @@ export default function SincronizacionBims() {
       ...prev,
       isRunning: false,
       status: finalStatus,
+      phase,
       totalPages: pagesProcessed,
       totalProcessed,
       totalInserted,
@@ -389,22 +533,29 @@ export default function SincronizacionBims() {
       errors: allErrors.slice(0, 200),
       failedPages: newFailedPages,
       durationMs: Date.now() - startTime,
+      totalPagesAttempted: pagesAttempted,
+      totalPageErrors: pageErrors,
     }));
+
+    // Release lock
+    syncLockRef.current = false;
 
     queryClient.invalidateQueries({ queryKey: ["products-count"] });
     queryClient.invalidateQueries({ queryKey: ["products"] });
     queryClient.invalidateQueries({ queryKey: ["sync-logs-recent"] });
     queryClient.invalidateQueries({ queryKey: ["sync-run-totals"] });
 
-    if (finalStatus === "success") {
+    if (finalStatus === "success" && phase === "completed") {
       const inactiveMsg = totalInactiveSkipped > 0 ? ` (${totalInactiveSkipped} inactivos omitidos)` : "";
       toast.success(`Productos: ${totalProcessed} activos sincronizados en ${formatDuration(Date.now() - startTime)}${inactiveMsg}`);
     } else if (finalStatus === "partial") {
       toast.warning(`Sincronización parcial: ${totalProcessed} OK, ${totalFailed} con error (${newFailedPages.length} páginas fallidas)`);
-    } else {
+    } else if (phase === "awaiting_confirmation") {
+      // Toast handled by threshold dialog
+    } else if (phase !== "completed") {
       toast.error("Error en sincronización de productos");
     }
-  }, [prodProgress]);
+  }, [prodProgress, executeDeactivation, queryClient]);
 
   const runFullSync = async () => {
     await syncWarehouses();
@@ -447,8 +598,45 @@ export default function SincronizacionBims() {
         </Card>
       )}
 
+      {/* Sync phase banner */}
+      {prodProgress.phase !== "idle" && prodProgress.phase !== "syncing" && (
+        <Card className={`border ${
+          prodProgress.phase === "completed" ? "border-green-500/30 bg-green-500/5" :
+          prodProgress.phase === "incomplete" ? "border-amber-500/30 bg-amber-500/5" :
+          prodProgress.phase === "awaiting_confirmation" ? "border-amber-500/30 bg-amber-500/5" :
+          prodProgress.phase === "error" ? "border-destructive/30 bg-destructive/5" : ""
+        }`}>
+          <CardContent className="py-3">
+            <div className="flex items-start gap-3 text-sm">
+              <PhaseIcon phase={prodProgress.phase} />
+              <div>
+                <p className="font-medium text-foreground">
+                  Sincronización: {PHASE_LABELS[prodProgress.phase]}
+                </p>
+                <p className="text-muted-foreground text-xs mt-0.5">
+                  {prodProgress.phase === "completed" && "Todos los datos son confiables y están actualizados."}
+                  {prodProgress.phase === "incomplete" && (
+                    <>
+                      {prodProgress.totalPageErrors} página(s) con error. 
+                      <strong className="text-amber-600"> No se ejecutó baja lógica</strong> para proteger la integridad de los datos.
+                    </>
+                  )}
+                  {prodProgress.phase === "awaiting_confirmation" && "Se detectó una cantidad inusual de productos a desactivar. Requiere confirmación manual."}
+                  {prodProgress.phase === "error" && "La sincronización falló. Reintente manualmente."}
+                </p>
+                {prodProgress.durationMs > 0 && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Duración: {formatDuration(prodProgress.durationMs)} • {prodProgress.totalPagesAttempted} páginas procesadas
+                  </p>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Catalog status banner */}
-      {catalogStatus !== "complete" && catalogStatus !== "in_progress" && (
+      {catalogStatus !== "complete" && catalogStatus !== "in_progress" && prodProgress.phase === "idle" && (
         <Card className={`border-destructive/30 ${catalogStatus === "unknown" ? "bg-muted/30" : "bg-destructive/5"}`}>
           <CardContent className="py-3">
             <div className="flex items-start gap-3 text-sm">
@@ -472,7 +660,7 @@ export default function SincronizacionBims() {
         </Card>
       )}
 
-      {catalogStatus === "complete" && (
+      {catalogStatus === "complete" && prodProgress.phase === "idle" && (
         <Card className="border-green-500/30 bg-green-500/5">
           <CardContent className="py-3">
             <div className="flex items-start gap-3 text-sm">
@@ -511,14 +699,14 @@ export default function SincronizacionBims() {
             <Package className="h-5 w-5 text-muted-foreground" />
             <div>
               <p className="text-2xl font-bold">{productCount}</p>
-              <p className="text-xs text-muted-foreground">Sincronizados en SLIS</p>
+              <p className="text-xs text-muted-foreground">Activos en SLIS</p>
             </div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="py-4">
             <p className="text-2xl font-bold">{effectiveCatalogSize > 0 ? effectiveCatalogSize : "—"}</p>
-            <p className="text-xs text-muted-foreground">Esperados desde BIMS</p>
+            <p className="text-xs text-muted-foreground">Procesados desde BIMS</p>
           </CardContent>
         </Card>
         <Card>
@@ -567,10 +755,18 @@ export default function SincronizacionBims() {
                 <StatusIcon status={prodProgress.status} />
                 Productos
                 {prodProgress.isRunning && <span className="text-xs text-muted-foreground">Página {prodProgress.currentPage}...</span>}
+                {!prodProgress.isRunning && (
+                  <span className={`text-xs ${PHASE_COLORS[prodProgress.phase]}`}>
+                    — {PHASE_LABELS[prodProgress.phase]}
+                  </span>
+                )}
               </CardTitle>
               <div className="flex items-center gap-3 text-xs text-muted-foreground">
                 {prodProgress.durationMs > 0 && (
                   <span className="flex items-center gap-1"><Timer className="h-3 w-3" />{formatDuration(prodProgress.durationMs)}</span>
+                )}
+                {prodProgress.totalPagesAttempted > 0 && (
+                  <span>{prodProgress.totalPagesAttempted} págs</span>
                 )}
               </div>
             </div>
@@ -582,6 +778,9 @@ export default function SincronizacionBims() {
                 <Progress value={progressPercent} className="h-2" />
                 <p className="text-xs text-muted-foreground text-center">
                   {prodProgress.totalProcessed} procesados • Página {prodProgress.currentPage}
+                  {prodProgress.totalPageErrors > 0 && (
+                    <span className="text-amber-500 ml-2">• {prodProgress.totalPageErrors} pág(s) con error</span>
+                  )}
                 </p>
               </div>
             )}
@@ -667,15 +866,18 @@ export default function SincronizacionBims() {
                     const duration = log.duration_seconds != null
                       ? formatDuration(log.duration_seconds * 1000)
                       : "—";
+                    const statusLabel = log.status === "success" ? "OK" :
+                      log.status === "partial" ? "Parcial" :
+                      log.status === "blocked" ? "Bloqueado" : "Error";
+                    const statusVariant = log.status === "success" ? "default" :
+                      log.status === "partial" ? "secondary" :
+                      log.status === "blocked" ? "outline" : "destructive";
                     return (
                       <tr key={log.id} className="border-b border-border/30">
                         <td className="p-2 font-medium capitalize">{log.entity}</td>
                         <td className="p-2">
-                          <Badge
-                            variant={log.status === "success" ? "default" : log.status === "partial" ? "secondary" : "destructive"}
-                            className="text-[10px]"
-                          >
-                            {log.status === "success" ? "OK" : log.status === "partial" ? "Parcial" : "Error"}
+                          <Badge variant={statusVariant as any} className="text-[10px]">
+                            {statusLabel}
                           </Badge>
                         </td>
                         <td className="p-2 text-right">{log.total_received ?? 0}</td>
@@ -697,6 +899,55 @@ export default function SincronizacionBims() {
           </CardContent>
         </Card>
       )}
+
+      {/* Threshold confirmation dialog */}
+      <AlertDialog open={!!thresholdAlert} onOpenChange={(open) => { if (!open) handleThresholdCancel(); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-amber-600">
+              <ShieldAlert className="h-5 w-5" />
+              Cantidad inusual de productos a desactivar
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>
+                  La sincronización detectó que <strong className="text-foreground">{thresholdAlert?.total_to_deactivate}</strong> de{" "}
+                  <strong className="text-foreground">{thresholdAlert?.total_current_active}</strong> productos activos
+                  ({thresholdAlert?.deactivate_percent}%) serían dados de baja lógica.
+                </p>
+                <p>
+                  Esto supera el umbral de seguridad del {thresholdAlert?.threshold_percent}%.
+                  Puede ser causado por una falla en la API de BIMS, respuesta incompleta o problema de red.
+                </p>
+                {thresholdAlert && thresholdAlert.products_to_deactivate.length > 0 && (
+                  <div className="bg-muted/50 rounded p-2 max-h-32 overflow-y-auto text-xs">
+                    <p className="font-medium mb-1">Primeros productos a desactivar:</p>
+                    {thresholdAlert.products_to_deactivate.map((p, i) => (
+                      <span key={i} className="font-mono">{p.bims_code}{i < thresholdAlert.products_to_deactivate.length - 1 ? ", " : ""}</span>
+                    ))}
+                    {thresholdAlert.total_to_deactivate > 50 && (
+                      <p className="mt-1 text-muted-foreground">... y {thresholdAlert.total_to_deactivate - 50} más</p>
+                    )}
+                  </div>
+                )}
+                <p className="font-medium text-foreground">
+                  ¿Desea confirmar la desactivación de estos productos?
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleThresholdCancel}>
+              <Ban className="h-4 w-4 mr-1" />
+              Cancelar — No desactivar
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleThresholdConfirm} className="bg-amber-600 hover:bg-amber-700">
+              <ShieldAlert className="h-4 w-4 mr-1" />
+              Confirmar desactivación
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

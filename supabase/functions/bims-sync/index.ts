@@ -66,7 +66,6 @@ function normalizeWarehouse(raw: any) {
   };
 }
 
-/** Returns normalized product or null. Also returns `_bims_active` flag. */
 function normalizeProduct(raw: any): (any & { _bims_active: boolean }) | null {
   try {
     const item = raw?.Product ?? raw?.product ?? raw;
@@ -203,6 +202,9 @@ async function bimsRequest(method: string, path: string): Promise<unknown> {
   return await response.json();
 }
 
+// Anomaly threshold: if more than this % of products would be deactivated, require confirmation
+const DEACTIVATION_THRESHOLD_PERCENT = 20;
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -220,18 +222,40 @@ Deno.serve(async (req) => {
     if (entity === "products" && action === "deactivate_missing") {
       const body = await req.json();
       const activeBimsCodes: string[] = body.active_bims_codes || [];
+      const forceConfirmed: boolean = body.force_confirmed === true;
+      const syncCompleted: boolean = body.sync_completed === true;
+      const totalPagesProcessed: number = body.total_pages_processed || 0;
+      const totalErrors: number = body.total_errors || 0;
 
+      // CRITICAL VALIDATION 1: Sync must have completed successfully
+      if (!syncCompleted) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: "Sincronización incompleta. No se ejecuta desactivación para proteger datos.",
+          reason: "sync_incomplete",
+        }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // CRITICAL VALIDATION 2: There must have been no page errors
+      if (totalErrors > 0) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: `Sincronización tuvo ${totalErrors} error(es). No se ejecuta desactivación.`,
+          reason: "sync_had_errors",
+        }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // CRITICAL VALIDATION 3: Must have bims codes
       if (!activeBimsCodes.length) {
         return new Response(JSON.stringify({ success: false, error: "No bims codes provided" }), {
           status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
-      // Find products in SLIS that are currently active but NOT in the synced active list
-      // Process in batches of 500 for the IN clause
-      let totalDeactivated = 0;
-      const BATCH = 500;
-      
       // Get all active products from DB
       const { data: allActive, error: fetchErr } = await adminClient
         .from("products")
@@ -243,21 +267,64 @@ Deno.serve(async (req) => {
 
       const activeSet = new Set(activeBimsCodes);
       const toDeactivate = (allActive || [])
-        .filter(p => p.bims_code && !activeSet.has(p.bims_code))
-        .map(p => p.id);
+        .filter(p => p.bims_code && !activeSet.has(p.bims_code));
 
-      // Deactivate in batches
+      // CRITICAL VALIDATION 4: Anomaly threshold protection
+      const totalCurrentActive = allActive?.length || 0;
+      const deactivateCount = toDeactivate.length;
+      const deactivatePercent = totalCurrentActive > 0 ? (deactivateCount / totalCurrentActive) * 100 : 0;
+
+      if (deactivatePercent > DEACTIVATION_THRESHOLD_PERCENT && !forceConfirmed) {
+        // Log the blocked attempt
+        await adminClient.from("sync_logs").insert({
+          entity: "products",
+          status: "blocked",
+          total_received: activeBimsCodes.length,
+          total_processed: 0,
+          total_updated: 0,
+          completed_at: new Date().toISOString(),
+          duration_seconds: (Date.now() - syncStartTime) / 1000,
+          triggered_by: "deactivate_blocked_threshold",
+          errors: [{
+            code: "THRESHOLD",
+            message: `${deactivateCount} de ${totalCurrentActive} productos (${deactivatePercent.toFixed(1)}%) superan umbral de ${DEACTIVATION_THRESHOLD_PERCENT}%`,
+            stage: "validation",
+            timestamp: new Date().toISOString(),
+          }],
+        });
+
+        return new Response(JSON.stringify({
+          success: false,
+          reason: "threshold_exceeded",
+          total_to_deactivate: deactivateCount,
+          total_current_active: totalCurrentActive,
+          deactivate_percent: Math.round(deactivatePercent * 10) / 10,
+          threshold_percent: DEACTIVATION_THRESHOLD_PERCENT,
+          requires_confirmation: true,
+          products_to_deactivate: toDeactivate.slice(0, 50).map(p => ({ bims_code: p.bims_code })),
+        }), {
+          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Execute deactivation in batches
+      let totalDeactivated = 0;
+      const BATCH = 500;
+      const deactivatedProducts: { bims_code: string; id: string }[] = [];
+
       for (let i = 0; i < toDeactivate.length; i += BATCH) {
         const batch = toDeactivate.slice(i, i + BATCH);
+        const batchIds = batch.map(p => p.id);
         const { error } = await adminClient
           .from("products")
           .update({ is_active: false, updated_at: new Date().toISOString() })
-          .in("id", batch);
+          .in("id", batchIds);
         if (error) throw error;
         totalDeactivated += batch.length;
+        deactivatedProducts.push(...batch.map(p => ({ bims_code: p.bims_code!, id: p.id })));
       }
 
-      // Log the deactivation
+      // Detailed log of deactivation
       await adminClient.from("sync_logs").insert({
         entity: "products",
         status: "success",
@@ -266,13 +333,20 @@ Deno.serve(async (req) => {
         total_updated: totalDeactivated,
         completed_at: new Date().toISOString(),
         duration_seconds: (Date.now() - syncStartTime) / 1000,
-        triggered_by: "deactivate_missing",
+        triggered_by: forceConfirmed ? "deactivate_confirmed" : "deactivate_auto",
+        errors: deactivatedProducts.slice(0, 200).map(p => ({
+          code: p.bims_code,
+          message: "Baja lógica: producto no presente en BIMS activos",
+          stage: "deactivation",
+          timestamp: new Date().toISOString(),
+        })),
       });
 
       return new Response(JSON.stringify({
         success: true,
         total_deactivated: totalDeactivated,
         total_active_from_bims: activeBimsCodes.length,
+        deactivated_bims_codes: deactivatedProducts.slice(0, 100).map(p => p.bims_code),
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -334,7 +408,6 @@ Deno.serve(async (req) => {
       const stats = newStats();
       let hasMore = true;
       let bimsTotalCount: number | null = null;
-      // Track active bims_codes synced in this page (returned to frontend for deactivation step)
       const activeBimsCodes: string[] = [];
       let totalInactiveSkipped = 0;
 
@@ -345,7 +418,6 @@ Deno.serve(async (req) => {
         if (items.length < limit) hasMore = false;
         if (items.length === 0) hasMore = false;
 
-        // Extract total count from BIMS response metadata
         const rawTotal = products?.total ?? products?.total_count ?? products?.count
           ?? products?.data?.total ?? products?.data?.total_count ?? products?.data?.count
           ?? products?.meta?.total ?? products?.meta?.total_count
@@ -354,7 +426,6 @@ Deno.serve(async (req) => {
           bimsTotalCount = Number(rawTotal);
         }
 
-        // Normalize, filter inactive, and deduplicate batch
         const batchMap = new Map<string, any>();
         for (const raw of items) {
           try {
@@ -366,14 +437,12 @@ Deno.serve(async (req) => {
               continue;
             }
 
-            // FILTER: Only sync active products from BIMS
             if (!normalized._bims_active) {
               totalInactiveSkipped++;
               stats.total_skipped++;
               continue;
             }
 
-            // Remove internal flag before upserting
             const { _bims_active, ...productData } = normalized;
             activeBimsCodes.push(productData.bims_code);
             batchMap.set(productData.bims_code, productData);
@@ -446,99 +515,11 @@ Deno.serve(async (req) => {
       });
     }
 
-    // ── Legacy: full sync (warehouses + all products) ──
-    const results: Record<string, SyncStats> = {};
-
-    // Warehouses
-    const whStats = newStats();
-    try {
-      const warehouses = await bimsRequest("GET", `/warehouses`) as any;
-      const whItems = extractArray(warehouses);
-      whStats.total_received = whItems.length;
-      for (const w of whItems) {
-        try {
-          const normalized = normalizeWarehouse(w);
-          if (!normalized || !normalized.code) { whStats.total_skipped++; continue; }
-          const { data: existing } = await adminClient.from("branches").select("id").eq("code", normalized.code).maybeSingle();
-          if (existing) { whStats.total_updated++; }
-          else {
-            const { error } = await adminClient.from("branches").insert({ code: normalized.code, name: normalized.name, city: normalized.city ? String(normalized.city) : null, address: normalized.address ? String(normalized.address) : null });
-            if (error) throw error;
-            whStats.total_inserted++;
-          }
-          whStats.total_processed++;
-        } catch (e: any) {
-          whStats.total_failed++;
-          whStats.errors.push({ code: String(w?.code ?? w?.id ?? "unknown"), message: e.message, stage: "upsert", timestamp: new Date().toISOString() });
-        }
-      }
-    } catch (e: any) {
-      whStats.errors.push({ code: "GLOBAL", message: e.message, stage: "fetch", timestamp: new Date().toISOString() });
-    }
-    results.warehouses = whStats;
-
-    // Products — paginated (active only)
-    const prodStats = newStats();
-    let prodPage = 1;
-    let prodHasMore = true;
-    const BATCH_SIZE = 100;
-    const allActiveBimsCodes: string[] = [];
-
-    try {
-      while (prodHasMore) {
-        const products = await bimsRequest("GET", `/products?page=${prodPage}&limit=${BATCH_SIZE}`) as any;
-        const items = extractArray(products);
-        if (items.length === 0) { prodHasMore = false; break; }
-        prodStats.total_received += items.length;
-
-        const batchMap = new Map<string, any>();
-        for (const raw of items) {
-          const normalized = normalizeProduct(raw);
-          if (!normalized || !normalized.bims_code || !normalized.name) { prodStats.total_skipped++; continue; }
-          if (!normalized._bims_active) { prodStats.total_skipped++; continue; }
-          const { _bims_active, ...productData } = normalized;
-          allActiveBimsCodes.push(productData.bims_code);
-          batchMap.set(productData.bims_code, productData);
-        }
-        const batch = Array.from(batchMap.values());
-        if (batch.length > 0) {
-          const bimsCodes = batch.map(p => p.bims_code);
-          const { data: existing } = await adminClient.from("products").select("bims_code").in("bims_code", bimsCodes);
-          const existingSet = new Set(existing?.map(e => e.bims_code) || []);
-          const { error } = await adminClient.from("products").upsert(batch, { onConflict: "bims_code" });
-          if (error) {
-            for (const product of batch) {
-              try {
-                const { error: singleErr } = await adminClient.from("products").upsert(product, { onConflict: "bims_code" });
-                if (singleErr) throw singleErr;
-                if (existingSet.has(product.bims_code)) prodStats.total_updated++;
-                else prodStats.total_inserted++;
-                prodStats.total_processed++;
-              } catch (e: any) {
-                prodStats.total_failed++;
-                prodStats.errors.push({ code: product.bims_code, message: e.message, stage: "upsert", timestamp: new Date().toISOString() });
-              }
-            }
-          } else {
-            for (const p of batch) {
-              if (existingSet.has(p.bims_code)) prodStats.total_updated++;
-              else prodStats.total_inserted++;
-            }
-            prodStats.total_processed += batch.length;
-          }
-        }
-        prodPage++;
-        if (items.length < BATCH_SIZE) prodHasMore = false;
-      }
-    } catch (e: any) {
-      prodStats.errors.push({ code: "GLOBAL", message: e.message, stage: "fetch", timestamp: new Date().toISOString() });
-    }
-    results.products = prodStats;
-
-    const totalDuration = (Date.now() - syncStartTime) / 1000;
-    return new Response(JSON.stringify({ success: true, results, duration_seconds: totalDuration }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    // ── No matching entity ──
+    return new Response(JSON.stringify({ error: "Unknown entity. Use ?entity=products or ?entity=warehouses" }), {
+      status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
+
   } catch (error: any) {
     console.error("BIMS sync error:", error);
     return new Response(JSON.stringify({ error: error.message }), {
