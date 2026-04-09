@@ -57,6 +57,10 @@ interface ProductCardProps {
   onToggleBranch?: (branchId: string) => void;
   className?: string;
   compact?: boolean;
+  /** Live stock override from BIMS */
+  liveStock?: { stock_by_warehouse: Record<string, number>; total_stock: number } | null;
+  /** Whether the stock data is from live BIMS */
+  isLive?: boolean;
 }
 
 export function ProductCard({
@@ -82,7 +86,12 @@ export function ProductCard({
   onToggleBranch,
   className,
   compact = false,
+  liveStock,
+  isLive = false,
 }: ProductCardProps) {
+  // Use live stock if available, otherwise fall back to local
+  const effectiveStockByWarehouse = liveStock?.stock_by_warehouse ?? productStockByWarehouse;
+  const effectiveTotalStock = liveStock?.total_stock ?? productTotalStock;
   const { data: branches } = useBranches();
 
   const isValidWarehouseKey = (key: string): boolean => {
