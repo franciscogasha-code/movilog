@@ -577,9 +577,10 @@ export default function SincronizacionBims() {
     queryClient.invalidateQueries({ queryKey: ["sync-logs-recent"] });
     queryClient.invalidateQueries({ queryKey: ["sync-run-totals"] });
 
-    if (finalStatus === "success" && phase === "completed") {
+    if (finalStatus === "success" && (phase === "completed" || phase === "completed_with_observations")) {
       const inactiveMsg = totalInactiveSkipped > 0 ? ` (${totalInactiveSkipped} inactivos omitidos)` : "";
-      toast.success(`Productos: ${uniqueBimsCodes.size} únicos persistidos en ${formatDuration(Date.now() - startTime)}${inactiveMsg}`);
+      const obsMsg = phase === "completed_with_observations" ? " con observaciones" : "";
+      toast.success(`Productos: ${uniqueBimsCodes.size} únicos persistidos${obsMsg} en ${formatDuration(Date.now() - startTime)}${inactiveMsg}`);
     } else if (finalStatus === "partial") {
       toast.warning(`Sincronización parcial: ${totalProcessed} OK, ${totalFailed} con error (${failedOffsets.length} lotes fallidos)`);
     }
