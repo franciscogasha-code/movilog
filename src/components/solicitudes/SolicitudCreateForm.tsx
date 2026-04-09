@@ -9,6 +9,7 @@ import { ProductSearch, type ProductResult } from "@/components/shared/ProductSe
 import { ProductCard } from "@/components/shared/ProductCard";
 import { BranchSelector, useAutoDetectBranch } from "@/components/shared/BranchSelector";
 import { useBranches } from "@/hooks/use-branches";
+import { useLiveStock, revalidateLiveStock } from "@/hooks/use-live-stock";
 import { Plus, Trash2, Package, ChevronDown, ChevronUp, AlertTriangle, XCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
