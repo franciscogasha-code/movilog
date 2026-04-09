@@ -161,7 +161,7 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
   const [submitting, setSubmitting] = useState(false);
   const [selectedProducts, setSelectedProducts] = useState<ProductResult[]>([]);
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
-  /** Per-product selected source branches: { productId: Set<branchId> } */
+  const [initialMessage, setInitialMessage] = useState("");
   const [productSources, setProductSources] = useState<Record<string, Set<string>>>({});
 
   // Auto-fill branch from profile (reactive)
@@ -224,6 +224,15 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
       const targets = derivedTargetBranches.map(bid => ({ consultation_id: consultation.id, branch_id: bid }));
       const { error: tErr } = await supabase.from("consultation_targets").insert(targets);
       if (tErr) throw tErr;
+
+      // Send initial message if provided
+      if (initialMessage.trim()) {
+        await supabase.from("consultation_messages").insert({
+          consultation_id: consultation.id,
+          sender_id: user.id,
+          message: initialMessage.trim(),
+        });
+      }
 
       toast.success("Consulta creada");
       onSuccess();
@@ -394,6 +403,22 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
           </div>
         </div>
       )}
+
+      {/* Initial message */}
+      <div className="space-y-2">
+        <Label className="text-xs font-medium flex items-center gap-1.5">
+          <MessageCircle className="h-3.5 w-3.5" />
+          Mensaje inicial (opcional)
+        </Label>
+        <Textarea
+          value={initialMessage}
+          onChange={(e) => setInitialMessage(e.target.value)}
+          placeholder="Ej: ¿Tienen este producto en azul y verde?"
+          rows={2}
+          className="text-sm resize-none"
+        />
+        <p className="text-[11px] text-muted-foreground">Se enviará como primer mensaje del chat con las sucursales consultadas.</p>
+      </div>
 
       <Button type="submit" className="w-full" disabled={submitting || !selectedProducts.length || !allProductsHaveSource}>
         {submitting ? "Enviando..." : "Enviar Consulta"}
