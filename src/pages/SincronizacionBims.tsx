@@ -660,7 +660,7 @@ export default function SincronizacionBims() {
       )}
 
       {/* Catalog status banner */}
-      {catalogStatus !== "complete" && catalogStatus !== "in_progress" && prodProgress.phase === "idle" && (
+      {catalogStatus !== "complete" && catalogStatus !== "complete_with_observations" && catalogStatus !== "in_progress" && prodProgress.phase === "idle" && (
         <Card className={`border-destructive/30 ${catalogStatus === "unknown" ? "bg-muted/30" : "bg-destructive/5"}`}>
           <CardContent className="py-3">
             <div className="flex items-start gap-3 text-sm">
@@ -684,17 +684,24 @@ export default function SincronizacionBims() {
         </Card>
       )}
 
-      {catalogStatus === "complete" && prodProgress.phase === "idle" && (
+      {(catalogStatus === "complete" || catalogStatus === "complete_with_observations") && prodProgress.phase === "idle" && (
         <Card className="border-green-500/30 bg-green-500/5">
           <CardContent className="py-3">
             <div className="flex items-start gap-3 text-sm">
               <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0 mt-0.5" />
               <div>
                 <p className="font-medium text-foreground">
-                  Catálogo completo — Sistema operativo
+                  {catalogStatus === "complete"
+                    ? "Catálogo completo — Sistema operativo"
+                    : "Catálogo operativo — Completado con observaciones"}
                 </p>
                 <p className="text-muted-foreground">
-                  {productCount} de {effectiveCatalogSize} productos sincronizados (100%).
+                  {productCount} de {effectiveCatalogSize} productos sincronizados ({Math.round(catalogCoverage * 100)}%).
+                  {totalMissing > 0 && (
+                    <span className="ml-1">
+                      {totalMissing} producto(s) no persistido(s) (omitidos o fallidos en origen).
+                    </span>
+                  )}
                   {lastSuccessSync && (
                     <span className="ml-1">
                       Última sincronización: {new Date(lastSuccessSync.created_at).toLocaleString("es-PY", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
