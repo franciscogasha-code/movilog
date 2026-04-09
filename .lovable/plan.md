@@ -1,40 +1,58 @@
 
 
-## Plan: Alinear módulo Consultas con la experiencia de Pedidos
+## Plan: Rediseñar flujo de Consultas de Disponibilidad
 
-### Problemas detectados
+### Concepto nuevo
 
-1. **Sin ContextBanner** – No muestra el indicador visual de multi-origen/mono-origen en la parte superior del formulario
-2. **Productos sin ficha completa** – Usa renderizado inline básico en vez de `ProductCard`, por lo que no se ven imágenes (con proxy), precios, descripción ni stock formateado
-3. **Imágenes sin proxy** – Usa `(p as any).image_url` directo en vez de `proxyImageUrl()`, así que las fotos nunca cargan
-4. **Layout desencuadrado** – No tiene la estructura de pasos numerados (1. Contexto, 2. Productos) como en Pedidos
-5. **Casteos `(p as any)`** – Accede a campos con `as any` en vez de usar los tipos de `ProductResult` que ya incluyen todos los campos
+El módulo de Consultas es **previo** al pedido. Su propósito es consultar disponibilidad a otras sucursales y chatear con ellas antes de decidir si crear un pedido. No necesita contexto de entrega ni lógica mono/multi-origen en esta etapa.
 
-### Cambios en `src/pages/Consultas.tsx` — función `ConsultationForm`
+**Flujo simplificado:**
+```text
+1. Mi sucursal (auto-rellenada, bloqueada)
+2. Buscar productos
+3. Seleccionar sucursal(es) a consultar por producto
+4. Enviar consulta
+5. Chat con sucursales consultadas
+6. Convertir a pedido (cuando confirmen)
+```
 
-**A. Agregar ContextBanner** (como en SolicitudCreateForm)
-- Importar y renderizar `<ContextBanner>` en la parte superior del formulario, mapeando `deliveryContext` al formato esperado
+### Cambios en `ConsultationForm` (~100 líneas)
 
-**B. Estructura de pasos numerados**
-- Reorganizar el formulario en secciones "1. Contexto", "2. Productos" con headers `h3` uppercase como en Pedidos
+**Eliminar:**
+- Selector de "Destino de entrega" y estado `deliveryContext`
+- `ContextBanner` del formulario de creación
+- Importaciones de `getOriginMode`, `getAllowedDeliveryTargets`, `ContextBanner` en el form
+- Textos condicionales de mono/multi-origen en la creación
 
-**C. Reemplazar renderizado inline de productos por ProductCard**
-- En la vista expandida de cada producto, usar `<ProductCard>` con todos los props (imagen, precios, stock, descripción) en vez del bloque manual actual (líneas 282-353)
-- Esto automáticamente resuelve: imágenes con proxy, precios filtrados (base + 6/12 unidades), stock formateado, warehouse "undefined" filtrado
-- Mantener la lógica de selección multi-branch por producto que es específica de Consultas (diferente a Pedidos donde es single-select)
+**Simplificar Paso 1:**
+- Solo mostrar "Mi sucursal" auto-rellenada desde perfil, siempre bloqueada (readonly)
+- Eliminar la segunda columna (grid-cols-2 → single column)
 
-**D. Eliminar casteos `(p as any)`**
-- Los campos `image_url`, `stock_by_warehouse`, `total_stock` ya están tipados en `ProductResult`
-- Reemplazar todos los `(p as any).field` por `p.field` directamente
+**Paso 2 (Productos) — sin cambios funcionales:**
+- Mantener ProductCard con `stockMode="info_only"` 
+- Mantener selección multi-branch por producto (toggle sucursales origen)
+- Fix visual: la ProductCard se sale del contenedor del dialog — agregar `overflow-hidden` y limitar ancho interno
 
-**E. Header compacto del producto** (fila colapsada)
-- Agregar miniatura de imagen proxy (como en ProductSearch) en la fila colapsada
-- Mostrar stock total badge en la fila colapsada
+**Paso 3 (nuevo) — Chat post-creación:**
+- En el `ConsultationDetail`, mejorar la sección de Chat existente:
+  - Agregar input para enviar mensajes (actualmente solo muestra mensajes, no permite enviar)
+  - Mostrar el nombre de sucursal junto a cada mensaje
+  - Agrupar por sucursal consultada
+
+### Cambios en `ConsultationDetail` (~40 líneas)
+
+- Agregar formulario de envío de mensaje (input + botón) debajo del listado de chat
+- Insert en `consultation_messages` con `consultation_id`, `message`, `sent_by` (user.id)
+- Invalidar query de mensajes después de enviar
+
+### Fix visual del dialog
+
+- En el `DialogContent` del formulario de creación: agregar `overflow-y-auto max-h-[85vh]` para que el contenido largo sea scrollable sin salirse
+- En ProductCard dentro del form: agregar `className="w-full"` para respetar el contenedor
 
 ### Archivos modificados
-- `src/pages/Consultas.tsx` (solo la función `ConsultationForm`, ~120 líneas)
+- `src/pages/Consultas.tsx` (ConsultationForm + ConsultationDetail)
 
 ### Sin cambios
-- No se toca `ProductCard`, `ProductSearch`, ni `SolicitudCreateForm`
-- La lógica de negocio de Consultas (multi-branch toggle por producto, derivación de targets) se mantiene intacta
+- No se modifica ProductCard, ProductSearch, ni la lógica de "Crear pedido desde consulta" (que sí usa ContextBanner y delivery target correctamente en el Detail)
 
