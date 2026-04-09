@@ -643,6 +643,13 @@ export default function SincronizacionBims() {
                 </p>
                 <p className="text-muted-foreground text-xs mt-0.5">
                   {prodProgress.phase === "completed" && "Todos los datos son confiables y están actualizados."}
+                  {prodProgress.phase === "completed_with_observations" && (
+                    <>
+                      El catálogo está operativo. {prodProgress.totalSkipped > 0 && `${prodProgress.totalSkipped} producto(s) omitido(s). `}
+                      {prodProgress.totalFailed > 0 && `${prodProgress.totalFailed} producto(s) fallido(s). `}
+                      Estos registros no afectan la cobertura operativa.
+                    </>
+                  )}
                   {prodProgress.phase === "incomplete" && (
                     <>
                       {prodProgress.totalBatchErrors} lote(s) con error. 
