@@ -102,7 +102,7 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
       return;
     }
     let autoSource: string | undefined;
-    const sbw = (product as any).stock_by_warehouse;
+    const sbw = product.stock_by_warehouse;
     if (isMultiOrigin && sbw && typeof sbw === "object") {
       let maxQty = 0;
       let maxWhId = "";
@@ -135,7 +135,7 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
   const stockErrors = useMemo(() => {
     const errors: Record<string, string> = {};
     for (const item of items) {
-      const sbw = (item.product as any).stock_by_warehouse as Record<string, number> | undefined;
+      const sbw = item.product.stock_by_warehouse;
       if (!sbw) continue;
 
       if (isMultiOrigin && item.sourceBranchId) {
@@ -547,16 +547,16 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
                       productName={item.product.name}
                       productSku={item.product.sku}
                       productBimsCode={item.product.bims_code}
-                      productBarcode={(item.product as any).barcode}
+                      productBarcode={item.product.barcode}
                       productCategory={item.product.category}
                       productUnit={item.product.unit}
-                      productDescription={(item.product as any).description}
-                      productImageUrl={(item.product as any).image_url}
-                      productSellPrice={(item.product as any).sell_price}
-                      productPriceScales={(item.product as any).price_scales}
-                      productPriceLists={(item.product as any).price_lists}
-                      productStockByWarehouse={(item.product as any).stock_by_warehouse}
-                      productTotalStock={(item.product as any).total_stock}
+                      productDescription={item.product.description}
+                      productImageUrl={item.product.image_url}
+                      productSellPrice={item.product.sell_price}
+                      productPriceScales={item.product.price_scales as { min_quantity: number; price: number }[] | undefined}
+                      productPriceLists={item.product.price_lists as { name: string; amount: number }[] | undefined}
+                      productStockByWarehouse={item.product.stock_by_warehouse as Record<string, number> | undefined}
+                      productTotalStock={item.product.total_stock}
                       stockMode={isMultiOrigin ? "select_source" : "info_only"}
                       onSelectSourceBranch={isMultiOrigin ? (bid) => setItemSourceBranch(item.product.id, bid) : undefined}
                       selectedSourceBranchId={item.sourceBranchId}
