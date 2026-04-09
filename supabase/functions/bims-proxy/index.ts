@@ -404,8 +404,6 @@ Deno.serve(async (req) => {
         break;
       }
 
-      default:
-
       case "test-pagination": {
         const testLimit = 3;
         const results: Record<string, { ids: string[]; count?: string }> = {};
