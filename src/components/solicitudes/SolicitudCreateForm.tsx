@@ -202,21 +202,17 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
     return !!sourceBranchId;
   }, [requestingBranchId, items, isMultiOrigin, sourceBranchId, hasStockErrors, shippingError]);
 
-  // Re-validate stock from DB right before confirmation
+  // Re-validate stock from BIMS live right before confirmation
   const revalidateStock = async (): Promise<Record<string, string>> => {
-    const productIds = items.map(i => i.product.id);
-    const { data: freshProducts } = await supabase
-      .from("products")
-      .select("id, stock_by_warehouse")
-      .in("id", productIds);
-
-    if (!freshProducts) return {};
-
-    const freshMap = new Map(freshProducts.map(p => [p.id, p.stock_by_warehouse as Record<string, number> | null]));
+    const codes = items.map(i => i.product.bims_code).filter(Boolean) as string[];
+    const freshData = await revalidateLiveStock(codes);
     const errors: Record<string, string> = {};
 
     for (const item of items) {
-      const sbw = freshMap.get(item.product.id);
+      const code = item.product.bims_code;
+      const sbw = code && freshData[code]
+        ? freshData[code].stock_by_warehouse
+        : (item.product.stock_by_warehouse as Record<string, number> | null);
       if (!sbw) continue;
 
       const srcBid = isMultiOrigin ? item.sourceBranchId : sourceBranchId;
