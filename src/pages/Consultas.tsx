@@ -16,17 +16,11 @@ import { ProductSearch, type ProductResult } from "@/components/shared/ProductSe
 import { ProductCard } from "@/components/shared/ProductCard";
 import { BranchSelector, useAutoDetectBranch } from "@/components/shared/BranchSelector";
 import { cn } from "@/lib/utils";
-import { ContextBanner } from "@/components/solicitudes/ContextBanner";
 import { DemandAlert } from "@/components/solicitudes/DemandAlert";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBranches } from "@/hooks/use-branches";
-import {
-  type RequestType,
-  type DeliveryTarget,
-  getOriginMode,
-  getAllowedDeliveryTargets,
-} from "@/lib/business-rules";
+import { useNavigate } from "react-router-dom";
 
 const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   open: { label: "Abierta", variant: "default" },
@@ -439,21 +433,9 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
 function ConsultationDetail({ consultationId, onOrderCreated }: { consultationId: string; onOrderCreated: () => void }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const [createOrderOpen, setCreateOrderOpen] = useState(false);
-  const [orderRequestType, setOrderRequestType] = useState<RequestType>("reposition");
-  const [orderDeliveryTarget, setOrderDeliveryTarget] = useState<DeliveryTarget>("branch");
+  const navigate = useNavigate();
   const [newMessage, setNewMessage] = useState("");
   const [sendingMessage, setSendingMessage] = useState(false);
-
-  const orderMode = getOriginMode(orderRequestType, orderDeliveryTarget);
-  const allowedTargets = getAllowedDeliveryTargets(orderRequestType);
-
-  // Enforce allowed targets
-  useEffect(() => {
-    if (!allowedTargets.includes(orderDeliveryTarget)) {
-      setOrderDeliveryTarget(allowedTargets[0]);
-    }
-  }, [orderRequestType]);
 
   const { data: consultation } = useQuery({
     queryKey: ["consultation-detail", consultationId],
@@ -700,74 +682,20 @@ function ConsultationDetail({ consultationId, onOrderCreated }: { consultationId
       )}
 
       {canCreateOrder && (
-        <div className="space-y-3">
-          <h4 className="font-display font-semibold mb-1">Crear pedido desde consulta</h4>
-
-          {/* Request type + delivery target */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label className="text-xs">Tipo de solicitud</Label>
-              <select value={orderRequestType} onChange={(e) => setOrderRequestType(e.target.value as RequestType)}
-                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm">
-                <option value="reposition">Reposición</option>
-                <option value="client">Pedido Cliente</option>
-                <option value="online">Pedido Online</option>
-              </select>
-            </div>
-            {allowedTargets.length > 1 && (
-              <div className="space-y-1">
-                <Label className="text-xs">Destino de entrega</Label>
-                <select value={orderDeliveryTarget} onChange={(e) => setOrderDeliveryTarget(e.target.value as DeliveryTarget)}
-                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm">
-                  {allowedTargets.map(t => (
-                    <option key={t} value={t}>{t === "branch" ? "A sucursal" : "A cliente"}</option>
-                  ))}
-                </select>
-              </div>
-            )}
-          </div>
-
-          <ContextBanner requestType={orderRequestType} deliveryTarget={orderDeliveryTarget} />
-
-          <Dialog open={createOrderOpen} onOpenChange={setCreateOrderOpen}>
-            <DialogTrigger asChild>
-              <Button className="w-full gap-2">
-                <ShoppingCart className="h-4 w-4" />
-                {orderMode === "multi" ? "Crear transferencia(s) multi-origen" : "Crear pedido con origen único"}
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>{orderMode === "multi" ? "Crear transferencia(s)" : "Crear pedido"}</DialogTitle>
-              </DialogHeader>
-              <CreateOrderFromConsultation
-                consultationId={consultationId}
-                requestingBranchId={c.requesting_branch_id}
-                products={consultationProducts || []}
-                requestType={orderRequestType}
-                deliveryTarget={orderDeliveryTarget}
-                onSuccess={() => {
-                  setCreateOrderOpen(false);
-                  queryClient.invalidateQueries({ queryKey: ["consultation-orders", consultationId] });
-                  onOrderCreated();
-                }}
-              />
-            </DialogContent>
-          </Dialog>
+        <div>
+          <Button
+            className="w-full gap-2"
+            onClick={() => navigate(`/solicitudes?from_consultation=${consultationId}`)}
+          >
+            <ShoppingCart className="h-4 w-4" />
+            Crear pedido desde esta consulta
+          </Button>
         </div>
       )}
     </div>
   );
 }
 
-function CreateOrderFromConsultation({
-  consultationId, requestingBranchId, products, requestType, deliveryTarget, onSuccess,
-}: {
-  consultationId: string;
-  requestingBranchId: string;
-  products: any[];
-  requestType: RequestType;
-  deliveryTarget: DeliveryTarget;
   onSuccess: () => void;
 }) {
   const { user } = useAuth();
