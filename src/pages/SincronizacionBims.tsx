@@ -374,8 +374,7 @@ export default function SincronizacionBims() {
   /**
    * Paginated product sync with full validation
    */
-  const syncProducts = useCallback(async (retryPages?: number[]) => {
-    // RULE 7: Prevent parallel syncs
+  const syncProducts = useCallback(async (retryOffsets?: number[]) => {
     if (syncLockRef.current) {
       toast.warning("Ya hay una sincronización en curso");
       return;
@@ -389,57 +388,57 @@ export default function SincronizacionBims() {
       status: "loading",
       phase: "syncing",
       startedAt: new Date(),
-      ...(retryPages ? {
-        totalProcessed: prodProgress.totalProcessed,
-        totalInserted: prodProgress.totalInserted,
-        totalUpdated: prodProgress.totalUpdated,
-        totalReceived: prodProgress.totalReceived,
-      } : {}),
     });
 
-    const pages = retryPages || (() => {
-      const arr: number[] = [];
-      for (let i = 1; i <= 500; i++) arr.push(i);
-      return arr;
-    })();
-
-    let totalProcessed = retryPages ? prodProgress.totalProcessed : 0;
-    let totalInserted = retryPages ? prodProgress.totalInserted : 0;
-    let totalUpdated = retryPages ? prodProgress.totalUpdated : 0;
+    let offset = 0;
+    let totalProcessed = 0;
+    let totalInserted = 0;
+    let totalUpdated = 0;
     let totalFailed = 0;
     let totalSkipped = 0;
-    let totalReceived = retryPages ? prodProgress.totalReceived : 0;
-    let bimsTotalCount: number | null = retryPages ? prodProgress.bimsTotalCount : null;
-    let pagesProcessed = 0;
-    let pagesAttempted = 0;
-    let pageErrors = 0;
+    let totalReceived = 0;
+    let totalUniquePersisted = 0;
+    let bimsTotalCount: number | null = null;
+    let batchesProcessed = 0;
+    let batchesAttempted = 0;
+    let batchErrors = 0;
     const allErrors: SyncError[] = [];
-    const newFailedPages: number[] = [];
+    const failedOffsets: number[] = [];
     const allActiveBimsCodes: string[] = [];
     let totalInactiveSkipped = 0;
+    let previousBlockCodes: string[] = [];
+    let duplicateBlockDetected = false;
+    const uniqueBimsCodes = new Set<string>();
 
-    for (const pageNum of pages) {
-      pagesAttempted++;
+    const offsets = retryOffsets || null; // null means auto-iterate
+
+    while (true) {
+      const currentOffset = offsets ? offsets[batchesAttempted] : offset;
+      if (offsets && batchesAttempted >= offsets.length) break;
+
+      batchesAttempted++;
       try {
-        const res = await fetch(`${BIMS_SYNC_URL}?entity=products&page=${pageNum}&limit=${PAGE_SIZE}`, {
+        const res = await fetch(`${BIMS_SYNC_URL}?entity=products&offset=${currentOffset}&limit=${PAGE_SIZE}`, {
           method: "POST",
           headers: HEADERS,
         });
 
         if (!res.ok) {
-          newFailedPages.push(pageNum);
-          pageErrors++;
+          failedOffsets.push(currentOffset);
+          batchErrors++;
           totalFailed++;
-          allErrors.push({ code: `page_${pageNum}`, message: `HTTP ${res.status}`, stage: "fetch", timestamp: new Date().toISOString() });
+          allErrors.push({ code: `offset_${currentOffset}`, message: `HTTP ${res.status}`, stage: "fetch", timestamp: new Date().toISOString() });
+          if (!offsets) { offset += PAGE_SIZE; continue; }
           continue;
         }
 
         const data = await res.json();
         if (!data.success) {
-          newFailedPages.push(pageNum);
-          pageErrors++;
+          failedOffsets.push(currentOffset);
+          batchErrors++;
           totalFailed++;
-          allErrors.push({ code: `page_${pageNum}`, message: data.error || "Unknown", stage: "fetch", timestamp: new Date().toISOString() });
+          allErrors.push({ code: `offset_${currentOffset}`, message: data.error || "Unknown", stage: "fetch", timestamp: new Date().toISOString() });
+          if (!offsets) { offset += PAGE_SIZE; continue; }
           continue;
         }
 
@@ -451,11 +450,12 @@ export default function SincronizacionBims() {
         totalFailed += s.total_failed || 0;
         totalSkipped += s.total_skipped || 0;
         if (s.errors?.length) allErrors.push(...s.errors);
-        if (s.total_failed > 0) newFailedPages.push(pageNum);
-        pagesProcessed++;
+        if (s.total_failed > 0) failedOffsets.push(currentOffset);
+        batchesProcessed++;
 
         if (Array.isArray(data.active_bims_codes)) {
           allActiveBimsCodes.push(...data.active_bims_codes);
+          data.active_bims_codes.forEach((c: string) => uniqueBimsCodes.add(c));
         }
         if (data.total_inactive_skipped) {
           totalInactiveSkipped += data.total_inactive_skipped;
@@ -465,50 +465,75 @@ export default function SincronizacionBims() {
           bimsTotalCount = Number(data.bims_total_count);
         }
 
+        // Duplicate block detection
+        const currentBlockCodes = (data.active_bims_codes || []).sort().join(",");
+        if (!offsets && batchesProcessed > 1 && currentBlockCodes.length > 0) {
+          const prevSorted = previousBlockCodes.sort().join(",");
+          if (currentBlockCodes === prevSorted) {
+            duplicateBlockDetected = true;
+            allErrors.push({
+              code: "DUPLICATE_BLOCK",
+              message: "Se detectó repetición de datos en la paginación de BIMS. Posible error en origen o parámetros.",
+              stage: "validation",
+              timestamp: new Date().toISOString(),
+            });
+            break;
+          }
+        }
+        previousBlockCodes = data.active_bims_codes || [];
+
+        totalUniquePersisted = uniqueBimsCodes.size;
+
         setProdProgress(prev => ({
           ...prev,
-          currentPage: pageNum,
-          totalPages: pagesProcessed,
+          currentOffset: currentOffset,
+          totalBatches: batchesProcessed,
           totalProcessed,
           totalInserted,
           totalUpdated,
           totalFailed,
           totalSkipped,
           totalReceived,
+          totalUniquePersisted,
           bimsTotalCount,
           errors: allErrors.slice(0, 200),
           durationMs: Date.now() - startTime,
-          totalPagesAttempted: pagesAttempted,
-          totalPageErrors: pageErrors,
+          totalBatchesAttempted: batchesAttempted,
+          totalBatchErrors: batchErrors,
+          duplicateBlockDetected,
         }));
 
-        if (!retryPages && !data.has_more) break;
+        // Stop conditions for auto-iteration
+        if (!offsets && !data.has_more) break;
+        if (!offsets) offset += PAGE_SIZE;
       } catch (err: any) {
-        newFailedPages.push(pageNum);
-        pageErrors++;
+        failedOffsets.push(currentOffset);
+        batchErrors++;
         totalFailed++;
-        allErrors.push({ code: `page_${pageNum}`, message: err.message, stage: "fetch", timestamp: new Date().toISOString() });
+        allErrors.push({ code: `offset_${currentOffset}`, message: err.message, stage: "fetch", timestamp: new Date().toISOString() });
+        if (!offsets) offset += PAGE_SIZE;
       }
     }
 
     // Determine sync completion status
-    const syncCompletedCleanly = pageErrors === 0 && newFailedPages.length === 0;
+    const syncCompletedCleanly = batchErrors === 0 && failedOffsets.length === 0 && !duplicateBlockDetected;
 
-    // RULE 1: Only deactivate if sync completed without ANY errors
     let phase: SyncPhase;
-    if (!retryPages && allActiveBimsCodes.length > 0 && syncCompletedCleanly) {
-      const deactivateResult = await executeDeactivation(allActiveBimsCodes, pagesProcessed, 0);
+    if (duplicateBlockDetected) {
+      phase = "error";
+      toast.error("Se detectó repetición de datos en la paginación de BIMS. Sincronización detenida.");
+    } else if (!offsets && allActiveBimsCodes.length > 0 && syncCompletedCleanly) {
+      const deactivateResult = await executeDeactivation(allActiveBimsCodes, batchesProcessed, 0);
       if (deactivateResult === "threshold") {
         phase = "awaiting_confirmation";
       } else if (deactivateResult === "success") {
         phase = "completed";
       } else {
-        phase = "completed"; // Deactivation failed but sync itself completed
+        phase = "completed";
       }
     } else if (!syncCompletedCleanly) {
-      // RULE 1: Sync incomplete — do NOT deactivate
-      phase = pageErrors > 0 ? (totalProcessed > 0 ? "incomplete" : "error") : "incomplete";
-      if (!retryPages) {
+      phase = batchErrors > 0 ? (totalProcessed > 0 ? "incomplete" : "error") : "incomplete";
+      if (!offsets) {
         toast.warning("Sincronización incompleta. No se ejecutó baja lógica para proteger datos.");
       }
     } else {
@@ -524,22 +549,23 @@ export default function SincronizacionBims() {
       isRunning: false,
       status: finalStatus,
       phase,
-      totalPages: pagesProcessed,
+      totalBatches: batchesProcessed,
       totalProcessed,
       totalInserted,
       totalUpdated,
       totalFailed,
       totalSkipped,
       totalReceived,
+      totalUniquePersisted: uniqueBimsCodes.size,
       bimsTotalCount,
       errors: allErrors.slice(0, 200),
-      failedPages: newFailedPages,
+      failedOffsets,
       durationMs: Date.now() - startTime,
-      totalPagesAttempted: pagesAttempted,
-      totalPageErrors: pageErrors,
+      totalBatchesAttempted: batchesAttempted,
+      totalBatchErrors: batchErrors,
+      duplicateBlockDetected,
     }));
 
-    // Release lock
     syncLockRef.current = false;
 
     queryClient.invalidateQueries({ queryKey: ["products-count"] });
@@ -549,15 +575,11 @@ export default function SincronizacionBims() {
 
     if (finalStatus === "success" && phase === "completed") {
       const inactiveMsg = totalInactiveSkipped > 0 ? ` (${totalInactiveSkipped} inactivos omitidos)` : "";
-      toast.success(`Productos: ${totalProcessed} activos sincronizados en ${formatDuration(Date.now() - startTime)}${inactiveMsg}`);
+      toast.success(`Productos: ${uniqueBimsCodes.size} únicos persistidos en ${formatDuration(Date.now() - startTime)}${inactiveMsg}`);
     } else if (finalStatus === "partial") {
-      toast.warning(`Sincronización parcial: ${totalProcessed} OK, ${totalFailed} con error (${newFailedPages.length} páginas fallidas)`);
-    } else if (phase === "awaiting_confirmation") {
-      // Toast handled by threshold dialog
-    } else if (phase !== "completed") {
-      toast.error("Error en sincronización de productos");
+      toast.warning(`Sincronización parcial: ${totalProcessed} OK, ${totalFailed} con error (${failedOffsets.length} lotes fallidos)`);
     }
-  }, [prodProgress, executeDeactivation, queryClient]);
+  }, [executeDeactivation, queryClient]);
 
   const runFullSync = async () => {
     await syncWarehouses();
