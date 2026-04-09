@@ -160,6 +160,10 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
   const [productSources, setProductSources] = useState<Record<string, Set<string>>>({});
   const [customBranchId, setCustomBranchId] = useState("");
 
+  // Live stock from BIMS
+  const bimsCodes = selectedProducts.map(p => p.bims_code).filter(Boolean) as string[];
+  const { liveStock, isLive } = useLiveStock(bimsCodes);
+
   // Auto-fill branch from profile (reactive), admins can override
   const resolvedBranchId = (canChangeBranch && customBranchId) ? customBranchId : (defaultBranchId || "");
   const myBranch = branches?.find(b => b.id === resolvedBranchId);
