@@ -215,7 +215,16 @@ export function ProductCard({
           <div className="space-y-2">
             <h4 className="text-sm font-medium flex items-center gap-1.5">
               <BarChart3 className="h-3.5 w-3.5" />
-              {isSelectMode ? "Seleccionar sucursal origen para este producto" : isMultiSelectMode ? "Stock disponible — click para seleccionar" : "Stock disponible por sucursal"}
+              {isSelectMode ? "Seleccionar sucursal origen" : isMultiSelectMode ? "Stock disponible — click para seleccionar" : "Stock disponible por sucursal"}
+              {isLive ? (
+                <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-green-600 ml-1">
+                  <Zap className="h-3 w-3" /> En vivo
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-muted-foreground ml-1">
+                  <Clock className="h-3 w-3" /> Sincronizado
+                </span>
+              )}
               {effectiveTotalStock != null && (
                 <Badge variant={effectiveTotalStock > 0 ? "default" : "destructive"} className="text-xs ml-auto">
                   Total: {Math.floor(effectiveTotalStock)}
