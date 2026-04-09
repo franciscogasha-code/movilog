@@ -318,66 +318,17 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
                           productPriceLists={p.price_lists as { name: string; amount: number }[] | undefined}
                           productStockByWarehouse={p.stock_by_warehouse as Record<string, number> | undefined}
                           productTotalStock={p.total_stock}
-                          stockMode="info_only"
+                          stockMode="select_multi"
+                          selectedBranchIds={selectedForProduct}
+                          onToggleBranch={(bid) => toggleProductBranch(p.id, bid)}
                           compact={false}
                         />
                       </div>
-
-                      {/* Stock selection for consultation - multi-branch toggle */}
-                      <div className="space-y-1.5">
-                        <Label className="text-xs font-medium">3. Seleccionar sucursal(es) a consultar</Label>
-                        {(() => {
-                          const sbw = p.stock_by_warehouse as Record<string, number> | null;
-                          const warehousesWithStock = sbw
-                            ? Object.entries(sbw).filter(([k, qty]) => k && k !== "undefined" && k !== "null" && qty > 0).sort((a, b) => b[1] - a[1])
-                            : [];
-
-                          if (warehousesWithStock.length > 0) {
-                            return (
-                              <div className="grid grid-cols-2 gap-1.5">
-                                {warehousesWithStock.map(([whCode, qty]) => {
-                                  const bId = getWarehouseBranchId(whCode);
-                                  if (!bId) return null;
-                                  const branchName = branches?.find(b => b.id === bId)?.name || `Depósito ${whCode}`;
-                                  const isSelected = selectedForProduct.has(bId);
-                                  return (
-                                    <button
-                                      key={whCode}
-                                      type="button"
-                                      onClick={() => toggleProductBranch(p.id, bId)}
-                                      className={cn(
-                                        "flex items-center justify-between px-2.5 py-1.5 rounded text-xs text-left transition-colors",
-                                        isSelected
-                                          ? "bg-primary/10 border border-primary/30 ring-1 ring-primary/20"
-                                          : "bg-muted/50 hover:bg-accent/10 cursor-pointer"
-                                      )}
-                                    >
-                                      <span className="font-medium truncate flex items-center gap-1">
-                                        {isSelected && <CheckCircle2 className="h-3 w-3 text-primary shrink-0" />}
-                                        {branchName}
-                                      </span>
-                                      <Badge variant={qty > 0 ? "default" : "secondary"} className="text-xs ml-1">
-                                        {Math.floor(qty)}
-                                      </Badge>
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            );
-                          }
-                          return (
-                            <div className="p-3 rounded bg-destructive/5 border border-destructive/20 text-xs text-destructive flex items-center gap-2">
-                              <AlertTriangle className="h-4 w-4 shrink-0" />
-                              <span>Sin stock disponible en ninguna sucursal para este producto.</span>
-                            </div>
-                          );
-                        })()}
-                        {selectedForProduct.size === 0 && (
-                          <p className="text-xs text-destructive flex items-center gap-1">
-                            <AlertTriangle className="h-3 w-3" /> Seleccioná al menos una sucursal
-                          </p>
-                        )}
-                      </div>
+                      {selectedForProduct.size === 0 && (
+                        <p className="text-xs text-destructive flex items-center gap-1 px-3 pb-2">
+                          <AlertTriangle className="h-3 w-3" /> Seleccioná al menos una sucursal
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>
