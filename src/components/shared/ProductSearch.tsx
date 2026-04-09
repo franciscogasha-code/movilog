@@ -29,6 +29,26 @@ interface ProductSearchProps {
   excludeIds?: string[];
 }
 
+function SearchThumbnail({ url, name }: { url?: string | null; name: string }) {
+  const [failed, setFailed] = useState(false);
+  const safeUrl = url ? proxyImageUrl(url) : null;
+  if (safeUrl && !failed) {
+    return (
+      <img
+        src={safeUrl}
+        alt={name}
+        className="h-8 w-8 rounded object-cover shrink-0 border border-border"
+        onError={() => setFailed(true)}
+      />
+    );
+  }
+  return (
+    <div className="h-8 w-8 rounded bg-muted flex items-center justify-center shrink-0">
+      <Package className="h-4 w-4 text-muted-foreground" />
+    </div>
+  );
+}
+
 export function ProductSearch({ onSelect, placeholder = "Buscar producto por nombre, código, SKU o código de barras...", className, excludeIds = [] }: ProductSearchProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<ProductResult[]>([]);
