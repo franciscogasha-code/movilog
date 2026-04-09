@@ -339,7 +339,7 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
                           </div>
                         )}
                         {selectedForProduct.size === 0 && warehousesWithStock.length > 0 && (
-                          <p className="text-xs text-amber-600 flex items-center gap-1">
+                          <p className="text-xs text-destructive flex items-center gap-1">
                             <AlertTriangle className="h-3 w-3" /> Seleccioná al menos una sucursal origen
                           </p>
                         )}
