@@ -359,7 +359,8 @@ Deno.serve(async (req) => {
               onConflict: "bims_code",
             });
 
-            throw new Error(`Products offset ${offset} upsert failed: ${error.message}`);
+            if (error) {
+              throw new Error(`Products offset ${offset} upsert failed: ${error.message}`);
             }
 
             totalSynced += mapped.length;
