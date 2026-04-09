@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Search, MessageCircle, Clock, CheckCircle2, ShoppingCart, Package, Trash2, XCircle, AlertTriangle } from "lucide-react";
+import { Plus, Search, MessageCircle, Clock, CheckCircle2, ShoppingCart, Package, Trash2, XCircle, AlertTriangle, ChevronDown, ChevronUp } from "lucide-react";
+import { proxyImageUrl } from "@/lib/image-utils";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ProductSearch, type ProductResult } from "@/components/shared/ProductSearch";
 import { ProductCard } from "@/components/shared/ProductCard";
@@ -231,114 +232,146 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
     finally { setSubmitting(false); }
   };
 
+  const requestType: RequestType = "reposition";
+  const originMode = getOriginMode(requestType, deliveryContext);
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="space-y-2">
-        <Label>Destino de entrega (contexto)</Label>
-        <select value={deliveryContext} onChange={(e) => setDeliveryContext(e.target.value as DeliveryTarget)}
-          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-          <option value="branch">A sucursal (multi-origen permitido)</option>
-          <option value="client">A cliente (origen único)</option>
-        </select>
-        <p className="text-xs text-muted-foreground">
-          {deliveryContext === "branch"
-            ? "Disponible para abastecimiento desde múltiples sucursales."
-            : "Para entrega a cliente, el pedido debe resolverse desde una única sucursal origen."}
-        </p>
+    <form onSubmit={handleSubmit} className="space-y-6">
+      {/* Context Banner */}
+      <ContextBanner requestType={requestType} deliveryTarget={deliveryContext} />
+
+      {/* STEP 1: Context */}
+      <div className="space-y-4">
+        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">1. Contexto</h3>
+        <div className="grid grid-cols-2 gap-4">
+          <BranchSelector label="Mi sucursal" value={branchId} onChange={setBranchId} disabled={!canChangeBranch && !!defaultBranchId} />
+          <div className="space-y-2">
+            <Label>Destino de entrega</Label>
+            <select value={deliveryContext} onChange={(e) => setDeliveryContext(e.target.value as DeliveryTarget)}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              <option value="branch">A sucursal</option>
+              <option value="client">A cliente</option>
+            </select>
+          </div>
+        </div>
       </div>
 
-      <BranchSelector label="Mi sucursal" value={branchId} onChange={setBranchId} disabled={!canChangeBranch && !!defaultBranchId} />
-
-      <div className="space-y-2">
-        <Label>Productos</Label>
+      {/* STEP 2: Products */}
+      <div className="space-y-3">
+        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">2. Productos</h3>
         <ProductSearch onSelect={addProduct} excludeIds={selectedProducts.map(p => p.id)} placeholder="Buscar producto..." />
-        {selectedProducts.length > 0 && (
-          <div className="space-y-2 mt-2">
+
+        {selectedProducts.length > 0 ? (
+          <div className="space-y-2">
             {selectedProducts.map((p) => {
-              const stockByWarehouse = (p as any).stock_by_warehouse as Record<string, number> | null;
-              const hasStock = stockByWarehouse && Object.keys(stockByWarehouse).length > 0;
-              const warehousesWithStock = hasStock
-                ? Object.entries(stockByWarehouse!).filter(([, qty]) => qty > 0).sort((a, b) => b[1] - a[1])
-                : [];
               const selectedForProduct = productSources[p.id] || new Set<string>();
 
               return (
                 <div key={p.id} className="border border-border rounded-lg overflow-hidden">
-                  <div className="flex items-center gap-2 p-2 bg-muted/30">
-                    <Package className="h-4 w-4 text-muted-foreground" />
-                    <span className="flex-1 text-sm font-medium truncate">{p.name}</span>
-                    <span className="text-xs text-muted-foreground">{p.sku}</span>
-                    {selectedForProduct.size > 0 && (
-                      <Badge variant="secondary" className="text-xs">{selectedForProduct.size} origen(es)</Badge>
+                  {/* Collapsed header with thumbnail */}
+                  <div className="flex items-center gap-3 p-3 bg-muted/30">
+                    {p.image_url ? (
+                      <img src={proxyImageUrl(p.image_url)} alt={p.name} className="h-8 w-8 rounded object-cover shrink-0" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                    ) : (
+                      <Package className="h-4 w-4 text-muted-foreground shrink-0" />
                     )}
-                    <Button type="button" variant="ghost" size="sm" onClick={() => setExpandedProduct(expandedProduct === p.id ? null : p.id)}>
-                      {expandedProduct === p.id ? "▲" : "▼"}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{p.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {p.sku && `SKU: ${p.sku}`}
+                        {p.bims_code && ` • Cód: ${p.bims_code}`}
+                      </p>
+                    </div>
+                    {p.total_stock != null && (
+                      <Badge variant={p.total_stock > 0 ? "default" : "destructive"} className="text-xs shrink-0">
+                        Stock: {Math.floor(p.total_stock)}
+                      </Badge>
+                    )}
+                    {selectedForProduct.size > 0 && (
+                      <Badge variant="secondary" className="text-xs shrink-0">{selectedForProduct.size} origen(es)</Badge>
+                    )}
+                    <Button type="button" variant="ghost" size="sm"
+                      onClick={() => setExpandedProduct(expandedProduct === p.id ? null : p.id)}>
+                      {expandedProduct === p.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                     </Button>
                     <Button type="button" variant="ghost" size="sm" onClick={() => removeProduct(p.id)}>
-                      <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                      <Trash2 className="h-4 w-4 text-destructive" />
                     </Button>
                   </div>
+
+                  {/* Expanded: full ProductCard */}
                   {expandedProduct === p.id && (
-                    <div className="p-3 border-t border-border/50 space-y-3">
+                    <div className="p-3 border-t border-border/50 space-y-2">
                       <DemandAlert productId={p.id} />
+                      <ProductCard
+                        productId={p.id}
+                        productName={p.name}
+                        productSku={p.sku}
+                        productBimsCode={p.bims_code}
+                        productBarcode={p.barcode}
+                        productCategory={p.category}
+                        productUnit={p.unit}
+                        productDescription={p.description}
+                        productImageUrl={p.image_url}
+                        productSellPrice={p.sell_price}
+                        productPriceScales={p.price_scales as { min_quantity: number; price: number }[] | undefined}
+                        productPriceLists={p.price_lists as { name: string; amount: number }[] | undefined}
+                        productStockByWarehouse={p.stock_by_warehouse as Record<string, number> | undefined}
+                        productTotalStock={p.total_stock}
+                        stockMode="info_only"
+                        compact={false}
+                      />
 
-                      {/* Compact product info */}
-                      <div className="flex items-center gap-3 text-sm">
-                        {(p as any).image_url ? (
-                          <img src={(p as any).image_url} alt={p.name} className="h-10 w-10 rounded object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                        ) : (
-                          <div className="h-10 w-10 rounded bg-muted flex items-center justify-center"><Package className="h-5 w-5 text-muted-foreground" /></div>
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium truncate">{p.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {p.sku && <span>SKU: {p.sku}</span>}
-                            {p.bims_code && <span className="ml-1">• Cód: {p.bims_code}</span>}
-                            {(p as any).total_stock != null && <span className="ml-1">• Stock total: {Math.floor((p as any).total_stock)}</span>}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Stock by branch – selectable */}
+                      {/* Stock selection for consultation - multi-branch toggle */}
                       <div className="space-y-1.5">
                         <Label className="text-xs font-medium">Seleccionar sucursal(es) origen con disponibilidad</Label>
-                        {warehousesWithStock.length > 0 ? (
-                          <div className="grid grid-cols-2 gap-1.5">
-                            {warehousesWithStock.map(([whCode, qty]) => {
-                              const bId = getWarehouseBranchId(whCode);
-                              if (!bId || bId === branchId) return null; // exclude requesting branch
-                              const branchName = branches?.find(b => b.id === bId)?.name || `Depósito ${whCode}`;
-                              const isSelected = selectedForProduct.has(bId);
-                              return (
-                                <button
-                                  key={whCode}
-                                  type="button"
-                                  onClick={() => toggleProductBranch(p.id, bId)}
-                                  className={cn(
-                                    "flex items-center justify-between px-2.5 py-1.5 rounded text-xs text-left transition-colors",
-                                    isSelected
-                                      ? "bg-primary/10 border border-primary/30 ring-1 ring-primary/20"
-                                      : "bg-muted/50 hover:bg-accent/10 cursor-pointer"
-                                  )}
-                                >
-                                  <span className="font-medium truncate flex items-center gap-1">
-                                    {isSelected && <CheckCircle2 className="h-3 w-3 text-primary shrink-0" />}
-                                    {branchName}
-                                  </span>
-                                  <Badge variant={qty > 0 ? "default" : "secondary"} className="text-xs ml-1">
-                                    {Math.floor(qty)}
-                                  </Badge>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        ) : (
-                          <div className="p-3 rounded bg-destructive/5 border border-destructive/20 text-xs text-destructive flex items-center gap-2">
-                            <AlertTriangle className="h-4 w-4 shrink-0" />
-                            <span>Sin stock disponible en ninguna sucursal para este producto.</span>
-                          </div>
-                        )}
-                        {selectedForProduct.size === 0 && warehousesWithStock.length > 0 && (
+                        {(() => {
+                          const sbw = p.stock_by_warehouse as Record<string, number> | null;
+                          const warehousesWithStock = sbw
+                            ? Object.entries(sbw).filter(([k, qty]) => k && k !== "undefined" && k !== "null" && qty > 0).sort((a, b) => b[1] - a[1])
+                            : [];
+
+                          if (warehousesWithStock.length > 0) {
+                            return (
+                              <div className="grid grid-cols-2 gap-1.5">
+                                {warehousesWithStock.map(([whCode, qty]) => {
+                                  const bId = getWarehouseBranchId(whCode);
+                                  if (!bId || bId === branchId) return null;
+                                  const branchName = branches?.find(b => b.id === bId)?.name || `Depósito ${whCode}`;
+                                  const isSelected = selectedForProduct.has(bId);
+                                  return (
+                                    <button
+                                      key={whCode}
+                                      type="button"
+                                      onClick={() => toggleProductBranch(p.id, bId)}
+                                      className={cn(
+                                        "flex items-center justify-between px-2.5 py-1.5 rounded text-xs text-left transition-colors",
+                                        isSelected
+                                          ? "bg-primary/10 border border-primary/30 ring-1 ring-primary/20"
+                                          : "bg-muted/50 hover:bg-accent/10 cursor-pointer"
+                                      )}
+                                    >
+                                      <span className="font-medium truncate flex items-center gap-1">
+                                        {isSelected && <CheckCircle2 className="h-3 w-3 text-primary shrink-0" />}
+                                        {branchName}
+                                      </span>
+                                      <Badge variant={qty > 0 ? "default" : "secondary"} className="text-xs ml-1">
+                                        {Math.floor(qty)}
+                                      </Badge>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            );
+                          }
+                          return (
+                            <div className="p-3 rounded bg-destructive/5 border border-destructive/20 text-xs text-destructive flex items-center gap-2">
+                              <AlertTriangle className="h-4 w-4 shrink-0" />
+                              <span>Sin stock disponible en ninguna sucursal para este producto.</span>
+                            </div>
+                          );
+                        })()}
+                        {selectedForProduct.size === 0 && (
                           <p className="text-xs text-destructive flex items-center gap-1">
                             <AlertTriangle className="h-3 w-3" /> Seleccioná al menos una sucursal origen
                           </p>
@@ -356,6 +389,11 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
                 </div>
               );
             })}
+          </div>
+        ) : (
+          <div className="text-center p-6 rounded-lg border border-dashed border-border text-muted-foreground text-sm">
+            <Package className="h-8 w-8 mx-auto mb-2 opacity-50" />
+            Buscá y agregá productos usando el buscador
           </div>
         )}
       </div>
