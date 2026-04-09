@@ -161,7 +161,7 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
   const [submitting, setSubmitting] = useState(false);
   const [selectedProducts, setSelectedProducts] = useState<ProductResult[]>([]);
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
-  /** Per-product selected source branches: { productId: Set<branchId> } */
+  const [initialMessage, setInitialMessage] = useState("");
   const [productSources, setProductSources] = useState<Record<string, Set<string>>>({});
 
   // Auto-fill branch from profile (reactive)
