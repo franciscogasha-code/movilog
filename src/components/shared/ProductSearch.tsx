@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Search, Package, Loader2 } from "lucide-react";
+import { Search, Package, Loader2, Zap, Clock } from "lucide-react";
 import { proxyImageUrl } from "@/lib/image-utils";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { useLiveStock } from "@/hooks/use-live-stock";
 
 export type ProductResult = {
   id: string;
@@ -67,8 +68,6 @@ export function ProductSearch({ onSelect, placeholder = "Buscar producto por nom
     try {
       const likeTerm = `%${term}%`;
       
-      // Build OR filter: name, sku, bims_code, barcode (full & partial)
-      // Also support last-4-digits barcode search
       const orFilters = [
         `name.ilike.${likeTerm}`,
         `sku.ilike.${likeTerm}`,
@@ -76,7 +75,6 @@ export function ProductSearch({ onSelect, placeholder = "Buscar producto por nom
         `barcode.ilike.${likeTerm}`,
       ];
       
-      // If term is 4 digits, also match last 4 of barcode
       if (/^\d{3,4}$/.test(term)) {
         orFilters.push(`barcode.ilike.%${term}`);
       }
