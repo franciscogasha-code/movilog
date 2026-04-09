@@ -696,7 +696,6 @@ function ConsultationDetail({ consultationId, onOrderCreated }: { consultationId
   );
 }
 
-  onSuccess: () => void;
 }) {
   const { user } = useAuth();
   const { data: branches } = useBranches();
