@@ -225,6 +225,15 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
       const { error: tErr } = await supabase.from("consultation_targets").insert(targets);
       if (tErr) throw tErr;
 
+      // Send initial message if provided
+      if (initialMessage.trim()) {
+        await supabase.from("consultation_messages").insert({
+          consultation_id: consultation.id,
+          sender_id: user.id,
+          message: initialMessage.trim(),
+        });
+      }
+
       toast.success("Consulta creada");
       onSuccess();
     } catch (err: any) { toast.error(err.message); }
