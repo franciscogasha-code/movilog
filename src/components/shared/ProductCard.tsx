@@ -108,8 +108,8 @@ export function ProductCard({
     return branch?.id || null;
   };
 
-  const filteredStockEntries = productStockByWarehouse
-    ? Object.entries(productStockByWarehouse).filter(([key]) => isValidWarehouseKey(key))
+  const filteredStockEntries = effectiveStockByWarehouse
+    ? Object.entries(effectiveStockByWarehouse).filter(([key]) => isValidWarehouseKey(key))
     : [];
   const hasStock = filteredStockEntries.length > 0;
   const hasPrice = productSellPrice != null && productSellPrice > 0;
