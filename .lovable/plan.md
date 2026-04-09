@@ -1,36 +1,36 @@
 
 
-## Plan: Simplificar "Crear pedido desde consulta" → Redirigir a Solicitudes
+## Plan: Unificar stock y selección de sucursales en Consultas
 
-### Idea
+### Problema actual
+Al expandir un producto en el formulario de consulta, se muestra primero el `ProductCard` con "Stock disponible por sucursal" (solo lectura), y luego debajo una sección separada "Seleccionar sucursal(es) a consultar" con exactamente los mismos datos. Información duplicada.
 
-Reemplazar todo el formulario embebido de creación de pedido en el detalle de la consulta por un simple botón **"Crear pedido"** que navega al módulo de Solicitudes (`/solicitudes`), pasando el contexto de la consulta como parámetros para pre-cargar los productos.
+### Solución
+Agregar un nuevo `stockMode` al `ProductCard` llamado `"select_multi"` que permita seleccionar múltiples sucursales directamente desde la grilla de stock. Así el ProductCard cumple doble función: mostrar stock Y seleccionar orígenes.
 
 ### Cambios
 
-**`src/pages/Consultas.tsx` — `ConsultationDetail`**
+**`src/components/shared/ProductCard.tsx`**
+1. Ampliar el tipo `StockMode` a `"select_source" | "select_multi" | "info_only"`
+2. Agregar props nuevas: `selectedBranchIds?: Set<string>` y `onToggleBranch?: (branchId: string) => void`
+3. En la sección de stock por sucursal, cuando `stockMode === "select_multi"`:
+   - Hacer los botones clickables (como ya lo son en `select_source`)
+   - Mostrar checkmark en las sucursales seleccionadas usando `selectedBranchIds`
+   - Llamar `onToggleBranch` al hacer click
+   - Cambiar el título a "Stock disponible — click para seleccionar"
 
-1. **Eliminar** el bloque completo de "Crear pedido desde consulta" (líneas 702-757): selectores de tipo/destino, ContextBanner, dialog con `CreateOrderFromConsultation`
-2. **Eliminar** los estados asociados: `orderRequestType`, `orderDeliveryTarget`, `createOrderOpen`, `allowedTargets`, `orderMode`
-3. **Eliminar** la función `CreateOrderFromConsultation` completa (líneas 763-1093)
-4. **Reemplazar** con un botón simple que usa `useNavigate`:
-   - Texto: "Crear pedido desde esta consulta"
-   - Al hacer click, navega a `/solicitudes?from_consultation={consultationId}`
-   - Solo visible cuando `canCreateOrder` es true
-
-**`src/pages/Solicitudes.tsx`**
-
-5. **Leer** el query param `from_consultation` al abrir
-6. Si está presente, abrir automáticamente el dialog de `SolicitudCreateForm` y mostrar un banner indicando que viene de una consulta (con link para volver)
-7. Los productos se pre-cargarán en una fase posterior; por ahora solo abre el formulario limpio
+**`src/pages/Consultas.tsx`**
+4. Cambiar el `ProductCard` de `stockMode="info_only"` a `stockMode="select_multi"`
+5. Pasar `selectedBranchIds={productSources[p.id]}` y `onToggleBranch={(bid) => toggleProductBranch(p.id, bid)}`
+6. Eliminar toda la sección duplicada "3. Seleccionar sucursal(es) a consultar" (líneas ~327-380)
+7. Mantener el mensaje de error "Seleccioná al menos una sucursal" debajo del ProductCard
 
 ### Resultado
-
-- El detalle de consulta queda limpio: productos, respuestas, chat, y un botón para crear pedido
-- Toda la lógica de creación de pedido vive en un solo lugar (Solicitudes)
-- Se eliminan ~350 líneas de código duplicado
+- Una sola grilla de sucursales con stock que también sirve para seleccionar
+- Se eliminan ~50 líneas de código duplicado
+- UX más intuitiva: ver stock y elegir en un solo paso
 
 ### Archivos modificados
-- `src/pages/Consultas.tsx` (eliminar ~380 líneas)
-- `src/pages/Solicitudes.tsx` (agregar ~15 líneas para manejar query param)
+- `src/components/shared/ProductCard.tsx`
+- `src/pages/Consultas.tsx`
 
