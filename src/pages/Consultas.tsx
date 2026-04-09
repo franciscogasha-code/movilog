@@ -12,7 +12,8 @@ import { Plus, Search, MessageCircle, Clock, CheckCircle2, ShoppingCart, Package
 import { StatusBadge } from "@/components/StatusBadge";
 import { ProductSearch, type ProductResult } from "@/components/shared/ProductSearch";
 import { ProductCard } from "@/components/shared/ProductCard";
-import { BranchSelector, MultiBranchSelector, useAutoDetectBranch } from "@/components/shared/BranchSelector";
+import { BranchSelector, useAutoDetectBranch } from "@/components/shared/BranchSelector";
+import { cn } from "@/lib/utils";
 import { ContextBanner } from "@/components/solicitudes/ContextBanner";
 import { DemandAlert } from "@/components/solicitudes/DemandAlert";
 import { toast } from "sonner";
