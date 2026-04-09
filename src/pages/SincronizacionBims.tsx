@@ -113,6 +113,7 @@ function PhaseIcon({ phase }: { phase: SyncPhase }) {
   switch (phase) {
     case "syncing": return <Loader2 className="h-4 w-4 animate-spin text-primary" />;
     case "completed": return <ShieldCheck className="h-4 w-4 text-green-500" />;
+    case "completed_with_observations": return <CheckCircle2 className="h-4 w-4 text-green-500" />;
     case "incomplete": return <AlertTriangle className="h-4 w-4 text-amber-500" />;
     case "error": return <XCircle className="h-4 w-4 text-destructive" />;
     case "awaiting_confirmation": return <ShieldAlert className="h-4 w-4 text-amber-600" />;
