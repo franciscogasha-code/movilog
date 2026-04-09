@@ -1,58 +1,36 @@
 
 
-## Plan: Rediseñar flujo de Consultas de Disponibilidad
+## Plan: Simplificar "Crear pedido desde consulta" → Redirigir a Solicitudes
 
-### Concepto nuevo
+### Idea
 
-El módulo de Consultas es **previo** al pedido. Su propósito es consultar disponibilidad a otras sucursales y chatear con ellas antes de decidir si crear un pedido. No necesita contexto de entrega ni lógica mono/multi-origen en esta etapa.
+Reemplazar todo el formulario embebido de creación de pedido en el detalle de la consulta por un simple botón **"Crear pedido"** que navega al módulo de Solicitudes (`/solicitudes`), pasando el contexto de la consulta como parámetros para pre-cargar los productos.
 
-**Flujo simplificado:**
-```text
-1. Mi sucursal (auto-rellenada, bloqueada)
-2. Buscar productos
-3. Seleccionar sucursal(es) a consultar por producto
-4. Enviar consulta
-5. Chat con sucursales consultadas
-6. Convertir a pedido (cuando confirmen)
-```
+### Cambios
 
-### Cambios en `ConsultationForm` (~100 líneas)
+**`src/pages/Consultas.tsx` — `ConsultationDetail`**
 
-**Eliminar:**
-- Selector de "Destino de entrega" y estado `deliveryContext`
-- `ContextBanner` del formulario de creación
-- Importaciones de `getOriginMode`, `getAllowedDeliveryTargets`, `ContextBanner` en el form
-- Textos condicionales de mono/multi-origen en la creación
+1. **Eliminar** el bloque completo de "Crear pedido desde consulta" (líneas 702-757): selectores de tipo/destino, ContextBanner, dialog con `CreateOrderFromConsultation`
+2. **Eliminar** los estados asociados: `orderRequestType`, `orderDeliveryTarget`, `createOrderOpen`, `allowedTargets`, `orderMode`
+3. **Eliminar** la función `CreateOrderFromConsultation` completa (líneas 763-1093)
+4. **Reemplazar** con un botón simple que usa `useNavigate`:
+   - Texto: "Crear pedido desde esta consulta"
+   - Al hacer click, navega a `/solicitudes?from_consultation={consultationId}`
+   - Solo visible cuando `canCreateOrder` es true
 
-**Simplificar Paso 1:**
-- Solo mostrar "Mi sucursal" auto-rellenada desde perfil, siempre bloqueada (readonly)
-- Eliminar la segunda columna (grid-cols-2 → single column)
+**`src/pages/Solicitudes.tsx`**
 
-**Paso 2 (Productos) — sin cambios funcionales:**
-- Mantener ProductCard con `stockMode="info_only"` 
-- Mantener selección multi-branch por producto (toggle sucursales origen)
-- Fix visual: la ProductCard se sale del contenedor del dialog — agregar `overflow-hidden` y limitar ancho interno
+5. **Leer** el query param `from_consultation` al abrir
+6. Si está presente, abrir automáticamente el dialog de `SolicitudCreateForm` y mostrar un banner indicando que viene de una consulta (con link para volver)
+7. Los productos se pre-cargarán en una fase posterior; por ahora solo abre el formulario limpio
 
-**Paso 3 (nuevo) — Chat post-creación:**
-- En el `ConsultationDetail`, mejorar la sección de Chat existente:
-  - Agregar input para enviar mensajes (actualmente solo muestra mensajes, no permite enviar)
-  - Mostrar el nombre de sucursal junto a cada mensaje
-  - Agrupar por sucursal consultada
+### Resultado
 
-### Cambios en `ConsultationDetail` (~40 líneas)
-
-- Agregar formulario de envío de mensaje (input + botón) debajo del listado de chat
-- Insert en `consultation_messages` con `consultation_id`, `message`, `sent_by` (user.id)
-- Invalidar query de mensajes después de enviar
-
-### Fix visual del dialog
-
-- En el `DialogContent` del formulario de creación: agregar `overflow-y-auto max-h-[85vh]` para que el contenido largo sea scrollable sin salirse
-- En ProductCard dentro del form: agregar `className="w-full"` para respetar el contenedor
+- El detalle de consulta queda limpio: productos, respuestas, chat, y un botón para crear pedido
+- Toda la lógica de creación de pedido vive en un solo lugar (Solicitudes)
+- Se eliminan ~350 líneas de código duplicado
 
 ### Archivos modificados
-- `src/pages/Consultas.tsx` (ConsultationForm + ConsultationDetail)
-
-### Sin cambios
-- No se modifica ProductCard, ProductSearch, ni la lógica de "Crear pedido desde consulta" (que sí usa ContextBanner y delivery target correctamente en el Detail)
+- `src/pages/Consultas.tsx` (eliminar ~380 líneas)
+- `src/pages/Solicitudes.tsx` (agregar ~15 líneas para manejar query param)
 
