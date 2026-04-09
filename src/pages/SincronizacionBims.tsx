@@ -730,7 +730,7 @@ export default function SincronizacionBims() {
         <Card>
           <CardContent className="py-4">
             <p className="text-2xl font-bold">{effectiveCatalogSize > 0 ? effectiveCatalogSize : "—"}</p>
-            <p className="text-xs text-muted-foreground">Procesados desde BIMS</p>
+            <p className="text-xs text-muted-foreground">Leídos desde BIMS</p>
           </CardContent>
         </Card>
         <Card>

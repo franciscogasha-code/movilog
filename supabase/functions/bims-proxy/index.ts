@@ -332,12 +332,12 @@ Deno.serve(async (req) => {
 
       case "sync-products": {
         const PRODUCT_PAGE_SIZE = 250;
-        let page = 1;
+        let offset = 0;
         let totalSynced = 0;
         let hasMore = true;
 
         while (hasMore) {
-          const products = await bimsRequest("GET", `/products?page=${page}&limit=${PRODUCT_PAGE_SIZE}`) as any;
+          const products = await bimsRequest("GET", `/products?offset=${offset}&limit=${PRODUCT_PAGE_SIZE}`) as any;
           const items = extractArray(products);
 
           if (items.length === 0) {
@@ -359,8 +359,7 @@ Deno.serve(async (req) => {
               onConflict: "bims_code",
             });
 
-            if (error) {
-              throw new Error(`Products page ${page} upsert failed: ${error.message}`);
+            throw new Error(`Products offset ${offset} upsert failed: ${error.message}`);
             }
 
             totalSynced += mapped.length;
