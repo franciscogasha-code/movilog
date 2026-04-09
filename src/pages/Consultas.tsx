@@ -696,7 +696,6 @@ function ConsultationDetail({ consultationId, onOrderCreated }: { consultationId
   );
 }
 
-}) {
   const { user } = useAuth();
   const { data: branches } = useBranches();
   const originMode = getOriginMode(requestType, deliveryTarget);
