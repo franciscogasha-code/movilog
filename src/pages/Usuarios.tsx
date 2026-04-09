@@ -570,6 +570,8 @@ export default function Usuarios() {
                 className="w-full"
                 disabled={
                   !newName.trim() ||
+                  !newEmail.trim() ||
+                  !newPassword || newPassword.length < 6 ||
                   !newRole ||
                   (!newRoleDef?.allBranchesByDefault && !newBranch) ||
                   createUser.isPending
