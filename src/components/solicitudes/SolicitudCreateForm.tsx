@@ -97,6 +97,18 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
     }
   }, [isMultiOrigin]);
 
+  // Live stock from BIMS
+  const bimsCodes = items.map(i => i.product.bims_code).filter(Boolean) as string[];
+  const { liveStock, isLive } = useLiveStock(bimsCodes);
+
+  // Helper to get effective stock for an item
+  const getEffectiveStock = (product: ProductResult) => {
+    if (isLive && product.bims_code && liveStock?.[product.bims_code]) {
+      return liveStock[product.bims_code];
+    }
+    return null;
+  };
+
   const addProduct = (product: ProductResult) => {
     if (items.find(i => i.product.id === product.id)) {
       toast.info("Producto ya agregado");
