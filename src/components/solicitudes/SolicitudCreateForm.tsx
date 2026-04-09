@@ -572,6 +572,8 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
                       selectedSourceBranchId={item.sourceBranchId}
                       requiredQuantity={item.quantity}
                       compact={false}
+                      liveStock={getEffectiveStock(item.product)}
+                      isLive={isLive}
                     />
                   </div>
                 )}
