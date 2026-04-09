@@ -157,15 +157,16 @@ export default function Consultas() {
 function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
   const { user } = useAuth();
   const { data: branches } = useBranches();
-  const { defaultBranchId } = useAutoDetectBranch();
+  const { defaultBranchId, canChangeBranch } = useAutoDetectBranch();
   const [submitting, setSubmitting] = useState(false);
   const [selectedProducts, setSelectedProducts] = useState<ProductResult[]>([]);
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
   const [initialMessage, setInitialMessage] = useState("");
   const [productSources, setProductSources] = useState<Record<string, Set<string>>>({});
+  const [customBranchId, setCustomBranchId] = useState("");
 
-  // Auto-fill branch from profile (reactive)
-  const resolvedBranchId = defaultBranchId || "";
+  // Auto-fill branch from profile (reactive), admins can override
+  const resolvedBranchId = (canChangeBranch && customBranchId) ? customBranchId : (defaultBranchId || "");
   const myBranch = branches?.find(b => b.id === resolvedBranchId);
 
   const addProduct = (product: ProductResult) => {
@@ -242,14 +243,22 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      {/* STEP 1: My branch (auto-filled, readonly) */}
+      {/* STEP 1: My branch */}
       <div className="space-y-3">
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">1. Mi sucursal</h3>
-        <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/30 border border-border/30">
-          <Package className="h-4 w-4 text-muted-foreground shrink-0" />
-          <span className="text-sm font-medium">{myBranch ? `${myBranch.name} (${myBranch.code})` : "Cargando..."}</span>
-          <Badge variant="outline" className="text-xs ml-auto">Auto-detectada</Badge>
-        </div>
+        {canChangeBranch ? (
+          <BranchSelector
+            value={resolvedBranchId}
+            onChange={(id) => setCustomBranchId(id)}
+            label=""
+          />
+        ) : (
+          <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/30 border border-border/30">
+            <Package className="h-4 w-4 text-muted-foreground shrink-0" />
+            <span className="text-sm font-medium">{myBranch ? `${myBranch.name} (${myBranch.code})` : "Cargando..."}</span>
+            <Badge variant="outline" className="text-xs ml-auto">Auto-detectada</Badge>
+          </div>
+        )}
       </div>
 
       {/* STEP 2: Products */}
@@ -334,7 +343,7 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
                               <div className="grid grid-cols-2 gap-1.5">
                                 {warehousesWithStock.map(([whCode, qty]) => {
                                   const bId = getWarehouseBranchId(whCode);
-                                  if (!bId || bId === resolvedBranchId) return null;
+                                  if (!bId) return null;
                                   const branchName = branches?.find(b => b.id === bId)?.name || `Depósito ${whCode}`;
                                   const isSelected = selectedForProduct.has(bId);
                                   return (
