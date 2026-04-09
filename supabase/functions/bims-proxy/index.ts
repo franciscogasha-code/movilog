@@ -365,7 +365,7 @@ Deno.serve(async (req) => {
             totalSynced += mapped.length;
           }
 
-          page++;
+          offset += PRODUCT_PAGE_SIZE;
           if (items.length < PRODUCT_PAGE_SIZE) hasMore = false;
         }
 
