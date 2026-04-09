@@ -5,12 +5,21 @@ import { Package, MapPin, DollarSign, BarChart3, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useBranches } from "@/hooks/use-branches";
 
+/** Convert http:// image URLs to https:// to avoid mixed-content blocks */
+function sanitizeImageUrl(url: string): string {
+  if (url.startsWith("http://")) {
+    return url.replace("http://", "https://");
+  }
+  return url;
+}
+
 function ProductImage({ url, name }: { url?: string | null; name: string }) {
   const [failed, setFailed] = useState(false);
-  if (url && !failed) {
+  const safeUrl = url ? sanitizeImageUrl(url) : null;
+  if (safeUrl && !failed) {
     return (
       <img
-        src={url}
+        src={safeUrl}
         alt={name}
         className="h-20 w-20 rounded-lg object-cover shrink-0 border border-border"
         onError={() => setFailed(true)}
@@ -161,7 +170,7 @@ export function ProductCard({
           </div>
         )}
 
-        {/* Prices */}
+        {/* Prices – base + 6 & 12 unit scales only */}
         {(hasPrice || hasPriceScales) && (
           <div className="space-y-2">
             <h4 className="text-sm font-medium flex items-center gap-1.5">
@@ -173,26 +182,21 @@ export function ProductCard({
                 <span className="text-xs text-muted-foreground">precio base</span>
               </div>
             )}
-            {hasPriceScales && (
-              <div className="grid grid-cols-2 gap-1.5">
-                {productPriceScales!.map((scale, i) => (
-                  <div key={i} className="flex items-center justify-between px-2.5 py-1.5 rounded text-xs bg-muted/50">
-                    <span>≥ {scale.min_quantity} un.</span>
-                    <span className="font-medium">₲{scale.price.toLocaleString()}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-            {productPriceLists && productPriceLists.length > 0 && (
-              <div className="grid grid-cols-2 gap-1.5 mt-1">
-                {productPriceLists.map((pl, i) => (
-                  <div key={i} className="flex items-center justify-between px-2.5 py-1.5 rounded text-xs bg-accent/5 border border-border/30">
-                    <span className="text-muted-foreground">{pl.name}</span>
-                    <span className="font-medium">₲{pl.amount.toLocaleString()}</span>
-                  </div>
-                ))}
-              </div>
-            )}
+            {hasPriceScales && (() => {
+              const relevant = productPriceScales!.filter(s => s.min_quantity === 6 || s.min_quantity === 12);
+              return relevant.length > 0 ? (
+                <div className="grid grid-cols-2 gap-1.5">
+                  {relevant
+                    .sort((a, b) => a.min_quantity - b.min_quantity)
+                    .map((scale, i) => (
+                      <div key={i} className="flex items-center justify-between px-2.5 py-1.5 rounded text-xs bg-muted/50">
+                        <span>≥ {scale.min_quantity} un.</span>
+                        <span className="font-medium">₲{scale.price.toLocaleString()}</span>
+                      </div>
+                    ))}
+                </div>
+              ) : null;
+            })()}
           </div>
         )}
 
