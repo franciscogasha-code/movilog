@@ -5,17 +5,23 @@ import { Package, MapPin, DollarSign, BarChart3, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useBranches } from "@/hooks/use-branches";
 
-/** Convert http:// image URLs to https:// to avoid mixed-content blocks */
-function sanitizeImageUrl(url: string): string {
-  if (url.startsWith("http://")) {
-    return url.replace("http://", "https://");
-  }
+const BIMS_IMAGE_HOST = "190.128.128.182";
+
+/** Route BIMS HTTP images through our edge function proxy for HTTPS */
+function proxyImageUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    if (parsed.hostname === BIMS_IMAGE_HOST) {
+      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+      return `https://${projectId}.supabase.co/functions/v1/bims-image-proxy?url=${encodeURIComponent(url)}`;
+    }
+  } catch { /* not a valid URL, return as-is */ }
   return url;
 }
 
 function ProductImage({ url, name }: { url?: string | null; name: string }) {
   const [failed, setFailed] = useState(false);
-  const safeUrl = url ? sanitizeImageUrl(url) : null;
+  const safeUrl = url ? proxyImageUrl(url) : null;
   if (safeUrl && !failed) {
     return (
       <img
@@ -111,7 +117,7 @@ export function ProductCard({
     return (
       <div className={cn("flex items-center gap-3 p-3 rounded-lg border border-border bg-card", className)}>
         {productImageUrl ? (
-          <img src={sanitizeImageUrl(productImageUrl)} alt={productName} className="h-10 w-10 rounded object-cover shrink-0" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+          <img src={proxyImageUrl(productImageUrl)} alt={productName} className="h-10 w-10 rounded object-cover shrink-0" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
         ) : (
           <div className="h-10 w-10 rounded bg-muted flex items-center justify-center shrink-0">
             <Package className="h-5 w-5 text-muted-foreground" />
