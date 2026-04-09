@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Package, MapPin, DollarSign, BarChart3, Check } from "lucide-react";
+import { Package, MapPin, DollarSign, BarChart3, Check, Zap, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useBranches } from "@/hooks/use-branches";
 
@@ -57,6 +57,10 @@ interface ProductCardProps {
   onToggleBranch?: (branchId: string) => void;
   className?: string;
   compact?: boolean;
+  /** Live stock override from BIMS */
+  liveStock?: { stock_by_warehouse: Record<string, number>; total_stock: number } | null;
+  /** Whether the stock data is from live BIMS */
+  isLive?: boolean;
 }
 
 export function ProductCard({
@@ -82,7 +86,12 @@ export function ProductCard({
   onToggleBranch,
   className,
   compact = false,
+  liveStock,
+  isLive = false,
 }: ProductCardProps) {
+  // Use live stock if available, otherwise fall back to local
+  const effectiveStockByWarehouse = liveStock?.stock_by_warehouse ?? productStockByWarehouse;
+  const effectiveTotalStock = liveStock?.total_stock ?? productTotalStock;
   const { data: branches } = useBranches();
 
   const isValidWarehouseKey = (key: string): boolean => {
@@ -99,8 +108,8 @@ export function ProductCard({
     return branch?.id || null;
   };
 
-  const filteredStockEntries = productStockByWarehouse
-    ? Object.entries(productStockByWarehouse).filter(([key]) => isValidWarehouseKey(key))
+  const filteredStockEntries = effectiveStockByWarehouse
+    ? Object.entries(effectiveStockByWarehouse).filter(([key]) => isValidWarehouseKey(key))
     : [];
   const hasStock = filteredStockEntries.length > 0;
   const hasPrice = productSellPrice != null && productSellPrice > 0;
@@ -126,9 +135,9 @@ export function ProductCard({
             {hasPrice && <span className="ml-1">• ₲{productSellPrice!.toLocaleString()}</span>}
           </p>
         </div>
-        {productTotalStock != null && (
-          <Badge variant={productTotalStock > 0 ? "default" : "destructive"} className="text-xs shrink-0">
-            Stock: {Math.floor(productTotalStock)}
+        {effectiveTotalStock != null && (
+          <Badge variant={effectiveTotalStock > 0 ? "default" : "destructive"} className="text-xs shrink-0">
+            Stock: {Math.floor(effectiveTotalStock)}
           </Badge>
         )}
         {productUnit && <span className="text-xs text-muted-foreground shrink-0">{productUnit}</span>}
@@ -145,9 +154,9 @@ export function ProductCard({
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between gap-2">
               <h3 className="font-semibold text-base leading-tight">{productName}</h3>
-              {productTotalStock != null && (
-                <Badge variant={productTotalStock > 0 ? "default" : "destructive"} className="text-xs shrink-0">
-                  Stock: {Math.floor(productTotalStock)}
+              {effectiveTotalStock != null && (
+                <Badge variant={effectiveTotalStock > 0 ? "default" : "destructive"} className="text-xs shrink-0">
+                  Stock: {Math.floor(effectiveTotalStock)}
                 </Badge>
               )}
             </div>
@@ -206,10 +215,19 @@ export function ProductCard({
           <div className="space-y-2">
             <h4 className="text-sm font-medium flex items-center gap-1.5">
               <BarChart3 className="h-3.5 w-3.5" />
-              {isSelectMode ? "Seleccionar sucursal origen para este producto" : isMultiSelectMode ? "Stock disponible — click para seleccionar" : "Stock disponible por sucursal"}
-              {productTotalStock != null && (
-                <Badge variant={productTotalStock > 0 ? "default" : "destructive"} className="text-xs ml-auto">
-                  Total: {Math.floor(productTotalStock)}
+              {isSelectMode ? "Seleccionar sucursal origen" : isMultiSelectMode ? "Stock disponible — click para seleccionar" : "Stock disponible por sucursal"}
+              {isLive ? (
+                <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-green-600 ml-1">
+                  <Zap className="h-3 w-3" /> En vivo
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-muted-foreground ml-1">
+                  <Clock className="h-3 w-3" /> Sincronizado
+                </span>
+              )}
+              {effectiveTotalStock != null && (
+                <Badge variant={effectiveTotalStock > 0 ? "default" : "destructive"} className="text-xs ml-auto">
+                  Total: {Math.floor(effectiveTotalStock)}
                 </Badge>
               )}
             </h4>

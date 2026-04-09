@@ -14,6 +14,7 @@ import { proxyImageUrl } from "@/lib/image-utils";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ProductSearch, type ProductResult } from "@/components/shared/ProductSearch";
 import { ProductCard } from "@/components/shared/ProductCard";
+import { useLiveStock } from "@/hooks/use-live-stock";
 import { BranchSelector, useAutoDetectBranch } from "@/components/shared/BranchSelector";
 import { cn } from "@/lib/utils";
 import { DemandAlert } from "@/components/solicitudes/DemandAlert";
@@ -158,6 +159,10 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
   const [initialMessage, setInitialMessage] = useState("");
   const [productSources, setProductSources] = useState<Record<string, Set<string>>>({});
   const [customBranchId, setCustomBranchId] = useState("");
+
+  // Live stock from BIMS
+  const bimsCodes = selectedProducts.map(p => p.bims_code).filter(Boolean) as string[];
+  const { liveStock, isLive } = useLiveStock(bimsCodes);
 
   // Auto-fill branch from profile (reactive), admins can override
   const resolvedBranchId = (canChangeBranch && customBranchId) ? customBranchId : (defaultBranchId || "");
@@ -322,6 +327,8 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
                           selectedBranchIds={selectedForProduct}
                           onToggleBranch={(bid) => toggleProductBranch(p.id, bid)}
                           compact={false}
+                          liveStock={isLive && p.bims_code && liveStock?.[p.bims_code] ? liveStock[p.bims_code] : null}
+                          isLive={isLive}
                         />
                       </div>
                       {selectedForProduct.size === 0 && (

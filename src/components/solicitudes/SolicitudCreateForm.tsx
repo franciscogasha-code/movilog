@@ -9,6 +9,7 @@ import { ProductSearch, type ProductResult } from "@/components/shared/ProductSe
 import { ProductCard } from "@/components/shared/ProductCard";
 import { BranchSelector, useAutoDetectBranch } from "@/components/shared/BranchSelector";
 import { useBranches } from "@/hooks/use-branches";
+import { useLiveStock, revalidateLiveStock } from "@/hooks/use-live-stock";
 import { Plus, Trash2, Package, ChevronDown, ChevronUp, AlertTriangle, XCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -96,6 +97,18 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
     }
   }, [isMultiOrigin]);
 
+  // Live stock from BIMS
+  const bimsCodes = items.map(i => i.product.bims_code).filter(Boolean) as string[];
+  const { liveStock, isLive } = useLiveStock(bimsCodes);
+
+  // Helper to get effective stock for an item
+  const getEffectiveStock = (product: ProductResult) => {
+    if (isLive && product.bims_code && liveStock?.[product.bims_code]) {
+      return liveStock[product.bims_code];
+    }
+    return null;
+  };
+
   const addProduct = (product: ProductResult) => {
     if (items.find(i => i.product.id === product.id)) {
       toast.info("Producto ya agregado");
@@ -131,11 +144,12 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
     setItems(prev => prev.map(i => i.product.id === productId ? { ...i, sourceBranchId: branchId } : i));
   };
 
-  // Stock validation errors (uses current product data)
+  // Stock validation errors (uses live stock if available, otherwise local)
   const stockErrors = useMemo(() => {
     const errors: Record<string, string> = {};
     for (const item of items) {
-      const sbw = item.product.stock_by_warehouse;
+      const live = getEffectiveStock(item.product);
+      const sbw = live?.stock_by_warehouse ?? item.product.stock_by_warehouse;
       if (!sbw) continue;
 
       if (isMultiOrigin && item.sourceBranchId) {
@@ -157,7 +171,7 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
       }
     }
     return errors;
-  }, [items, isMultiOrigin, sourceBranchId, branches]);
+  }, [items, isMultiOrigin, sourceBranchId, branches, liveStock]);
 
   const hasStockErrors = Object.keys(stockErrors).length > 0;
 
@@ -188,21 +202,17 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
     return !!sourceBranchId;
   }, [requestingBranchId, items, isMultiOrigin, sourceBranchId, hasStockErrors, shippingError]);
 
-  // Re-validate stock from DB right before confirmation
+  // Re-validate stock from BIMS live right before confirmation
   const revalidateStock = async (): Promise<Record<string, string>> => {
-    const productIds = items.map(i => i.product.id);
-    const { data: freshProducts } = await supabase
-      .from("products")
-      .select("id, stock_by_warehouse")
-      .in("id", productIds);
-
-    if (!freshProducts) return {};
-
-    const freshMap = new Map(freshProducts.map(p => [p.id, p.stock_by_warehouse as Record<string, number> | null]));
+    const codes = items.map(i => i.product.bims_code).filter(Boolean) as string[];
+    const freshData = await revalidateLiveStock(codes);
     const errors: Record<string, string> = {};
 
     for (const item of items) {
-      const sbw = freshMap.get(item.product.id);
+      const code = item.product.bims_code;
+      const sbw = code && freshData[code]
+        ? freshData[code].stock_by_warehouse
+        : (item.product.stock_by_warehouse as Record<string, number> | null);
       if (!sbw) continue;
 
       const srcBid = isMultiOrigin ? item.sourceBranchId : sourceBranchId;
@@ -562,6 +572,8 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
                       selectedSourceBranchId={item.sourceBranchId}
                       requiredQuantity={item.quantity}
                       compact={false}
+                      liveStock={getEffectiveStock(item.product)}
+                      isLive={isLive}
                     />
                   </div>
                 )}
