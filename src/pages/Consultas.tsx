@@ -327,6 +327,8 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
                           selectedBranchIds={selectedForProduct}
                           onToggleBranch={(bid) => toggleProductBranch(p.id, bid)}
                           compact={false}
+                          liveStock={isLive && p.bims_code && liveStock?.[p.bims_code] ? liveStock[p.bims_code] : null}
+                          isLive={isLive}
                         />
                       </div>
                       {selectedForProduct.size === 0 && (
