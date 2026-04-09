@@ -269,6 +269,9 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
           <div className="space-y-2">
             {selectedProducts.map((p) => {
               const selectedForProduct = productSources[p.id] || new Set<string>();
+              // Use live stock if available, otherwise fall back to local
+              const liveData = isLive && p.bims_code && liveStock?.[p.bims_code] ? liveStock[p.bims_code] : null;
+              const headerStock = liveData?.total_stock ?? p.total_stock;
 
               return (
                 <div key={p.id} className="border border-border rounded-lg overflow-hidden">
@@ -286,9 +289,9 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
                         {p.bims_code && ` • Cód: ${p.bims_code}`}
                       </p>
                     </div>
-                    {p.total_stock != null && (
-                      <Badge variant={p.total_stock > 0 ? "default" : "destructive"} className="text-xs shrink-0">
-                        Stock: {Math.floor(p.total_stock)}
+                    {headerStock != null && (
+                      <Badge variant={headerStock > 0 ? "default" : "destructive"} className="text-xs shrink-0">
+                        Stock: {Math.floor(headerStock)}
                       </Badge>
                     )}
                     {selectedForProduct.size > 0 && (
