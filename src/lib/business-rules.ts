@@ -182,7 +182,14 @@ export const DEMAND_SEVERITY_LABELS: Record<DemandSeverity, string> = {
  * - Both strategies are idempotent (upsert by bims_code)
  * - Never use "real-time sync" terminology for catalog — it's batch/paginated
  */
-export type CatalogSyncStatus = "complete" | "in_progress" | "incomplete" | "error" | "unknown";
+/**
+ * Operational tolerance: if ≤0.1% of expected catalog is missing,
+ * the catalog is considered operationally complete ("complete_with_observations").
+ * This accounts for legitimately skipped/inactive products from BIMS.
+ */
+const CATALOG_COVERAGE_TOLERANCE = 0.001; // 0.1%
+
+export type CatalogSyncStatus = "complete" | "complete_with_observations" | "in_progress" | "incomplete" | "error" | "unknown";
 
 export function getCatalogSyncStatus(
   totalInDb: number,
@@ -192,12 +199,15 @@ export function getCatalogSyncStatus(
   if (isSyncing) return "in_progress";
   if (totalExpected <= 0) return "unknown";
   if (totalInDb >= totalExpected) return "complete";
+  const missingRatio = (totalExpected - totalInDb) / totalExpected;
+  if (missingRatio <= CATALOG_COVERAGE_TOLERANCE) return "complete_with_observations";
   if (totalInDb > 0) return "incomplete";
   return "error";
 }
 
 export const CATALOG_STATUS_LABELS: Record<CatalogSyncStatus, string> = {
   complete: "Completo",
+  complete_with_observations: "Completado con observaciones",
   in_progress: "En proceso",
   incomplete: "Incompleto",
   error: "Con error",
@@ -206,6 +216,7 @@ export const CATALOG_STATUS_LABELS: Record<CatalogSyncStatus, string> = {
 
 export const CATALOG_STATUS_DESCRIPTIONS: Record<CatalogSyncStatus, string> = {
   complete: "El catálogo está sincronizado al 100%. El sistema está operativo.",
+  complete_with_observations: "El catálogo está operativo. Algunos productos fueron omitidos o fallaron durante la sincronización (dentro del umbral aceptable).",
   in_progress: "La sincronización está en curso. Espere a que termine.",
   incomplete: "El catálogo no está completo. Reintente las páginas fallidas antes de operar.",
   error: "La sincronización falló. Ejecute una nueva sincronización completa.",

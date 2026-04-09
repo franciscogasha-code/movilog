@@ -251,7 +251,7 @@ export default function SincronizacionBims() {
     ? Math.min(productCount / effectiveCatalogSize, 1)
     : (productCount > 0 ? -1 : 0);
   const catalogStatus = getCatalogSyncStatus(productCount, effectiveCatalogSize, prodProgress.isRunning);
-  const catalogHealthy = catalogStatus === "complete";
+  const catalogHealthy = catalogStatus === "complete" || catalogStatus === "complete_with_observations";
   const totalMissing = effectiveCatalogSize > 0 ? Math.max(effectiveCatalogSize - productCount, 0) : 0;
 
   const testConnection = async () => {
