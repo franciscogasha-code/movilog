@@ -641,7 +641,7 @@ export default function SincronizacionBims() {
                   {prodProgress.phase === "completed" && "Todos los datos son confiables y están actualizados."}
                   {prodProgress.phase === "incomplete" && (
                     <>
-                      {prodProgress.totalPageErrors} página(s) con error. 
+                      {prodProgress.totalBatchErrors} lote(s) con error. 
                       <strong className="text-amber-600"> No se ejecutó baja lógica</strong> para proteger la integridad de los datos.
                     </>
                   )}
@@ -650,7 +650,7 @@ export default function SincronizacionBims() {
                 </p>
                 {prodProgress.durationMs > 0 && (
                   <p className="text-xs text-muted-foreground mt-1">
-                    Duración: {formatDuration(prodProgress.durationMs)} • {prodProgress.totalPagesAttempted} páginas procesadas
+                    Duración: {formatDuration(prodProgress.durationMs)} • {prodProgress.totalBatchesAttempted} lotes procesados
                   </p>
                 )}
               </div>
@@ -778,7 +778,7 @@ export default function SincronizacionBims() {
               <CardTitle className="text-sm font-medium flex items-center gap-2">
                 <StatusIcon status={prodProgress.status} />
                 Productos
-                {prodProgress.isRunning && <span className="text-xs text-muted-foreground">Página {prodProgress.currentPage}...</span>}
+                {prodProgress.isRunning && <span className="text-xs text-muted-foreground">Offset {prodProgress.currentOffset}...</span>}
                 {!prodProgress.isRunning && (
                   <span className={`text-xs ${PHASE_COLORS[prodProgress.phase]}`}>
                     — {PHASE_LABELS[prodProgress.phase]}
@@ -789,8 +789,8 @@ export default function SincronizacionBims() {
                 {prodProgress.durationMs > 0 && (
                   <span className="flex items-center gap-1"><Timer className="h-3 w-3" />{formatDuration(prodProgress.durationMs)}</span>
                 )}
-                {prodProgress.totalPagesAttempted > 0 && (
-                  <span>{prodProgress.totalPagesAttempted} págs</span>
+                {prodProgress.totalBatchesAttempted > 0 && (
+                  <span>{prodProgress.totalBatchesAttempted} lotes</span>
                 )}
               </div>
             </div>
@@ -801,23 +801,24 @@ export default function SincronizacionBims() {
               <div className="space-y-1">
                 <Progress value={progressPercent} className="h-2" />
                 <p className="text-xs text-muted-foreground text-center">
-                  {prodProgress.totalProcessed} procesados • Página {prodProgress.currentPage}
-                  {prodProgress.totalPageErrors > 0 && (
-                    <span className="text-amber-500 ml-2">• {prodProgress.totalPageErrors} pág(s) con error</span>
+                  {prodProgress.totalProcessed} procesados • {prodProgress.totalUniquePersisted} únicos • Offset {prodProgress.currentOffset}
+                  {prodProgress.totalBatchErrors > 0 && (
+                    <span className="text-amber-500 ml-2">• {prodProgress.totalBatchErrors} lote(s) con error</span>
                   )}
                 </p>
               </div>
             )}
 
             {/* Stats grid */}
-            <div className="grid grid-cols-6 gap-3 text-center">
+            <div className="grid grid-cols-7 gap-3 text-center">
               {[
-                { label: "Recibidos", value: prodProgress.totalReceived },
-                { label: "Procesados", value: prodProgress.totalProcessed },
-                { label: "Insertados", value: prodProgress.totalInserted },
+                { label: "Leídos API", value: prodProgress.totalReceived },
+                { label: "Únicos persist.", value: prodProgress.totalUniquePersisted },
+                { label: "Nuevos", value: prodProgress.totalInserted },
                 { label: "Actualizados", value: prodProgress.totalUpdated },
                 { label: "Omitidos", value: prodProgress.totalSkipped },
                 { label: "Fallidos", value: prodProgress.totalFailed, isError: true },
+                { label: "Procesados", value: prodProgress.totalProcessed },
               ].map(({ label, value, isError }) => (
                 <div key={label} className="p-2 rounded bg-muted/30 border border-border/30">
                   <p className={`text-lg font-bold ${isError && value > 0 ? "text-destructive" : ""}`}>{value}</p>
@@ -842,10 +843,10 @@ export default function SincronizacionBims() {
             )}
 
             {/* Retry failed pages */}
-            {!prodProgress.isRunning && prodProgress.failedPages.length > 0 && (
-              <Button variant="outline" size="sm" onClick={() => syncProducts(prodProgress.failedPages)} className="gap-1">
+            {!prodProgress.isRunning && prodProgress.failedOffsets.length > 0 && (
+              <Button variant="outline" size="sm" onClick={() => syncProducts(prodProgress.failedOffsets)} className="gap-1">
                 <RefreshCw className="h-3.5 w-3.5" />
-                Reintentar {prodProgress.failedPages.length} página(s) fallida(s)
+                Reintentar {prodProgress.failedOffsets.length} lote(s) fallido(s)
               </Button>
             )}
           </CardContent>
