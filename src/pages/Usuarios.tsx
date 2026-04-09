@@ -177,6 +177,7 @@ export default function Usuarios() {
   const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState("");
   const [newEmail, setNewEmail] = useState("");
+  const [newPassword, setNewPassword] = useState("Sansei2026!");
   const [newBranch, setNewBranch] = useState("");
   const [newRole, setNewRole] = useState<RoleKey | "">("");
   const [newAdditionalBranches, setNewAdditionalBranches] = useState<string[]>([]);
@@ -276,6 +277,8 @@ export default function Usuarios() {
   const createUser = useMutation({
     mutationFn: async () => {
       if (!newName.trim()) throw new Error("El nombre es obligatorio");
+      if (!newEmail.trim()) throw new Error("El correo electrónico es obligatorio");
+      if (!newPassword || newPassword.length < 6) throw new Error("La contraseña debe tener al menos 6 caracteres");
       if (!newRole) throw new Error("Debés seleccionar un rol");
       const roleDef = getRoleDef(newRole)!;
       const allBranches = roleDef.allBranchesByDefault;
@@ -285,46 +288,23 @@ export default function Usuarios() {
         throw new Error("Debés seleccionar una sucursal principal");
       }
 
-      const placeholderId = crypto.randomUUID();
-      const { data: profileData, error } = await supabase
-        .from("profiles")
-        .insert({
-          full_name: newName,
+      const { data, error } = await supabase.functions.invoke("create-user", {
+        body: {
+          email: newEmail.trim(),
+          password: newPassword,
+          full_name: newName.trim(),
+          role: newRole,
           default_branch_id: allBranches ? null : defaultBranchId,
           all_branches_access: allBranches,
-          user_id: placeholderId,
-        })
-        .select()
-        .single();
-      if (error) throw error;
+          additional_branch_ids: newAdditionalBranches,
+          modules: roleDef.modules,
+        },
+      });
 
-      // Assign role
-      const { error: roleError } = await supabase
-        .from("user_roles")
-        .insert({ user_id: placeholderId, role: newRole });
-      if (roleError) throw roleError;
+      if (error) throw new Error(error.message || "Error al crear usuario");
+      if (data?.error) throw new Error(data.error);
 
-      // Create module access based on role
-      const accessRows = roleDef.modules.map((key) => ({
-        profile_id: profileData.id,
-        module_key: key,
-        is_enabled: true,
-      }));
-      await supabase.from("user_module_access").insert(accessRows);
-
-      // Branch access
-      if (!allBranches) {
-        const branchIds = Array.from(
-          new Set([defaultBranchId, ...newAdditionalBranches].filter(Boolean) as string[])
-        );
-        if (branchIds.length > 0) {
-          await supabase
-            .from("profile_branch_access")
-            .insert(branchIds.map((bid) => ({ profile_id: profileData.id, branch_id: bid })));
-        }
-      }
-
-      return profileData;
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["profiles"] });
@@ -332,12 +312,17 @@ export default function Usuarios() {
       queryClient.invalidateQueries({ queryKey: ["user_module_access"] });
       queryClient.invalidateQueries({ queryKey: ["profile_branch_access"] });
       setCreateOpen(false);
+      const usedPassword = newPassword;
       setNewName("");
       setNewEmail("");
+      setNewPassword("Sansei2026!");
       setNewBranch("");
       setNewRole("");
       setNewAdditionalBranches([]);
-      toast({ title: "Usuario creado correctamente" });
+      toast({
+        title: "Usuario creado correctamente",
+        description: `Contraseña temporal: ${usedPassword} — Comunicala al usuario.`,
+      });
     },
     onError: (error: Error) =>
       toast({ title: error.message || "Error al crear usuario", variant: "destructive" }),
@@ -495,7 +480,18 @@ export default function Usuarios() {
                 />
               </div>
 
-              <Separator />
+              <div className="space-y-2">
+                <Label>Contraseña temporal</Label>
+                <Input
+                  type="text"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Mínimo 6 caracteres"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  El usuario podrá cambiarla después de iniciar sesión.
+                </p>
+              </div>
 
               {/* Role */}
               <div className="space-y-2">
@@ -574,6 +570,8 @@ export default function Usuarios() {
                 className="w-full"
                 disabled={
                   !newName.trim() ||
+                  !newEmail.trim() ||
+                  !newPassword || newPassword.length < 6 ||
                   !newRole ||
                   (!newRoleDef?.allBranchesByDefault && !newBranch) ||
                   createUser.isPending
