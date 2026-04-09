@@ -1,36 +1,40 @@
 
 
-## Plan: Unificar stock y selección de sucursales en Consultas
+## Plan: Crear usuarios reales con contraseña temporal
 
-### Problema actual
-Al expandir un producto en el formulario de consulta, se muestra primero el `ProductCard` con "Stock disponible por sucursal" (solo lectura), y luego debajo una sección separada "Seleccionar sucursal(es) a consultar" con exactamente los mismos datos. Información duplicada.
+### Problema
+El código actual inserta un perfil con un UUID aleatorio como `user_id`, pero `profiles.user_id` tiene una foreign key a `auth.users`. Como no se crea un usuario real en el sistema de autenticación, falla con error `23503` (FK violation).
 
 ### Solución
-Agregar un nuevo `stockMode` al `ProductCard` llamado `"select_multi"` que permita seleccionar múltiples sucursales directamente desde la grilla de stock. Así el ProductCard cumple doble función: mostrar stock Y seleccionar orígenes.
+Crear una función backend que use la Admin API para crear el usuario real en `auth.users` con email + contraseña temporal. El trigger `fn_handle_new_user` ya existente creará automáticamente el perfil base, y luego el frontend actualiza ese perfil con el rol y sucursales.
 
 ### Cambios
 
-**`src/components/shared/ProductCard.tsx`**
-1. Ampliar el tipo `StockMode` a `"select_source" | "select_multi" | "info_only"`
-2. Agregar props nuevas: `selectedBranchIds?: Set<string>` y `onToggleBranch?: (branchId: string) => void`
-3. En la sección de stock por sucursal, cuando `stockMode === "select_multi"`:
-   - Hacer los botones clickables (como ya lo son en `select_source`)
-   - Mostrar checkmark en las sucursales seleccionadas usando `selectedBranchIds`
-   - Llamar `onToggleBranch` al hacer click
-   - Cambiar el título a "Stock disponible — click para seleccionar"
+**1. Nueva Edge Function: `supabase/functions/create-user/index.ts`**
+- Recibe: `email`, `password`, `full_name`, `role`, `default_branch_id`, `all_branches_access`, `additional_branch_ids`, `modules`
+- Valida que el caller sea admin (verificando `user_roles`)
+- Usa `supabase.auth.admin.createUser()` con `email_confirm: true` para crear el usuario
+- Espera a que el trigger cree el perfil, luego actualiza el perfil con `default_branch_id`, `all_branches_access`
+- Inserta el rol en `user_roles`
+- Inserta acceso a módulos en `user_module_access`
+- Inserta acceso a sucursales en `profile_branch_access`
+- Retorna el perfil creado
 
-**`src/pages/Consultas.tsx`**
-4. Cambiar el `ProductCard` de `stockMode="info_only"` a `stockMode="select_multi"`
-5. Pasar `selectedBranchIds={productSources[p.id]}` y `onToggleBranch={(bid) => toggleProductBranch(p.id, bid)}`
-6. Eliminar toda la sección duplicada "3. Seleccionar sucursal(es) a consultar" (líneas ~327-380)
-7. Mantener el mensaje de error "Seleccioná al menos una sucursal" debajo del ProductCard
+**2. Actualizar `src/pages/Usuarios.tsx`**
+- Agregar campo de contraseña temporal al formulario de creación (con valor por defecto sugerido como `Sansei2026!`)
+- Reemplazar la mutación `createUser` para llamar a la edge function en vez de insertar directamente
+- Mostrar la contraseña asignada en el toast de éxito para que el admin la comunique al usuario
+- El campo de email pasa a ser obligatorio
 
-### Resultado
-- Una sola grilla de sucursales con stock que también sirve para seleccionar
-- Se eliminan ~50 líneas de código duplicado
-- UX más intuitiva: ver stock y elegir en un solo paso
+### Flujo resultante
+1. Admin llena: nombre, email, contraseña temporal, rol, sucursal
+2. Se llama a la edge function → crea usuario real en auth.users
+3. Trigger `fn_handle_new_user` crea perfil base automáticamente
+4. Edge function actualiza perfil con datos operativos (rol, sucursales, módulos)
+5. Admin comunica email + contraseña al nuevo usuario
+6. Usuario puede iniciar sesión y cambiar su contraseña después
 
-### Archivos modificados
-- `src/components/shared/ProductCard.tsx`
-- `src/pages/Consultas.tsx`
+### Archivos
+- `supabase/functions/create-user/index.ts` (nuevo)
+- `src/pages/Usuarios.tsx` (modificar formulario y mutación de creación)
 
