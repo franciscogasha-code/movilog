@@ -520,6 +520,7 @@ export default function SincronizacionBims() {
 
     // Determine sync completion status
     const syncCompletedCleanly = batchErrors === 0 && failedOffsets.length === 0 && !duplicateBlockDetected;
+    const hasMinorIssues = (totalFailed > 0 || totalSkipped > 0) && syncCompletedCleanly;
 
     let phase: SyncPhase;
     if (duplicateBlockDetected) {
@@ -530,9 +531,9 @@ export default function SincronizacionBims() {
       if (deactivateResult === "threshold") {
         phase = "awaiting_confirmation";
       } else if (deactivateResult === "success") {
-        phase = "completed";
+        phase = hasMinorIssues ? "completed_with_observations" : "completed";
       } else {
-        phase = "completed";
+        phase = hasMinorIssues ? "completed_with_observations" : "completed";
       }
     } else if (!syncCompletedCleanly) {
       phase = batchErrors > 0 ? (totalProcessed > 0 ? "incomplete" : "error") : "incomplete";
@@ -540,7 +541,7 @@ export default function SincronizacionBims() {
         toast.warning("Sincronización incompleta. No se ejecutó baja lógica para proteger datos.");
       }
     } else {
-      phase = totalProcessed > 0 ? "completed" : "error";
+      phase = totalProcessed > 0 ? (hasMinorIssues ? "completed_with_observations" : "completed") : "error";
     }
 
     const finalStatus: SyncStatus = totalFailed > 0
@@ -628,7 +629,7 @@ export default function SincronizacionBims() {
       {/* Sync phase banner */}
       {prodProgress.phase !== "idle" && prodProgress.phase !== "syncing" && (
         <Card className={`border ${
-          prodProgress.phase === "completed" ? "border-green-500/30 bg-green-500/5" :
+          prodProgress.phase === "completed" || prodProgress.phase === "completed_with_observations" ? "border-green-500/30 bg-green-500/5" :
           prodProgress.phase === "incomplete" ? "border-amber-500/30 bg-amber-500/5" :
           prodProgress.phase === "awaiting_confirmation" ? "border-amber-500/30 bg-amber-500/5" :
           prodProgress.phase === "error" ? "border-destructive/30 bg-destructive/5" : ""
