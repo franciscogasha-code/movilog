@@ -153,13 +153,15 @@ export default function Consultas() {
 
 function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
   const { user } = useAuth();
+  const { data: branches } = useBranches();
   const { defaultBranchId, canChangeBranch } = useAutoDetectBranch();
   const [submitting, setSubmitting] = useState(false);
   const [selectedProducts, setSelectedProducts] = useState<ProductResult[]>([]);
   const [branchId, setBranchId] = useState(defaultBranchId || "");
-  const [targetBranches, setTargetBranches] = useState<string[]>([]);
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
   const [deliveryContext, setDeliveryContext] = useState<DeliveryTarget>("branch");
+  /** Per-product selected source branches: { productId: Set<branchId> } */
+  const [productSources, setProductSources] = useState<Record<string, Set<string>>>({});
 
   useEffect(() => {
     if (defaultBranchId && !branchId) setBranchId(defaultBranchId);
@@ -173,12 +175,38 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
 
   const removeProduct = (productId: string) => {
     setSelectedProducts(prev => prev.filter(p => p.id !== productId));
+    setProductSources(prev => { const next = { ...prev }; delete next[productId]; return next; });
     if (expandedProduct === productId) setExpandedProduct(null);
+  };
+
+  const toggleProductBranch = (productId: string, targetBranchId: string) => {
+    setProductSources(prev => {
+      const current = new Set(prev[productId] || []);
+      if (current.has(targetBranchId)) current.delete(targetBranchId);
+      else current.add(targetBranchId);
+      return { ...prev, [productId]: current };
+    });
+  };
+
+  // Derive unique target branches from all per-product selections
+  const derivedTargetBranches = Array.from(
+    new Set(Object.values(productSources).flatMap(s => Array.from(s)))
+  );
+
+  // Validate: every product must have at least one branch selected
+  const allProductsHaveSource = selectedProducts.length > 0 &&
+    selectedProducts.every(p => (productSources[p.id]?.size ?? 0) > 0);
+
+  const getWarehouseBranchId = (warehouseCode: string): string | null => {
+    return branches?.find(b => b.code === warehouseCode)?.id || null;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedProducts.length || !branchId || !targetBranches.length) { toast.error("Completar todos los campos"); return; }
+    if (!selectedProducts.length || !branchId || !allProductsHaveSource) {
+      toast.error("Seleccioná al menos una sucursal origen por cada producto");
+      return;
+    }
     setSubmitting(true);
     try {
       if (!user) { toast.error("Debés iniciar sesión"); return; }
@@ -192,7 +220,7 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
       const { error: cpErr } = await supabase.from("consultation_products").insert(cpInsert);
       if (cpErr) throw cpErr;
 
-      const targets = targetBranches.map(bid => ({ consultation_id: consultation.id, branch_id: bid }));
+      const targets = derivedTargetBranches.map(bid => ({ consultation_id: consultation.id, branch_id: bid }));
       const { error: tErr } = await supabase.from("consultation_targets").insert(targets);
       if (tErr) throw tErr;
 
@@ -218,56 +246,135 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
         </p>
       </div>
 
+      <BranchSelector label="Mi sucursal" value={branchId} onChange={setBranchId} disabled={!canChangeBranch && !!defaultBranchId} />
+
       <div className="space-y-2">
         <Label>Productos</Label>
         <ProductSearch onSelect={addProduct} excludeIds={selectedProducts.map(p => p.id)} placeholder="Buscar producto..." />
         {selectedProducts.length > 0 && (
           <div className="space-y-2 mt-2">
-            {selectedProducts.map((p) => (
-              <div key={p.id} className="border border-border rounded-lg overflow-hidden">
-                <div className="flex items-center gap-2 p-2 bg-muted/30">
-                  <Package className="h-4 w-4 text-muted-foreground" />
-                  <span className="flex-1 text-sm font-medium truncate">{p.name}</span>
-                  <span className="text-xs text-muted-foreground">{p.sku}</span>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => setExpandedProduct(expandedProduct === p.id ? null : p.id)}>
-                    {expandedProduct === p.id ? "▲" : "▼"}
-                  </Button>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => removeProduct(p.id)}>
-                    <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                  </Button>
-                </div>
-                {expandedProduct === p.id && (
-                  <div className="p-2 border-t border-border/50 space-y-2">
-                    <DemandAlert productId={p.id} />
-                    <ProductCard
-                      productId={p.id} productName={p.name} productSku={p.sku}
-                      productBimsCode={p.bims_code} productBarcode={(p as any).barcode}
-                      productCategory={p.category} productUnit={p.unit}
-                      productDescription={(p as any).description} productImageUrl={(p as any).image_url}
-                      productSellPrice={(p as any).sell_price} productPriceScales={(p as any).price_scales}
-                      productPriceLists={(p as any).price_lists}
-                      productStockByWarehouse={(p as any).stock_by_warehouse}
-                      productTotalStock={(p as any).total_stock}
-                      stockMode="info_only" compact={false}
-                    />
-                    {deliveryContext === "branch" && (
-                      <p className="text-xs text-muted-foreground italic">Se puede combinar stock de múltiples sucursales al crear el pedido.</p>
+            {selectedProducts.map((p) => {
+              const stockByWarehouse = (p as any).stock_by_warehouse as Record<string, number> | null;
+              const hasStock = stockByWarehouse && Object.keys(stockByWarehouse).length > 0;
+              const warehousesWithStock = hasStock
+                ? Object.entries(stockByWarehouse!).filter(([, qty]) => qty > 0).sort((a, b) => b[1] - a[1])
+                : [];
+              const selectedForProduct = productSources[p.id] || new Set<string>();
+
+              return (
+                <div key={p.id} className="border border-border rounded-lg overflow-hidden">
+                  <div className="flex items-center gap-2 p-2 bg-muted/30">
+                    <Package className="h-4 w-4 text-muted-foreground" />
+                    <span className="flex-1 text-sm font-medium truncate">{p.name}</span>
+                    <span className="text-xs text-muted-foreground">{p.sku}</span>
+                    {selectedForProduct.size > 0 && (
+                      <Badge variant="secondary" className="text-xs">{selectedForProduct.size} origen(es)</Badge>
                     )}
-                    {deliveryContext === "client" && (
-                      <p className="text-xs text-muted-foreground italic">Identificá la sucursal que cubra el total para origen único.</p>
-                    )}
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setExpandedProduct(expandedProduct === p.id ? null : p.id)}>
+                      {expandedProduct === p.id ? "▲" : "▼"}
+                    </Button>
+                    <Button type="button" variant="ghost" size="sm" onClick={() => removeProduct(p.id)}>
+                      <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                    </Button>
                   </div>
-                )}
-              </div>
-            ))}
+                  {expandedProduct === p.id && (
+                    <div className="p-3 border-t border-border/50 space-y-3">
+                      <DemandAlert productId={p.id} />
+
+                      {/* Compact product info */}
+                      <div className="flex items-center gap-3 text-sm">
+                        {(p as any).image_url ? (
+                          <img src={(p as any).image_url} alt={p.name} className="h-10 w-10 rounded object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                        ) : (
+                          <div className="h-10 w-10 rounded bg-muted flex items-center justify-center"><Package className="h-5 w-5 text-muted-foreground" /></div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium truncate">{p.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {p.sku && <span>SKU: {p.sku}</span>}
+                            {p.bims_code && <span className="ml-1">• Cód: {p.bims_code}</span>}
+                            {(p as any).total_stock != null && <span className="ml-1">• Stock total: {Math.floor((p as any).total_stock)}</span>}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Stock by branch – selectable */}
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-medium">Seleccionar sucursal(es) origen con disponibilidad</Label>
+                        {warehousesWithStock.length > 0 ? (
+                          <div className="grid grid-cols-2 gap-1.5">
+                            {warehousesWithStock.map(([whCode, qty]) => {
+                              const bId = getWarehouseBranchId(whCode);
+                              if (!bId || bId === branchId) return null; // exclude requesting branch
+                              const branchName = branches?.find(b => b.id === bId)?.name || `Depósito ${whCode}`;
+                              const isSelected = selectedForProduct.has(bId);
+                              return (
+                                <button
+                                  key={whCode}
+                                  type="button"
+                                  onClick={() => toggleProductBranch(p.id, bId)}
+                                  className={cn(
+                                    "flex items-center justify-between px-2.5 py-1.5 rounded text-xs text-left transition-colors",
+                                    isSelected
+                                      ? "bg-primary/10 border border-primary/30 ring-1 ring-primary/20"
+                                      : "bg-muted/50 hover:bg-accent/10 cursor-pointer"
+                                  )}
+                                >
+                                  <span className="font-medium truncate flex items-center gap-1">
+                                    {isSelected && <CheckCircle2 className="h-3 w-3 text-primary shrink-0" />}
+                                    {branchName}
+                                  </span>
+                                  <Badge variant={qty > 0 ? "default" : "secondary"} className="text-xs ml-1">
+                                    {Math.floor(qty)}
+                                  </Badge>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="p-3 rounded bg-destructive/5 border border-destructive/20 text-xs text-destructive flex items-center gap-2">
+                            <AlertTriangle className="h-4 w-4 shrink-0" />
+                            <span>Sin stock disponible en ninguna sucursal para este producto.</span>
+                          </div>
+                        )}
+                        {selectedForProduct.size === 0 && warehousesWithStock.length > 0 && (
+                          <p className="text-xs text-amber-600 flex items-center gap-1">
+                            <AlertTriangle className="h-3 w-3" /> Seleccioná al menos una sucursal origen
+                          </p>
+                        )}
+                      </div>
+
+                      {deliveryContext === "branch" && (
+                        <p className="text-xs text-muted-foreground italic">Se puede combinar stock de múltiples sucursales al crear el pedido.</p>
+                      )}
+                      {deliveryContext === "client" && (
+                        <p className="text-xs text-muted-foreground italic">Identificá la sucursal que cubra el total para origen único.</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
 
-      <BranchSelector label="Mi sucursal" value={branchId} onChange={setBranchId} disabled={!canChangeBranch && !!defaultBranchId} />
-      <MultiBranchSelector label="Consultar a sucursales" selected={targetBranches} onChange={setTargetBranches} excludeIds={branchId ? [branchId] : []} />
+      {/* Summary of derived targets */}
+      {derivedTargetBranches.length > 0 && (
+        <div className="p-3 rounded-lg bg-muted/30 border border-border/30 space-y-1">
+          <p className="text-xs font-medium text-muted-foreground">Sucursales consultadas (derivado de selección):</p>
+          <div className="flex flex-wrap gap-1.5">
+            {derivedTargetBranches.map(bid => {
+              const b = branches?.find(br => br.id === bid);
+              return b ? (
+                <Badge key={bid} variant="secondary" className="text-xs">{b.name} ({b.code})</Badge>
+              ) : null;
+            })}
+          </div>
+        </div>
+      )}
 
-      <Button type="submit" className="w-full" disabled={submitting || !selectedProducts.length}>
+      <Button type="submit" className="w-full" disabled={submitting || !selectedProducts.length || !allProductsHaveSource}>
         {submitting ? "Enviando..." : "Enviar Consulta"}
       </Button>
     </form>
