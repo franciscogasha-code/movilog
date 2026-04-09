@@ -32,7 +32,7 @@ const HEADERS = {
 };
 
 // Sync process states (state machine)
-type SyncPhase = "idle" | "syncing" | "completed" | "incomplete" | "error" | "awaiting_confirmation";
+type SyncPhase = "idle" | "syncing" | "completed" | "completed_with_observations" | "incomplete" | "error" | "awaiting_confirmation";
 type SyncStatus = "idle" | "loading" | "success" | "partial" | "error";
 
 interface SyncError { code: string; message: string; stage: string; timestamp: string }
@@ -83,6 +83,7 @@ const PHASE_LABELS: Record<SyncPhase, string> = {
   idle: "Sin ejecutar",
   syncing: "En proceso",
   completed: "Completado correctamente",
+  completed_with_observations: "Completado con observaciones",
   incomplete: "Incompleto",
   error: "Error",
   awaiting_confirmation: "Requiere confirmación",
@@ -92,6 +93,7 @@ const PHASE_COLORS: Record<SyncPhase, string> = {
   idle: "text-muted-foreground",
   syncing: "text-primary",
   completed: "text-green-600",
+  completed_with_observations: "text-green-600",
   incomplete: "text-amber-500",
   error: "text-destructive",
   awaiting_confirmation: "text-amber-600",
