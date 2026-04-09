@@ -160,13 +160,12 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
   const { defaultBranchId } = useAutoDetectBranch();
   const [submitting, setSubmitting] = useState(false);
   const [selectedProducts, setSelectedProducts] = useState<ProductResult[]>([]);
-  const [branchId] = useState(defaultBranchId || "");
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
   /** Per-product selected source branches: { productId: Set<branchId> } */
   const [productSources, setProductSources] = useState<Record<string, Set<string>>>({});
 
-  // Auto-fill branch from profile
-  const resolvedBranchId = defaultBranchId || branchId;
+  // Auto-fill branch from profile (reactive)
+  const resolvedBranchId = defaultBranchId || "";
   const myBranch = branches?.find(b => b.id === resolvedBranchId);
 
   const addProduct = (product: ProductResult) => {
