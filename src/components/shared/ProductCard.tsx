@@ -5,19 +5,7 @@ import { Package, MapPin, DollarSign, BarChart3, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useBranches } from "@/hooks/use-branches";
 
-const BIMS_IMAGE_HOST = "190.128.128.182";
-
-/** Route BIMS HTTP images through our edge function proxy for HTTPS */
-function proxyImageUrl(url: string): string {
-  try {
-    const parsed = new URL(url);
-    if (parsed.hostname === BIMS_IMAGE_HOST) {
-      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
-      return `https://${projectId}.supabase.co/functions/v1/bims-image-proxy?url=${encodeURIComponent(url)}`;
-    }
-  } catch { /* not a valid URL, return as-is */ }
-  return url;
-}
+import { proxyImageUrl } from "@/lib/image-utils";
 
 function ProductImage({ url, name }: { url?: string | null; name: string }) {
   const [failed, setFailed] = useState(false);
