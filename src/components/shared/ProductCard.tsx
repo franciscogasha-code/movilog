@@ -111,7 +111,7 @@ export function ProductCard({
     return (
       <div className={cn("flex items-center gap-3 p-3 rounded-lg border border-border bg-card", className)}>
         {productImageUrl ? (
-          <img src={productImageUrl} alt={productName} className="h-10 w-10 rounded object-cover shrink-0" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+          <img src={sanitizeImageUrl(productImageUrl)} alt={productName} className="h-10 w-10 rounded object-cover shrink-0" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
         ) : (
           <div className="h-10 w-10 rounded bg-muted flex items-center justify-center shrink-0">
             <Package className="h-5 w-5 text-muted-foreground" />
