@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Package, MapPin, DollarSign, BarChart3, Check } from "lucide-react";
+import { Package, MapPin, DollarSign, BarChart3, Check, Zap, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useBranches } from "@/hooks/use-branches";
 

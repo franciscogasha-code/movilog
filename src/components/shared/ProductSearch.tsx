@@ -114,8 +114,23 @@ export function ProductSearch({ onSelect, placeholder = "Buscar producto por nom
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Live stock from BIMS
+  const bimsCodes = results.map(p => p.bims_code).filter(Boolean) as string[];
+  const { liveStock, isLoadingStock, isLive } = useLiveStock(bimsCodes);
+
+  // Merge live stock into results for display
+  const enrichedResults = results.map(p => {
+    if (isLive && p.bims_code && liveStock?.[p.bims_code]) {
+      const live = liveStock[p.bims_code];
+      return { ...p, stock_by_warehouse: live.stock_by_warehouse, total_stock: live.total_stock };
+    }
+    return p;
+  });
+
   const handleSelect = (product: ProductResult) => {
-    onSelect(product);
+    // Pass the enriched (live) version to the consumer
+    const enriched = enrichedResults.find(p => p.id === product.id) || product;
+    onSelect(enriched);
     setQuery("");
     setResults([]);
     setOpen(false);
@@ -131,12 +146,24 @@ export function ProductSearch({ onSelect, placeholder = "Buscar producto por nom
           placeholder={placeholder}
           className="pl-9 pr-9"
         />
-        {loading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />}
+        {(loading || isLoadingStock) && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />}
       </div>
 
       {open && (
         <div className="absolute z-50 mt-1 w-full rounded-md border border-border bg-popover shadow-lg max-h-[300px] overflow-y-auto">
-          {results.map((p) => (
+          {/* Live stock indicator */}
+          {results.length > 0 && (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] border-b border-border/30 bg-muted/20">
+              {isLive ? (
+                <><Zap className="h-3 w-3 text-green-500" /><span className="text-green-600 font-medium">Stock en vivo</span></>
+              ) : isLoadingStock ? (
+                <><Loader2 className="h-3 w-3 animate-spin text-muted-foreground" /><span className="text-muted-foreground">Consultando stock...</span></>
+              ) : (
+                <><Clock className="h-3 w-3 text-muted-foreground" /><span className="text-muted-foreground">Stock sincronizado</span></>
+              )}
+            </div>
+          )}
+          {enrichedResults.map((p) => (
             <button
               key={p.id}
               type="button"
