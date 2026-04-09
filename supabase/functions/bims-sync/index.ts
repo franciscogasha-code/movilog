@@ -211,7 +211,7 @@ Deno.serve(async (req) => {
   const url = new URL(req.url);
   const entity = url.searchParams.get("entity");
   const action = url.searchParams.get("action");
-  const page = parseInt(url.searchParams.get("page") || "1");
+  const offset = parseInt(url.searchParams.get("offset") || "0");
   const limit = parseInt(url.searchParams.get("limit") || "100");
 
   const syncStartTime = Date.now();
@@ -412,7 +412,7 @@ Deno.serve(async (req) => {
       let totalInactiveSkipped = 0;
 
       try {
-        const products = await bimsRequest("GET", `/products?page=${page}&limit=${limit}`) as any;
+        const products = await bimsRequest("GET", `/products?offset=${offset}&limit=${limit}`) as any;
         const items = extractArray(products);
         stats.total_received = items.length;
         if (items.length < limit) hasMore = false;
@@ -496,13 +496,13 @@ Deno.serve(async (req) => {
         errors: stats.errors.slice(0, 100),
         completed_at: new Date().toISOString(),
         duration_seconds: duration,
-        triggered_by: `page_${page}`,
+        triggered_by: `offset_${offset}`,
       });
 
       return new Response(JSON.stringify({
         success: true,
         entity: "products",
-        page,
+        offset,
         limit,
         has_more: hasMore,
         stats,
