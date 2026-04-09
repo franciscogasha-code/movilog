@@ -7,8 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Search, MessageCircle, Clock, CheckCircle2, ShoppingCart, Package, Trash2, XCircle, AlertTriangle, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, Search, MessageCircle, Clock, CheckCircle2, ShoppingCart, Package, Trash2, XCircle, AlertTriangle, ChevronDown, ChevronUp, Send } from "lucide-react";
 import { proxyImageUrl } from "@/lib/image-utils";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ProductSearch, type ProductResult } from "@/components/shared/ProductSearch";
@@ -86,7 +87,7 @@ export default function Consultas() {
           <DialogTrigger asChild>
             <Button><Plus className="h-4 w-4 mr-2" /> Nueva Consulta</Button>
           </DialogTrigger>
-          <DialogContent className="max-w-lg">
+          <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
             <DialogHeader><DialogTitle>Consultar Disponibilidad</DialogTitle></DialogHeader>
             <ConsultationForm onSuccess={() => { setCreateOpen(false); queryClient.invalidateQueries({ queryKey: ["availability-consultations"] }); }} />
           </DialogContent>
@@ -156,18 +157,17 @@ export default function Consultas() {
 function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
   const { user } = useAuth();
   const { data: branches } = useBranches();
-  const { defaultBranchId, canChangeBranch } = useAutoDetectBranch();
+  const { defaultBranchId } = useAutoDetectBranch();
   const [submitting, setSubmitting] = useState(false);
   const [selectedProducts, setSelectedProducts] = useState<ProductResult[]>([]);
-  const [branchId, setBranchId] = useState(defaultBranchId || "");
+  const [branchId] = useState(defaultBranchId || "");
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
-  const [deliveryContext, setDeliveryContext] = useState<DeliveryTarget>("branch");
   /** Per-product selected source branches: { productId: Set<branchId> } */
   const [productSources, setProductSources] = useState<Record<string, Set<string>>>({});
 
-  useEffect(() => {
-    if (defaultBranchId && !branchId) setBranchId(defaultBranchId);
-  }, [defaultBranchId]);
+  // Auto-fill branch from profile
+  const resolvedBranchId = defaultBranchId || branchId;
+  const myBranch = branches?.find(b => b.id === resolvedBranchId);
 
   const addProduct = (product: ProductResult) => {
     if (selectedProducts.find(p => p.id === product.id)) { toast.info("Producto ya agregado"); return; }
@@ -205,7 +205,7 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedProducts.length || !branchId || !allProductsHaveSource) {
+    if (!selectedProducts.length || !resolvedBranchId || !allProductsHaveSource) {
       toast.error("Seleccioná al menos una sucursal origen por cada producto");
       return;
     }
@@ -214,7 +214,7 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
       if (!user) { toast.error("Debés iniciar sesión"); return; }
       const { data: consultation, error } = await supabase
         .from("availability_consultations")
-        .insert({ requesting_branch_id: branchId, created_by: user.id })
+        .insert({ requesting_branch_id: resolvedBranchId, created_by: user.id })
         .select().single();
       if (error) throw error;
 
@@ -232,33 +232,21 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
     finally { setSubmitting(false); }
   };
 
-  const requestType: RequestType = "reposition";
-  const originMode = getOriginMode(requestType, deliveryContext);
-
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      {/* Context Banner */}
-      <ContextBanner requestType={requestType} deliveryTarget={deliveryContext} />
-
-      {/* STEP 1: Context */}
-      <div className="space-y-4">
-        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">1. Contexto</h3>
-        <div className="grid grid-cols-2 gap-4">
-          <BranchSelector label="Mi sucursal" value={branchId} onChange={setBranchId} disabled={!canChangeBranch && !!defaultBranchId} />
-          <div className="space-y-2">
-            <Label>Destino de entrega</Label>
-            <select value={deliveryContext} onChange={(e) => setDeliveryContext(e.target.value as DeliveryTarget)}
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-              <option value="branch">A sucursal</option>
-              <option value="client">A cliente</option>
-            </select>
-          </div>
+      {/* STEP 1: My branch (auto-filled, readonly) */}
+      <div className="space-y-3">
+        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">1. Mi sucursal</h3>
+        <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/30 border border-border/30">
+          <Package className="h-4 w-4 text-muted-foreground shrink-0" />
+          <span className="text-sm font-medium">{myBranch ? `${myBranch.name} (${myBranch.code})` : "Cargando..."}</span>
+          <Badge variant="outline" className="text-xs ml-auto">Auto-detectada</Badge>
         </div>
       </div>
 
       {/* STEP 2: Products */}
       <div className="space-y-3">
-        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">2. Productos</h3>
+        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">2. Productos a consultar</h3>
         <ProductSearch onSelect={addProduct} excludeIds={selectedProducts.map(p => p.id)} placeholder="Buscar producto..." />
 
         {selectedProducts.length > 0 ? (
@@ -301,30 +289,32 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
 
                   {/* Expanded: full ProductCard */}
                   {expandedProduct === p.id && (
-                    <div className="p-3 border-t border-border/50 space-y-2">
+                    <div className="p-3 border-t border-border/50 space-y-2 overflow-hidden">
                       <DemandAlert productId={p.id} />
-                      <ProductCard
-                        productId={p.id}
-                        productName={p.name}
-                        productSku={p.sku}
-                        productBimsCode={p.bims_code}
-                        productBarcode={p.barcode}
-                        productCategory={p.category}
-                        productUnit={p.unit}
-                        productDescription={p.description}
-                        productImageUrl={p.image_url}
-                        productSellPrice={p.sell_price}
-                        productPriceScales={p.price_scales as { min_quantity: number; price: number }[] | undefined}
-                        productPriceLists={p.price_lists as { name: string; amount: number }[] | undefined}
-                        productStockByWarehouse={p.stock_by_warehouse as Record<string, number> | undefined}
-                        productTotalStock={p.total_stock}
-                        stockMode="info_only"
-                        compact={false}
-                      />
+                      <div className="w-full overflow-hidden">
+                        <ProductCard
+                          productId={p.id}
+                          productName={p.name}
+                          productSku={p.sku}
+                          productBimsCode={p.bims_code}
+                          productBarcode={p.barcode}
+                          productCategory={p.category}
+                          productUnit={p.unit}
+                          productDescription={p.description}
+                          productImageUrl={p.image_url}
+                          productSellPrice={p.sell_price}
+                          productPriceScales={p.price_scales as { min_quantity: number; price: number }[] | undefined}
+                          productPriceLists={p.price_lists as { name: string; amount: number }[] | undefined}
+                          productStockByWarehouse={p.stock_by_warehouse as Record<string, number> | undefined}
+                          productTotalStock={p.total_stock}
+                          stockMode="info_only"
+                          compact={false}
+                        />
+                      </div>
 
                       {/* Stock selection for consultation - multi-branch toggle */}
                       <div className="space-y-1.5">
-                        <Label className="text-xs font-medium">Seleccionar sucursal(es) origen con disponibilidad</Label>
+                        <Label className="text-xs font-medium">3. Seleccionar sucursal(es) a consultar</Label>
                         {(() => {
                           const sbw = p.stock_by_warehouse as Record<string, number> | null;
                           const warehousesWithStock = sbw
@@ -336,7 +326,7 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
                               <div className="grid grid-cols-2 gap-1.5">
                                 {warehousesWithStock.map(([whCode, qty]) => {
                                   const bId = getWarehouseBranchId(whCode);
-                                  if (!bId || bId === branchId) return null;
+                                  if (!bId || bId === resolvedBranchId) return null;
                                   const branchName = branches?.find(b => b.id === bId)?.name || `Depósito ${whCode}`;
                                   const isSelected = selectedForProduct.has(bId);
                                   return (
@@ -373,17 +363,10 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
                         })()}
                         {selectedForProduct.size === 0 && (
                           <p className="text-xs text-destructive flex items-center gap-1">
-                            <AlertTriangle className="h-3 w-3" /> Seleccioná al menos una sucursal origen
+                            <AlertTriangle className="h-3 w-3" /> Seleccioná al menos una sucursal
                           </p>
                         )}
                       </div>
-
-                      {deliveryContext === "branch" && (
-                        <p className="text-xs text-muted-foreground italic">Se puede combinar stock de múltiples sucursales al crear el pedido.</p>
-                      )}
-                      {deliveryContext === "client" && (
-                        <p className="text-xs text-muted-foreground italic">Identificá la sucursal que cubra el total para origen único.</p>
-                      )}
                     </div>
                   )}
                 </div>
@@ -401,7 +384,7 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
       {/* Summary of derived targets */}
       {derivedTargetBranches.length > 0 && (
         <div className="p-3 rounded-lg bg-muted/30 border border-border/30 space-y-1">
-          <p className="text-xs font-medium text-muted-foreground">Sucursales consultadas (derivado de selección):</p>
+          <p className="text-xs font-medium text-muted-foreground">Sucursales a consultar:</p>
           <div className="flex flex-wrap gap-1.5">
             {derivedTargetBranches.map(bid => {
               const b = branches?.find(br => br.id === bid);
@@ -421,10 +404,13 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
 }
 
 function ConsultationDetail({ consultationId, onOrderCreated }: { consultationId: string; onOrderCreated: () => void }) {
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const [createOrderOpen, setCreateOrderOpen] = useState(false);
   const [orderRequestType, setOrderRequestType] = useState<RequestType>("reposition");
   const [orderDeliveryTarget, setOrderDeliveryTarget] = useState<DeliveryTarget>("branch");
+  const [newMessage, setNewMessage] = useState("");
+  const [sendingMessage, setSendingMessage] = useState(false);
 
   const orderMode = getOriginMode(orderRequestType, orderDeliveryTarget);
   const allowedTargets = getAllowedDeliveryTargets(orderRequestType);
@@ -452,7 +438,7 @@ function ConsultationDetail({ consultationId, onOrderCreated }: { consultationId
     queryKey: ["consultation-products", consultationId],
     queryFn: async () => {
       const { data, error } = await supabase.from("consultation_products")
-        .select(`*, product:products(id, name, sku, bims_code, stock_by_warehouse, total_stock)`)
+        .select(`*, product:products(id, name, sku, bims_code, stock_by_warehouse, total_stock, image_url)`)
         .eq("consultation_id", consultationId);
       if (error) throw error;
       return data;
@@ -493,6 +479,48 @@ function ConsultationDetail({ consultationId, onOrderCreated }: { consultationId
     enabled: !!consultationId,
   });
 
+  // Load profiles for message senders
+  const senderIds = [...new Set(messages?.map(m => m.sender_id) || [])];
+  const { data: senderProfiles } = useQuery({
+    queryKey: ["sender-profiles", senderIds.join(",")],
+    queryFn: async () => {
+      if (!senderIds.length) return [];
+      const { data } = await supabase.from("profiles").select("user_id, full_name, default_branch_id").in("user_id", senderIds);
+      return data || [];
+    },
+    enabled: senderIds.length > 0,
+  });
+
+  const { data: allBranches } = useBranches();
+
+  const getSenderInfo = (senderId: string) => {
+    const profile = senderProfiles?.find(p => p.user_id === senderId);
+    const branch = profile?.default_branch_id ? allBranches?.find(b => b.id === profile.default_branch_id) : null;
+    return {
+      name: profile?.full_name || "Usuario",
+      branch: branch?.name || null,
+    };
+  };
+
+  const handleSendMessage = async () => {
+    if (!newMessage.trim() || !user) return;
+    setSendingMessage(true);
+    try {
+      const { error } = await supabase.from("consultation_messages").insert({
+        consultation_id: consultationId,
+        message: newMessage.trim(),
+        sender_id: user.id,
+      });
+      if (error) throw error;
+      setNewMessage("");
+      queryClient.invalidateQueries({ queryKey: ["consultation-messages", consultationId] });
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setSendingMessage(false);
+    }
+  };
+
   const closeConsultation = async () => {
     try {
       const { error } = await supabase.from("availability_consultations").update({ status: "converted" as any }).eq("id", consultationId);
@@ -529,6 +557,9 @@ function ConsultationDetail({ consultationId, onOrderCreated }: { consultationId
             const derivedInOrder = linkedOrders && linkedOrders.length > 0;
             return (
               <div key={cp.id} className="flex items-center gap-2 p-2 rounded bg-muted/30 text-sm">
+                {cp.product?.image_url && (
+                  <img src={proxyImageUrl(cp.product.image_url)} alt={cp.product?.name} className="h-8 w-8 rounded object-cover shrink-0" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                )}
                 <span className="font-medium">{cp.product?.name}</span>
                 <span className="text-muted-foreground text-xs">({cp.product?.sku})</span>
                 {cp.product?.total_stock != null && (
@@ -566,6 +597,56 @@ function ConsultationDetail({ consultationId, onOrderCreated }: { consultationId
               )}
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* Chat section */}
+      <div>
+        <h4 className="font-display font-semibold mb-3 flex items-center gap-2">
+          <MessageCircle className="h-4 w-4" /> Chat
+        </h4>
+        <div className="rounded-lg border border-border overflow-hidden">
+          {/* Messages */}
+          <div className="max-h-[250px] overflow-y-auto p-3 space-y-2 bg-muted/10">
+            {!messages?.length ? (
+              <p className="text-sm text-muted-foreground text-center py-4">Sin mensajes aún. Iniciá la conversación.</p>
+            ) : (
+              messages.map((m: any) => {
+                const sender = getSenderInfo(m.sender_id);
+                const isMe = m.sender_id === user?.id;
+                return (
+                  <div key={m.id} className={cn("flex flex-col gap-0.5 max-w-[85%]", isMe ? "ml-auto items-end" : "items-start")}>
+                    <div className={cn(
+                      "px-3 py-2 rounded-lg text-sm",
+                      isMe ? "bg-primary text-primary-foreground" : "bg-muted"
+                    )}>
+                      <p>{m.message}</p>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                      <span className="font-medium">{sender.name}</span>
+                      {sender.branch && <span>• {sender.branch}</span>}
+                      <span>• {new Date(m.created_at).toLocaleString("es-PY", { hour: "2-digit", minute: "2-digit" })}</span>
+                    </p>
+                  </div>
+                );
+              })
+            )}
+          </div>
+          {/* Send message */}
+          {canCreateOrder && (
+            <div className="p-2 border-t border-border flex items-center gap-2 bg-background">
+              <Input
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                placeholder="Escribí un mensaje..."
+                className="flex-1 h-9 text-sm"
+                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}
+              />
+              <Button type="button" size="sm" onClick={handleSendMessage} disabled={sendingMessage || !newMessage.trim()}>
+                <Send className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -622,7 +703,7 @@ function ConsultationDetail({ consultationId, onOrderCreated }: { consultationId
                 {orderMode === "multi" ? "Crear transferencia(s) multi-origen" : "Crear pedido con origen único"}
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-lg">
+            <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>{orderMode === "multi" ? "Crear transferencia(s)" : "Crear pedido"}</DialogTitle>
               </DialogHeader>
@@ -642,22 +723,6 @@ function ConsultationDetail({ consultationId, onOrderCreated }: { consultationId
           </Dialog>
         </div>
       )}
-
-      <div>
-        <h4 className="font-display font-semibold mb-3">Chat</h4>
-        {!messages?.length ? (
-          <p className="text-sm text-muted-foreground">Sin mensajes</p>
-        ) : (
-          <div className="space-y-2 max-h-[200px] overflow-y-auto">
-            {messages.map((m: any) => (
-              <div key={m.id} className="p-2 rounded bg-muted/20 text-sm">
-                <p>{m.message}</p>
-                <p className="text-xs text-muted-foreground mt-1">{new Date(m.created_at).toLocaleString("es-PY")}</p>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
     </div>
   );
 }
