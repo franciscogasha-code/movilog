@@ -480,7 +480,18 @@ export default function Usuarios() {
                 />
               </div>
 
-              <Separator />
+              <div className="space-y-2">
+                <Label>Contraseña temporal</Label>
+                <Input
+                  type="text"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Mínimo 6 caracteres"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  El usuario podrá cambiarla después de iniciar sesión.
+                </p>
+              </div>
 
               {/* Role */}
               <div className="space-y-2">
