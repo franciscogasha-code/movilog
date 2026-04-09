@@ -144,11 +144,12 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
     setItems(prev => prev.map(i => i.product.id === productId ? { ...i, sourceBranchId: branchId } : i));
   };
 
-  // Stock validation errors (uses current product data)
+  // Stock validation errors (uses live stock if available, otherwise local)
   const stockErrors = useMemo(() => {
     const errors: Record<string, string> = {};
     for (const item of items) {
-      const sbw = item.product.stock_by_warehouse;
+      const live = getEffectiveStock(item.product);
+      const sbw = live?.stock_by_warehouse ?? item.product.stock_by_warehouse;
       if (!sbw) continue;
 
       if (isMultiOrigin && item.sourceBranchId) {
@@ -170,7 +171,7 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
       }
     }
     return errors;
-  }, [items, isMultiOrigin, sourceBranchId, branches]);
+  }, [items, isMultiOrigin, sourceBranchId, branches, liveStock]);
 
   const hasStockErrors = Object.keys(stockErrors).length > 0;
 
