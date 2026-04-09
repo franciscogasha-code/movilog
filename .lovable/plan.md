@@ -1,37 +1,19 @@
 
 
-## Diagnóstico
+## Plan: Miniaturas de producto en resultados de búsqueda
 
-Hay **dos problemas** con causa raíz compartida, más un bug visual adicional:
+Reemplazar el ícono de caja (Package) en el dropdown de búsqueda por una miniatura real de la imagen del producto, con fallback al ícono si no hay imagen o falla la carga.
 
-### 1. Imágenes y stock total no se muestran
-**Causa**: `ProductSearch` solo consulta 7 campos (`id, name, sku, bims_code, barcode, category, unit`). No incluye `image_url`, `sell_price`, `description`, `stock_by_warehouse`, `total_stock`, `price_scales`, `price_lists`. Cuando `SolicitudCreateForm` pasa estos valores a `ProductCard`, todos son `undefined`.
+### Cambios en `src/components/shared/ProductSearch.tsx`
 
-### 2. "Warehouse undefined" visible en la captura
-**Causa**: Existe un warehouse code en `stock_by_warehouse` que no coincide con ningún `code` en la tabla `branches`. La función `getWarehouseBranchName` cae al fallback `Depósito ${warehouseId}` que muestra "undefined" cuando el ID es vacío o nulo.
+1. Importar `useState` (ya existe) y reutilizar la función `proxyImageUrl` desde `ProductCard.tsx` (o duplicar la lógica inline para evitar dependencia circular).
 
----
+2. Reemplazar línea 127 (`<Package className="h-4 w-4 ..."/>`) por un componente inline de miniatura:
+   - Si `p.image_url` existe: renderizar un `<img>` de 32×32px (`h-8 w-8`) con `rounded object-cover`, pasando la URL por `proxyImageUrl`, con `onError` que oculta la imagen y muestra el fallback Package.
+   - Si no hay `image_url` o falla la carga: mostrar el ícono Package actual como fallback dentro de un contenedor de 32×32px con fondo muted.
 
-## Plan de corrección
+3. Extraer `proxyImageUrl` a un archivo compartido (`src/lib/image-utils.ts`) o importarlo para evitar duplicar la lógica del proxy.
 
-### Archivo 1: `src/components/shared/ProductSearch.tsx`
-- Ampliar el `select()` de la consulta para incluir todos los campos comerciales y de stock:
-  ```
-  id, name, sku, bims_code, barcode, category, unit,
-  description, image_url, sell_price, price_scales,
-  price_lists, stock_by_warehouse, total_stock
-  ```
-- Actualizar el tipo `ProductResult` para incluir estos campos opcionales.
-
-### Archivo 2: `src/components/shared/ProductCard.tsx`
-- **Stock total**: Agregar un badge de stock total visible en el **header** del producto (junto a nombre/badges), no solo dentro de la sección de stock por sucursal.
-- **Warehouse undefined**: Filtrar entradas de `stock_by_warehouse` donde el key sea vacío, nulo, o `"undefined"`, evitando renderizar filas basura.
-- **Imagen fallback**: Mejorar la lógica del placeholder para que no quede oculto cuando `image_url` existe pero falla al cargar (actualmente usa `nextElementSibling` que es frágil).
-
-### Archivo 3: `src/components/solicitudes/SolicitudCreateForm.tsx`
-- Eliminar los casteos `(item.product as any)` ya que los campos ahora estarán tipados en `ProductResult`.
-
----
-
-Esto es una corrección de datos/query, sin cambios en lógica de negocio ni persistencia.
+### Resultado visual
+Cada fila del dropdown mostrará una miniatura cuadrada de 32×32px a la izquierda, seguida del nombre y metadata del producto.
 
