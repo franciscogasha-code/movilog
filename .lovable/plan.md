@@ -1,19 +1,40 @@
 
 
-## Plan: Miniaturas de producto en resultados de búsqueda
+## Plan: Alinear módulo Consultas con la experiencia de Pedidos
 
-Reemplazar el ícono de caja (Package) en el dropdown de búsqueda por una miniatura real de la imagen del producto, con fallback al ícono si no hay imagen o falla la carga.
+### Problemas detectados
 
-### Cambios en `src/components/shared/ProductSearch.tsx`
+1. **Sin ContextBanner** – No muestra el indicador visual de multi-origen/mono-origen en la parte superior del formulario
+2. **Productos sin ficha completa** – Usa renderizado inline básico en vez de `ProductCard`, por lo que no se ven imágenes (con proxy), precios, descripción ni stock formateado
+3. **Imágenes sin proxy** – Usa `(p as any).image_url` directo en vez de `proxyImageUrl()`, así que las fotos nunca cargan
+4. **Layout desencuadrado** – No tiene la estructura de pasos numerados (1. Contexto, 2. Productos) como en Pedidos
+5. **Casteos `(p as any)`** – Accede a campos con `as any` en vez de usar los tipos de `ProductResult` que ya incluyen todos los campos
 
-1. Importar `useState` (ya existe) y reutilizar la función `proxyImageUrl` desde `ProductCard.tsx` (o duplicar la lógica inline para evitar dependencia circular).
+### Cambios en `src/pages/Consultas.tsx` — función `ConsultationForm`
 
-2. Reemplazar línea 127 (`<Package className="h-4 w-4 ..."/>`) por un componente inline de miniatura:
-   - Si `p.image_url` existe: renderizar un `<img>` de 32×32px (`h-8 w-8`) con `rounded object-cover`, pasando la URL por `proxyImageUrl`, con `onError` que oculta la imagen y muestra el fallback Package.
-   - Si no hay `image_url` o falla la carga: mostrar el ícono Package actual como fallback dentro de un contenedor de 32×32px con fondo muted.
+**A. Agregar ContextBanner** (como en SolicitudCreateForm)
+- Importar y renderizar `<ContextBanner>` en la parte superior del formulario, mapeando `deliveryContext` al formato esperado
 
-3. Extraer `proxyImageUrl` a un archivo compartido (`src/lib/image-utils.ts`) o importarlo para evitar duplicar la lógica del proxy.
+**B. Estructura de pasos numerados**
+- Reorganizar el formulario en secciones "1. Contexto", "2. Productos" con headers `h3` uppercase como en Pedidos
 
-### Resultado visual
-Cada fila del dropdown mostrará una miniatura cuadrada de 32×32px a la izquierda, seguida del nombre y metadata del producto.
+**C. Reemplazar renderizado inline de productos por ProductCard**
+- En la vista expandida de cada producto, usar `<ProductCard>` con todos los props (imagen, precios, stock, descripción) en vez del bloque manual actual (líneas 282-353)
+- Esto automáticamente resuelve: imágenes con proxy, precios filtrados (base + 6/12 unidades), stock formateado, warehouse "undefined" filtrado
+- Mantener la lógica de selección multi-branch por producto que es específica de Consultas (diferente a Pedidos donde es single-select)
+
+**D. Eliminar casteos `(p as any)`**
+- Los campos `image_url`, `stock_by_warehouse`, `total_stock` ya están tipados en `ProductResult`
+- Reemplazar todos los `(p as any).field` por `p.field` directamente
+
+**E. Header compacto del producto** (fila colapsada)
+- Agregar miniatura de imagen proxy (como en ProductSearch) en la fila colapsada
+- Mostrar stock total badge en la fila colapsada
+
+### Archivos modificados
+- `src/pages/Consultas.tsx` (solo la función `ConsultationForm`, ~120 líneas)
+
+### Sin cambios
+- No se toca `ProductCard`, `ProductSearch`, ni `SolicitudCreateForm`
+- La lógica de negocio de Consultas (multi-branch toggle por producto, derivación de targets) se mantiene intacta
 
