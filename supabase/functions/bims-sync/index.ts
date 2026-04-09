@@ -66,7 +66,8 @@ function normalizeWarehouse(raw: any) {
   };
 }
 
-function normalizeProduct(raw: any): any | null {
+/** Returns normalized product or null. Also returns `_bims_active` flag. */
+function normalizeProduct(raw: any): (any & { _bims_active: boolean }) | null {
   try {
     const item = raw?.Product ?? raw?.product ?? raw;
     const bimsCode = toText(item?.id ?? item?._id ?? item?.product_id ?? raw?.id ?? raw?.product_id ?? raw?._id);
@@ -77,6 +78,8 @@ function normalizeProduct(raw: any): any | null {
 
     const status = toText(item?.status ?? raw?.status)?.toLowerCase();
     const enabledValue = item?.enabled ?? item?.active ?? raw?.enabled ?? raw?.active;
+
+    const isActive = enabledValue !== false && enabledValue !== 0 && enabledValue !== "0" && status !== "inactive" && status !== "disabled";
 
     const code1 = toText(item?.code ?? raw?.code);
     const code2 = toText(item?.code2 ?? raw?.code2);
@@ -119,13 +122,14 @@ function normalizeProduct(raw: any): any | null {
     if (unit.length > 20) return null;
 
     return {
+      _bims_active: isActive,
       bims_code: bimsCode,
       name,
       sku,
       barcode,
       category: toText(raw?.Ptype?.name ?? raw?.ptype?.name ?? item?.category ?? item?.group ?? raw?.category ?? raw?.group),
       unit,
-      is_active: enabledValue !== false && enabledValue !== 0 && enabledValue !== "0" && status !== "inactive" && status !== "disabled",
+      is_active: isActive,
       description,
       image_url: imageUrl,
       sell_price: isNaN(sellPrice as number) ? null : sellPrice,
@@ -199,21 +203,12 @@ async function bimsRequest(method: string, path: string): Promise<unknown> {
   return await response.json();
 }
 
-/**
- * Supports two modes:
- * 
- * 1. ?entity=warehouses  — sync all warehouses (fast, single call)
- * 2. ?entity=products&page=N&limit=M  — sync one page of products
- * 3. No params (legacy) — sync warehouses + all products (may timeout on large catalogs)
- * 
- * The frontend drives pagination by calling page=1, page=2, etc.
- * and stops when has_more=false.
- */
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   const url = new URL(req.url);
-  const entity = url.searchParams.get("entity"); // "warehouses" | "products" | null (legacy full)
+  const entity = url.searchParams.get("entity");
+  const action = url.searchParams.get("action");
   const page = parseInt(url.searchParams.get("page") || "1");
   const limit = parseInt(url.searchParams.get("limit") || "100");
 
@@ -221,6 +216,68 @@ Deno.serve(async (req) => {
   const adminClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
   try {
+    // ── Deactivate missing products (called after full sync completes) ──
+    if (entity === "products" && action === "deactivate_missing") {
+      const body = await req.json();
+      const activeBimsCodes: string[] = body.active_bims_codes || [];
+
+      if (!activeBimsCodes.length) {
+        return new Response(JSON.stringify({ success: false, error: "No bims codes provided" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Find products in SLIS that are currently active but NOT in the synced active list
+      // Process in batches of 500 for the IN clause
+      let totalDeactivated = 0;
+      const BATCH = 500;
+      
+      // Get all active products from DB
+      const { data: allActive, error: fetchErr } = await adminClient
+        .from("products")
+        .select("id, bims_code")
+        .eq("is_active", true)
+        .not("bims_code", "is", null);
+
+      if (fetchErr) throw fetchErr;
+
+      const activeSet = new Set(activeBimsCodes);
+      const toDeactivate = (allActive || [])
+        .filter(p => p.bims_code && !activeSet.has(p.bims_code))
+        .map(p => p.id);
+
+      // Deactivate in batches
+      for (let i = 0; i < toDeactivate.length; i += BATCH) {
+        const batch = toDeactivate.slice(i, i + BATCH);
+        const { error } = await adminClient
+          .from("products")
+          .update({ is_active: false, updated_at: new Date().toISOString() })
+          .in("id", batch);
+        if (error) throw error;
+        totalDeactivated += batch.length;
+      }
+
+      // Log the deactivation
+      await adminClient.from("sync_logs").insert({
+        entity: "products",
+        status: "success",
+        total_received: activeBimsCodes.length,
+        total_processed: totalDeactivated,
+        total_updated: totalDeactivated,
+        completed_at: new Date().toISOString(),
+        duration_seconds: (Date.now() - syncStartTime) / 1000,
+        triggered_by: "deactivate_missing",
+      });
+
+      return new Response(JSON.stringify({
+        success: true,
+        total_deactivated: totalDeactivated,
+        total_active_from_bims: activeBimsCodes.length,
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // ── Warehouses only ──
     if (entity === "warehouses") {
       const stats = newStats();
@@ -272,13 +329,14 @@ Deno.serve(async (req) => {
       });
     }
 
-    // ── Products: single page ──
+    // ── Products: single page (ONLY ACTIVE products are synced) ──
     if (entity === "products") {
       const stats = newStats();
       let hasMore = true;
-
-      // Try to get total count from BIMS for coverage calculation
       let bimsTotalCount: number | null = null;
+      // Track active bims_codes synced in this page (returned to frontend for deactivation step)
+      const activeBimsCodes: string[] = [];
+      let totalInactiveSkipped = 0;
 
       try {
         const products = await bimsRequest("GET", `/products?page=${page}&limit=${limit}`) as any;
@@ -287,7 +345,7 @@ Deno.serve(async (req) => {
         if (items.length < limit) hasMore = false;
         if (items.length === 0) hasMore = false;
 
-        // Extract total count from BIMS response metadata (many REST APIs include this)
+        // Extract total count from BIMS response metadata
         const rawTotal = products?.total ?? products?.total_count ?? products?.count
           ?? products?.data?.total ?? products?.data?.total_count ?? products?.data?.count
           ?? products?.meta?.total ?? products?.meta?.total_count
@@ -296,7 +354,7 @@ Deno.serve(async (req) => {
           bimsTotalCount = Number(rawTotal);
         }
 
-        // Normalize and deduplicate batch
+        // Normalize, filter inactive, and deduplicate batch
         const batchMap = new Map<string, any>();
         for (const raw of items) {
           try {
@@ -307,7 +365,18 @@ Deno.serve(async (req) => {
               stats.errors.push({ code: String(raw?.id ?? "unknown"), message: "Missing mandatory fields", stage: "validation", timestamp: new Date().toISOString() });
               continue;
             }
-            batchMap.set(normalized.bims_code, normalized);
+
+            // FILTER: Only sync active products from BIMS
+            if (!normalized._bims_active) {
+              totalInactiveSkipped++;
+              stats.total_skipped++;
+              continue;
+            }
+
+            // Remove internal flag before upserting
+            const { _bims_active, ...productData } = normalized;
+            activeBimsCodes.push(productData.bims_code);
+            batchMap.set(productData.bims_code, productData);
           } catch (e: any) {
             stats.total_failed++;
             stats.errors.push({ code: String(raw?.id ?? "unknown"), message: e.message, stage: "transform", timestamp: new Date().toISOString() });
@@ -322,7 +391,6 @@ Deno.serve(async (req) => {
 
           const { error } = await adminClient.from("products").upsert(batch, { onConflict: "bims_code" });
           if (error) {
-            // One-by-one fallback
             for (const product of batch) {
               try {
                 const { error: singleErr } = await adminClient.from("products").upsert(product, { onConflict: "bims_code" });
@@ -352,7 +420,6 @@ Deno.serve(async (req) => {
         ? (stats.total_processed > 0 ? "partial" : "error")
         : "success";
 
-      // Log per page
       await adminClient.from("sync_logs").insert({
         entity: "products",
         status,
@@ -371,6 +438,8 @@ Deno.serve(async (req) => {
         has_more: hasMore,
         stats,
         duration_seconds: duration,
+        active_bims_codes: activeBimsCodes,
+        total_inactive_skipped: totalInactiveSkipped,
         ...(bimsTotalCount != null ? { bims_total_count: bimsTotalCount } : {}),
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -378,7 +447,6 @@ Deno.serve(async (req) => {
     }
 
     // ── Legacy: full sync (warehouses + all products) ──
-    // Kept for backward compatibility but will timeout on large catalogs.
     const results: Record<string, SyncStats> = {};
 
     // Warehouses
@@ -409,11 +477,12 @@ Deno.serve(async (req) => {
     }
     results.warehouses = whStats;
 
-    // Products — paginated
+    // Products — paginated (active only)
     const prodStats = newStats();
     let prodPage = 1;
     let prodHasMore = true;
     const BATCH_SIZE = 100;
+    const allActiveBimsCodes: string[] = [];
 
     try {
       while (prodHasMore) {
@@ -426,7 +495,10 @@ Deno.serve(async (req) => {
         for (const raw of items) {
           const normalized = normalizeProduct(raw);
           if (!normalized || !normalized.bims_code || !normalized.name) { prodStats.total_skipped++; continue; }
-          batchMap.set(normalized.bims_code, normalized);
+          if (!normalized._bims_active) { prodStats.total_skipped++; continue; }
+          const { _bims_active, ...productData } = normalized;
+          allActiveBimsCodes.push(productData.bims_code);
+          batchMap.set(productData.bims_code, productData);
         }
         const batch = Array.from(batchMap.values());
         if (batch.length > 0) {
