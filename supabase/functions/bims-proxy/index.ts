@@ -405,6 +405,45 @@ Deno.serve(async (req) => {
       }
 
       default:
+
+      case "test-pagination": {
+        const testLimit = 3;
+        const results: Record<string, { ids: string[]; count?: string }> = {};
+        const formats = [
+          { name: "page_1", path: `/products?page=1&limit=${testLimit}` },
+          { name: "page_2", path: `/products?page=2&limit=${testLimit}` },
+          { name: "page_3", path: `/products?page=3&limit=${testLimit}` },
+          { name: "offset_0", path: `/products?offset=0&limit=${testLimit}` },
+          { name: "offset_3", path: `/products?offset=${testLimit}&limit=${testLimit}` },
+          { name: "offset_6", path: `/products?offset=${testLimit * 2}&limit=${testLimit}` },
+          { name: "start_0", path: `/products?start=0&limit=${testLimit}` },
+          { name: "start_3", path: `/products?start=${testLimit}&limit=${testLimit}` },
+          { name: "p_1", path: `/products?p=1&limit=${testLimit}` },
+          { name: "p_2", path: `/products?p=2&limit=${testLimit}` },
+          { name: "index_page_2", path: `/products/index?page=2&limit=${testLimit}` },
+          { name: "json_page_2", path: `/products.json?page=2&limit=${testLimit}` },
+          { name: "pagina_2", path: `/products?pagina=2&limit=${testLimit}` },
+          { name: "sort_id_page_2", path: `/products?page=2&limit=${testLimit}&sort=id&direction=asc` },
+          { name: "order_id_page_2", path: `/products?page=2&limit=${testLimit}&order=id` },
+        ];
+        for (const fmt of formats) {
+          try {
+            const resp = await bimsRequest("GET", fmt.path) as any;
+            const items = extractArray(resp);
+            const ids = items.map((i: any) => {
+              const p = i?.Product ?? i?.product ?? i;
+              return String(p?.id ?? "?");
+            });
+            results[fmt.name] = { ids, count: resp?.count ?? resp?.total ?? "?" };
+          } catch (e: any) {
+            results[fmt.name] = { ids: [`ERROR: ${e.message}`] };
+          }
+        }
+        result = { success: true, pagination_test: results };
+        break;
+      }
+
+      default:
         return new Response(JSON.stringify({ error: `Unknown action: ${action}` }), {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
