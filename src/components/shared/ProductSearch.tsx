@@ -155,7 +155,12 @@ export function ProductSearch({ onSelect, placeholder = "Buscar producto por nom
                   {p.category && <span className="ml-2">• {p.category}</span>}
                 </p>
               </div>
-              <span className="text-xs text-muted-foreground shrink-0">{p.unit}</span>
+              <span className={cn(
+                "text-xs font-medium shrink-0 tabular-nums",
+                p.total_stock != null && p.total_stock > 0 ? "text-foreground" : "text-destructive"
+              )}>
+                x{p.total_stock != null ? Math.floor(p.total_stock) : 0}
+              </span>
             </button>
           ))}
         </div>
