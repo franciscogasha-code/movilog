@@ -233,12 +233,12 @@ export default function SincronizacionBims() {
   const lastSuccessSync = lastLogs?.find((l: any) => l.entity === "products" && l.status === "success");
 
   const lastSyncRun = (() => {
-    if (!syncRunTotals?.length) return { totalReceived: 0, totalPages: 0, failedPages: 0 };
-    const pageLogs = syncRunTotals.filter((l: any) => l.triggered_by?.startsWith("page_"));
-    if (!pageLogs.length) return { totalReceived: 0, totalPages: 0, failedPages: 0 };
-    const totalReceived = pageLogs.reduce((sum: number, l: any) => sum + (l.total_received || 0), 0);
-    const failedPages = pageLogs.filter((l: any) => l.status !== "success").length;
-    return { totalReceived, totalPages: pageLogs.length, failedPages };
+    if (!syncRunTotals?.length) return { totalReceived: 0, totalBatches: 0, failedBatches: 0 };
+    const batchLogs = syncRunTotals.filter((l: any) => l.triggered_by?.startsWith("offset_"));
+    if (!batchLogs.length) return { totalReceived: 0, totalBatches: 0, failedBatches: 0 };
+    const totalReceived = batchLogs.reduce((sum: number, l: any) => sum + (l.total_received || 0), 0);
+    const failedBatches = batchLogs.filter((l: any) => l.status !== "success").length;
+    return { totalReceived, totalBatches: batchLogs.length, failedBatches };
   })();
 
   const bimsTotalFromLiveSync = prodProgress.bimsTotalCount;
