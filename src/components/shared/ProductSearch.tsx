@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Search, Package, Loader2 } from "lucide-react";
+import { proxyImageUrl } from "@/lib/image-utils";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
@@ -26,6 +27,26 @@ interface ProductSearchProps {
   placeholder?: string;
   className?: string;
   excludeIds?: string[];
+}
+
+function SearchThumbnail({ url, name }: { url?: string | null; name: string }) {
+  const [failed, setFailed] = useState(false);
+  const safeUrl = url ? proxyImageUrl(url) : null;
+  if (safeUrl && !failed) {
+    return (
+      <img
+        src={safeUrl}
+        alt={name}
+        className="h-8 w-8 rounded object-cover shrink-0 border border-border"
+        onError={() => setFailed(true)}
+      />
+    );
+  }
+  return (
+    <div className="h-8 w-8 rounded bg-muted flex items-center justify-center shrink-0">
+      <Package className="h-4 w-4 text-muted-foreground" />
+    </div>
+  );
 }
 
 export function ProductSearch({ onSelect, placeholder = "Buscar producto por nombre, código, SKU o código de barras...", className, excludeIds = [] }: ProductSearchProps) {
@@ -124,7 +145,7 @@ export function ProductSearch({ onSelect, placeholder = "Buscar producto por nom
               className="flex items-center gap-3 w-full px-3 py-2.5 text-left text-sm hover:bg-accent/10 transition-colors border-b border-border/30 last:border-0"
               onClick={() => handleSelect(p)}
             >
-              <Package className="h-4 w-4 text-muted-foreground shrink-0" />
+              <SearchThumbnail url={p.image_url} name={p.name} />
               <div className="flex-1 min-w-0">
                 <p className="font-medium truncate">{p.name}</p>
                 <p className="text-xs text-muted-foreground">
