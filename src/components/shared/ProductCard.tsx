@@ -1,8 +1,28 @@
+import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Package, MapPin, DollarSign, BarChart3, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useBranches } from "@/hooks/use-branches";
+
+function ProductImage({ url, name }: { url?: string | null; name: string }) {
+  const [failed, setFailed] = useState(false);
+  if (url && !failed) {
+    return (
+      <img
+        src={url}
+        alt={name}
+        className="h-20 w-20 rounded-lg object-cover shrink-0 border border-border"
+        onError={() => setFailed(true)}
+      />
+    );
+  }
+  return (
+    <div className="h-20 w-20 rounded-lg bg-muted flex items-center justify-center shrink-0">
+      <Package className="h-10 w-10 text-muted-foreground" />
+    </div>
+  );
+}
 
 type StockMode = "select_source" | "info_only";
 

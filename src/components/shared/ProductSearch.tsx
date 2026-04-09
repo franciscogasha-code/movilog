@@ -15,8 +15,8 @@ export type ProductResult = {
   description: string | null;
   image_url: string | null;
   sell_price: number | null;
-  price_scales: { min_quantity: number; price: number }[] | null;
-  price_lists: { name: string; amount: number }[] | null;
+  price_scales: unknown;
+  price_lists: unknown;
   stock_by_warehouse: Record<string, number> | null;
   total_stock: number | null;
 };
@@ -68,8 +68,7 @@ export function ProductSearch({ onSelect, placeholder = "Buscar producto por nom
         .limit(20);
 
       if (error) throw error;
-
-      const filtered = (data || []).filter(p => !excludeIds.includes(p.id));
+      const filtered = ((data || []) as unknown as ProductResult[]).filter(p => !excludeIds.includes(p.id));
       setResults(filtered);
       setOpen(filtered.length > 0);
     } catch (err) {
