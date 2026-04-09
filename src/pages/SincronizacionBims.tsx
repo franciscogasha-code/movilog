@@ -38,14 +38,15 @@ type SyncStatus = "idle" | "loading" | "success" | "partial" | "error";
 interface SyncError { code: string; message: string; stage: string; timestamp: string }
 
 interface PageSyncProgress {
-  currentPage: number;
-  totalPages: number;
+  currentOffset: number;
+  totalBatches: number;
   totalProcessed: number;
   totalInserted: number;
   totalUpdated: number;
   totalFailed: number;
   totalSkipped: number;
   totalReceived: number;
+  totalUniquePersisted: number;
   bimsTotalCount: number | null;
   errors: SyncError[];
   isRunning: boolean;
@@ -53,9 +54,10 @@ interface PageSyncProgress {
   phase: SyncPhase;
   startedAt: Date | null;
   durationMs: number;
-  failedPages: number[];
-  totalPagesAttempted: number;
-  totalPageErrors: number;
+  failedOffsets: number[];
+  totalBatchesAttempted: number;
+  totalBatchErrors: number;
+  duplicateBlockDetected: boolean;
 }
 
 interface ThresholdAlert {
