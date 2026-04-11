@@ -159,6 +159,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     ? []
     : branchAccess.map((ba) => ba.branch_id);
 
+  const isOwner = roles.some((r) => r.role === "owner");
+
+  const hasRole = useCallback(
+    (role: string) => roles.some((r) => r.role === role),
+    [roles]
+  );
+
   return (
     <AuthContext.Provider
       value={{
@@ -167,11 +174,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         profile,
         modules,
         branchAccess,
+        roles,
         loading,
         signOut,
         hasModule,
         hasBranch,
         allowedBranchIds,
+        isOwner,
+        hasRole,
       }}
     >
       {children}
