@@ -609,21 +609,33 @@ export default function Usuarios() {
               <div className="divide-y divide-border max-h-[600px] overflow-auto">
                 {profiles.map((profile) => {
                   const role = getUserRole(profile.user_id);
+                  const profileIsOwner = isUserOwner(profile.user_id);
+                  const isProtected = profileIsOwner && !currentUserIsOwner;
                   return (
                     <button
                       key={profile.id}
-                      onClick={() => setSelectedUser(profile.id)}
+                      onClick={() => !isProtected && setSelectedUser(profile.id)}
                       className={`w-full text-left px-4 py-3 hover:bg-muted/50 transition-colors ${
                         selectedUser === profile.id ? "bg-muted" : ""
-                      }`}
+                      } ${isProtected ? "opacity-60 cursor-not-allowed" : ""}`}
+                      disabled={isProtected}
                     >
                       <div className="flex items-center justify-between gap-2">
                         <div className="min-w-0">
-                          <p className="text-sm font-medium truncate">{profile.full_name}</p>
+                          <p className="text-sm font-medium truncate flex items-center gap-1.5">
+                            {profileIsOwner && <Crown className="h-3.5 w-3.5 text-amber-500 shrink-0" />}
+                            {profile.full_name}
+                          </p>
                           <div className="flex items-center gap-1.5 mt-0.5">
-                            <Badge variant={getRoleBadgeVariant(role)} className="text-[10px] px-1.5 py-0">
-                              {getRoleLabel(role)}
-                            </Badge>
+                            {profileIsOwner ? (
+                              <Badge className="text-[10px] px-1.5 py-0 bg-amber-500/15 text-amber-700 border-amber-300">
+                                Propietario
+                              </Badge>
+                            ) : (
+                              <Badge variant={getRoleBadgeVariant(role)} className="text-[10px] px-1.5 py-0">
+                                {getRoleLabel(role)}
+                              </Badge>
+                            )}
                             <span className="text-[11px] text-muted-foreground truncate">
                               {profile.all_branches_access
                                 ? "Todas"
