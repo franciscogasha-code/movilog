@@ -177,7 +177,7 @@ export default function Usuarios() {
   const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState("");
   const [newEmail, setNewEmail] = useState("");
-  const [newPassword, setNewPassword] = useState("Sansei2026!");
+  const [newPassword, setNewPassword] = useState("Movilog2026!");
   const [newBranch, setNewBranch] = useState("");
   const [newRole, setNewRole] = useState<RoleKey | "">("");
   const [newAdditionalBranches, setNewAdditionalBranches] = useState<string[]>([]);

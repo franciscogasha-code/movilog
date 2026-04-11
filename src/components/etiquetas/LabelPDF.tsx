@@ -16,7 +16,7 @@ interface LabelData {
 function generateLabelHTML(labels: LabelData[]): string {
   const labelCards = labels.map((l, idx) => `
     <div style="page-break-inside: avoid; border: 2px solid #000; padding: 16px; margin-bottom: 12px; font-family: Arial, sans-serif; width: 100%; max-width: 400px;">
-      <div style="text-align: center; font-size: 11px; color: #666; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 2px;">SANSEI Logística</div>
+      <div style="text-align: center; font-size: 11px; color: #666; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 2px;">MoviLog</div>
       <div style="border-bottom: 1px solid #ccc; padding-bottom: 8px; margin-bottom: 8px;">
         <div style="display: flex; justify-content: space-between; align-items: center;">
           <span style="font-size: 13px; font-weight: bold;">Origen: ${l.sendingBranchCode}</span>
@@ -50,7 +50,7 @@ function generateLabelHTML(labels: LabelData[]): string {
     <!DOCTYPE html>
     <html>
     <head>
-      <title>Etiquetas SANSEI</title>
+      <title>Etiquetas MoviLog</title>
       <style>
         @media print {
           body { margin: 0; padding: 8px; }
