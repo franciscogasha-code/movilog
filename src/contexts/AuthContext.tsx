@@ -19,12 +19,18 @@ type BranchAccess = {
   branch_id: string;
 };
 
+type UserRole = {
+  user_id: string;
+  role: string;
+};
+
 type AuthState = {
   user: User | null;
   session: Session | null;
   profile: Profile | null;
   modules: ModuleAccess[];
   branchAccess: BranchAccess[];
+  roles: UserRole[];
   loading: boolean;
   signOut: () => Promise<void>;
   /** Returns true if the current user has access to the given module key */
@@ -33,6 +39,10 @@ type AuthState = {
   hasBranch: (branchId: string) => boolean;
   /** Returns the list of branch IDs the user can access (empty = all) */
   allowedBranchIds: string[];
+  /** Returns true if the current user has the 'owner' role */
+  isOwner: boolean;
+  /** Returns true if the user has a specific role */
+  hasRole: (role: string) => boolean;
 };
 
 const AuthContext = createContext<AuthState | undefined>(undefined);
@@ -43,6 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [modules, setModules] = useState<ModuleAccess[]>([]);
   const [branchAccess, setBranchAccess] = useState<BranchAccess[]>([]);
+  const [roles, setRoles] = useState<UserRole[]>([]);
   const [loading, setLoading] = useState(true);
 
   const loadProfile = useCallback(async (userId: string) => {
