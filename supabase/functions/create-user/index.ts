@@ -40,17 +40,16 @@ Deno.serve(async (req) => {
 
     const callerId = claimsData.claims.sub;
 
-    // Check admin role using service role client
+    // Check admin or owner role using service role client
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
-    const { data: callerRole } = await adminClient
+    const { data: callerRoles } = await adminClient
       .from("user_roles")
       .select("role")
       .eq("user_id", callerId)
-      .eq("role", "admin")
-      .maybeSingle();
+      .in("role", ["admin", "owner"]);
 
-    if (!callerRole) {
-      return new Response(JSON.stringify({ error: "Solo administradores pueden crear usuarios" }), {
+    if (!callerRoles || callerRoles.length === 0) {
+      return new Response(JSON.stringify({ error: "Solo administradores o propietarios pueden crear usuarios" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -64,6 +63,14 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({ error: "email, password, full_name y role son obligatorios" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Block assigning 'owner' role via API
+    if (role === "owner") {
+      return new Response(
+        JSON.stringify({ error: "El rol de Propietario solo puede asignarse directamente en la base de datos" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
