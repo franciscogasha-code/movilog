@@ -2727,6 +2727,7 @@ export type Database = {
         | "branch_manager"
         | "branch_operator"
         | "viewer"
+        | "owner"
       consultation_status: "open" | "responded" | "converted" | "expired"
       damage_cause:
         | "collaborator"
@@ -3020,6 +3021,7 @@ export const Constants = {
         "branch_manager",
         "branch_operator",
         "viewer",
+        "owner",
       ],
       consultation_status: ["open", "responded", "converted", "expired"],
       damage_cause: [
