@@ -16,7 +16,7 @@ import { UserPlus, Users, Shield, Building2, Eye, Wrench, ChevronRight } from "l
 import { useBranches } from "@/hooks/use-branches";
 
 /* ------------------------------------------------------------------ */
-/*  Role definitions aligned to SANSEI operations                      */
+/*  Role definitions aligned to MoviLog operations                     */
 /* ------------------------------------------------------------------ */
 
 type RoleKey = "admin" | "supervisor" | "warehouse_operator" | "branch_operator";
@@ -177,7 +177,7 @@ export default function Usuarios() {
   const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState("");
   const [newEmail, setNewEmail] = useState("");
-  const [newPassword, setNewPassword] = useState("Sansei2026!");
+  const [newPassword, setNewPassword] = useState("Movilog2026!");
   const [newBranch, setNewBranch] = useState("");
   const [newRole, setNewRole] = useState<RoleKey | "">("");
   const [newAdditionalBranches, setNewAdditionalBranches] = useState<string[]>([]);
@@ -315,7 +315,7 @@ export default function Usuarios() {
       const usedPassword = newPassword;
       setNewName("");
       setNewEmail("");
-      setNewPassword("Sansei2026!");
+      setNewPassword("Movilog2026!");
       setNewBranch("");
       setNewRole("");
       setNewAdditionalBranches([]);

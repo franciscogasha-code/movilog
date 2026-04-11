@@ -742,7 +742,7 @@ export default function SincronizacionBims() {
             <Package className="h-5 w-5 text-muted-foreground" />
             <div>
               <p className="text-2xl font-bold">{productCount}</p>
-              <p className="text-xs text-muted-foreground">Activos en SLIS</p>
+              <p className="text-xs text-muted-foreground">Activos en MoviLog</p>
             </div>
           </CardContent>
         </Card>

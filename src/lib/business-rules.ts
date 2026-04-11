@@ -1,5 +1,5 @@
 /**
- * SLIS Business Rules Matrix v5.3.4
+ * MoviLog Business Rules Matrix v5.3.4
  *
  * Central source of truth for request type / delivery target / origin mode rules.
  * Validated in frontend (SolicitudCreateForm, Consultas) AND backend (trigger fn_validate_business_rules).

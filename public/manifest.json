@@ -1,7 +1,7 @@
 {
-  "name": "Logística App",
-  "short_name": "Logística",
-  "description": "Sistema de gestión logística",
+  "name": "MoviLog",
+  "short_name": "MoviLog",
+  "description": "MoviLog — Sistema de gestión logística",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f5f6fa",
