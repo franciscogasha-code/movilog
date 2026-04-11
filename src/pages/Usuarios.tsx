@@ -315,7 +315,7 @@ export default function Usuarios() {
       const usedPassword = newPassword;
       setNewName("");
       setNewEmail("");
-      setNewPassword("Sansei2026!");
+      setNewPassword("Movilog2026!");
       setNewBranch("");
       setNewRole("");
       setNewAdditionalBranches([]);
