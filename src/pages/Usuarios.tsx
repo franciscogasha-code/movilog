@@ -12,8 +12,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "@/hooks/use-toast";
-import { UserPlus, Users, Shield, Building2, Eye, Wrench, ChevronRight } from "lucide-react";
+import { UserPlus, Users, Shield, Building2, Eye, Wrench, ChevronRight, Crown } from "lucide-react";
 import { useBranches } from "@/hooks/use-branches";
+import { useAuth } from "@/contexts/AuthContext";
 
 /* ------------------------------------------------------------------ */
 /*  Role definitions aligned to MoviLog operations                     */
@@ -172,7 +173,7 @@ function RoleCapabilities({ role }: { role: RoleDef }) {
 export default function Usuarios() {
   const queryClient = useQueryClient();
   const { data: branches = [] } = useBranches();
-
+  const { isOwner: currentUserIsOwner } = useAuth();
   /* --- Create dialog state --- */
   const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState("");
@@ -228,6 +229,10 @@ export default function Usuarios() {
   const getUserRole = (userId: string): string | null => {
     const r = userRoles.find((ur) => ur.user_id === userId);
     return r?.role ?? null;
+  };
+
+  const isUserOwner = (userId: string): boolean => {
+    return userRoles.some((ur) => ur.user_id === userId && ur.role === "owner");
   };
 
   const getBranchName = (branchId: string | null) => {
