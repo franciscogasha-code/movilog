@@ -19,12 +19,18 @@ type BranchAccess = {
   branch_id: string;
 };
 
+type UserRole = {
+  user_id: string;
+  role: string;
+};
+
 type AuthState = {
   user: User | null;
   session: Session | null;
   profile: Profile | null;
   modules: ModuleAccess[];
   branchAccess: BranchAccess[];
+  roles: UserRole[];
   loading: boolean;
   signOut: () => Promise<void>;
   /** Returns true if the current user has access to the given module key */
@@ -33,6 +39,10 @@ type AuthState = {
   hasBranch: (branchId: string) => boolean;
   /** Returns the list of branch IDs the user can access (empty = all) */
   allowedBranchIds: string[];
+  /** Returns true if the current user has the 'owner' role */
+  isOwner: boolean;
+  /** Returns true if the user has a specific role */
+  hasRole: (role: string) => boolean;
 };
 
 const AuthContext = createContext<AuthState | undefined>(undefined);
@@ -43,6 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [modules, setModules] = useState<ModuleAccess[]>([]);
   const [branchAccess, setBranchAccess] = useState<BranchAccess[]>([]);
+  const [roles, setRoles] = useState<UserRole[]>([]);
   const [loading, setLoading] = useState(true);
 
   const loadProfile = useCallback(async (userId: string) => {
@@ -56,8 +67,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (profileData) {
       setProfile(profileData as Profile);
 
-      // Load modules and branch access in parallel
-      const [modRes, branchRes] = await Promise.all([
+      // Load modules, branch access, and roles in parallel
+      const [modRes, branchRes, rolesRes] = await Promise.all([
         supabase
           .from("user_module_access")
           .select("module_key, is_enabled")
@@ -66,14 +77,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .from("profile_branch_access")
           .select("branch_id")
           .eq("profile_id", profileData.id),
+        supabase
+          .from("user_roles")
+          .select("user_id, role")
+          .eq("user_id", userId),
       ]);
 
       setModules((modRes.data as ModuleAccess[]) || []);
       setBranchAccess((branchRes.data as BranchAccess[]) || []);
+      setRoles((rolesRes.data as UserRole[]) || []);
     } else {
       setProfile(null);
       setModules([]);
       setBranchAccess([]);
+      setRoles([]);
     }
   }, []);
 
@@ -91,6 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setProfile(null);
           setModules([]);
           setBranchAccess([]);
+          setRoles([]);
         }
         setLoading(false);
       }
@@ -115,6 +133,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfile(null);
     setModules([]);
     setBranchAccess([]);
+    setRoles([]);
   };
 
   const hasModule = useCallback(
@@ -140,6 +159,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     ? []
     : branchAccess.map((ba) => ba.branch_id);
 
+  const isOwner = roles.some((r) => r.role === "owner");
+
+  const hasRole = useCallback(
+    (role: string) => roles.some((r) => r.role === role),
+    [roles]
+  );
+
   return (
     <AuthContext.Provider
       value={{
@@ -148,11 +174,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         profile,
         modules,
         branchAccess,
+        roles,
         loading,
         signOut,
         hasModule,
         hasBranch,
         allowedBranchIds,
+        isOwner,
+        hasRole,
       }}
     >
       {children}

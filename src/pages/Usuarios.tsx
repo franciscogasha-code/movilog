@@ -12,8 +12,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "@/hooks/use-toast";
-import { UserPlus, Users, Shield, Building2, Eye, Wrench, ChevronRight } from "lucide-react";
+import { UserPlus, Users, Shield, Building2, Eye, Wrench, ChevronRight, Crown } from "lucide-react";
 import { useBranches } from "@/hooks/use-branches";
+import { useAuth } from "@/contexts/AuthContext";
 
 /* ------------------------------------------------------------------ */
 /*  Role definitions aligned to MoviLog operations                     */
@@ -172,7 +173,7 @@ function RoleCapabilities({ role }: { role: RoleDef }) {
 export default function Usuarios() {
   const queryClient = useQueryClient();
   const { data: branches = [] } = useBranches();
-
+  const { isOwner: currentUserIsOwner } = useAuth();
   /* --- Create dialog state --- */
   const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState("");
@@ -228,6 +229,10 @@ export default function Usuarios() {
   const getUserRole = (userId: string): string | null => {
     const r = userRoles.find((ur) => ur.user_id === userId);
     return r?.role ?? null;
+  };
+
+  const isUserOwner = (userId: string): boolean => {
+    return userRoles.some((ur) => ur.user_id === userId && ur.role === "owner");
   };
 
   const getBranchName = (branchId: string | null) => {
@@ -424,6 +429,7 @@ export default function Usuarios() {
   };
 
   const getRoleBadgeVariant = (role: string | null): "default" | "secondary" | "outline" => {
+    if (role === "owner") return "default";
     if (role === "admin") return "default";
     if (role === "supervisor") return "secondary";
     return "outline";
@@ -431,6 +437,7 @@ export default function Usuarios() {
 
   const getRoleLabel = (role: string | null): string => {
     if (!role) return "Sin rol";
+    if (role === "owner") return "Propietario";
     return getRoleDef(role)?.shortLabel ?? role;
   };
 
@@ -602,21 +609,33 @@ export default function Usuarios() {
               <div className="divide-y divide-border max-h-[600px] overflow-auto">
                 {profiles.map((profile) => {
                   const role = getUserRole(profile.user_id);
+                  const profileIsOwner = isUserOwner(profile.user_id);
+                  const isProtected = profileIsOwner && !currentUserIsOwner;
                   return (
                     <button
                       key={profile.id}
-                      onClick={() => setSelectedUser(profile.id)}
+                      onClick={() => !isProtected && setSelectedUser(profile.id)}
                       className={`w-full text-left px-4 py-3 hover:bg-muted/50 transition-colors ${
                         selectedUser === profile.id ? "bg-muted" : ""
-                      }`}
+                      } ${isProtected ? "opacity-60 cursor-not-allowed" : ""}`}
+                      disabled={isProtected}
                     >
                       <div className="flex items-center justify-between gap-2">
                         <div className="min-w-0">
-                          <p className="text-sm font-medium truncate">{profile.full_name}</p>
+                          <p className="text-sm font-medium truncate flex items-center gap-1.5">
+                            {profileIsOwner && <Crown className="h-3.5 w-3.5 text-amber-500 shrink-0" />}
+                            {profile.full_name}
+                          </p>
                           <div className="flex items-center gap-1.5 mt-0.5">
-                            <Badge variant={getRoleBadgeVariant(role)} className="text-[10px] px-1.5 py-0">
-                              {getRoleLabel(role)}
-                            </Badge>
+                            {profileIsOwner ? (
+                              <Badge className="text-[10px] px-1.5 py-0 bg-amber-500/15 text-amber-700 border-amber-300">
+                                Propietario
+                              </Badge>
+                            ) : (
+                              <Badge variant={getRoleBadgeVariant(role)} className="text-[10px] px-1.5 py-0">
+                                {getRoleLabel(role)}
+                              </Badge>
+                            )}
                             <span className="text-[11px] text-muted-foreground truncate">
                               {profile.all_branches_access
                                 ? "Todas"
@@ -653,7 +672,7 @@ export default function Usuarios() {
                   ? `Configuración — ${selectedProfile.full_name}`
                   : "Seleccioná un usuario"}
               </CardTitle>
-              {selectedProfile && (
+              {selectedProfile && !isUserOwner(selectedProfile.user_id) && (
                 <div className="flex items-center gap-2">
                   <Label className="text-xs text-muted-foreground">Activo</Label>
                   <Switch
@@ -667,7 +686,15 @@ export default function Usuarios() {
             </div>
           </CardHeader>
           <CardContent>
-            {selectedProfile ? (
+            {selectedProfile && isUserOwner(selectedProfile.user_id) ? (
+              <div className="flex flex-col items-center justify-center h-64 gap-3 text-muted-foreground">
+                <Crown className="h-8 w-8 text-amber-500" />
+                <p className="text-sm font-medium">Cuenta de Propietario</p>
+                <p className="text-xs text-center max-w-sm">
+                  Este usuario es propietario del sistema. Su configuración está protegida y no puede ser modificada por otros usuarios.
+                </p>
+              </div>
+            ) : selectedProfile ? (
               <div className="space-y-5">
                 {/* Role selection */}
                 <div className="space-y-2">

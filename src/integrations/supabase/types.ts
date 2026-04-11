@@ -2711,6 +2711,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_owner: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
       alert_level:
@@ -2727,6 +2728,7 @@ export type Database = {
         | "branch_manager"
         | "branch_operator"
         | "viewer"
+        | "owner"
       consultation_status: "open" | "responded" | "converted" | "expired"
       damage_cause:
         | "collaborator"
@@ -3020,6 +3022,7 @@ export const Constants = {
         "branch_manager",
         "branch_operator",
         "viewer",
+        "owner",
       ],
       consultation_status: ["open", "responded", "converted", "expired"],
       damage_cause: [
