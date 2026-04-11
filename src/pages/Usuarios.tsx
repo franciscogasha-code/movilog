@@ -429,6 +429,7 @@ export default function Usuarios() {
   };
 
   const getRoleBadgeVariant = (role: string | null): "default" | "secondary" | "outline" => {
+    if (role === "owner") return "default";
     if (role === "admin") return "default";
     if (role === "supervisor") return "secondary";
     return "outline";
@@ -436,6 +437,7 @@ export default function Usuarios() {
 
   const getRoleLabel = (role: string | null): string => {
     if (!role) return "Sin rol";
+    if (role === "owner") return "Propietario";
     return getRoleDef(role)?.shortLabel ?? role;
   };
 
