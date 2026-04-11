@@ -67,8 +67,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (profileData) {
       setProfile(profileData as Profile);
 
-      // Load modules and branch access in parallel
-      const [modRes, branchRes] = await Promise.all([
+      // Load modules, branch access, and roles in parallel
+      const [modRes, branchRes, rolesRes] = await Promise.all([
         supabase
           .from("user_module_access")
           .select("module_key, is_enabled")
@@ -77,14 +77,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .from("profile_branch_access")
           .select("branch_id")
           .eq("profile_id", profileData.id),
+        supabase
+          .from("user_roles")
+          .select("user_id, role")
+          .eq("user_id", userId),
       ]);
 
       setModules((modRes.data as ModuleAccess[]) || []);
       setBranchAccess((branchRes.data as BranchAccess[]) || []);
+      setRoles((rolesRes.data as UserRole[]) || []);
     } else {
       setProfile(null);
       setModules([]);
       setBranchAccess([]);
+      setRoles([]);
     }
   }, []);
 
@@ -102,6 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setProfile(null);
           setModules([]);
           setBranchAccess([]);
+          setRoles([]);
         }
         setLoading(false);
       }
@@ -126,6 +133,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfile(null);
     setModules([]);
     setBranchAccess([]);
+    setRoles([]);
   };
 
   const hasModule = useCallback(
