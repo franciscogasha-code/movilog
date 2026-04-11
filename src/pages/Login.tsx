@@ -45,7 +45,7 @@ export default function Login() {
           <div className="mx-auto w-12 h-12 rounded-xl bg-primary flex items-center justify-center">
             <Truck className="h-6 w-6 text-primary-foreground" />
           </div>
-          <CardTitle className="font-display text-xl">SANSEI Logística</CardTitle>
+          <CardTitle className="font-display text-xl">MoviLog</CardTitle>
           <p className="text-sm text-muted-foreground">
             {mode === "login" ? "Iniciá sesión para continuar" : "Crear cuenta nueva"}
           </p>
@@ -59,7 +59,7 @@ export default function Login() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="usuario@sansei.com"
+                placeholder="usuario@movilog.com"
                 required
               />
             </div>

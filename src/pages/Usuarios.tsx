@@ -16,7 +16,7 @@ import { UserPlus, Users, Shield, Building2, Eye, Wrench, ChevronRight } from "l
 import { useBranches } from "@/hooks/use-branches";
 
 /* ------------------------------------------------------------------ */
-/*  Role definitions aligned to SANSEI operations                      */
+/*  Role definitions aligned to MoviLog operations                     */
 /* ------------------------------------------------------------------ */
 
 type RoleKey = "admin" | "supervisor" | "warehouse_operator" | "branch_operator";

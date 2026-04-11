@@ -93,7 +93,7 @@ export function AppSidebar() {
           </div>
           {!collapsed && (
             <div>
-              <h2 className="font-display font-bold text-sm text-sidebar-foreground">SANSEI</h2>
+              <h2 className="font-display font-bold text-sm text-sidebar-foreground">MoviLog</h2>
               <p className="text-[10px] text-sidebar-foreground/50 uppercase tracking-wider">Logística</p>
             </div>
           )}

@@ -163,11 +163,11 @@ export default function Recepcion() {
         <p className="text-muted-foreground mt-1">Confirmación física sugerida y control de plazo BIMS 48h</p>
       </div>
 
-      {/* Info banner: SLIS confirmation is suggested */}
+      {/* Info banner: MoviLog confirmation is suggested */}
       <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/30 border border-border/50">
         <Info className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
         <p className="text-xs text-muted-foreground">
-          La confirmación en SLIS es <strong>sugerida</strong>, no obligatoria. Si BIMS ya muestra la recepción confirmada, la recepción logística se cierra automáticamente.
+          La confirmación en MoviLog es <strong>sugerida</strong>, no obligatoria. Si BIMS ya muestra la recepción confirmada, la recepción logística se cierra automáticamente.
         </p>
       </div>
 
