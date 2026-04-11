@@ -8,16 +8,16 @@ import { Scene4Impact } from "./scenes/Scene4Impact";
 import { Scene5Roles } from "./scenes/Scene5Roles";
 import { Scene6Closing } from "./scenes/Scene6Closing";
 
-const TRANSITION_DURATION = 15;
+const TRANSITION_DURATION = 10;
 
-// Durations matched to voiceover audio lengths (audio_seconds * 30fps + 15 frames padding)
+// Durations matched to voiceover audio lengths (audio_seconds * 30fps + 5 frames padding)
 const SCENE_DURATIONS = {
-  scene1: 272,  // 8.54s audio
-  scene2: 140,  // 4.13s audio
-  scene3: 387,  // 12.4s audio
-  scene4: 225,  // 6.97s audio
-  scene5: 322,  // 10.22s audio
-  scene6: 312,  // 9.89s audio
+  scene1: 163,  // 5.25s audio
+  scene2: 107,  // 3.39s audio
+  scene3: 162,  // 5.20s audio
+  scene4: 109,  // 3.44s audio
+  scene5: 74,   // 2.28s audio
+  scene6: 180,  // 5.80s audio
 };
 
 export const MainVideo: React.FC = () => {
