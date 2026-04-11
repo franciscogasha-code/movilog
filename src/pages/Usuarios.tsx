@@ -672,7 +672,7 @@ export default function Usuarios() {
                   ? `Configuración — ${selectedProfile.full_name}`
                   : "Seleccioná un usuario"}
               </CardTitle>
-              {selectedProfile && (
+              {selectedProfile && !isUserOwner(selectedProfile.user_id) && (
                 <div className="flex items-center gap-2">
                   <Label className="text-xs text-muted-foreground">Activo</Label>
                   <Switch
@@ -686,7 +686,15 @@ export default function Usuarios() {
             </div>
           </CardHeader>
           <CardContent>
-            {selectedProfile ? (
+            {selectedProfile && isUserOwner(selectedProfile.user_id) ? (
+              <div className="flex flex-col items-center justify-center h-64 gap-3 text-muted-foreground">
+                <Crown className="h-8 w-8 text-amber-500" />
+                <p className="text-sm font-medium">Cuenta de Propietario</p>
+                <p className="text-xs text-center max-w-sm">
+                  Este usuario es propietario del sistema. Su configuración está protegida y no puede ser modificada por otros usuarios.
+                </p>
+              </div>
+            ) : selectedProfile ? (
               <div className="space-y-5">
                 {/* Role selection */}
                 <div className="space-y-2">
