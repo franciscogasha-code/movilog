@@ -251,13 +251,19 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
 
   const itemsWithoutSource = items.filter(i => !i.sourceBranchId);
 
+  // Same-branch validation (mono-origin only; multi-origin children have different sources)
+  const isSameBranch = !isMultiOrigin && !!sourceBranchId && sourceBranchId === requestingBranchId;
+
   // Validation
   const canSubmit = useMemo(() => {
     if (!requestingBranchId || !items.length) return false;
     if (hasStockErrors || shippingError) return false;
-    if (isMultiOrigin) return items.every(i => !!i.sourceBranchId);
-    return !!sourceBranchId;
-  }, [requestingBranchId, items, isMultiOrigin, sourceBranchId, hasStockErrors, shippingError]);
+    if (isMultiOrigin) {
+      return items.every(i => !!i.sourceBranchId && i.sourceBranchId !== requestingBranchId);
+    }
+    if (!sourceBranchId || isSameBranch) return false;
+    return true;
+  }, [requestingBranchId, items, isMultiOrigin, sourceBranchId, hasStockErrors, shippingError, isSameBranch]);
 
   // Re-validate stock from BIMS live right before confirmation
   const revalidateStock = async (): Promise<Record<string, string>> => {
@@ -731,6 +737,12 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
                 <p className="text-xs text-muted-foreground mt-1">
                   Seleccionado desde la ficha de producto. Todo el pedido sale de esta sucursal.
                 </p>
+                {isSameBranch && (
+                  <div className="flex items-center gap-2 mt-2 p-2 rounded-lg bg-destructive/10 border border-destructive/20 text-sm text-destructive">
+                    <XCircle className="h-4 w-4 shrink-0" />
+                    <span>La sucursal origen no puede ser igual a la sucursal solicitante.</span>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-sm text-foreground">
