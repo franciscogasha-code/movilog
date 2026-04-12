@@ -1,5 +1,7 @@
 import { useState } from "react";
+import { Navigate } from "react-router-dom";
 import { motion } from "framer-motion";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   ClipboardList, Package, Truck, CheckCircle2, AlertTriangle,
   TrendingUp, ShieldCheck, Users, Activity, ArrowDown, ArrowUp,

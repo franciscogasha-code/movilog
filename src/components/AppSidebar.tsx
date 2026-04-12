@@ -54,9 +54,12 @@ const managementItems: MenuItem[] = [
 ];
 
 function MenuGroup({ label, items, collapsed }: { label: string; items: MenuItem[]; collapsed: boolean }) {
-  const { hasModule } = useAuth();
+  const { hasModule, isOwner } = useAuth();
 
-  const visibleItems = items.filter((item) => hasModule(item.moduleKey));
+  const visibleItems = items.filter((item) => {
+    if (item.moduleKey === "ejecutivo" && !isOwner) return false;
+    return hasModule(item.moduleKey);
+  });
   if (visibleItems.length === 0) return null;
 
   return (
