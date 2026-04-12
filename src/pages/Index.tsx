@@ -1,12 +1,13 @@
 import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
 import {
-  AlertTriangle, Truck, ClipboardList, PackageCheck,
+  AlertTriangle, ClipboardList, PackageCheck,
   Loader2, Plus, Search, ArrowRight, Clock, FileWarning,
-  XCircle, AlertCircle,
+  XCircle, AlertCircle, MessageSquare, Package,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/StatusBadge";
 import { REQUEST_STATUS_CONFIG } from "@/lib/constants";
 import { useAuth } from "@/contexts/AuthContext";
@@ -17,16 +18,15 @@ import { useNavigate } from "react-router-dom";
 
 // ── Priority helpers ───────────────────────────────────────
 const SLA_HOURS = 24;
+const CRITICAL_HOURS = 48;
 
-type Priority = "overdue" | "today" | "normal";
+type Priority = "overdue_critical" | "overdue" | "today" | "normal";
 
 function getRequestPriority(createdAt: string): Priority {
-  const created = new Date(createdAt);
-  const now = new Date();
-  const hoursElapsed = (now.getTime() - created.getTime()) / (1000 * 60 * 60);
+  const hoursElapsed = (Date.now() - new Date(createdAt).getTime()) / (1000 * 60 * 60);
+  if (hoursElapsed > CRITICAL_HOURS) return "overdue_critical";
   if (hoursElapsed > SLA_HOURS) return "overdue";
-  const isToday = created.toDateString() === now.toDateString();
-  if (isToday || hoursElapsed > SLA_HOURS * 0.75) return "today";
+  if (hoursElapsed > SLA_HOURS * 0.75 || new Date(createdAt).toDateString() === new Date().toDateString()) return "today";
   return "normal";
 }
 
@@ -40,35 +40,62 @@ function timeAgo(dateStr: string): string {
   return `hace ${days}d`;
 }
 
-const PRIORITY_ORDER: Record<Priority, number> = { overdue: 0, today: 1, normal: 2 };
+const PRIORITY_ORDER: Record<Priority, number> = { overdue_critical: 0, overdue: 1, today: 2, normal: 3 };
 
 const PRIORITY_BADGE: Record<Priority, { label: string; className: string }> = {
+  overdue_critical: { label: "Crítico", className: "bg-destructive/20 text-destructive border-destructive/40" },
   overdue: { label: "Atrasado", className: "bg-destructive/15 text-destructive border-destructive/30" },
   today: { label: "Hoy", className: "bg-warning/15 text-warning border-warning/30" },
   normal: { label: "Normal", className: "bg-muted text-muted-foreground border-border" },
 };
 
 const PRIORITY_ROW_CLASS: Record<Priority, string> = {
+  overdue_critical: "border-l-2 border-l-destructive bg-destructive/10",
   overdue: "border-l-2 border-l-destructive bg-destructive/5",
   today: "border-l-2 border-l-warning bg-warning/5",
   normal: "",
+};
+
+// ── Types ──────────────────────────────────────────────────
+type ItemType = "pedido" | "consulta";
+type KpiFilter = "all" | "overdue" | "today" | "active" | "awaiting";
+type TypeFilter = "all" | "pedido" | "consulta";
+
+interface QueueItem {
+  id: string;
+  itemType: ItemType;
+  number: number | null;
+  label: string;
+  status: string;
+  priority: Priority;
+  createdAt: string;
+  // consultation-specific
+  consultationStatus?: string;
+  hasResponses?: boolean;
+  isRequester?: boolean;
+  navigateTo: string;
+}
+
+// Consultation status config for StatusBadge
+const CONSULTATION_STATUS_CONFIG: Record<string, { label: string; variant: string }> = {
+  open: { label: "Abierta", variant: "default" },
+  responded: { label: "Respondida", variant: "secondary" },
+  converted: { label: "Convertida", variant: "outline" },
+  closed: { label: "Cerrada", variant: "outline" },
 };
 
 // ── Animation ──────────────────────────────────────────────
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.06 } } };
 const item = { hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0, transition: { duration: 0.25 } } };
 
-// ── KPI filter type ────────────────────────────────────────
-type KpiFilter = "all" | "overdue" | "today" | "active" | "awaiting";
-
 export default function Index() {
   const { profile, hasRole, isOwner } = useAuth();
-  const { isAllBranches, allowedBranchIds } = useUserBranchFilter();
+  const { isAllBranches, allowedBranchIds, defaultBranchId } = useUserBranchFilter();
   const navigate = useNavigate();
-  const isAdmin = hasRole("admin") || hasRole("supervisor") || isOwner;
   const isDriver = hasRole("driver");
 
   const [activeFilter, setActiveFilter] = useState<KpiFilter>("all");
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
 
   // ── Queries ────────────────────────────────────────────
   const { data: pendingRequests, isLoading: loadingRequests } = useQuery({
@@ -108,7 +135,27 @@ export default function Index() {
     },
   });
 
-  // Attention cases: overdue, rejected, incidents, missing docs
+  // Active consultations
+  const { data: activeConsultations, isLoading: loadingConsultations } = useQuery({
+    queryKey: ["dashboard-consultations", isAllBranches, allowedBranchIds, defaultBranchId],
+    queryFn: async () => {
+      const query = supabase
+        .from("availability_consultations")
+        .select(`
+          id, status, created_at, requesting_branch_id,
+          requesting_branch:branches!availability_consultations_requesting_branch_id_fkey(name),
+          consultation_targets(id, branch_id, responded_at, response_quantity,
+            branch:branches!consultation_targets_branch_id_fkey(name))
+        `)
+        .in("status", ["open", "responded"] as any)
+        .order("created_at", { ascending: false })
+        .limit(30);
+      const { data } = await query;
+      return data || [];
+    },
+  });
+
+  // Attention: rejected requests
   const { data: attentionRequests } = useQuery({
     queryKey: ["dashboard-attention", isAllBranches, allowedBranchIds],
     queryFn: async () => {
@@ -136,7 +183,7 @@ export default function Index() {
   const { data: openIncidents } = useQuery({
     queryKey: ["dashboard-incidents"],
     queryFn: async () => {
-      let query = supabase
+      const query = supabase
         .from("logistics_incidents")
         .select("id, title, branch_request_id, status")
         .in("status", ["open", "under_review"] as any)
@@ -146,73 +193,143 @@ export default function Index() {
     },
   });
 
-  // ── Derived data ───────────────────────────────────────
-  const enrichedRequests = useMemo(() => {
-    if (!pendingRequests) return [];
-    return pendingRequests.map((r: any) => ({
-      ...r,
-      priority: getRequestPriority(r.created_at),
-    })).sort((a: any, b: any) => PRIORITY_ORDER[a.priority as Priority] - PRIORITY_ORDER[b.priority as Priority]);
-  }, [pendingRequests]);
+  // ── Build unified queue ────────────────────────────────
+  const queueItems = useMemo(() => {
+    const items: QueueItem[] = [];
 
-  const overdueCount = enrichedRequests.filter((r: any) => r.priority === "overdue").length;
-  const todayCount = enrichedRequests.filter((r: any) => r.priority === "today").length;
-  const activeCount = enrichedRequests.length;
+    // Requests
+    pendingRequests?.forEach((r: any) => {
+      items.push({
+        id: r.id,
+        itemType: "pedido",
+        number: r.request_number,
+        label: `${r.source_branch?.name ?? "?"} → ${r.requesting_branch?.name ?? "?"}`,
+        status: r.status,
+        priority: getRequestPriority(r.created_at),
+        createdAt: r.created_at,
+        navigateTo: `/solicitudes?detail=${r.id}`,
+      });
+    });
+
+    // Consultations
+    activeConsultations?.forEach((c: any) => {
+      const targets = c.consultation_targets || [];
+      const hasResponses = targets.some((t: any) => t.responded_at);
+      const isRequester = defaultBranchId === c.requesting_branch_id;
+      const targetNames = targets.map((t: any) => t.branch?.name).filter(Boolean).join(", ");
+      const label = `${c.requesting_branch?.name ?? "?"} → ${targetNames || "Sin destino"}`;
+
+      items.push({
+        id: c.id,
+        itemType: "consulta",
+        number: null,
+        label,
+        status: c.status,
+        priority: getRequestPriority(c.created_at),
+        createdAt: c.created_at,
+        consultationStatus: c.status,
+        hasResponses,
+        isRequester,
+        navigateTo: `/consultas?detail=${c.id}`,
+      });
+    });
+
+    items.sort((a, b) => PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority]);
+    return items;
+  }, [pendingRequests, activeConsultations, defaultBranchId]);
+
+  // ── Counts ─────────────────────────────────────────────
+  const isOverdue = (p: Priority) => p === "overdue" || p === "overdue_critical";
+  const overdueCount = queueItems.filter(i => isOverdue(i.priority)).length;
+  const todayCount = queueItems.filter(i => i.priority === "today").length;
+  const activeCount = queueItems.length;
   const awaitingReceptionCount = activeFulfillments?.filter(
     (f) => f.status === "delivered" || f.status === "pending_physical_confirmation"
   ).length || 0;
 
-  // Build attention cases
+  // ── Attention cases ────────────────────────────────────
   const attentionCases = useMemo(() => {
-    const cases: { id: string; requestNumber?: number; icon: "overdue" | "rejected" | "incident" | "no_doc"; description: string; requestId?: string }[] = [];
+    const cases: { id: string; icon: string; itemType: ItemType; description: string; navigateTo?: string }[] = [];
 
     // Overdue requests
-    enrichedRequests
-      .filter((r: any) => r.priority === "overdue")
-      .slice(0, 5)
-      .forEach((r: any) => {
+    queueItems
+      .filter(i => isOverdue(i.priority) && i.itemType === "pedido")
+      .slice(0, 4)
+      .forEach(i => {
         cases.push({
-          id: `overdue-${r.id}`,
-          requestNumber: r.request_number,
+          id: `overdue-${i.id}`,
           icon: "overdue",
-          description: `Pedido #${r.request_number} atrasado (${timeAgo(r.created_at)})`,
-          requestId: r.id,
+          itemType: "pedido",
+          description: `Pedido #${i.number} atrasado (${timeAgo(i.createdAt)})`,
+          navigateTo: i.navigateTo,
         });
       });
 
-    // Rejected
+    // Rejected requests
     attentionRequests?.forEach((r: any) => {
       cases.push({
         id: `rejected-${r.id}`,
-        requestNumber: r.request_number,
         icon: "rejected",
+        itemType: "pedido",
         description: `Pedido #${r.request_number} rechazado`,
-        requestId: r.id,
+        navigateTo: `/solicitudes?detail=${r.id}`,
       });
     });
+
+    // Unanswered consultations (open, no responses yet)
+    queueItems
+      .filter(i => i.itemType === "consulta" && i.consultationStatus === "open" && !i.hasResponses)
+      .slice(0, 3)
+      .forEach(i => {
+        cases.push({
+          id: `consul-open-${i.id}`,
+          icon: "no_doc",
+          itemType: "consulta",
+          description: `Consulta sin responder (${timeAgo(i.createdAt)})`,
+          navigateTo: i.navigateTo,
+        });
+      });
+
+    // Consultations ready for order (responded + user is requester)
+    queueItems
+      .filter(i => i.itemType === "consulta" && i.hasResponses && i.isRequester)
+      .slice(0, 3)
+      .forEach(i => {
+        cases.push({
+          id: `consul-ready-${i.id}`,
+          icon: "ready",
+          itemType: "consulta",
+          description: `Consulta lista para pedido`,
+          navigateTo: i.navigateTo,
+        });
+      });
 
     // Incidents
     openIncidents?.forEach((inc: any) => {
       cases.push({
         id: `incident-${inc.id}`,
         icon: "incident",
+        itemType: "pedido",
         description: inc.title || "Incidencia abierta",
-        requestId: inc.branch_request_id,
+        navigateTo: inc.branch_request_id ? `/solicitudes?detail=${inc.branch_request_id}` : undefined,
       });
     });
 
     return cases.slice(0, 8);
-  }, [enrichedRequests, attentionRequests, openIncidents]);
+  }, [queueItems, attentionRequests, openIncidents]);
 
-  // Filtered list based on active KPI
-  const filteredRequests = useMemo(() => {
-    if (activeFilter === "all") return enrichedRequests;
-    if (activeFilter === "overdue") return enrichedRequests.filter((r: any) => r.priority === "overdue");
-    if (activeFilter === "today") return enrichedRequests.filter((r: any) => r.priority === "today");
-    return enrichedRequests;
-  }, [enrichedRequests, activeFilter]);
+  // ── Filtered queue ─────────────────────────────────────
+  const filteredItems = useMemo(() => {
+    let list = queueItems;
+    // KPI filter
+    if (activeFilter === "overdue") list = list.filter(i => isOverdue(i.priority));
+    else if (activeFilter === "today") list = list.filter(i => i.priority === "today");
+    // Type filter
+    if (typeFilter !== "all") list = list.filter(i => i.itemType === typeFilter);
+    return list;
+  }, [queueItems, activeFilter, typeFilter]);
 
-  const isLoading = loadingRequests || loadingFulfillments;
+  const isLoading = loadingRequests || loadingFulfillments || loadingConsultations;
 
   // ── KPI definitions ────────────────────────────────────
   const kpis: { key: KpiFilter; title: string; value: number; icon: any; colorClass: string; bgClass: string }[] = [
@@ -228,9 +345,32 @@ export default function Index() {
       case "rejected": return <XCircle className="h-4 w-4 text-destructive shrink-0" />;
       case "incident": return <AlertCircle className="h-4 w-4 text-warning shrink-0" />;
       case "no_doc": return <FileWarning className="h-4 w-4 text-warning shrink-0" />;
+      case "ready": return <PackageCheck className="h-4 w-4 text-primary shrink-0" />;
       default: return <AlertTriangle className="h-4 w-4 text-muted-foreground shrink-0" />;
     }
   };
+
+  // ── Type filter tabs ───────────────────────────────────
+  const typeFilters: { key: TypeFilter; label: string }[] = [
+    { key: "all", label: "Todos" },
+    { key: "pedido", label: "📦 Pedidos" },
+    { key: "consulta", label: "💬 Consultas" },
+  ];
+
+  // Count items by type for filter badges
+  const pedidoCount = useMemo(() => {
+    let list = queueItems.filter(i => i.itemType === "pedido");
+    if (activeFilter === "overdue") list = list.filter(i => isOverdue(i.priority));
+    else if (activeFilter === "today") list = list.filter(i => i.priority === "today");
+    return list.length;
+  }, [queueItems, activeFilter]);
+
+  const consultaCount = useMemo(() => {
+    let list = queueItems.filter(i => i.itemType === "consulta");
+    if (activeFilter === "overdue") list = list.filter(i => isOverdue(i.priority));
+    else if (activeFilter === "today") list = list.filter(i => i.priority === "today");
+    return list.length;
+  }, [queueItems, activeFilter]);
 
   return (
     <div className="space-y-6">
@@ -264,7 +404,7 @@ export default function Index() {
         </div>
       ) : (
         <>
-          {/* KPI Cards – clickable filters */}
+          {/* KPI Cards */}
           <motion.div
             className="grid grid-cols-2 lg:grid-cols-4 gap-3"
             variants={container}
@@ -303,58 +443,147 @@ export default function Index() {
             <motion.div className="lg:col-span-2" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
               <Card className="glass-card">
                 <CardHeader className="pb-2">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
                     <CardTitle className="font-display text-base">
                       Cola operativa
                       {activeFilter !== "all" && (
                         <span className="ml-2 text-xs font-normal text-muted-foreground">
-                          — filtro: {kpis.find(k => k.key === activeFilter)?.title}
+                          — {kpis.find(k => k.key === activeFilter)?.title}
                         </span>
                       )}
                     </CardTitle>
-                    {activeFilter !== "all" && (
-                      <Button variant="ghost" size="sm" className="text-xs h-7" onClick={() => setActiveFilter("all")}>
-                        Ver todos
-                      </Button>
-                    )}
+                    <div className="flex items-center gap-1">
+                      {(activeFilter !== "all" || typeFilter !== "all") && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-xs h-7"
+                          onClick={() => { setActiveFilter("all"); setTypeFilter("all"); }}
+                        >
+                          Limpiar filtros
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                  {/* Type filter tabs */}
+                  <div className="flex gap-1.5 mt-2">
+                    {typeFilters.map((tf) => {
+                      const count = tf.key === "all"
+                        ? filteredItems.length
+                        : tf.key === "pedido" ? pedidoCount : consultaCount;
+                      const isActive = typeFilter === tf.key;
+                      return (
+                        <button
+                          key={tf.key}
+                          onClick={() => setTypeFilter(isActive ? "all" : tf.key)}
+                          className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium transition-colors border ${
+                            isActive
+                              ? "bg-primary text-primary-foreground border-primary"
+                              : "bg-muted/50 text-muted-foreground border-border hover:bg-muted"
+                          }`}
+                        >
+                          {tf.label}
+                          <span className={`text-[10px] ${isActive ? "text-primary-foreground/70" : "text-muted-foreground/60"}`}>
+                            {count}
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </CardHeader>
                 <CardContent>
-                  {!filteredRequests.length ? (
+                  {!filteredItems.length ? (
                     <p className="text-sm text-muted-foreground py-6 text-center">
-                      {activeFilter !== "all" ? "Sin pedidos en esta categoría" : "Sin pedidos pendientes 🎉"}
+                      {activeFilter !== "all" || typeFilter !== "all"
+                        ? "Sin ítems en esta categoría"
+                        : "Sin pedidos ni consultas pendientes 🎉"}
                     </p>
                   ) : (
                     <div className="space-y-1">
-                      {filteredRequests.map((r: any) => {
-                        const badge = PRIORITY_BADGE[r.priority as Priority];
-                        const rowClass = PRIORITY_ROW_CLASS[r.priority as Priority];
+                      {filteredItems.map((qi) => {
+                        const badge = PRIORITY_BADGE[qi.priority];
+                        const rowClass = PRIORITY_ROW_CLASS[qi.priority];
+                        const isPedido = qi.itemType === "pedido";
+
+                        // Determine action label
+                        let actionLabel = "Gestionar";
+                        let actionIcon = <ArrowRight className="h-3 w-3 ml-1" />;
+                        if (!isPedido) {
+                          if (qi.hasResponses && qi.isRequester) {
+                            actionLabel = "Crear pedido";
+                            actionIcon = <Plus className="h-3 w-3 ml-1" />;
+                          } else if (qi.isRequester) {
+                            actionLabel = "Revisar";
+                          } else {
+                            actionLabel = "Responder";
+                          }
+                        }
+
+                        // For consultations: navigate to create order
+                        const handleAction = () => {
+                          if (!isPedido && qi.hasResponses && qi.isRequester) {
+                            navigate(`/solicitudes?action=new&from_consultation=${qi.id}`);
+                          } else {
+                            navigate(qi.navigateTo);
+                          }
+                        };
+
                         return (
                           <div
-                            key={r.id}
-                            className={`flex items-center gap-3 py-2.5 px-3 rounded-lg hover:bg-muted/50 transition-colors ${rowClass}`}
+                            key={`${qi.itemType}-${qi.id}`}
+                            className={`flex items-center gap-2 py-2.5 px-3 rounded-lg hover:bg-muted/50 transition-colors ${rowClass}`}
                           >
-                            <span className="text-sm font-mono font-semibold text-foreground shrink-0">
-                              #{r.request_number}
-                            </span>
+                            {/* Type badge */}
+                            {isPedido ? (
+                              <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold bg-primary/10 text-primary border border-primary/20 shrink-0">
+                                <Package className="h-3 w-3" />
+                                Pedido
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold bg-secondary/80 text-secondary-foreground border border-secondary shrink-0">
+                                <MessageSquare className="h-3 w-3" />
+                                Consulta
+                              </span>
+                            )}
+
+                            {/* Number */}
+                            {qi.number && (
+                              <span className="text-sm font-mono font-semibold text-foreground shrink-0">
+                                #{qi.number}
+                              </span>
+                            )}
+
+                            {/* Label */}
                             <span className="text-sm text-foreground truncate flex-1">
-                              {r.source_branch?.name} → {r.requesting_branch?.name}
+                              {qi.label}
                             </span>
-                            <StatusBadge status={r.status} config={REQUEST_STATUS_CONFIG} />
-                            <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${badge.className}`}>
+
+                            {/* Status badge */}
+                            {isPedido ? (
+                              <StatusBadge status={qi.status} config={REQUEST_STATUS_CONFIG} />
+                            ) : (
+                              <StatusBadge status={qi.status} config={CONSULTATION_STATUS_CONFIG} />
+                            )}
+
+                            {/* Priority badge */}
+                            <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium shrink-0 hidden md:inline-flex ${badge.className}`}>
                               {badge.label}
                             </span>
+
+                            {/* Time */}
                             <span className="text-[11px] text-muted-foreground shrink-0 hidden sm:inline">
-                              {timeAgo(r.created_at)}
+                              {timeAgo(qi.createdAt)}
                             </span>
+
+                            {/* Action */}
                             <Button
-                              variant="ghost"
+                              variant={!isPedido && qi.hasResponses && qi.isRequester ? "default" : "ghost"}
                               size="sm"
                               className="h-7 px-2 text-xs shrink-0"
-                              onClick={() => navigate(`/solicitudes?detail=${r.id}`)}
+                              onClick={handleAction}
                             >
-                              Gestionar
-                              <ArrowRight className="h-3 w-3 ml-1" />
+                              {actionLabel}
+                              {actionIcon}
                             </Button>
                           </div>
                         );
@@ -384,16 +613,22 @@ export default function Index() {
                       {attentionCases.map((c) => (
                         <div
                           key={c.id}
-                          className="flex items-center gap-2.5 py-2 px-2 rounded-lg hover:bg-muted/50 transition-colors"
+                          className="flex items-center gap-2 py-2 px-2 rounded-lg hover:bg-muted/50 transition-colors"
                         >
                           {attentionIcon(c.icon)}
+                          {/* Type mini-badge */}
+                          <span className={`text-[9px] font-bold uppercase shrink-0 ${
+                            c.itemType === "pedido" ? "text-primary" : "text-secondary-foreground"
+                          }`}>
+                            {c.itemType === "pedido" ? "📦" : "💬"}
+                          </span>
                           <p className="text-xs text-foreground flex-1 truncate">{c.description}</p>
-                          {c.requestId && (
+                          {c.navigateTo && (
                             <Button
                               variant="ghost"
                               size="sm"
                               className="h-6 px-2 text-[11px] shrink-0"
-                              onClick={() => navigate(`/solicitudes?detail=${c.requestId}`)}
+                              onClick={() => navigate(c.navigateTo!)}
                             >
                               Ver
                             </Button>
