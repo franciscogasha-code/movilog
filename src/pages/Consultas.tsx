@@ -546,14 +546,27 @@ function ConsultationDetail({ consultationId, onOrderCreated }: { consultationId
     enabled: senderIds.length > 0,
   });
 
+  const { data: senderRoles } = useQuery({
+    queryKey: ["sender-roles", senderIds.join(",")],
+    queryFn: async () => {
+      if (!senderIds.length) return [];
+      const { data } = await supabase.from("user_roles").select("user_id, role").in("user_id", senderIds);
+      return data || [];
+    },
+    enabled: senderIds.length > 0,
+  });
+
   const { data: allBranches } = useBranches();
 
   const getSenderInfo = (senderId: string) => {
     const profile = senderProfiles?.find(p => p.user_id === senderId);
     const branch = profile?.default_branch_id ? allBranches?.find(b => b.id === profile.default_branch_id) : null;
+    const roles = senderRoles?.filter(r => r.user_id === senderId).map(r => r.role) || [];
+    const isAdmin = roles.some(r => ["admin", "supervisor", "owner"].includes(r));
     return {
       name: profile?.full_name || "Usuario",
       branch: branch?.name || null,
+      isAdmin,
     };
   };
 
