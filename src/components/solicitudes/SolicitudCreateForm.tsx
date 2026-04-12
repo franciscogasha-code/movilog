@@ -33,7 +33,7 @@ interface SelectedItem {
   sourceBranchId?: string;
 }
 
-export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
+export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSuccess: () => void; fromConsultationId?: string | null }) {
   const { user } = useAuth();
   const { defaultBranchId, canChangeBranch } = useAutoDetectBranch();
   const { data: branches } = useBranches();
