@@ -166,13 +166,13 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
         <Card>
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground mb-1">Origen</p>
-            <p className="font-semibold">{r.source_branch?.code} — {r.source_branch?.name}</p>
+            <p className="font-semibold">{r.source_branch?.name}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground mb-1">Destino</p>
-            <p className="font-semibold">{r.requesting_branch?.code} — {r.requesting_branch?.name}</p>
+            <p className="font-semibold">{r.requesting_branch?.name}</p>
           </CardContent>
         </Card>
       </div>
@@ -190,6 +190,24 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
           <div>
             <span className="text-muted-foreground">Cliente:</span>{" "}
             <span className="font-medium">{r.client_name}</span>
+          </div>
+        )}
+        {r.delivery_payer && (
+          <div>
+            <span className="text-muted-foreground">Paga envío:</span>{" "}
+            <span className="font-medium">{r.delivery_payer === "company" ? "Empresa" : "Cliente"}</span>
+          </div>
+        )}
+        {r.shipping_cost != null && r.shipping_cost > 0 && (
+          <div>
+            <span className="text-muted-foreground">Costo envío:</span>{" "}
+            <span className="font-medium">Gs. {Number(r.shipping_cost).toLocaleString("es-PY")}</span>
+          </div>
+        )}
+        {r.courier_billing_mode && (
+          <div>
+            <span className="text-muted-foreground">Cobro encomienda:</span>{" "}
+            <span className="font-medium">{r.courier_billing_mode === "on_invoice" ? "En factura" : "Cobro en destino"}</span>
           </div>
         )}
         <div>

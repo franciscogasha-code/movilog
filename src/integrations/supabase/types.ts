@@ -337,6 +337,7 @@ export type Database = {
           client_name: string | null
           closed_at: string | null
           closed_by: string | null
+          courier_billing_mode: string | null
           created_at: string
           created_by: string
           current_custody_holder_id: string | null
@@ -380,6 +381,7 @@ export type Database = {
           client_name?: string | null
           closed_at?: string | null
           closed_by?: string | null
+          courier_billing_mode?: string | null
           created_at?: string
           created_by: string
           current_custody_holder_id?: string | null
@@ -423,6 +425,7 @@ export type Database = {
           client_name?: string | null
           closed_at?: string | null
           closed_by?: string | null
+          courier_billing_mode?: string | null
           created_at?: string
           created_by?: string
           current_custody_holder_id?: string | null
@@ -2692,6 +2695,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_access_branch: {
+        Args: { _branch_id: string; _user_id: string }
+        Returns: boolean
+      }
       fn_validate_driver_pickup: {
         Args: { p_fulfillment_id: string }
         Returns: Json

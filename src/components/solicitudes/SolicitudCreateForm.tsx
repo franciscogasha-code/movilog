@@ -55,6 +55,8 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
   const [clientName, setClientName] = useState("");
   const [clientAddress, setClientAddress] = useState("");
   const [deliveryPaidBy, setDeliveryPaidBy] = useState<"company" | "client">("company");
+  const [shippingAmount, setShippingAmount] = useState<string>("");
+  const [courierBillingMode, setCourierBillingMode] = useState<"on_invoice" | "collect_at_destination">("on_invoice");
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
@@ -66,6 +68,8 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
   const allowedTargets = getAllowedDeliveryTargets(requestType);
   const showClientFieldsFlag = shouldShowClientFields(requestType, deliveryTarget);
   const showDeliveryPaidBy = shippingMethod === "delivery";
+  const showCourierBilling = shippingMethod === "courier";
+  const showShippingAmount = shippingMethod === "delivery" || (shippingMethod === "courier" && courierBillingMode === "on_invoice");
   const shippingError = validateShippingMethod(requestType, deliveryTarget, shippingMethod);
 
   // Auto-detect branch
@@ -281,6 +285,10 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
             delivery_target: deliveryTarget as any,
             shipping_method: shippingMethod as any,
             delivery_payer: showDeliveryPaidBy ? deliveryPaidBy : null,
+            shipping_cost: showShippingAmount && shippingAmount ? parseFloat(shippingAmount) : null,
+            shipping_origin_paid: showDeliveryPaidBy && deliveryPaidBy === "company" && shippingAmount ? parseFloat(shippingAmount) : 0,
+            shipping_destination_paid: showDeliveryPaidBy && deliveryPaidBy === "client" && shippingAmount ? parseFloat(shippingAmount) : 0,
+            courier_billing_mode: showCourierBilling ? courierBillingMode : null,
             notes: notes ? `[Pedido padre multi-origen] ${notes}` : "[Pedido padre multi-origen]",
             created_by: user.id,
             status: "pending" as any,
@@ -312,6 +320,8 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
                 delivery_target: deliveryTarget as any,
                 shipping_method: shippingMethod as any,
                 delivery_payer: showDeliveryPaidBy ? deliveryPaidBy : null,
+                shipping_cost: showShippingAmount && shippingAmount ? parseFloat(shippingAmount) : null,
+                courier_billing_mode: showCourierBilling ? courierBillingMode : null,
                 notes: notes || null,
                 created_by: user.id,
               })
@@ -366,6 +376,10 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
             client_name: showClientFieldsFlag ? (clientName || null) : null,
             client_address: showClientFieldsFlag ? (clientAddress || null) : null,
             delivery_payer: showDeliveryPaidBy ? deliveryPaidBy : null,
+            shipping_cost: showShippingAmount && shippingAmount ? parseFloat(shippingAmount) : null,
+            shipping_origin_paid: showDeliveryPaidBy && deliveryPaidBy === "company" && shippingAmount ? parseFloat(shippingAmount) : 0,
+            shipping_destination_paid: showDeliveryPaidBy && deliveryPaidBy === "client" && shippingAmount ? parseFloat(shippingAmount) : 0,
+            courier_billing_mode: showCourierBilling ? courierBillingMode : null,
             notes: notes || null,
             created_by: user.id,
           })
@@ -665,6 +679,33 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
                 Cliente paga
               </Badge>
             </div>
+          </div>
+        )}
+
+        {showCourierBilling && (
+          <div className="space-y-2 p-3 rounded-lg bg-muted/50 border border-border/50">
+            <Label>Modalidad de cobro de encomienda</Label>
+            <div className="flex gap-3">
+              <Badge variant={courierBillingMode === "on_invoice" ? "default" : "outline"} className="cursor-pointer" onClick={() => setCourierBillingMode("on_invoice")}>
+                En factura
+              </Badge>
+              <Badge variant={courierBillingMode === "collect_at_destination" ? "default" : "outline"} className="cursor-pointer" onClick={() => setCourierBillingMode("collect_at_destination")}>
+                Cobro en destino
+              </Badge>
+            </div>
+          </div>
+        )}
+
+        {showShippingAmount && (
+          <div className="space-y-2 p-3 rounded-lg bg-muted/50 border border-border/50">
+            <Label>Monto de envío (Gs.)</Label>
+            <Input
+              type="number"
+              min={0}
+              value={shippingAmount}
+              onChange={(e) => setShippingAmount(e.target.value)}
+              placeholder="Ingresá el monto del envío"
+            />
           </div>
         )}
 
