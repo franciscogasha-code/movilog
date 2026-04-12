@@ -735,6 +735,12 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
                 <p className="text-xs text-muted-foreground mt-1">
                   Seleccionado desde la ficha de producto. Todo el pedido sale de esta sucursal.
                 </p>
+                {isSameBranch && (
+                  <div className="flex items-center gap-2 mt-2 p-2 rounded-lg bg-destructive/10 border border-destructive/20 text-sm text-destructive">
+                    <XCircle className="h-4 w-4 shrink-0" />
+                    <span>La sucursal origen no puede ser igual a la sucursal solicitante.</span>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-sm text-foreground">
