@@ -88,7 +88,10 @@ export default function Solicitudes() {
             <DialogHeader>
               <DialogTitle>Crear Pedido</DialogTitle>
             </DialogHeader>
-            <SolicitudCreateForm onSuccess={() => { setCreateOpen(false); refetch(); }} />
+            <SolicitudCreateForm
+              fromConsultationId={activeConsultationId}
+              onSuccess={() => { setCreateOpen(false); setActiveConsultationId(null); refetch(); }}
+            />
           </DialogContent>
         </Dialog>
       </div>
