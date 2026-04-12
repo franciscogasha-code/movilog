@@ -1,12 +1,63 @@
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StatusBadge } from "@/components/StatusBadge";
-import { REQUEST_STATUS_CONFIG, SHIPPING_METHOD_LABELS, DELIVERY_TARGET_LABELS, ITEM_PURPOSE_LABELS, REJECTION_REASONS, REQUEST_TYPE_LABELS } from "@/lib/constants";
-import { Package, AlertTriangle } from "lucide-react";
+import {
+  REQUEST_STATUS_CONFIG, SHIPPING_METHOD_LABELS, DELIVERY_TARGET_LABELS,
+  ITEM_PURPOSE_LABELS, REJECTION_REASONS, REQUEST_TYPE_LABELS, FULFILLMENT_STATUS_CONFIG,
+} from "@/lib/constants";
+import { Package, AlertTriangle, Check, X, Loader2, Truck, ClipboardList } from "lucide-react";
+import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
+
+// ─── Action definitions per status ───────────────────────────────────
+type ActionDef = {
+  label: string;
+  newStatus: string;
+  variant: "default" | "destructive" | "outline";
+  icon: React.ReactNode;
+  actor: "origin" | "destination" | "admin";
+  requiresReason?: boolean;
+};
+
+const STATUS_ACTIONS: Record<string, ActionDef[]> = {
+  pending: [
+    { label: "Aceptar", newStatus: "accepted", variant: "default", icon: <Check className="h-4 w-4" />, actor: "origin" },
+    { label: "Rechazar", newStatus: "rejected", variant: "destructive", icon: <X className="h-4 w-4" />, actor: "origin", requiresReason: true },
+  ],
+  accepted: [
+    { label: "Iniciar picking", newStatus: "picking", variant: "default", icon: <ClipboardList className="h-4 w-4" />, actor: "origin" },
+  ],
+  picking: [
+    { label: "Despachar", newStatus: "dispatched", variant: "default", icon: <Truck className="h-4 w-4" />, actor: "origin" },
+  ],
+  dispatched: [
+    { label: "En tránsito", newStatus: "in_transit", variant: "default", icon: <Truck className="h-4 w-4" />, actor: "origin" },
+  ],
+  in_transit: [
+    { label: "Confirmar entrega", newStatus: "delivered", variant: "default", icon: <Check className="h-4 w-4" />, actor: "origin" },
+  ],
+  delivered: [
+    { label: "Confirmar recepción", newStatus: "received", variant: "default", icon: <Check className="h-4 w-4" />, actor: "destination" },
+  ],
+  received: [
+    { label: "Cierre logístico", newStatus: "logistic_closed", variant: "outline", icon: <Check className="h-4 w-4" />, actor: "destination" },
+  ],
+};
 
 export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; onUpdate: () => void }) {
+  const { hasBranch, hasRole, isOwner } = useAuth();
+  const queryClient = useQueryClient();
+  const [transitioning, setTransitioning] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState("");
+  const [rejectionReasonType, setRejectionReasonType] = useState("");
+  const [showRejectForm, setShowRejectForm] = useState(false);
+
   const { data: request, isLoading } = useQuery({
     queryKey: ["branch-request-detail", requestId],
     queryFn: async () => {
@@ -42,7 +93,7 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
     queryFn: async () => {
       const { data, error } = await supabase
         .from("fulfillment_orders")
-        .select("id, status, bims_transfer_number, bims_invoice_number")
+        .select("id, status, bims_transfer_number, bims_invoice_number, shipping_method, dispatched_at, received_at")
         .eq("branch_request_id", requestId);
       if (error) throw error;
       return data;
@@ -65,71 +116,66 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
     enabled: !!requestId,
   });
 
-  // Anomalies related to this request's fulfillments
-  const { data: relatedAnomalies } = useQuery({
-    queryKey: ["request-anomalies", requestId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("ai_anomalies")
-        .select("*")
-        .eq("is_acknowledged", false)
-        .order("created_at", { ascending: false })
-        .limit(100);
-      if (error) throw error;
-      // Filter client-side for anomalies referencing this request or its fulfillments
-      const fulfillmentIds = fulfillments?.map(f => f.id) || [];
-      return data?.filter((a: any) => {
-        const entities = a.affected_entities || [];
-        return entities.some((e: any) =>
-          (e.type === "branch_request" && e.id === requestId) ||
-          (e.type === "fulfillment_order" && fulfillmentIds.includes(e.id))
-        );
-      }) || [];
-    },
-    enabled: !!requestId && !!fulfillments,
-  });
-
   if (isLoading) return <div className="p-4 text-muted-foreground">Cargando...</div>;
   if (!request) return <div className="p-4 text-muted-foreground">No encontrada</div>;
 
   const r = request as any;
 
-  // Compute warnings
-  const warnings: { type: string; message: string }[] = [];
+  // ─── Determine actor permissions ────────────────────────────────
+  const isAdmin = hasRole("admin") || hasRole("supervisor") || isOwner;
+  const isOrigin = hasBranch(r.source_branch_id);
+  const isDestination = hasBranch(r.requesting_branch_id);
 
-  // Missed cutoff: dispatched status items created > 4h ago still waiting
-  const hasMissedCutoffEvent = events?.some((e: any) => e.event_type === "missed_cutoff") || false;
-  const hasWaitingFulfillment = fulfillments?.some((f: any) => {
-    const age = (Date.now() - new Date(r.created_at).getTime()) / (1000 * 60 * 60);
-    return (f.status === "waiting_for_cut" || f.status === "waiting_for_courier") && age > 4;
+  const availableActions = (STATUS_ACTIONS[r.status] || []).filter((action) => {
+    if (isAdmin) return true;
+    if (action.actor === "origin") return isOrigin;
+    if (action.actor === "destination") return isDestination;
+    return false;
   });
-  if (hasMissedCutoffEvent || hasWaitingFulfillment) {
-    warnings.push({ type: "missed_cutoff", message: "Este pedido perdió el corte programado" });
-  }
 
-  // Prepared without BIMS
+  // ─── Transition handler ─────────────────────────────────────────
+  const handleTransition = async (newStatus: string, reason?: string, reasonType?: string) => {
+    setTransitioning(true);
+    try {
+      const { data, error } = await supabase.rpc("fn_transition_request_status", {
+        p_request_id: requestId,
+        p_new_status: newStatus,
+        p_reason: reason || null,
+        p_rejection_reason_type: reasonType || null,
+      });
+      if (error) throw error;
+
+      const result = data as any;
+      toast.success(`Pedido #${result.request_number}: ${result.old_status} → ${result.new_status}`);
+
+      // Refresh all related queries
+      queryClient.invalidateQueries({ queryKey: ["branch-request-detail", requestId] });
+      queryClient.invalidateQueries({ queryKey: ["request-fulfillments", requestId] });
+      queryClient.invalidateQueries({ queryKey: ["request-events", requestId] });
+      onUpdate();
+      setShowRejectForm(false);
+      setRejectionReason("");
+      setRejectionReasonType("");
+    } catch (err: any) {
+      toast.error(err.message || "Error al cambiar estado");
+    } finally {
+      setTransitioning(false);
+    }
+  };
+
+  // ─── Warnings ───────────────────────────────────────────────────
+  const warnings: string[] = [];
   const hasFulfillmentWithoutBims = fulfillments?.some((f: any) =>
-    (f.status === "waiting_for_cut" || f.status === "waiting_for_courier") &&
+    ["waiting_for_cut", "waiting_for_courier", "pending"].includes(f.status) &&
     !f.bims_transfer_number && !f.bims_invoice_number
   );
-  if (hasFulfillmentWithoutBims) {
-    warnings.push({ type: "missing_bims", message: "Preparado sin documento BIMS vinculado" });
-  }
+  if (hasFulfillmentWithoutBims) warnings.push("Preparado sin documento BIMS vinculado");
 
-  // Qty mismatch
   const hasQtyMismatch = items?.some((item: any) =>
     item.quantity_accepted != null && item.quantity_accepted > 0 &&
     item.quantity_accepted !== item.quantity_requested
   );
-  if (hasQtyMismatch) {
-    warnings.push({ type: "qty_mismatch", message: "Diferencia entre cantidad solicitada y enviada" });
-  }
-
-  // Pickup rejection
-  const hasRejection = events?.some((e: any) => e.event_type === "driver_pickup_rejected") || false;
-  if (hasRejection) {
-    warnings.push({ type: "pickup_rejected", message: "Un chofer rechazó el retiro de este pedido" });
-  }
+  if (hasQtyMismatch) warnings.push("Diferencia entre cantidad solicitada y enviada");
 
   return (
     <div className="space-y-6">
@@ -139,7 +185,7 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
           {warnings.map((w, i) => (
             <div key={i} className="flex items-center gap-3 p-3 rounded-lg bg-destructive/5 border border-destructive/20 text-sm">
               <AlertTriangle className="h-4 w-4 text-destructive shrink-0" />
-              <span className="text-foreground font-medium">{w.message}</span>
+              <span className="text-foreground font-medium">{w}</span>
             </div>
           ))}
         </div>
@@ -161,17 +207,81 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
         </Badge>
       </div>
 
+      {/* ─── ACTION PANEL ──────────────────────────────────────────── */}
+      {availableActions.length > 0 && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardContent className="p-4">
+            <p className="text-xs font-medium text-muted-foreground mb-3 uppercase tracking-wider">Acciones disponibles</p>
+            {showRejectForm ? (
+              <div className="space-y-3">
+                <Select value={rejectionReasonType} onValueChange={setRejectionReasonType}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Motivo de rechazo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(REJECTION_REASONS).map(([key, label]) => (
+                      <SelectItem key={key} value={key}>{label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Textarea
+                  placeholder="Detalle del rechazo (opcional)"
+                  value={rejectionReason}
+                  onChange={(e) => setRejectionReason(e.target.value)}
+                  rows={2}
+                />
+                <div className="flex gap-2">
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    disabled={!rejectionReasonType || transitioning}
+                    onClick={() => handleTransition("rejected", rejectionReason, rejectionReasonType)}
+                  >
+                    {transitioning && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+                    Confirmar rechazo
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setShowRejectForm(false)}>
+                    Cancelar
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {availableActions.map((action) => (
+                  <Button
+                    key={action.newStatus}
+                    variant={action.variant}
+                    size="sm"
+                    disabled={transitioning}
+                    onClick={() => {
+                      if (action.requiresReason) {
+                        setShowRejectForm(true);
+                      } else {
+                        handleTransition(action.newStatus);
+                      }
+                    }}
+                  >
+                    {transitioning ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : action.icon}
+                    <span className="ml-1">{action.label}</span>
+                  </Button>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Route info */}
       <div className="grid grid-cols-2 gap-4">
         <Card>
           <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground mb-1">Origen</p>
+            <p className="text-xs text-muted-foreground mb-1">Sucursal origen (abastecedora)</p>
             <p className="font-semibold">{r.source_branch?.name}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground mb-1">Destino</p>
+            <p className="text-xs text-muted-foreground mb-1">Sucursal solicitante (destino)</p>
             <p className="font-semibold">{r.requesting_branch?.name}</p>
           </CardContent>
         </Card>
@@ -251,6 +361,35 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
           ))}
         </div>
       </div>
+
+      {/* ─── FULFILLMENT / LOGISTICS EXECUTION ─────────────────────── */}
+      {fulfillments && fulfillments.length > 0 && (
+        <div>
+          <h4 className="font-display font-semibold mb-3">Ejecución logística</h4>
+          <div className="space-y-2">
+            {fulfillments.map((f: any) => (
+              <div key={f.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/20 border border-border/30 text-sm">
+                <Truck className="h-4 w-4 text-muted-foreground shrink-0" />
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${FULFILLMENT_STATUS_CONFIG[f.status]?.color || "bg-muted text-muted-foreground"}`}>
+                      {FULFILLMENT_STATUS_CONFIG[f.status]?.label || f.status}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {SHIPPING_METHOD_LABELS[f.shipping_method] || f.shipping_method}
+                    </span>
+                  </div>
+                  <div className="flex gap-4 mt-1 text-xs text-muted-foreground">
+                    {f.bims_transfer_number && <span>Transf. BIMS: {f.bims_transfer_number}</span>}
+                    {f.bims_invoice_number && <span>Factura BIMS: {f.bims_invoice_number}</span>}
+                    {!f.bims_transfer_number && !f.bims_invoice_number && <span className="text-warning">Sin documento BIMS</span>}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Timeline */}
       <div>
