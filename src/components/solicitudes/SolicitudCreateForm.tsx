@@ -452,6 +452,18 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
         if (itemsError) throw itemsError;
 
         toast.success(`Pedido #${request.request_number} creado`);
+
+        // Link to consultation if created from one
+        if (fromConsultationId) {
+          await supabase.from("consultation_requests").insert({
+            consultation_id: fromConsultationId,
+            branch_request_id: request.id,
+          });
+          // Mark consultation as converted
+          await supabase.from("availability_consultations")
+            .update({ status: "converted" as any, updated_at: new Date().toISOString() })
+            .eq("id", fromConsultationId);
+        }
       }
 
       onSuccess();
