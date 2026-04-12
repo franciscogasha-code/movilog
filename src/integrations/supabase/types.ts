@@ -2809,6 +2809,10 @@ export type Database = {
         | "vehicle"
         | "collection"
         | "stock"
+        | "preparation"
+        | "transport"
+        | "reception"
+        | "closure"
       fulfillment_status:
         | "pending"
         | "picking"
@@ -3105,6 +3109,10 @@ export const Constants = {
         "vehicle",
         "collection",
         "stock",
+        "preparation",
+        "transport",
+        "reception",
+        "closure",
       ],
       fulfillment_status: [
         "pending",
