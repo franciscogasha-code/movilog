@@ -299,7 +299,12 @@ export default function Rendicion() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="combustible" className="mt-4">
+        <TabsContent value="combustible" className="mt-4 space-y-3">
+          <div className="flex justify-end">
+            <Button size="sm" onClick={() => setAddFuelOpen(true)} className="gap-1">
+              <Plus className="h-3.5 w-3.5" /> Registrar carga
+            </Button>
+          </div>
           <Card className="glass-card">
             <CardContent className="p-0">
               {!fuelRecords?.length ? (
@@ -324,7 +329,12 @@ export default function Rendicion() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="viaticos" className="mt-4">
+        <TabsContent value="viaticos" className="mt-4 space-y-3">
+          <div className="flex justify-end">
+            <Button size="sm" onClick={() => setAddPerDiemOpen(true)} className="gap-1">
+              <Plus className="h-3.5 w-3.5" /> Registrar viático
+            </Button>
+          </div>
           <Card className="glass-card">
             <CardContent className="p-0">
               {!perDiemRecords?.length ? (
