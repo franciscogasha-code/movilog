@@ -23,45 +23,67 @@ export default function Rendicion() {
   const [selectedDepositId, setSelectedDepositId] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
-  const { data: completedTrips } = useQuery({
-    queryKey: ["completed-trips-settlement"],
+  // Get current driver
+  const { data: myDriver } = useQuery({
+    queryKey: ["my-driver-for-rendicion"],
     queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return null;
+      const { data } = await supabase.from("drivers").select("id").eq("user_id", user.id).single();
+      return data;
+    },
+  });
+
+  const driverId = myDriver?.id;
+
+  const { data: completedTrips } = useQuery({
+    queryKey: ["completed-trips-settlement", driverId],
+    queryFn: async () => {
+      if (!driverId) return [];
       const { data, error } = await supabase
         .from("trips")
         .select(`*, origin_branch:branches!trips_origin_branch_id_fkey(name, code), vehicle:vehicles(plate_number), driver:drivers(id, user_id)`)
         .eq("status", "completed")
+        .eq("driver_id", driverId)
         .in("settlement_status", ["pending"])
         .order("actual_arrival", { ascending: false })
         .limit(20);
       if (error) throw error;
       return data;
     },
+    enabled: !!driverId,
   });
 
   const { data: collections } = useQuery({
-    queryKey: ["driver-collections"],
+    queryKey: ["driver-collections", driverId],
     queryFn: async () => {
+      if (!driverId) return [];
       const { data, error } = await supabase
         .from("driver_collections")
         .select("*")
+        .eq("driver_id", driverId)
         .order("created_at", { ascending: false })
         .limit(50);
       if (error) throw error;
       return data;
     },
+    enabled: !!driverId,
   });
 
   const { data: deposits } = useQuery({
-    queryKey: ["bank-deposits"],
+    queryKey: ["bank-deposits", driverId],
     queryFn: async () => {
+      if (!driverId) return [];
       const { data, error } = await supabase
         .from("bank_deposits")
         .select("*")
+        .eq("driver_id", driverId)
         .order("created_at", { ascending: false })
         .limit(50);
       if (error) throw error;
       return data;
     },
+    enabled: !!driverId,
   });
 
   const { data: depositLinks } = useQuery({
@@ -78,21 +100,25 @@ export default function Rendicion() {
   });
 
   const { data: fuelRecords } = useQuery({
-    queryKey: ["fuel-records-settlement"],
+    queryKey: ["fuel-records-settlement", driverId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("fuel_records").select("*").order("created_at", { ascending: false }).limit(30);
+      if (!driverId) return [];
+      const { data, error } = await supabase.from("fuel_records").select("*").eq("driver_id", driverId).order("created_at", { ascending: false }).limit(30);
       if (error) throw error;
       return data;
     },
+    enabled: !!driverId,
   });
 
   const { data: perDiemRecords } = useQuery({
-    queryKey: ["per-diem-settlement"],
+    queryKey: ["per-diem-settlement", driverId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("per_diem_records").select("*").order("created_at", { ascending: false }).limit(30);
+      if (!driverId) return [];
+      const { data, error } = await supabase.from("per_diem_records").select("*").eq("driver_id", driverId).order("created_at", { ascending: false }).limit(30);
       if (error) throw error;
       return data;
     },
+    enabled: !!driverId,
   });
 
   const totalCollections = collections?.reduce((sum, c) => sum + Number(c.amount), 0) || 0;
@@ -273,7 +299,12 @@ export default function Rendicion() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="combustible" className="mt-4">
+        <TabsContent value="combustible" className="mt-4 space-y-3">
+          <div className="flex justify-end">
+            <Button size="sm" onClick={() => setAddFuelOpen(true)} className="gap-1">
+              <Plus className="h-3.5 w-3.5" /> Registrar carga
+            </Button>
+          </div>
           <Card className="glass-card">
             <CardContent className="p-0">
               {!fuelRecords?.length ? (
@@ -298,7 +329,12 @@ export default function Rendicion() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="viaticos" className="mt-4">
+        <TabsContent value="viaticos" className="mt-4 space-y-3">
+          <div className="flex justify-end">
+            <Button size="sm" onClick={() => setAddPerDiemOpen(true)} className="gap-1">
+              <Plus className="h-3.5 w-3.5" /> Registrar viático
+            </Button>
+          </div>
           <Card className="glass-card">
             <CardContent className="p-0">
               {!perDiemRecords?.length ? (

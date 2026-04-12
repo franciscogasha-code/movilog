@@ -1288,7 +1288,11 @@ export type Database = {
           commercial_resolved_by: string | null
           created_at: string
           current_custody_holder_id: string | null
+          current_custody_type: string
           current_location_branch_id: string | null
+          current_location_type: string
+          delivery_failed_at: string | null
+          delivery_failed_reason: string | null
           destination_branch_id: string | null
           destination_client_address: string | null
           destination_client_name: string | null
@@ -1323,7 +1327,11 @@ export type Database = {
           commercial_resolved_by?: string | null
           created_at?: string
           current_custody_holder_id?: string | null
+          current_custody_type?: string
           current_location_branch_id?: string | null
+          current_location_type?: string
+          delivery_failed_at?: string | null
+          delivery_failed_reason?: string | null
           destination_branch_id?: string | null
           destination_client_address?: string | null
           destination_client_name?: string | null
@@ -1358,7 +1366,11 @@ export type Database = {
           commercial_resolved_by?: string | null
           created_at?: string
           current_custody_holder_id?: string | null
+          current_custody_type?: string
           current_location_branch_id?: string | null
+          current_location_type?: string
+          delivery_failed_at?: string | null
+          delivery_failed_reason?: string | null
           destination_branch_id?: string | null
           destination_client_address?: string | null
           destination_client_name?: string | null
@@ -2742,6 +2754,10 @@ export type Database = {
         Returns: boolean
       }
       fn_close_expired_consultations: { Args: never; Returns: number }
+      fn_driver_action: {
+        Args: { p_action: string; p_fulfillment_id: string; p_metadata?: Json }
+        Returns: Json
+      }
       fn_respond_consultation_target: {
         Args: {
           p_colors?: string
@@ -2864,6 +2880,8 @@ export type Database = {
         | "partial"
         | "completed"
         | "cancelled"
+        | "at_hub"
+        | "delivery_failed"
       incident_status:
         | "open"
         | "under_review"
@@ -3166,6 +3184,8 @@ export const Constants = {
         "partial",
         "completed",
         "cancelled",
+        "at_hub",
+        "delivery_failed",
       ],
       incident_status: [
         "open",

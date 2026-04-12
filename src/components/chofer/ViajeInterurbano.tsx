@@ -7,7 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Play, Square, MapPin, Truck, Plus, CheckCircle2, Route } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Play, Square, MapPin, Truck, Plus, Route, AlertTriangle } from "lucide-react";
 import { CorteDetalle } from "./CorteDetalle";
 import { AgregarTareaViaje } from "./AgregarTareaViaje";
 import { toast } from "sonner";
@@ -29,6 +30,8 @@ export function ViajeInterurbano({ trips, activeTrip }: Props) {
   const [addTaskOpen, setAddTaskOpen] = useState(false);
   const [starting, setStarting] = useState(false);
   const [startMileage, setStartMileage] = useState("");
+  const [showEndWarning, setShowEndWarning] = useState(false);
+  const [pendingCustodyCount, setPendingCustodyCount] = useState(0);
 
   const startTrip = async () => {
     if (!startMileage) { toast.error("Ingresar kilometraje inicial"); return; }
@@ -79,7 +82,7 @@ export function ViajeInterurbano({ trips, activeTrip }: Props) {
     }
   };
 
-  const endTrip = async () => {
+  const attemptEndTrip = async () => {
     if (!activeTrip) return;
     const endMileage = prompt("Kilometraje final:");
     if (!endMileage) return;
@@ -88,9 +91,37 @@ export function ViajeInterurbano({ trips, activeTrip }: Props) {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      // Check custody
+      const { count } = await supabase
+        .from("fulfillment_orders")
+        .select("id", { count: "exact", head: true })
+        .eq("current_custody_holder_id", user.id)
+        .in("status", ["in_transit", "dispatched", "delivery_failed"] as any[]);
+
+      if (count && count > 0) {
+        setPendingCustodyCount(count);
+        setShowEndWarning(true);
+        // Store mileage for deferred execution
+        (window as any).__endMileage = parseInt(endMileage);
+      } else {
+        await doEndTrip(parseInt(endMileage));
+      }
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
+  const doEndTrip = async (endMileage?: number) => {
+    if (!activeTrip) return;
+    setShowEndWarning(false);
+    const mileage = endMileage || (window as any).__endMileage;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
       const { error } = await supabase
         .from("trips")
-        .update({ status: "completed" as any, actual_arrival: new Date().toISOString(), end_mileage: parseInt(endMileage) })
+        .update({ status: "completed" as any, actual_arrival: new Date().toISOString(), end_mileage: mileage })
         .eq("id", activeTrip.id);
       if (error) throw error;
 
@@ -98,7 +129,7 @@ export function ViajeInterurbano({ trips, activeTrip }: Props) {
         reference_type: "trip", reference_id: activeTrip.id, event_type: "trip_completed",
         category: "logistics" as any, event_description: "Fin de viaje interurbano",
         previous_status: "in_progress", new_status: "completed", triggered_by: user.id,
-        metadata: { end_mileage: parseInt(endMileage) },
+        metadata: { end_mileage: mileage },
       });
 
       toast.success("Viaje finalizado");
@@ -151,7 +182,7 @@ export function ViajeInterurbano({ trips, activeTrip }: Props) {
                 <Button variant="outline" size="sm" onClick={() => setDetailId(activeTrip.id)} className="gap-1">
                   <MapPin className="h-3.5 w-3.5" /> Detalle
                 </Button>
-                <Button variant="destructive" size="sm" onClick={endTrip} className="gap-1">
+                <Button variant="destructive" size="sm" onClick={attemptEndTrip} className="gap-1">
                   <Square className="h-3.5 w-3.5" /> Finalizar
                 </Button>
               </div>
@@ -253,6 +284,24 @@ export function ViajeInterurbano({ trips, activeTrip }: Props) {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Custody warning on end */}
+      <AlertDialog open={showEndWarning} onOpenChange={setShowEndWarning}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-secondary" /> Cargas bajo custodia
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Tenés <strong>{pendingCustodyCount}</strong> carga(s) aún bajo tu custodia. ¿Querés finalizar el viaje de todas formas?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => doEndTrip()}>Finalizar igual</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

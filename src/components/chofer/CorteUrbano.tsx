@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Play, Square, MapPin, Clock, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Play, Square, MapPin, Clock, AlertTriangle } from "lucide-react";
 import { CorteDetalle } from "./CorteDetalle";
 import { toast } from "sonner";
 
@@ -18,6 +19,8 @@ export function CorteUrbano({ cutoffs, activeCutoff }: Props) {
   const queryClient = useQueryClient();
   const [starting, setStarting] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [showEndWarning, setShowEndWarning] = useState(false);
+  const [pendingCustodyCount, setPendingCustodyCount] = useState(0);
 
   const startCutoff = async () => {
     setStarting(true);
@@ -71,8 +74,33 @@ export function CorteUrbano({ cutoffs, activeCutoff }: Props) {
     }
   };
 
-  const endCutoff = async () => {
+  const attemptEndCutoff = async () => {
     if (!activeCutoff) return;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Check custody
+      const { count } = await supabase
+        .from("fulfillment_orders")
+        .select("id", { count: "exact", head: true })
+        .eq("current_custody_holder_id", user.id)
+        .in("status", ["in_transit", "dispatched", "delivery_failed"] as any[]);
+
+      if (count && count > 0) {
+        setPendingCustodyCount(count);
+        setShowEndWarning(true);
+      } else {
+        await doEndCutoff();
+      }
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
+  const doEndCutoff = async () => {
+    if (!activeCutoff) return;
+    setShowEndWarning(false);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
@@ -116,7 +144,7 @@ export function CorteUrbano({ cutoffs, activeCutoff }: Props) {
             {starting ? "Iniciando..." : "Iniciar Corte"}
           </Button>
         ) : (
-          <Button onClick={endCutoff} variant="destructive" className="gap-2">
+          <Button onClick={attemptEndCutoff} variant="destructive" className="gap-2">
             <Square className="h-4 w-4" />
             Finalizar Corte #{activeCutoff.trip_number}
           </Button>
@@ -203,6 +231,24 @@ export function CorteUrbano({ cutoffs, activeCutoff }: Props) {
           {detailId && <CorteDetalle tripId={detailId} />}
         </DialogContent>
       </Dialog>
+
+      {/* Custody warning on end */}
+      <AlertDialog open={showEndWarning} onOpenChange={setShowEndWarning}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-secondary" /> Cargas bajo custodia
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Tenés <strong>{pendingCustodyCount}</strong> carga(s) aún bajo tu custodia. ¿Querés finalizar el corte de todas formas?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={doEndCutoff}>Finalizar igual</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
