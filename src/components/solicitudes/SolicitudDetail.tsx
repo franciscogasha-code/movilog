@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StatusBadge } from "@/components/StatusBadge";
+import { RequestProgressBar } from "@/components/solicitudes/RequestProgressBar";
+import { RequestDocuments } from "@/components/solicitudes/RequestDocuments";
 import {
   REQUEST_STATUS_CONFIG, SHIPPING_METHOD_LABELS, DELIVERY_TARGET_LABELS,
   ITEM_PURPOSE_LABELS, REJECTION_REASONS, REQUEST_TYPE_LABELS, FULFILLMENT_STATUS_CONFIG,
@@ -21,23 +23,20 @@ type ActionDef = {
   newStatus: string;
   variant: "default" | "destructive" | "outline";
   icon: React.ReactNode;
-  actor: "origin" | "destination" | "admin";
+  actor: "origin" | "destination" | "admin" | "driver";
   requiresReason?: boolean;
 };
 
 const STATUS_ACTIONS: Record<string, ActionDef[]> = {
   pending: [
-    { label: "Aceptar", newStatus: "accepted", variant: "default", icon: <Check className="h-4 w-4" />, actor: "origin" },
+    { label: "Aceptar", newStatus: "in_preparation", variant: "default", icon: <Check className="h-4 w-4" />, actor: "origin" },
     { label: "Rechazar", newStatus: "rejected", variant: "destructive", icon: <X className="h-4 w-4" />, actor: "origin", requiresReason: true },
   ],
-  accepted: [
-    { label: "Despachar", newStatus: "dispatched", variant: "default", icon: <Truck className="h-4 w-4" />, actor: "origin" },
-  ],
-  dispatched: [
-    { label: "En tránsito", newStatus: "in_transit", variant: "default", icon: <Truck className="h-4 w-4" />, actor: "origin" },
+  in_preparation: [
+    { label: "Enviar a tránsito", newStatus: "in_transit", variant: "default", icon: <Truck className="h-4 w-4" />, actor: "origin" },
   ],
   in_transit: [
-    { label: "Confirmar entrega", newStatus: "delivered", variant: "default", icon: <Check className="h-4 w-4" />, actor: "origin" },
+    { label: "Confirmar entrega", newStatus: "delivered", variant: "default", icon: <Check className="h-4 w-4" />, actor: "driver" },
   ],
   delivered: [
     { label: "Confirmar recepción", newStatus: "received", variant: "default", icon: <Check className="h-4 w-4" />, actor: "destination" },
@@ -113,6 +112,19 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
     enabled: !!requestId,
   });
 
+  const { data: documents } = useQuery({
+    queryKey: ["request-bims-documents", requestId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("request_bims_documents")
+        .select("*")
+        .eq("request_id", requestId);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!requestId,
+  });
+
   if (isLoading) return <div className="p-4 text-muted-foreground">Cargando...</div>;
   if (!request) return <div className="p-4 text-muted-foreground">No encontrada</div>;
 
@@ -127,8 +139,13 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
     if (isAdmin) return true;
     if (action.actor === "origin") return isOrigin;
     if (action.actor === "destination") return isDestination;
+    if (action.actor === "driver") return isOrigin || hasRole("driver");
     return false;
   });
+
+  // Block "in_transit" transition if no documents
+  const hasDocuments = (documents?.length || 0) > 0;
+  const isTransitBlocked = r.status === "in_preparation" && !hasDocuments;
 
   // ─── Transition handler ─────────────────────────────────────────
   const handleTransition = async (newStatus: string, reason?: string, reasonType?: string) => {
@@ -145,10 +162,10 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
       const result = data as any;
       toast.success(`Pedido #${result.request_number}: ${result.old_status} → ${result.new_status}`);
 
-      // Refresh all related queries
       queryClient.invalidateQueries({ queryKey: ["branch-request-detail", requestId] });
       queryClient.invalidateQueries({ queryKey: ["request-fulfillments", requestId] });
       queryClient.invalidateQueries({ queryKey: ["request-events", requestId] });
+      queryClient.invalidateQueries({ queryKey: ["request-bims-documents", requestId] });
       onUpdate();
       setShowRejectForm(false);
       setRejectionReason("");
@@ -160,14 +177,19 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
     }
   };
 
+  // ─── Build progress bar events ─────────────────────────────────
+  const progressEvents = (events || [])
+    .filter((ev: any) => ev.new_status)
+    .map((ev: any) => ({
+      status: ev.new_status,
+      date: new Date(ev.created_at).toLocaleString("es-PY", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }),
+    }));
+
   // ─── Warnings ───────────────────────────────────────────────────
   const warnings: string[] = [];
-  const hasFulfillmentWithoutBims = fulfillments?.some((f: any) =>
-    ["waiting_for_cut", "waiting_for_courier", "pending"].includes(f.status) &&
-    !f.bims_transfer_number && !f.bims_invoice_number
-  );
-  if (hasFulfillmentWithoutBims) warnings.push("Preparado sin documento BIMS vinculado");
-
+  if (isTransitBlocked && r.status === "in_preparation") {
+    warnings.push("Se requiere al menos un documento BIMS para avanzar a tránsito");
+  }
   const hasQtyMismatch = items?.some((item: any) =>
     item.quantity_accepted != null && item.quantity_accepted > 0 &&
     item.quantity_accepted !== item.quantity_requested
@@ -176,6 +198,9 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
 
   return (
     <div className="space-y-6">
+      {/* Progress Bar */}
+      <RequestProgressBar currentStatus={r.status} events={progressEvents} />
+
       {/* Warning panel */}
       {warnings.length > 0 && (
         <div className="space-y-2">
@@ -244,24 +269,28 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
               </div>
             ) : (
               <div className="flex flex-wrap gap-2">
-                {availableActions.map((action) => (
-                  <Button
-                    key={action.newStatus}
-                    variant={action.variant}
-                    size="sm"
-                    disabled={transitioning}
-                    onClick={() => {
-                      if (action.requiresReason) {
-                        setShowRejectForm(true);
-                      } else {
-                        handleTransition(action.newStatus);
-                      }
-                    }}
-                  >
-                    {transitioning ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : action.icon}
-                    <span className="ml-1">{action.label}</span>
-                  </Button>
-                ))}
+                {availableActions.map((action) => {
+                  const isBlocked = action.newStatus === "in_transit" && isTransitBlocked;
+                  return (
+                    <Button
+                      key={action.newStatus}
+                      variant={action.variant}
+                      size="sm"
+                      disabled={transitioning || isBlocked}
+                      title={isBlocked ? "Vincule un documento BIMS primero" : undefined}
+                      onClick={() => {
+                        if (action.requiresReason) {
+                          setShowRejectForm(true);
+                        } else {
+                          handleTransition(action.newStatus);
+                        }
+                      }}
+                    >
+                      {transitioning ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : action.icon}
+                      <span className="ml-1">{action.label}</span>
+                    </Button>
+                  );
+                })}
               </div>
             )}
           </CardContent>
@@ -327,6 +356,16 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
         </div>
       </div>
 
+      {/* BIMS Documents */}
+      <RequestDocuments
+        requestId={requestId}
+        requestType={r.request_type}
+        deliveryTarget={r.delivery_target}
+        currentStatus={r.status}
+        isOrigin={isOrigin}
+        isAdmin={isAdmin}
+      />
+
       {/* Items */}
       <div>
         <h4 className="font-display font-semibold mb-3">Ítems ({items?.length || 0})</h4>
@@ -343,6 +382,11 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
               </Badge>
               <div className="text-right min-w-[120px]">
                 <span className="font-mono font-semibold">{item.quantity_requested}</span>
+                {item.quantity_shipped != null && item.quantity_shipped > 0 && item.quantity_shipped !== item.quantity_requested && (
+                  <span className="text-xs ml-1 text-destructive font-semibold">
+                    / {item.quantity_shipped} enviados
+                  </span>
+                )}
                 {item.quantity_accepted != null && item.quantity_accepted > 0 && (
                   <span className={`text-xs ml-1 ${item.quantity_accepted !== item.quantity_requested ? "text-destructive font-semibold" : "text-muted-foreground"}`}>
                     / {item.quantity_accepted} aceptados
@@ -376,11 +420,6 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
                       {SHIPPING_METHOD_LABELS[f.shipping_method] || f.shipping_method}
                     </span>
                   </div>
-                  <div className="flex gap-4 mt-1 text-xs text-muted-foreground">
-                    {f.bims_transfer_number && <span>Transf. BIMS: {f.bims_transfer_number}</span>}
-                    {f.bims_invoice_number && <span>Factura BIMS: {f.bims_invoice_number}</span>}
-                    {!f.bims_transfer_number && !f.bims_invoice_number && <span className="text-warning">Sin documento BIMS</span>}
-                  </div>
                 </div>
               </div>
             ))}
@@ -395,7 +434,7 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
           <p className="text-sm text-muted-foreground">Sin eventos registrados</p>
         ) : (
           <div className="space-y-0">
-            {events.map((ev, idx) => (
+            {events.map((ev: any, idx: number) => (
               <div key={ev.id} className="flex gap-3">
                 <div className="flex flex-col items-center">
                   <div className="w-2 h-2 rounded-full bg-primary mt-2" />
