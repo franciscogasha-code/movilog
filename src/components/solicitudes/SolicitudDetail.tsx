@@ -192,6 +192,24 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
             <span className="font-medium">{r.client_name}</span>
           </div>
         )}
+        {r.delivery_payer && (
+          <div>
+            <span className="text-muted-foreground">Paga envío:</span>{" "}
+            <span className="font-medium">{r.delivery_payer === "company" ? "Empresa" : "Cliente"}</span>
+          </div>
+        )}
+        {r.shipping_cost != null && r.shipping_cost > 0 && (
+          <div>
+            <span className="text-muted-foreground">Costo envío:</span>{" "}
+            <span className="font-medium">Gs. {Number(r.shipping_cost).toLocaleString("es-PY")}</span>
+          </div>
+        )}
+        {r.courier_billing_mode && (
+          <div>
+            <span className="text-muted-foreground">Cobro encomienda:</span>{" "}
+            <span className="font-medium">{r.courier_billing_mode === "on_invoice" ? "En factura" : "Cobro en destino"}</span>
+          </div>
+        )}
         <div>
           <span className="text-muted-foreground">Cierre logístico:</span>{" "}
           <span className="font-medium">{r.logistic_closed_at ? "✓" : "Pendiente"}</span>
