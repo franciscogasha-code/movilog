@@ -5,8 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Package, CheckCircle2, AlertTriangle, XCircle, Truck, MapPin, Clock } from "lucide-react";
+import { Package, CheckCircle2, AlertTriangle, XCircle, Truck, MapPin, Clock, FileWarning, FileCheck } from "lucide-react";
 import { toast } from "sonner";
+import { BranchSelector } from "@/components/shared/BranchSelector";
 import { DELIVERY_TARGET_LABELS, REQUEST_TYPE_LABELS } from "@/lib/constants";
 
 const REJECTION_REASONS = [
@@ -17,11 +18,6 @@ const REJECTION_REASONS = [
   { value: "other", label: "Otro" },
 ];
 
-const DELIVERY_TARGET_BADGES: Record<string, { label: string; className: string }> = {
-  client: { label: "Cliente", className: "bg-primary/10 text-primary border-primary/20" },
-  branch: { label: "Reposición", className: "bg-muted text-muted-foreground border-border" },
-};
-
 const REQUEST_TYPE_BADGES: Record<string, { label: string; className: string }> = {
   client: { label: "Cliente", className: "bg-primary/10 text-primary border-primary/20" },
   online: { label: "Online", className: "bg-accent/10 text-accent border-accent/20" },
@@ -29,10 +25,29 @@ const REQUEST_TYPE_BADGES: Record<string, { label: string; className: string }> 
   redistribution: { label: "Redistribución", className: "bg-secondary/10 text-secondary border-secondary/20" },
 };
 
+const DELIVERY_TARGET_BADGES: Record<string, { label: string; className: string }> = {
+  client: { label: "Cliente", className: "bg-primary/10 text-primary border-primary/20" },
+  branch: { label: "Reposición", className: "bg-muted text-muted-foreground border-border" },
+};
+
+/** Returns true if the fulfillment has at least one binding document */
+function hasBindingDocument(f: any): boolean {
+  return !!(f.bims_transfer_number || f.bims_invoice_number);
+}
+
+/** Returns a human-readable label for the missing document */
+function missingDocLabel(f: any): string {
+  const target = f.branch_request?.delivery_target;
+  if (target === "client") return "Falta factura BIMS";
+  return "Falta transferencia BIMS";
+}
+
 export function CargasDisponibles() {
   const queryClient = useQueryClient();
   const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [selectedBranchId, setSelectedBranchId] = useState<string>("");
 
+  // ── Driver record ──
   const { data: myDriver } = useQuery({
     queryKey: ["my-driver-record"],
     queryFn: async () => {
@@ -43,6 +58,10 @@ export function CargasDisponibles() {
     },
   });
 
+  // Set default branch once driver loads
+  const effectiveBranchId = selectedBranchId || myDriver?.assigned_branch_id || "";
+
+  // ── Active trip ──
   const { data: myActiveTrip } = useQuery({
     queryKey: ["my-active-trip", myDriver?.id],
     queryFn: async () => {
@@ -59,7 +78,7 @@ export function CargasDisponibles() {
     enabled: !!myDriver?.id,
   });
 
-  // A) Cargas asignadas a mi viaje
+  // ── A) Loads assigned to my trip ──
   const { data: assignedLoads } = useQuery({
     queryKey: ["assigned-loads", myActiveTrip?.id],
     queryFn: async () => {
@@ -75,16 +94,15 @@ export function CargasDisponibles() {
     enabled: !!myActiveTrip?.id,
   });
 
-  // B) Cargas disponibles en mi sucursal (no asignadas a viaje)
-  const branchId = myActiveTrip?.origin_branch_id || myDriver?.assigned_branch_id;
+  // ── B) Available loads at selected branch ──
   const { data: availableLoads } = useQuery({
-    queryKey: ["available-loads", branchId],
+    queryKey: ["available-loads", effectiveBranchId],
     queryFn: async () => {
-      if (!branchId) return [];
+      if (!effectiveBranchId) return [];
       const { data, error } = await supabase
         .from("fulfillment_orders")
         .select(`*, source_branch:branches!fulfillment_orders_source_branch_id_fkey(name, code), destination_branch:branches!fulfillment_orders_destination_branch_id_fkey(name, code), branch_request:branch_requests(request_number, request_type, delivery_target)`)
-        .eq("source_branch_id", branchId)
+        .eq("source_branch_id", effectiveBranchId)
         .in("status", ["waiting_for_cut", "waiting_for_courier", "picking"])
         .is("trip_id", null)
         .order("created_at", { ascending: true })
@@ -92,10 +110,14 @@ export function CargasDisponibles() {
       if (error) throw error;
       return data;
     },
-    enabled: !!branchId,
+    enabled: !!effectiveBranchId,
   });
 
-  // Rejection events for available loads (to show "rejected in this cutoff" badge)
+  // Split into ready vs pending-docs
+  const readyLoads = availableLoads?.filter(hasBindingDocument) || [];
+  const pendingDocsLoads = availableLoads?.filter((f) => !hasBindingDocument(f)) || [];
+
+  // ── Rejection events ──
   const { data: rejectionEvents } = useQuery({
     queryKey: ["rejection-events-recent"],
     queryFn: async () => {
@@ -114,14 +136,11 @@ export function CargasDisponibles() {
   const rejectionByFulfillment: Record<string, { at: string; reason: string }> = {};
   rejectionEvents?.forEach((e: any) => {
     if (!rejectionByFulfillment[e.reference_id]) {
-      rejectionByFulfillment[e.reference_id] = {
-        at: e.created_at,
-        reason: e.metadata?.rejection_reason || "",
-      };
+      rejectionByFulfillment[e.reference_id] = { at: e.created_at, reason: e.metadata?.rejection_reason || "" };
     }
   });
 
-  // C) Movimientos fuera de corte recientes (últimas 24h)
+  // ── C) Out-of-cutoff events ──
   const { data: outOfCutoffEvents } = useQuery({
     queryKey: ["out-of-cutoff-events"],
     queryFn: async () => {
@@ -138,6 +157,7 @@ export function CargasDisponibles() {
     },
   });
 
+  // ── Actions ──
   const invalidateAll = () => {
     queryClient.invalidateQueries({ queryKey: ["assigned-loads"] });
     queryClient.invalidateQueries({ queryKey: ["available-loads"] });
@@ -157,13 +177,12 @@ export function CargasDisponibles() {
         p_metadata: {},
       });
       if (error) throw error;
-
       const result = data as any;
       if (result?.success) {
         toast.success(myActiveTrip ? "Retiro confirmado" : "Retiro confirmado (fuera de corte)");
         invalidateAll();
       } else {
-        toast.error("Error al retirar");
+        toast.error(result?.error || "Error al retirar");
       }
     } catch (err: any) {
       toast.error(err.message);
@@ -174,7 +193,6 @@ export function CargasDisponibles() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-
       await supabase.from("operational_events").insert({
         reference_type: "fulfillment_order",
         reference_id: fulfillmentId,
@@ -184,7 +202,6 @@ export function CargasDisponibles() {
         triggered_by: user.id,
         metadata: { rejection_reason: reason },
       });
-
       await supabase.from("ai_anomalies").insert({
         anomaly_type: "driver_pickup_rejected",
         area: "logistics" as any,
@@ -194,7 +211,6 @@ export function CargasDisponibles() {
         description: `Motivo: ${REJECTION_REASONS.find(r => r.value === reason)?.label || reason}`,
         affected_entities: [{ type: "fulfillment_order", id: fulfillmentId }],
       });
-
       toast.info("Carga rechazada — queda disponible para próximo corte");
       setRejectingId(null);
       invalidateAll();
@@ -203,10 +219,8 @@ export function CargasDisponibles() {
     }
   };
 
-  // Helper: detect if a load likely missed a cutoff (created > 4h ago and still waiting)
   const isMissedCutoff = (f: any) => {
-    const createdAt = new Date(f.created_at).getTime();
-    const hoursOld = (Date.now() - createdAt) / (1000 * 60 * 60);
+    const hoursOld = (Date.now() - new Date(f.created_at).getTime()) / (1000 * 60 * 60);
     return hoursOld > 4 && (f.status === "waiting_for_cut" || f.status === "waiting_for_courier");
   };
 
@@ -218,6 +232,7 @@ export function CargasDisponibles() {
     return { label: "Transferencia", className: "bg-muted text-muted-foreground border-border" };
   };
 
+  // ── Row components ──
   const FulfillmentRow = ({ f, showPickup = true }: { f: any; showPickup?: boolean }) => {
     const typeBadge = getTypeBadge(f);
     const missedCutoff = isMissedCutoff(f);
@@ -229,10 +244,8 @@ export function CargasDisponibles() {
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-semibold">Pedido #{f.branch_request?.request_number || "—"}</span>
-              <span className="text-muted-foreground">→ {f.destination_branch?.code || f.destination_client_name || "—"}</span>
-              <Badge variant="outline" className={`text-xs ${typeBadge.className}`}>
-                {typeBadge.label}
-              </Badge>
+              <span className="text-muted-foreground">→ {f.destination_branch?.name || f.destination_client_name || "—"}</span>
+              <Badge variant="outline" className={`text-xs ${typeBadge.className}`}>{typeBadge.label}</Badge>
               {missedCutoff && (
                 <Badge variant="destructive" className="text-xs gap-1">
                   <AlertTriangle className="h-3 w-3" /> Perdió corte
@@ -250,10 +263,8 @@ export function CargasDisponibles() {
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {!f.bims_transfer_number && !f.bims_invoice_number && (
-            <Badge variant="outline" className="text-xs text-secondary border-secondary/30">Sin doc. BIMS</Badge>
-          )}
           {f.bims_transfer_number && <Badge variant="outline" className="text-xs">T: {f.bims_transfer_number}</Badge>}
+          {f.bims_invoice_number && <Badge variant="outline" className="text-xs">F: {f.bims_invoice_number}</Badge>}
           {(f.branch_request?.delivery_target === "client" || f.shipping_method === "courier") && f.package_count > 0 && (
             <Badge variant="secondary" className="text-xs">{f.package_count} bultos</Badge>
           )}
@@ -275,18 +286,51 @@ export function CargasDisponibles() {
     );
   };
 
+  const PendingDocRow = ({ f }: { f: any }) => {
+    const typeBadge = getTypeBadge(f);
+    return (
+      <div className="flex items-center justify-between p-3 text-sm bg-secondary/5">
+        <div className="flex items-center gap-3 flex-1 min-w-0">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-semibold">Pedido #{f.branch_request?.request_number || "—"}</span>
+              <span className="text-muted-foreground">→ {f.destination_branch?.name || f.destination_client_name || "—"}</span>
+              <Badge variant="outline" className={`text-xs ${typeBadge.className}`}>{typeBadge.label}</Badge>
+              <Badge variant="outline" className="text-xs text-secondary border-secondary/30 gap-1">
+                <FileWarning className="h-3 w-3" /> {missingDocLabel(f)}
+              </Badge>
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <Badge variant="outline" className="text-xs">
+            {f.status === "waiting_for_cut" ? "Esperando corte" : f.status === "waiting_for_courier" ? "Esperando transporte" : f.status}
+          </Badge>
+          <Button size="sm" disabled className="h-7 text-xs gap-1 opacity-50">
+            <XCircle className="h-3 w-3" /> Sin documento
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-4">
+      {/* Branch selector */}
+      <BranchSelector
+        value={effectiveBranchId}
+        onChange={setSelectedBranchId}
+        label="Sucursal actual"
+      />
+
       {!myActiveTrip && (
         <div className="flex items-center gap-2 p-3 rounded-lg bg-secondary/10 border border-secondary/20 text-sm">
           <AlertTriangle className="h-4 w-4 text-secondary shrink-0" />
-          <span>
-            Sin corte/viaje activo. Los retiros se registran como <strong>movimiento fuera de corte</strong>.
-          </span>
+          <span>Sin corte/viaje activo. Los retiros se registran como <strong>movimiento fuera de corte</strong>.</span>
         </div>
       )}
 
-      {/* A) Cargas asignadas a mi viaje */}
+      {/* A) Assigned to my trip */}
       {myActiveTrip && (
         <Card className="glass-card border-primary/20">
           <CardHeader className="pb-2">
@@ -308,30 +352,48 @@ export function CargasDisponibles() {
         </Card>
       )}
 
-      {/* B) Cargas disponibles en el punto */}
+      {/* B) Ready for pickup */}
       <Card className="glass-card">
         <CardHeader className="pb-2">
           <CardTitle className="font-display text-base flex items-center gap-2">
-            <MapPin className="h-4 w-4 text-muted-foreground" />
-            Disponibles para retiro
-            <Badge variant="secondary" className="text-xs">{availableLoads?.length || 0}</Badge>
+            <FileCheck className="h-4 w-4 text-primary" />
+            Listos para retirar
+            <Badge variant="default" className="text-xs">{readyLoads.length}</Badge>
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          {!availableLoads?.length ? (
+          {!readyLoads.length ? (
             <div className="p-4 text-center text-muted-foreground text-sm">
               <Package className="h-6 w-6 mx-auto mb-1 opacity-50" />
-              No hay cargas pendientes de retiro
+              No hay cargas listas para retiro
             </div>
           ) : (
             <div className="divide-y divide-border/50">
-              {availableLoads.map((f: any) => <FulfillmentRow key={f.id} f={f} />)}
+              {readyLoads.map((f: any) => <FulfillmentRow key={f.id} f={f} />)}
             </div>
           )}
         </CardContent>
       </Card>
 
-      {/* C) Movimientos fuera de corte recientes */}
+      {/* C) Pending documents */}
+      {pendingDocsLoads.length > 0 && (
+        <Card className="glass-card border-secondary/20">
+          <CardHeader className="pb-2">
+            <CardTitle className="font-display text-base flex items-center gap-2">
+              <FileWarning className="h-4 w-4 text-secondary" />
+              Pendientes documentales
+              <Badge variant="outline" className="text-xs text-secondary border-secondary/30">{pendingDocsLoads.length}</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="divide-y divide-border/50">
+              {pendingDocsLoads.map((f: any) => <PendingDocRow key={f.id} f={f} />)}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* D) Out-of-cutoff events */}
       {(outOfCutoffEvents?.length ?? 0) > 0 && (
         <Card className="glass-card border-secondary/20">
           <CardHeader className="pb-2">
