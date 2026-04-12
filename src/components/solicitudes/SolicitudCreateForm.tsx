@@ -258,7 +258,9 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
   const canSubmit = useMemo(() => {
     if (!requestingBranchId || !items.length) return false;
     if (hasStockErrors || shippingError) return false;
-    if (isMultiOrigin) return items.every(i => !!i.sourceBranchId);
+    if (isMultiOrigin) {
+      return items.every(i => !!i.sourceBranchId && i.sourceBranchId !== requestingBranchId);
+    }
     if (!sourceBranchId || isSameBranch) return false;
     return true;
   }, [requestingBranchId, items, isMultiOrigin, sourceBranchId, hasStockErrors, shippingError, isSameBranch]);
