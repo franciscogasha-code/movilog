@@ -251,13 +251,17 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
 
   const itemsWithoutSource = items.filter(i => !i.sourceBranchId);
 
+  // Same-branch validation (mono-origin only; multi-origin children have different sources)
+  const isSameBranch = !isMultiOrigin && !!sourceBranchId && sourceBranchId === requestingBranchId;
+
   // Validation
   const canSubmit = useMemo(() => {
     if (!requestingBranchId || !items.length) return false;
     if (hasStockErrors || shippingError) return false;
     if (isMultiOrigin) return items.every(i => !!i.sourceBranchId);
-    return !!sourceBranchId;
-  }, [requestingBranchId, items, isMultiOrigin, sourceBranchId, hasStockErrors, shippingError]);
+    if (!sourceBranchId || isSameBranch) return false;
+    return true;
+  }, [requestingBranchId, items, isMultiOrigin, sourceBranchId, hasStockErrors, shippingError, isSameBranch]);
 
   // Re-validate stock from BIMS live right before confirmation
   const revalidateStock = async (): Promise<Record<string, string>> => {
