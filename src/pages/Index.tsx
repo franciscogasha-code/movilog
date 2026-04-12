@@ -2,8 +2,8 @@ import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
 import {
   AlertTriangle, ClipboardList, PackageCheck,
-  Loader2, Plus, Search, ArrowRight, Clock, FileWarning,
-  XCircle, AlertCircle, MessageSquare, Package,
+  Loader2, Plus, Search, ArrowRight, Clock,
+  MessageSquare, Package,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -155,43 +155,6 @@ export default function Index() {
     },
   });
 
-  // Attention: rejected requests
-  const { data: attentionRequests } = useQuery({
-    queryKey: ["dashboard-attention", isAllBranches, allowedBranchIds],
-    queryFn: async () => {
-      let query = supabase
-        .from("branch_requests")
-        .select(`
-          id, request_number, status, created_at,
-          requesting_branch:branches!branch_requests_requesting_branch_id_fkey(name),
-          source_branch:branches!branch_requests_source_branch_id_fkey(name)
-        `)
-        .in("status", ["rejected"] as any)
-        .order("created_at", { ascending: false })
-        .limit(10);
-
-      if (!isAllBranches && allowedBranchIds.length > 0) {
-        query = query.or(
-          `requesting_branch_id.in.(${allowedBranchIds.join(",")}),source_branch_id.in.(${allowedBranchIds.join(",")})`
-        );
-      }
-      const { data } = await query;
-      return data || [];
-    },
-  });
-
-  const { data: openIncidents } = useQuery({
-    queryKey: ["dashboard-incidents"],
-    queryFn: async () => {
-      const query = supabase
-        .from("logistics_incidents")
-        .select("id, title, branch_request_id, status")
-        .in("status", ["open", "under_review"] as any)
-        .limit(10);
-      const { data } = await query;
-      return data || [];
-    },
-  });
 
   // ── Build unified queue ────────────────────────────────
   const queueItems = useMemo(() => {
@@ -247,76 +210,6 @@ export default function Index() {
     (f) => f.status === "delivered" || f.status === "pending_physical_confirmation"
   ).length || 0;
 
-  // ── Attention cases ────────────────────────────────────
-  const attentionCases = useMemo(() => {
-    const cases: { id: string; icon: string; itemType: ItemType; description: string; navigateTo?: string }[] = [];
-
-    // Overdue requests
-    queueItems
-      .filter(i => isOverdue(i.priority) && i.itemType === "pedido")
-      .slice(0, 4)
-      .forEach(i => {
-        cases.push({
-          id: `overdue-${i.id}`,
-          icon: "overdue",
-          itemType: "pedido",
-          description: `Pedido #${i.number} atrasado (${timeAgo(i.createdAt)})`,
-          navigateTo: i.navigateTo,
-        });
-      });
-
-    // Rejected requests
-    attentionRequests?.forEach((r: any) => {
-      cases.push({
-        id: `rejected-${r.id}`,
-        icon: "rejected",
-        itemType: "pedido",
-        description: `Pedido #${r.request_number} rechazado`,
-        navigateTo: `/solicitudes?detail=${r.id}`,
-      });
-    });
-
-    // Unanswered consultations (open, no responses yet)
-    queueItems
-      .filter(i => i.itemType === "consulta" && i.consultationStatus === "open" && !i.hasResponses)
-      .slice(0, 3)
-      .forEach(i => {
-        cases.push({
-          id: `consul-open-${i.id}`,
-          icon: "no_doc",
-          itemType: "consulta",
-          description: `Consulta sin responder (${timeAgo(i.createdAt)})`,
-          navigateTo: i.navigateTo,
-        });
-      });
-
-    // Consultations ready for order (responded + user is requester)
-    queueItems
-      .filter(i => i.itemType === "consulta" && i.hasResponses && i.isRequester)
-      .slice(0, 3)
-      .forEach(i => {
-        cases.push({
-          id: `consul-ready-${i.id}`,
-          icon: "ready",
-          itemType: "consulta",
-          description: `Consulta lista para pedido`,
-          navigateTo: i.navigateTo,
-        });
-      });
-
-    // Incidents
-    openIncidents?.forEach((inc: any) => {
-      cases.push({
-        id: `incident-${inc.id}`,
-        icon: "incident",
-        itemType: "pedido",
-        description: inc.title || "Incidencia abierta",
-        navigateTo: inc.branch_request_id ? `/solicitudes?detail=${inc.branch_request_id}` : undefined,
-      });
-    });
-
-    return cases.slice(0, 8);
-  }, [queueItems, attentionRequests, openIncidents]);
 
   // ── Filtered queue ─────────────────────────────────────
   const filteredItems = useMemo(() => {
@@ -339,16 +232,6 @@ export default function Index() {
     { key: "awaiting", title: "Pend. recepción", value: awaitingReceptionCount, icon: PackageCheck, colorClass: "text-accent", bgClass: "bg-accent/10" },
   ];
 
-  const attentionIcon = (type: string) => {
-    switch (type) {
-      case "overdue": return <AlertTriangle className="h-4 w-4 text-destructive shrink-0" />;
-      case "rejected": return <XCircle className="h-4 w-4 text-destructive shrink-0" />;
-      case "incident": return <AlertCircle className="h-4 w-4 text-warning shrink-0" />;
-      case "no_doc": return <FileWarning className="h-4 w-4 text-warning shrink-0" />;
-      case "ready": return <PackageCheck className="h-4 w-4 text-primary shrink-0" />;
-      default: return <AlertTriangle className="h-4 w-4 text-muted-foreground shrink-0" />;
-    }
-  };
 
   // ── Type filter tabs ───────────────────────────────────
   const typeFilters: { key: TypeFilter; label: string }[] = [
@@ -438,9 +321,9 @@ export default function Index() {
             })}
           </motion.div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-            {/* Main: Prioritized Queue */}
-            <motion.div className="lg:col-span-2" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+          <div>
+            {/* Main: Prioritized Queue — Full Width */}
+            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
               <Card className="glass-card">
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between flex-wrap gap-2">
@@ -531,55 +414,58 @@ export default function Index() {
                         return (
                           <div
                             key={`${qi.itemType}-${qi.id}`}
-                            className={`flex items-center gap-2 py-2.5 px-3 rounded-lg hover:bg-muted/50 transition-colors ${rowClass}`}
+                            className={`flex flex-wrap md:flex-nowrap items-center gap-2 md:gap-3 py-2.5 px-3 rounded-lg hover:bg-muted/50 transition-colors ${rowClass}`}
                           >
-                            {/* Type badge */}
-                            {isPedido ? (
-                              <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold bg-primary/10 text-primary border border-primary/20 shrink-0">
-                                <Package className="h-3 w-3" />
-                                Pedido
+                            {/* Left: Type + ID + Route */}
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                              {/* Type badge */}
+                              {isPedido ? (
+                                <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold bg-primary/10 text-primary border border-primary/20 shrink-0">
+                                  <Package className="h-3 w-3" />
+                                  Pedido
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold bg-secondary/80 text-secondary-foreground border border-secondary shrink-0">
+                                  <MessageSquare className="h-3 w-3" />
+                                  Consulta
+                                </span>
+                              )}
+
+                              {/* Number */}
+                              {qi.number && (
+                                <span className="text-sm font-mono font-semibold text-foreground shrink-0">
+                                  #{qi.number}
+                                </span>
+                              )}
+
+                              {/* Route label */}
+                              <span className="text-sm text-foreground truncate min-w-0">
+                                {qi.label}
                               </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold bg-secondary/80 text-secondary-foreground border border-secondary shrink-0">
-                                <MessageSquare className="h-3 w-3" />
-                                Consulta
+                            </div>
+
+                            {/* Center: Status + Priority + Time */}
+                            <div className="flex items-center gap-2 shrink-0">
+                              {isPedido ? (
+                                <StatusBadge status={qi.status} config={REQUEST_STATUS_CONFIG} />
+                              ) : (
+                                <StatusBadge status={qi.status} config={CONSULTATION_STATUS_CONFIG} />
+                              )}
+
+                              <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium shrink-0 ${badge.className}`}>
+                                {badge.label}
                               </span>
-                            )}
 
-                            {/* Number */}
-                            {qi.number && (
-                              <span className="text-sm font-mono font-semibold text-foreground shrink-0">
-                                #{qi.number}
+                              <span className="text-[11px] text-muted-foreground shrink-0 hidden sm:inline">
+                                {timeAgo(qi.createdAt)}
                               </span>
-                            )}
+                            </div>
 
-                            {/* Label */}
-                            <span className="text-sm text-foreground truncate flex-1">
-                              {qi.label}
-                            </span>
-
-                            {/* Status badge */}
-                            {isPedido ? (
-                              <StatusBadge status={qi.status} config={REQUEST_STATUS_CONFIG} />
-                            ) : (
-                              <StatusBadge status={qi.status} config={CONSULTATION_STATUS_CONFIG} />
-                            )}
-
-                            {/* Priority badge */}
-                            <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium shrink-0 hidden md:inline-flex ${badge.className}`}>
-                              {badge.label}
-                            </span>
-
-                            {/* Time */}
-                            <span className="text-[11px] text-muted-foreground shrink-0 hidden sm:inline">
-                              {timeAgo(qi.createdAt)}
-                            </span>
-
-                            {/* Action */}
+                            {/* Right: Action */}
                             <Button
                               variant={!isPedido && qi.hasResponses && qi.isRequester ? "default" : "ghost"}
                               size="sm"
-                              className="h-7 px-2 text-xs shrink-0"
+                              className="h-7 px-3 text-xs shrink-0 ml-auto"
                               onClick={handleAction}
                             >
                               {actionLabel}
@@ -594,52 +480,6 @@ export default function Index() {
               </Card>
             </motion.div>
 
-            {/* Side: Attention Cases */}
-            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-              <Card className="glass-card">
-                <CardHeader className="pb-2">
-                  <CardTitle className="font-display text-base flex items-center gap-2">
-                    <AlertTriangle className="h-4 w-4 text-warning" />
-                    Requieren atención
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {!attentionCases.length ? (
-                    <p className="text-sm text-muted-foreground py-6 text-center">
-                      Sin alertas activas ✅
-                    </p>
-                  ) : (
-                    <div className="space-y-1">
-                      {attentionCases.map((c) => (
-                        <div
-                          key={c.id}
-                          className="flex items-center gap-2 py-2 px-2 rounded-lg hover:bg-muted/50 transition-colors"
-                        >
-                          {attentionIcon(c.icon)}
-                          {/* Type mini-badge */}
-                          <span className={`text-[9px] font-bold uppercase shrink-0 ${
-                            c.itemType === "pedido" ? "text-primary" : "text-secondary-foreground"
-                          }`}>
-                            {c.itemType === "pedido" ? "📦" : "💬"}
-                          </span>
-                          <p className="text-xs text-foreground flex-1 truncate">{c.description}</p>
-                          {c.navigateTo && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 px-2 text-[11px] shrink-0"
-                              onClick={() => navigate(c.navigateTo!)}
-                            >
-                              Ver
-                            </Button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </motion.div>
           </div>
         </>
       )}
