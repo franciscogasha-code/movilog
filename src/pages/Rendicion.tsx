@@ -21,6 +21,8 @@ export default function Rendicion() {
   const [addDepositOpen, setAddDepositOpen] = useState(false);
   const [linkDepositOpen, setLinkDepositOpen] = useState(false);
   const [selectedDepositId, setSelectedDepositId] = useState<string | null>(null);
+  const [addFuelOpen, setAddFuelOpen] = useState(false);
+  const [addPerDiemOpen, setAddPerDiemOpen] = useState(false);
   const queryClient = useQueryClient();
 
   // Get current driver
