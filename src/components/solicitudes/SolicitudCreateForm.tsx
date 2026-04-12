@@ -581,9 +581,16 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
                       productPriceLists={item.product.price_lists as { name: string; amount: number }[] | undefined}
                       productStockByWarehouse={item.product.stock_by_warehouse as Record<string, number> | undefined}
                       productTotalStock={item.product.total_stock}
-                      stockMode={isMultiOrigin ? "select_source" : "info_only"}
-                      onSelectSourceBranch={isMultiOrigin ? (bid) => setItemSourceBranch(item.product.id, bid) : undefined}
-                      selectedSourceBranchId={item.sourceBranchId}
+                      stockMode="select_source"
+                      onSelectSourceBranch={(bid) => {
+                        if (isMultiOrigin) {
+                          setItemSourceBranch(item.product.id, bid);
+                        } else {
+                          // Mono-origin: selecting source from any product sets the global source
+                          setSourceBranchId(bid);
+                        }
+                      }}
+                      selectedSourceBranchId={isMultiOrigin ? item.sourceBranchId : sourceBranchId}
                       requiredQuantity={item.quantity}
                       compact={false}
                       liveStock={getEffectiveStock(item.product)}
@@ -636,15 +643,25 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
           </div>
         ) : (
           <div>
-            <p className="text-xs text-muted-foreground mb-2">
-              Para entrega a cliente, todo el pedido debe salir desde una única sucursal origen.
-            </p>
-            <BranchSelector
-              label="Sucursal origen"
-              value={sourceBranchId}
-              onChange={setSourceBranchId}
-              excludeIds={requestingBranchId ? [requestingBranchId] : []}
-            />
+            {sourceBranchId ? (
+              <div className="p-3 rounded-lg bg-muted/50 border border-border/50">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Origen seleccionado</p>
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-sm">{branches?.find(b => b.id === sourceBranchId)?.name || "—"}</span>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setSourceBranchId("")} className="text-xs text-muted-foreground h-7">
+                    Cambiar
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Seleccionado desde la ficha de producto. Todo el pedido sale de esta sucursal.
+                </p>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-sm text-foreground">
+                <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
+                <span>Seleccioná la sucursal origen desde el bloque de stock de cualquier producto (paso 2).</span>
+              </div>
+            )}
           </div>
         )}
       </div>
