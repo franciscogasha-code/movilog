@@ -2699,6 +2699,20 @@ export type Database = {
         Args: { _branch_id: string; _user_id: string }
         Returns: boolean
       }
+      fn_can_view_consultation: {
+        Args: { _consultation_id: string; _user_id: string }
+        Returns: boolean
+      }
+      fn_close_expired_consultations: { Args: never; Returns: number }
+      fn_respond_consultation_target: {
+        Args: {
+          p_colors?: string
+          p_note?: string
+          p_quantity?: number
+          p_target_id: string
+        }
+        Returns: Json
+      }
       fn_transition_request_status: {
         Args: {
           p_new_status: string

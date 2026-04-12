@@ -25,9 +25,11 @@ export default function Solicitudes() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const { isAllBranches, allowedBranchIds } = useUserBranchFilter();
   const fromConsultation = searchParams.get("from_consultation");
+  const [activeConsultationId, setActiveConsultationId] = useState<string | null>(null);
 
   useEffect(() => {
     if (fromConsultation) {
+      setActiveConsultationId(fromConsultation);
       setCreateOpen(true);
       // Clean the param so it doesn't re-trigger
       setSearchParams({}, { replace: true });
@@ -86,7 +88,10 @@ export default function Solicitudes() {
             <DialogHeader>
               <DialogTitle>Crear Pedido</DialogTitle>
             </DialogHeader>
-            <SolicitudCreateForm onSuccess={() => { setCreateOpen(false); refetch(); }} />
+            <SolicitudCreateForm
+              fromConsultationId={activeConsultationId}
+              onSuccess={() => { setCreateOpen(false); setActiveConsultationId(null); refetch(); }}
+            />
           </DialogContent>
         </Dialog>
       </div>

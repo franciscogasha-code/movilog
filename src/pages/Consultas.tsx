@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { motion } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBranches } from "@/hooks/use-branches";
 import { useNavigate } from "react-router-dom";
+import { useUserBranchFilter } from "@/hooks/use-user-access";
 
 const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   open: { label: "Abierta", variant: "default" },
@@ -35,6 +36,7 @@ export default function Consultas() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
+  // RLS handles branch filtering — only consultations the user participates in are returned
   const { data: consultations, isLoading } = useQuery({
     queryKey: ["availability-consultations"],
     queryFn: async () => {
@@ -47,24 +49,35 @@ export default function Consultas() {
 
       if (data?.length) {
         const ids = data.map(c => c.id);
-        const { data: cpData } = await supabase.from("consultation_products").select("consultation_id, product:products(name, sku)").in("consultation_id", ids);
-        const { data: crData } = await supabase.from("consultation_requests").select("consultation_id, branch_request_id").in("consultation_id", ids);
+        const [cpRes, crRes, ctRes] = await Promise.all([
+          supabase.from("consultation_products").select("consultation_id, product:products(name, sku)").in("consultation_id", ids),
+          supabase.from("consultation_requests").select("consultation_id, branch_request_id").in("consultation_id", ids),
+          supabase.from("consultation_targets").select("consultation_id, responded_at").in("consultation_id", ids),
+        ]);
 
         const productsByConsultation: Record<string, any[]> = {};
-        cpData?.forEach((cp: any) => {
+        cpRes.data?.forEach((cp: any) => {
           if (!productsByConsultation[cp.consultation_id]) productsByConsultation[cp.consultation_id] = [];
           productsByConsultation[cp.consultation_id].push(cp.product);
         });
 
         const ordersByConsultation: Record<string, number> = {};
-        crData?.forEach((cr: any) => {
+        crRes.data?.forEach((cr: any) => {
           ordersByConsultation[cr.consultation_id] = (ordersByConsultation[cr.consultation_id] || 0) + 1;
+        });
+
+        const responsesByConsultation: Record<string, { total: number; responded: number }> = {};
+        ctRes.data?.forEach((ct: any) => {
+          if (!responsesByConsultation[ct.consultation_id]) responsesByConsultation[ct.consultation_id] = { total: 0, responded: 0 };
+          responsesByConsultation[ct.consultation_id].total++;
+          if (ct.responded_at) responsesByConsultation[ct.consultation_id].responded++;
         });
 
         return data.map(c => ({
           ...c,
           consultation_products: productsByConsultation[c.id] || [],
           orders_count: ordersByConsultation[c.id] || 0,
+          responses: responsesByConsultation[c.id] || { total: 0, responded: 0 },
         }));
       }
       return data;
@@ -104,8 +117,9 @@ export default function Consultas() {
                 <thead>
                   <tr className="border-b border-border bg-muted/30">
                     <th className="text-left p-3 font-medium text-muted-foreground">Productos</th>
-                    <th className="text-left p-3 font-medium text-muted-foreground">Sucursal</th>
+                    <th className="text-left p-3 font-medium text-muted-foreground">Solicitante</th>
                     <th className="text-left p-3 font-medium text-muted-foreground">Estado</th>
+                    <th className="text-left p-3 font-medium text-muted-foreground">Respuestas</th>
                     <th className="text-left p-3 font-medium text-muted-foreground">Pedidos</th>
                     <th className="text-left p-3 font-medium text-muted-foreground">Cierre auto</th>
                     <th className="text-left p-3 font-medium text-muted-foreground"></th>
@@ -121,6 +135,11 @@ export default function Consultas() {
                       </td>
                       <td className="p-3">{c.requesting_branch?.name} ({c.requesting_branch?.code})</td>
                       <td className="p-3"><StatusBadge status={c.status} config={STATUS_CONFIG} /></td>
+                      <td className="p-3">
+                        <Badge variant={c.responses?.responded > 0 ? "secondary" : "outline"} className="text-xs">
+                          {c.responses?.responded ?? 0}/{c.responses?.total ?? 0}
+                        </Badge>
+                      </td>
                       <td className="p-3">
                         {c.orders_count > 0
                           ? <Badge variant="secondary" className="text-xs">{c.orders_count} pedido(s)</Badge>
@@ -149,6 +168,7 @@ export default function Consultas() {
   );
 }
 
+// ─── Creation Form ──────────────────────────────────────────────
 function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
   const { user } = useAuth();
   const { data: branches } = useBranches();
@@ -160,11 +180,9 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
   const [productSources, setProductSources] = useState<Record<string, Set<string>>>({});
   const [customBranchId, setCustomBranchId] = useState("");
 
-  // Live stock from BIMS
   const bimsCodes = selectedProducts.map(p => p.bims_code).filter(Boolean) as string[];
   const { liveStock, isLive } = useLiveStock(bimsCodes);
 
-  // Auto-fill branch from profile (reactive), admins can override
   const resolvedBranchId = (canChangeBranch && customBranchId) ? customBranchId : (defaultBranchId || "");
   const myBranch = branches?.find(b => b.id === resolvedBranchId);
 
@@ -189,18 +207,12 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
     });
   };
 
-  // Derive unique target branches from all per-product selections
   const derivedTargetBranches = Array.from(
     new Set(Object.values(productSources).flatMap(s => Array.from(s)))
   );
 
-  // Validate: every product must have at least one branch selected
   const allProductsHaveSource = selectedProducts.length > 0 &&
     selectedProducts.every(p => (productSources[p.id]?.size ?? 0) > 0);
-
-  const getWarehouseBranchId = (warehouseCode: string): string | null => {
-    return branches?.find(b => b.code === warehouseCode)?.id || null;
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -225,7 +237,6 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
       const { error: tErr } = await supabase.from("consultation_targets").insert(targets);
       if (tErr) throw tErr;
 
-      // Send initial message if provided
       if (initialMessage.trim()) {
         await supabase.from("consultation_messages").insert({
           consultation_id: consultation.id,
@@ -246,11 +257,7 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
       <div className="space-y-3">
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">1. Mi sucursal</h3>
         {canChangeBranch ? (
-          <BranchSelector
-            value={resolvedBranchId}
-            onChange={(id) => setCustomBranchId(id)}
-            label=""
-          />
+          <BranchSelector value={resolvedBranchId} onChange={(id) => setCustomBranchId(id)} label="" />
         ) : (
           <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/30 border border-border/30">
             <Package className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -269,13 +276,11 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
           <div className="space-y-2">
             {selectedProducts.map((p) => {
               const selectedForProduct = productSources[p.id] || new Set<string>();
-              // Use live stock if available, otherwise fall back to local
               const liveData = isLive && p.bims_code && liveStock?.[p.bims_code] ? liveStock[p.bims_code] : null;
               const headerStock = liveData?.total_stock ?? p.total_stock;
 
               return (
                 <div key={p.id} className="border border-border rounded-lg overflow-hidden">
-                  {/* Collapsed header with thumbnail */}
                   <div className="flex items-center gap-3 p-3 bg-muted/30">
                     {p.image_url ? (
                       <img src={proxyImageUrl(p.image_url)} alt={p.name} className="h-8 w-8 rounded object-cover shrink-0" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
@@ -306,7 +311,6 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
                     </Button>
                   </div>
 
-                  {/* Expanded: full ProductCard */}
                   {expandedProduct === p.id && (
                     <div className="p-3 border-t border-border/50 space-y-2 overflow-hidden">
                       <DemandAlert productId={p.id} />
@@ -391,12 +395,88 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
   );
 }
 
+// ─── Response Form (for consulted branches) ─────────────────────
+function TargetResponseForm({ target, onSuccess }: { target: any; onSuccess: () => void }) {
+  const [quantity, setQuantity] = useState(target.response_quantity?.toString() || "");
+  const [colors, setColors] = useState(target.response_colors || "");
+  const [note, setNote] = useState(target.response_note || "");
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async () => {
+    setSubmitting(true);
+    try {
+      const { data, error } = await supabase.rpc("fn_respond_consultation_target", {
+        p_target_id: target.id,
+        p_quantity: quantity ? parseFloat(quantity) : null,
+        p_colors: colors.trim() || null,
+        p_note: note.trim() || null,
+      });
+      if (error) throw error;
+      toast.success("Respuesta registrada");
+      onSuccess();
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="space-y-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
+      <p className="text-xs font-semibold text-primary uppercase tracking-wider">Responder consulta</p>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <Label className="text-xs">Cantidad disponible</Label>
+          <Input
+            type="number"
+            min="0"
+            value={quantity}
+            onChange={(e) => setQuantity(e.target.value)}
+            placeholder="Ej: 15"
+            className="h-9 text-sm"
+          />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Colores disponibles</Label>
+          <Input
+            value={colors}
+            onChange={(e) => setColors(e.target.value)}
+            placeholder="Ej: Azul, Rojo"
+            className="h-9 text-sm"
+          />
+        </div>
+      </div>
+      <div className="space-y-1">
+        <Label className="text-xs">Nota</Label>
+        <Textarea
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="Observaciones..."
+          rows={2}
+          className="text-sm resize-none"
+        />
+      </div>
+      <Button size="sm" onClick={handleSubmit} disabled={submitting} className="w-full">
+        {submitting ? "Enviando..." : (target.responded_at ? "Actualizar respuesta" : "Responder consulta")}
+      </Button>
+    </div>
+  );
+}
+
+// ─── Detail View ────────────────────────────────────────────────
 function ConsultationDetail({ consultationId, onOrderCreated }: { consultationId: string; onOrderCreated: () => void }) {
-  const { user } = useAuth();
+  const { user, hasBranch } = useAuth();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [newMessage, setNewMessage] = useState("");
   const [sendingMessage, setSendingMessage] = useState(false);
+
+  const invalidateAll = () => {
+    queryClient.invalidateQueries({ queryKey: ["consultation-detail", consultationId] });
+    queryClient.invalidateQueries({ queryKey: ["consultation-targets", consultationId] });
+    queryClient.invalidateQueries({ queryKey: ["consultation-messages", consultationId] });
+    queryClient.invalidateQueries({ queryKey: ["availability-consultations"] });
+  };
 
   const { data: consultation } = useQuery({
     queryKey: ["consultation-detail", consultationId],
@@ -455,7 +535,6 @@ function ConsultationDetail({ consultationId, onOrderCreated }: { consultationId
     enabled: !!consultationId,
   });
 
-  // Load profiles for message senders
   const senderIds = [...new Set(messages?.map(m => m.sender_id) || [])];
   const { data: senderProfiles } = useQuery({
     queryKey: ["sender-profiles", senderIds.join(",")],
@@ -501,52 +580,94 @@ function ConsultationDetail({ consultationId, onOrderCreated }: { consultationId
     try {
       const { error } = await supabase.from("availability_consultations").update({ status: "converted" as any }).eq("id", consultationId);
       if (error) throw error;
-      toast.success("Consulta cerrada");
-      queryClient.invalidateQueries({ queryKey: ["consultation-detail", consultationId] });
+      toast.success("Consulta marcada como convertida");
+      invalidateAll();
       onOrderCreated();
     } catch (err: any) { toast.error(err.message); }
   };
 
   if (!consultation) return <div className="p-4 text-muted-foreground">Cargando...</div>;
   const c = consultation as any;
-  const canCreateOrder = c.status === "open" || c.status === "responded";
+  const isActive = c.status === "open" || c.status === "responded";
+  const isCreator = c.created_by === user?.id;
+
+  // Determine which targets the current user can respond to
+  const myRespondableTargets = targets?.filter((t: any) =>
+    !t.responded_at && hasBranch(t.branch_id)
+  ) || [];
+  const myRespondedTargets = targets?.filter((t: any) =>
+    t.responded_at && hasBranch(t.branch_id)
+  ) || [];
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h3 className="font-display text-lg font-bold">Consulta de disponibilidad</h3>
-          <p className="text-sm text-muted-foreground">Desde {c.requesting_branch?.name} ({c.requesting_branch?.code})</p>
+          <p className="text-sm text-muted-foreground">
+            Solicitante: <strong>{c.requesting_branch?.name}</strong> ({c.requesting_branch?.code})
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <StatusBadge status={c.status} config={STATUS_CONFIG} />
-          {canCreateOrder && (
+          {isActive && isCreator && (
             <Button size="sm" variant="outline" onClick={closeConsultation} className="text-xs">Cerrar consulta</Button>
           )}
         </div>
       </div>
 
+      {/* Products */}
       <div>
         <h4 className="font-display font-semibold mb-2">Productos consultados</h4>
         <div className="space-y-1">
-          {consultationProducts?.map((cp: any) => {
-            const derivedInOrder = linkedOrders && linkedOrders.length > 0;
+          {consultationProducts?.map((cp: any) => (
+            <div key={cp.id} className="flex items-center gap-2 p-2 rounded bg-muted/30 text-sm">
+              {cp.product?.image_url && (
+                <img src={proxyImageUrl(cp.product.image_url)} alt={cp.product?.name} className="h-8 w-8 rounded object-cover shrink-0" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+              )}
+              <span className="font-medium">{cp.product?.name}</span>
+              <span className="text-muted-foreground text-xs">({cp.product?.sku})</span>
+              {cp.product?.total_stock != null && (
+                <Badge variant={cp.product.total_stock > 0 ? "default" : "destructive"} className="text-xs ml-auto">
+                  Stock: {Math.floor(cp.product.total_stock)}
+                </Badge>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Branch Responses */}
+      <div>
+        <h4 className="font-display font-semibold mb-3">Respuestas de sucursales</h4>
+        <div className="space-y-3">
+          {targets?.map((t: any) => {
+            const canRespond = isActive && hasBranch(t.branch_id);
+            const showForm = canRespond && !t.responded_at;
+            const showEditForm = canRespond && t.responded_at;
+
             return (
-              <div key={cp.id} className="flex items-center gap-2 p-2 rounded bg-muted/30 text-sm">
-                {cp.product?.image_url && (
-                  <img src={proxyImageUrl(cp.product.image_url)} alt={cp.product?.name} className="h-8 w-8 rounded object-cover shrink-0" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                )}
-                <span className="font-medium">{cp.product?.name}</span>
-                <span className="text-muted-foreground text-xs">({cp.product?.sku})</span>
-                {cp.product?.total_stock != null && (
-                  <Badge variant={cp.product.total_stock > 0 ? "default" : "destructive"} className="text-xs">
-                    Stock: {Math.floor(cp.product.total_stock)}
-                  </Badge>
-                )}
-                {derivedInOrder ? (
-                  <Badge variant="outline" className="text-xs ml-auto gap-1"><CheckCircle2 className="h-3 w-3" /> Con pedido</Badge>
-                ) : (
-                  <Badge variant="outline" className="text-xs ml-auto text-muted-foreground"><Clock className="h-3 w-3 mr-1" /> Sin pedido</Badge>
+              <div key={t.id} className="rounded-lg border border-border/30 overflow-hidden">
+                <div className="flex items-center gap-3 p-3 bg-muted/30 text-sm">
+                  <span className="font-semibold min-w-[80px]">{t.branch?.name}</span>
+                  <span className="text-xs text-muted-foreground">({t.branch?.code})</span>
+                  {t.responded_at ? (
+                    <>
+                      <CheckCircle2 className="h-4 w-4 text-accent" />
+                      <span>Cant: <strong>{t.response_quantity ?? "—"}</strong></span>
+                      {t.response_colors && <span className="text-muted-foreground">Colores: {t.response_colors}</span>}
+                      {t.response_note && <span className="text-muted-foreground italic truncate max-w-[200px]">"{t.response_note}"</span>}
+                    </>
+                  ) : (
+                    <span className="text-muted-foreground flex items-center gap-1"><Clock className="h-3 w-3" /> Sin respuesta</span>
+                  )}
+                </div>
+                {/* Response form for the user's branch */}
+                {(showForm || showEditForm) && (
+                  <div className="border-t border-border/30">
+                    <TargetResponseForm target={t} onSuccess={invalidateAll} />
+                  </div>
                 )}
               </div>
             );
@@ -554,35 +675,12 @@ function ConsultationDetail({ consultationId, onOrderCreated }: { consultationId
         </div>
       </div>
 
-      <div>
-        <h4 className="font-display font-semibold mb-3">Respuestas de sucursales</h4>
-        <div className="space-y-2">
-          {targets?.map((t: any) => (
-            <div key={t.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 border border-border/30 text-sm">
-              <span className="font-semibold min-w-[80px]">{t.branch?.name}</span>
-              <span className="text-xs text-muted-foreground">({t.branch?.code})</span>
-              {t.responded_at ? (
-                <>
-                  <CheckCircle2 className="h-4 w-4 text-accent" />
-                  <span>Cant: <strong>{t.response_quantity ?? "—"}</strong></span>
-                  {t.response_colors && <span className="text-muted-foreground">Colores: {t.response_colors}</span>}
-                  {t.response_note && <span className="text-muted-foreground italic">"{t.response_note}"</span>}
-                </>
-              ) : (
-                <span className="text-muted-foreground flex items-center gap-1"><Clock className="h-3 w-3" /> Sin respuesta</span>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Chat section */}
+      {/* Chat */}
       <div>
         <h4 className="font-display font-semibold mb-3 flex items-center gap-2">
           <MessageCircle className="h-4 w-4" /> Chat
         </h4>
         <div className="rounded-lg border border-border overflow-hidden">
-          {/* Messages */}
           <div className="max-h-[250px] overflow-y-auto p-3 space-y-2 bg-muted/10">
             {!messages?.length ? (
               <p className="text-sm text-muted-foreground text-center py-4">Sin mensajes aún. Iniciá la conversación.</p>
@@ -608,8 +706,7 @@ function ConsultationDetail({ consultationId, onOrderCreated }: { consultationId
               })
             )}
           </div>
-          {/* Send message */}
-          {canCreateOrder && (
+          {isActive && (
             <div className="p-2 border-t border-border flex items-center gap-2 bg-background">
               <Input
                 value={newMessage}
@@ -626,6 +723,7 @@ function ConsultationDetail({ consultationId, onOrderCreated }: { consultationId
         </div>
       </div>
 
+      {/* Linked orders */}
       {(linkedOrders?.length ?? 0) > 0 && (
         <div>
           <h4 className="font-display font-semibold mb-2">Pedidos creados</h4>
@@ -642,7 +740,8 @@ function ConsultationDetail({ consultationId, onOrderCreated }: { consultationId
         </div>
       )}
 
-      {canCreateOrder && (
+      {/* Create order button */}
+      {isActive && (
         <div>
           <Button
             className="w-full gap-2"
@@ -656,5 +755,3 @@ function ConsultationDetail({ consultationId, onOrderCreated }: { consultationId
     </div>
   );
 }
-
-

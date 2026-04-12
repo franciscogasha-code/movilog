@@ -1,5 +1,6 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -33,7 +34,7 @@ interface SelectedItem {
   sourceBranchId?: string;
 }
 
-export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
+export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSuccess: () => void; fromConsultationId?: string | null }) {
   const { user } = useAuth();
   const { defaultBranchId, canChangeBranch } = useAutoDetectBranch();
   const { data: branches } = useBranches();
@@ -100,6 +101,58 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
       setSourceBranchId("");
     }
   }, [isMultiOrigin]);
+
+  // ─── Pre-load consultation data ───────────────────────────────
+  const consultationLoaded = useRef(false);
+  const { data: consultationData } = useQuery({
+    queryKey: ["consultation-preload", fromConsultationId],
+    queryFn: async () => {
+      if (!fromConsultationId) return null;
+      const [consRes, cpRes, ctRes] = await Promise.all([
+        supabase.from("availability_consultations")
+          .select("requesting_branch_id")
+          .eq("id", fromConsultationId).single(),
+        supabase.from("consultation_products")
+          .select("product:products(*)")
+          .eq("consultation_id", fromConsultationId),
+        supabase.from("consultation_targets")
+          .select("branch_id, response_quantity, response_colors, response_note, responded_at, branch:branches(name, code)")
+          .eq("consultation_id", fromConsultationId),
+      ]);
+      return {
+        consultation: consRes.data,
+        products: cpRes.data,
+        targets: ctRes.data,
+      };
+    },
+    enabled: !!fromConsultationId,
+  });
+
+  useEffect(() => {
+    if (!consultationData || consultationLoaded.current) return;
+    consultationLoaded.current = true;
+
+    // Set requesting branch
+    if (consultationData.consultation?.requesting_branch_id) {
+      setRequestingBranchId(consultationData.consultation.requesting_branch_id);
+    }
+
+    // Add products with suggested quantities from responses
+    if (consultationData.products?.length) {
+      const respondedTargets = consultationData.targets?.filter((t: any) => t.responded_at) || [];
+      const newItems: SelectedItem[] = consultationData.products.map((cp: any) => {
+        // Use max responded quantity as suggested
+        const maxQty = respondedTargets.reduce((max: number, t: any) => {
+          return t.response_quantity ? Math.max(max, t.response_quantity) : max;
+        }, 1);
+        return {
+          product: cp.product as ProductResult,
+          quantity: maxQty,
+        };
+      });
+      setItems(newItems);
+    }
+  }, [consultationData]);
 
   // Live stock from BIMS
   const bimsCodes = items.map(i => i.product.bims_code).filter(Boolean) as string[];
@@ -363,6 +416,17 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
         }
 
         toast.success(`Pedido #${parentRequest.request_number} creado con ${createdNumbers.length} transferencia(s): #${createdNumbers.join(", #")}`);
+
+        // Link to consultation if created from one
+        if (fromConsultationId) {
+          await supabase.from("consultation_requests").insert({
+            consultation_id: fromConsultationId,
+            branch_request_id: parentRequest.id,
+          });
+          await supabase.from("availability_consultations")
+            .update({ status: "converted" as any, updated_at: new Date().toISOString() })
+            .eq("id", fromConsultationId);
+        }
       } else {
         // Mono-origin: single request
         const { data: request, error } = await supabase
@@ -399,6 +463,18 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
         if (itemsError) throw itemsError;
 
         toast.success(`Pedido #${request.request_number} creado`);
+
+        // Link to consultation if created from one
+        if (fromConsultationId) {
+          await supabase.from("consultation_requests").insert({
+            consultation_id: fromConsultationId,
+            branch_request_id: request.id,
+          });
+          // Mark consultation as converted
+          await supabase.from("availability_consultations")
+            .update({ status: "converted" as any, updated_at: new Date().toISOString() })
+            .eq("id", fromConsultationId);
+        }
       }
 
       onSuccess();
