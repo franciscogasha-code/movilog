@@ -2699,6 +2699,15 @@ export type Database = {
         Args: { _branch_id: string; _user_id: string }
         Returns: boolean
       }
+      fn_transition_request_status: {
+        Args: {
+          p_new_status: string
+          p_reason?: string
+          p_rejection_reason_type?: string
+          p_request_id: string
+        }
+        Returns: Json
+      }
       fn_validate_driver_pickup: {
         Args: { p_fulfillment_id: string }
         Returns: Json
@@ -2844,10 +2853,11 @@ export type Database = {
         | "accepted"
         | "rejected"
         | "picking"
-        | "ready_to_ship"
+        | "dispatched"
         | "in_transit"
-        | "received_ok"
-        | "received_partial"
+        | "delivered"
+        | "received"
+        | "logistic_closed"
         | "closed"
       request_type:
         | "client"
@@ -2857,13 +2867,7 @@ export type Database = {
         | "redistribution"
       reserve_reason: "branch_request" | "client_order" | "pending_fulfillment"
       reserve_type: "soft" | "hard"
-      shipping_method:
-        | "own_fleet"
-        | "courier"
-        | "pickup"
-        | "direct_client"
-        | "cut_shipment"
-        | "delivery"
+      shipping_method: "own_fleet" | "courier" | "pickup" | "delivery"
       stock_disposition:
         | "ajuste_inventario"
         | "reclamo_proveedor"
@@ -3152,10 +3156,11 @@ export const Constants = {
         "accepted",
         "rejected",
         "picking",
-        "ready_to_ship",
+        "dispatched",
         "in_transit",
-        "received_ok",
-        "received_partial",
+        "delivered",
+        "received",
+        "logistic_closed",
         "closed",
       ],
       request_type: [
@@ -3167,14 +3172,7 @@ export const Constants = {
       ],
       reserve_reason: ["branch_request", "client_order", "pending_fulfillment"],
       reserve_type: ["soft", "hard"],
-      shipping_method: [
-        "own_fleet",
-        "courier",
-        "pickup",
-        "direct_client",
-        "cut_shipment",
-        "delivery",
-      ],
+      shipping_method: ["own_fleet", "courier", "pickup", "delivery"],
       stock_disposition: [
         "ajuste_inventario",
         "reclamo_proveedor",

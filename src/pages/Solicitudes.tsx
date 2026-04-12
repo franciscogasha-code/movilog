@@ -128,7 +128,7 @@ export default function Solicitudes() {
                   <tr className="border-b border-border bg-muted/30">
                     <th className="text-left p-3 font-medium text-muted-foreground">#</th>
                     <th className="text-left p-3 font-medium text-muted-foreground">Tipo</th>
-                    <th className="text-left p-3 font-medium text-muted-foreground">Origen → Destino</th>
+                    <th className="text-left p-3 font-medium text-muted-foreground">Origen → Solicitante</th>
                     <th className="text-left p-3 font-medium text-muted-foreground">Entrega</th>
                     <th className="text-left p-3 font-medium text-muted-foreground">Envío</th>
                     <th className="text-left p-3 font-medium text-muted-foreground">Estado</th>
