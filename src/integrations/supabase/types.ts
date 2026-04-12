@@ -2048,6 +2048,44 @@ export type Database = {
           },
         ]
       }
+      request_bims_documents: {
+        Row: {
+          created_at: string
+          created_by: string
+          document_number: string
+          document_type: string
+          id: string
+          notes: string | null
+          request_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          document_number: string
+          document_type: string
+          id?: string
+          notes?: string | null
+          request_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          document_number?: string
+          document_type?: string
+          id?: string
+          notes?: string | null
+          request_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "request_bims_documents_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "branch_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       shipment_packages: {
         Row: {
           contact_phone: string | null
@@ -2868,6 +2906,7 @@ export type Database = {
         | "other"
       request_status:
         | "pending"
+        | "in_preparation"
         | "accepted"
         | "rejected"
         | "picking"
@@ -3175,6 +3214,7 @@ export const Constants = {
       ],
       request_status: [
         "pending",
+        "in_preparation",
         "accepted",
         "rejected",
         "picking",
