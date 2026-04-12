@@ -146,9 +146,9 @@ export default function Solicitudes() {
                         </Badge>
                       </td>
                       <td className="p-3">
-                        <span className="font-medium">{r.source_branch?.code}</span>
+                        <span className="font-medium">{r.source_branch?.name}</span>
                         <span className="text-muted-foreground mx-1">→</span>
-                        <span className="font-medium">{r.requesting_branch?.code}</span>
+                        <span className="font-medium">{r.requesting_branch?.name}</span>
                       </td>
                       <td className="p-3 text-xs">{DELIVERY_TARGET_LABELS[r.delivery_target] || "A sucursal"}</td>
                       <td className="p-3 text-muted-foreground text-xs">{SHIPPING_METHOD_LABELS[r.shipping_method] || r.shipping_method}</td>

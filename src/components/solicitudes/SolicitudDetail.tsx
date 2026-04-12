@@ -166,13 +166,13 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
         <Card>
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground mb-1">Origen</p>
-            <p className="font-semibold">{r.source_branch?.code} — {r.source_branch?.name}</p>
+            <p className="font-semibold">{r.source_branch?.name}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground mb-1">Destino</p>
-            <p className="font-semibold">{r.requesting_branch?.code} — {r.requesting_branch?.name}</p>
+            <p className="font-semibold">{r.requesting_branch?.name}</p>
           </CardContent>
         </Card>
       </div>
