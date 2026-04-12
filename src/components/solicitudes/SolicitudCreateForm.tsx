@@ -672,6 +672,33 @@ export function SolicitudCreateForm({ onSuccess }: { onSuccess: () => void }) {
           </div>
         )}
 
+        {showCourierBilling && (
+          <div className="space-y-2 p-3 rounded-lg bg-muted/50 border border-border/50">
+            <Label>Modalidad de cobro de encomienda</Label>
+            <div className="flex gap-3">
+              <Badge variant={courierBillingMode === "on_invoice" ? "default" : "outline"} className="cursor-pointer" onClick={() => setCourierBillingMode("on_invoice")}>
+                En factura
+              </Badge>
+              <Badge variant={courierBillingMode === "collect_at_destination" ? "default" : "outline"} className="cursor-pointer" onClick={() => setCourierBillingMode("collect_at_destination")}>
+                Cobro en destino
+              </Badge>
+            </div>
+          </div>
+        )}
+
+        {showShippingAmount && (
+          <div className="space-y-2 p-3 rounded-lg bg-muted/50 border border-border/50">
+            <Label>Monto de envío (Gs.)</Label>
+            <Input
+              type="number"
+              min={0}
+              value={shippingAmount}
+              onChange={(e) => setShippingAmount(e.target.value)}
+              placeholder="Ingresá el monto del envío"
+            />
+          </div>
+        )}
+
         {showClientFieldsFlag && (
           <div className="grid grid-cols-2 gap-4 p-3 rounded-lg bg-muted/50 border border-border/50">
             <div className="space-y-2">
