@@ -416,6 +416,17 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
         }
 
         toast.success(`Pedido #${parentRequest.request_number} creado con ${createdNumbers.length} transferencia(s): #${createdNumbers.join(", #")}`);
+
+        // Link to consultation if created from one
+        if (fromConsultationId) {
+          await supabase.from("consultation_requests").insert({
+            consultation_id: fromConsultationId,
+            branch_request_id: parentRequest.id,
+          });
+          await supabase.from("availability_consultations")
+            .update({ status: "converted" as any, updated_at: new Date().toISOString() })
+            .eq("id", fromConsultationId);
+        }
       } else {
         // Mono-origin: single request
         const { data: request, error } = await supabase
