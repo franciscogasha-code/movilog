@@ -1,48 +1,28 @@
 
 
-# Plan: Implementación del Módulo Chofer v2
+# Plan: Restringir Dashboard Ejecutivo solo a Owners
 
-## Resumen
-Implementación completa del plan v2 aprobado: completar flujo operativo del chofer con entrega, acopio, transferencia de custodia, ubicación física real, y rendición operativa.
+## Problema
+El Dashboard Ejecutivo es visible y accesible para cualquier usuario autenticado (incluidos operadores de sucursal). Debe estar restringido exclusivamente al rol `owner`.
 
-## Bloque 1 — Migración SQL
+## Cambios
 
-Una migración que incluye:
-- Agregar `at_hub` y `delivery_failed` al enum `fulfillment_status`
-- Agregar columnas `current_custody_type` (none/driver/branch/customer) y `current_location_type` (branch/hub/vehicle/customer) a `fulfillment_orders`
-- Agregar `delivery_failed_at` y `delivery_failed_reason` a `fulfillment_orders`
-- Crear función `fn_driver_action(p_fulfillment_id, p_action, p_metadata)` SECURITY DEFINER con soporte para: pickup, drop_at_hub, pickup_from_hub, deliver_branch, deliver_customer, delivery_failed, transfer_to_driver
+### 1. `src/components/AppSidebar.tsx`
+- Agregar lógica para que el item "Dashboard Ejecutivo" solo aparezca si `isOwner` es `true`.
+- Filtrar el item con `moduleKey: "ejecutivo"` del array antes de renderizar, usando `useAuth().isOwner`.
 
-## Bloque 2 — Constants y nuevos componentes
+### 2. `src/pages/DashboardEjecutivo.tsx`
+- Agregar guard al inicio del componente: si `!isOwner`, redirigir a `/` con `<Navigate to="/" replace />`.
+- Mostrar loading spinner mientras `loading` es `true` para evitar flash de redirección.
 
-- Agregar `at_hub` y `delivery_failed` a `FULFILLMENT_STATUS_CONFIG` en constants.ts
-- Crear `MisCargasEnCurso.tsx` — cargas bajo custodia del chofer actual
-- Crear `EntregaModal.tsx` — modal de entrega (sucursal/cliente/fallida)
-- Crear `CargasEnAcopio.tsx` — cargas en hub de la sucursal del chofer
-- Crear `TransferirCustodiaModal.tsx` — transferencia directa entre choferes
+### 3. `src/App.tsx`
+No requiere cambios. La protección se hace dentro del componente, que es el patrón más simple y consistente con la arquitectura actual.
 
-## Bloque 3 — Modificación de componentes existentes
+## Archivos tocados
+- `src/components/AppSidebar.tsx` — ocultar menu item
+- `src/pages/DashboardEjecutivo.tsx` — guard de acceso por rol
 
-- `Chofer.tsx`: 4 tabs (Mis cargas, Retiro, Cortes/Viajes, Historial), cards reales
-- `CargasDisponibles.tsx`: pickup via RPC `fn_driver_action('pickup')`
-- `CorteUrbano.tsx`: warning al finalizar si hay cargas bajo custodia
-- `ViajeInterurbano.tsx`: warning al finalizar si hay cargas bajo custodia
-
-## Bloque 4 — Rendición
-
-- Agregar `FuelForm` y `PerDiemForm` con formularios funcionales
-- Filtrar todas las queries por `driver_id` del usuario actual
-
-## Archivos modificados
-1. Nueva migración SQL
-2. `src/lib/constants.ts`
-3. `src/pages/Chofer.tsx`
-4. `src/components/chofer/MisCargasEnCurso.tsx` (nuevo)
-5. `src/components/chofer/EntregaModal.tsx` (nuevo)
-6. `src/components/chofer/CargasEnAcopio.tsx` (nuevo)
-7. `src/components/chofer/TransferirCustodiaModal.tsx` (nuevo)
-8. `src/components/chofer/CargasDisponibles.tsx`
-9. `src/components/chofer/CorteUrbano.tsx`
-10. `src/components/chofer/ViajeInterurbano.tsx`
-11. `src/pages/Rendicion.tsx`
+## Compatibilidad
+- No afecta ningún otro módulo ni flujo existente.
+- El rol `owner` ya está correctamente cargado en `AuthContext` desde `user_roles`.
 
