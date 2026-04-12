@@ -105,29 +105,21 @@ export function CorteDetalle({ tripId }: { tripId: string }) {
 
   const confirmPickup = async (fulfillmentId: string) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data: validation } = await supabase.rpc("fn_validate_driver_pickup", { p_fulfillment_id: fulfillmentId });
-      const result = validation as any;
-      if (!result?.allowed) { toast.error(result?.reason || "No se puede retirar"); return; }
-
-      const { error } = await supabase
-        .from("fulfillment_orders")
-        .update({ status: "dispatched" as any, trip_id: tripId, dispatched_at: new Date().toISOString(), dispatched_by: user.id, current_custody_holder_id: user.id })
-        .eq("id", fulfillmentId);
+      const { data, error } = await supabase.rpc("fn_driver_action", {
+        p_fulfillment_id: fulfillmentId,
+        p_action: "pickup",
+        p_metadata: {},
+      });
       if (error) throw error;
 
-      await supabase.from("operational_events").insert({
-        reference_type: "fulfillment_order", reference_id: fulfillmentId, event_type: "driver_pickup",
-        category: "logistics" as any, event_description: "Chofer confirmó retiro", new_status: "dispatched",
-        new_custody_holder_id: user.id, triggered_by: user.id,
-        metadata: { trip_id: tripId, out_of_cutoff: !trip || trip.status !== "in_progress" },
-      });
-
-      toast.success("Retiro confirmado");
-      queryClient.invalidateQueries({ queryKey: ["trip-fulfillments"] });
-      queryClient.invalidateQueries({ queryKey: ["available-fulfillments"] });
+      const result = data as any;
+      if (result?.success) {
+        toast.success("Retiro confirmado");
+        queryClient.invalidateQueries({ queryKey: ["trip-fulfillments"] });
+        queryClient.invalidateQueries({ queryKey: ["available-fulfillments"] });
+        queryClient.invalidateQueries({ queryKey: ["my-custody-loads"] });
+        queryClient.invalidateQueries({ queryKey: ["custody-count"] });
+      }
     } catch (err: any) { toast.error(err.message); }
   };
 

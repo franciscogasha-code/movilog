@@ -284,6 +284,24 @@ export function ViajeInterurbano({ trips, activeTrip }: Props) {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Custody warning on end */}
+      <AlertDialog open={showEndWarning} onOpenChange={setShowEndWarning}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-secondary" /> Cargas bajo custodia
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Tenés <strong>{pendingCustodyCount}</strong> carga(s) aún bajo tu custodia. ¿Querés finalizar el viaje de todas formas?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => doEndTrip()}>Finalizar igual</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
