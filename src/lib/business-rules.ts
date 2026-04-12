@@ -214,6 +214,19 @@ export const CATALOG_STATUS_LABELS: Record<CatalogSyncStatus, string> = {
   unknown: "Sin datos",
 };
 
+/**
+ * Shipping cost requirement validation.
+ * Returns true when shipping_cost is mandatory for the given method + billing mode.
+ */
+export function requiresShippingCost(
+  shippingMethod: ShippingMethod,
+  courierBillingMode?: "on_invoice" | "collect_at_destination"
+): boolean {
+  if (shippingMethod === "delivery") return true;
+  if (shippingMethod === "courier" && courierBillingMode === "on_invoice") return true;
+  return false;
+}
+
 export const CATALOG_STATUS_DESCRIPTIONS: Record<CatalogSyncStatus, string> = {
   complete: "El catálogo está sincronizado al 100%. El sistema está operativo.",
   complete_with_observations: "El catálogo está operativo. Algunos productos fueron omitidos o fallaron durante la sincronización (dentro del umbral aceptable).",

@@ -2,7 +2,7 @@
 export const REQUEST_STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   pending: { label: "Pendiente", variant: "secondary" },
   accepted: { label: "Aceptada", variant: "default" },
-  partially_accepted: { label: "Parcialmente aceptada", variant: "outline" },
+  
   rejected: { label: "Rechazada", variant: "destructive" },
   picking: { label: "En picking", variant: "default" },
   dispatched: { label: "Despachada", variant: "default" },
