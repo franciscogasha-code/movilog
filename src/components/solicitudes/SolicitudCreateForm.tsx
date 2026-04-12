@@ -677,6 +677,7 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
                       compact={false}
                       liveStock={getEffectiveStock(item.product)}
                       isLive={isLive}
+                      disabledBranchIds={requestingBranchId ? [requestingBranchId] : undefined}
                     />
                   </div>
                 )}

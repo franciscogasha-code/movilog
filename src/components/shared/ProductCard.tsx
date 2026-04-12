@@ -61,6 +61,8 @@ interface ProductCardProps {
   liveStock?: { stock_by_warehouse: Record<string, number>; total_stock: number } | null;
   /** Whether the stock data is from live BIMS */
   isLive?: boolean;
+  /** Branch IDs that should be shown but not selectable (e.g. user's own branch) */
+  disabledBranchIds?: string[];
 }
 
 export function ProductCard({
@@ -88,6 +90,7 @@ export function ProductCard({
   compact = false,
   liveStock,
   isLive = false,
+  disabledBranchIds,
 }: ProductCardProps) {
   // Use live stock if available, otherwise fall back to local
   const effectiveStockByWarehouse = liveStock?.stock_by_warehouse ?? productStockByWarehouse;
@@ -237,28 +240,33 @@ export function ProductCard({
                 .sort((a, b) => b[1] - a[1])
                 .map(([whId, qty]) => {
                   const branchId = getBranchIdByCode(whId);
-                  const isSelected = isMultiSelectMode
+                  const isDisabled = !!(branchId && disabledBranchIds?.includes(branchId));
+                  const isSelected = isDisabled ? false : isMultiSelectMode
                     ? !!(branchId && selectedBranchIds?.has(branchId))
                     : branchId === selectedSourceBranchId;
                   const isSufficient = requiredQuantity ? qty >= requiredQuantity : null;
-                  const isClickable = (isSelectMode && !!branchId) || (isMultiSelectMode && !!branchId);
+                  const isClickable = !isDisabled && ((isSelectMode && !!branchId) || (isMultiSelectMode && !!branchId));
 
                   return (
                     <button
                       key={whId}
                       type="button"
                       onClick={() => {
+                        if (isDisabled) return;
                         if (isMultiSelectMode && branchId) onToggleBranch!(branchId);
                         else if (isSelectMode && branchId) onSelectSourceBranch!(branchId);
                       }}
                       disabled={!isClickable}
+                      title={isDisabled ? "No puedes seleccionar tu propia sucursal como origen" : undefined}
                       className={cn(
                         "flex items-center justify-between px-2.5 py-1.5 rounded text-xs text-left transition-colors",
-                        isSelected
-                          ? "bg-primary/10 border border-primary/30 ring-1 ring-primary/20"
-                          : isClickable
-                            ? "bg-muted/50 hover:bg-accent/10 cursor-pointer"
-                            : "bg-muted/30 cursor-default"
+                        isDisabled
+                          ? "bg-muted/30 opacity-50 cursor-not-allowed"
+                          : isSelected
+                            ? "bg-primary/10 border border-primary/30 ring-1 ring-primary/20"
+                            : isClickable
+                              ? "bg-muted/50 hover:bg-accent/10 cursor-pointer"
+                              : "bg-muted/30 cursor-default"
                       )}
                     >
                       <span className="font-medium truncate flex items-center gap-1">
@@ -292,18 +300,23 @@ export function ProductCard({
               Stock no disponible. Seleccioná una sucursal basándote en conocimiento operativo.
             </p>
             <div className="grid grid-cols-2 gap-1.5">
-              {branches.map((b) => {
-                const isSelected = b.id === selectedSourceBranchId;
+            {branches.map((b) => {
+                const isDisabled = disabledBranchIds?.includes(b.id);
+                const isSelected = isDisabled ? false : b.id === selectedSourceBranchId;
                 return (
                   <button
                     key={b.id}
                     type="button"
-                    onClick={() => onSelectSourceBranch!(b.id)}
+                    onClick={() => { if (!isDisabled) onSelectSourceBranch!(b.id); }}
+                    disabled={!!isDisabled}
+                    title={isDisabled ? "No puedes seleccionar tu propia sucursal como origen" : undefined}
                     className={cn(
                       "flex items-center justify-between px-2.5 py-1.5 rounded text-xs transition-colors text-left",
-                      isSelected
-                        ? "bg-primary/10 border border-primary/30 ring-1 ring-primary/20"
-                        : "bg-muted/50 hover:bg-accent/10"
+                      isDisabled
+                        ? "bg-muted/30 opacity-50 cursor-not-allowed"
+                        : isSelected
+                          ? "bg-primary/10 border border-primary/30 ring-1 ring-primary/20"
+                          : "bg-muted/50 hover:bg-accent/10"
                     )}
                   >
                     <span className="font-medium flex items-center gap-1">
