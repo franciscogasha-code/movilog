@@ -27,6 +27,8 @@ export const FULFILLMENT_STATUS_CONFIG: Record<string, { label: string; color: s
   partial: { label: "Parcial", color: "bg-secondary/10 text-secondary" },
   completed: { label: "Completado", color: "bg-accent/10 text-accent" },
   cancelled: { label: "Cancelado", color: "bg-destructive/10 text-destructive" },
+  at_hub: { label: "En acopio", color: "bg-info/10 text-info" },
+  delivery_failed: { label: "Entrega fallida", color: "bg-destructive/10 text-destructive" },
 };
 
 export const DOCUMENT_STATUS_CONFIG: Record<string, { label: string; color: string }> = {
