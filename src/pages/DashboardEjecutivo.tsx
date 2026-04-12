@@ -1,5 +1,7 @@
 import { useState } from "react";
+import { Navigate } from "react-router-dom";
 import { motion } from "framer-motion";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   ClipboardList, Package, Truck, CheckCircle2, AlertTriangle,
   TrendingUp, ShieldCheck, Users, Activity, ArrowDown, ArrowUp,
@@ -398,6 +400,7 @@ function AIInsightsPanel({ insights, isLoading, onRefresh }: {
    MAIN DASHBOARD
    ══════════════════════════════════════════════════════════════ */
 export default function DashboardEjecutivo() {
+  const { isOwner, loading: authLoading } = useAuth();
   const [dateRange, setDateRange] = useState<DateRange>("7d");
   const [branchId, setBranchId] = useState<string>("");
   const [aiEnabled, setAiEnabled] = useState(false);
@@ -423,6 +426,9 @@ export default function DashboardEjecutivo() {
     setAiEnabled(true);
     setTimeout(() => refetchAI(), 100);
   };
+
+  if (authLoading) return <div className="flex items-center justify-center h-64"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
+  if (!isOwner) return <Navigate to="/" replace />;
 
   return (
     <div className="space-y-6">
