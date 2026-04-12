@@ -31,9 +31,6 @@ const STATUS_ACTIONS: Record<string, ActionDef[]> = {
     { label: "Rechazar", newStatus: "rejected", variant: "destructive", icon: <X className="h-4 w-4" />, actor: "origin", requiresReason: true },
   ],
   accepted: [
-    { label: "Iniciar picking", newStatus: "picking", variant: "default", icon: <ClipboardList className="h-4 w-4" />, actor: "origin" },
-  ],
-  picking: [
     { label: "Despachar", newStatus: "dispatched", variant: "default", icon: <Truck className="h-4 w-4" />, actor: "origin" },
   ],
   dispatched: [
