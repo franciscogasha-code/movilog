@@ -711,6 +711,7 @@ function ConsultationDetail({ consultationId, onOrderCreated }: { consultationId
                     </div>
                     <p className="text-[10px] text-muted-foreground flex items-center gap-1">
                       <span className="font-medium">{sender.name}</span>
+                      {sender.isAdmin && <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 leading-none">Admin</Badge>}
                       {sender.branch && <span>• {sender.branch}</span>}
                       <span>• {new Date(m.created_at).toLocaleString("es-PY", { hour: "2-digit", minute: "2-digit" })}</span>
                     </p>
