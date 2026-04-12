@@ -546,14 +546,27 @@ function ConsultationDetail({ consultationId, onOrderCreated }: { consultationId
     enabled: senderIds.length > 0,
   });
 
+  const { data: senderRoles } = useQuery({
+    queryKey: ["sender-roles", senderIds.join(",")],
+    queryFn: async () => {
+      if (!senderIds.length) return [];
+      const { data } = await supabase.from("user_roles").select("user_id, role").in("user_id", senderIds);
+      return data || [];
+    },
+    enabled: senderIds.length > 0,
+  });
+
   const { data: allBranches } = useBranches();
 
   const getSenderInfo = (senderId: string) => {
     const profile = senderProfiles?.find(p => p.user_id === senderId);
     const branch = profile?.default_branch_id ? allBranches?.find(b => b.id === profile.default_branch_id) : null;
+    const roles = senderRoles?.filter(r => r.user_id === senderId).map(r => r.role) || [];
+    const isAdmin = roles.some(r => ["admin", "supervisor", "owner"].includes(r));
     return {
       name: profile?.full_name || "Usuario",
       branch: branch?.name || null,
+      isAdmin,
     };
   };
 
@@ -698,6 +711,7 @@ function ConsultationDetail({ consultationId, onOrderCreated }: { consultationId
                     </div>
                     <p className="text-[10px] text-muted-foreground flex items-center gap-1">
                       <span className="font-medium">{sender.name}</span>
+                      {sender.isAdmin && <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 leading-none">Admin</Badge>}
                       {sender.branch && <span>• {sender.branch}</span>}
                       <span>• {new Date(m.created_at).toLocaleString("es-PY", { hour: "2-digit", minute: "2-digit" })}</span>
                     </p>
