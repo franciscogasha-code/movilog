@@ -403,9 +403,6 @@ export default function DashboardEjecutivo() {
   const { isOwner, loading: authLoading } = useAuth();
   const [dateRange, setDateRange] = useState<DateRange>("7d");
   const [branchId, setBranchId] = useState<string>("");
-
-  if (authLoading) return <div className="flex items-center justify-center h-64"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
-  if (!isOwner) return <Navigate to="/" replace />;
   const [aiEnabled, setAiEnabled] = useState(false);
   const { data: branches } = useBranches();
   const selectedBranch = branchId && branchId !== "all" ? branchId : undefined;
@@ -429,6 +426,9 @@ export default function DashboardEjecutivo() {
     setAiEnabled(true);
     setTimeout(() => refetchAI(), 100);
   };
+
+  if (authLoading) return <div className="flex items-center justify-center h-64"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
+  if (!isOwner) return <Navigate to="/" replace />;
 
   return (
     <div className="space-y-6">
