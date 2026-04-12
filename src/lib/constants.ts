@@ -1,16 +1,17 @@
 // Status labels and colors for the UI
 export const REQUEST_STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   pending: { label: "Pendiente", variant: "secondary" },
-  accepted: { label: "Aceptada", variant: "default" },
-  
+  in_preparation: { label: "En preparación", variant: "default" },
   rejected: { label: "Rechazada", variant: "destructive" },
-  picking: { label: "En picking", variant: "default" },
-  dispatched: { label: "Despachada", variant: "default" },
   in_transit: { label: "En tránsito", variant: "default" },
   delivered: { label: "Entregada", variant: "default" },
   received: { label: "Recibida", variant: "default" },
   logistic_closed: { label: "Cierre logístico", variant: "outline" },
   closed: { label: "Cerrada", variant: "outline" },
+  // Legacy statuses kept for backwards compatibility
+  accepted: { label: "Aceptada", variant: "default" },
+  picking: { label: "En picking", variant: "default" },
+  dispatched: { label: "Despachada", variant: "default" },
 };
 
 export const FULFILLMENT_STATUS_CONFIG: Record<string, { label: string; color: string }> = {
