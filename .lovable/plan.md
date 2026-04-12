@@ -1,21 +1,46 @@
 
 
-## Plan: Configurar API key de ElevenLabs de forma segura
+# Plan: Activación Operativa del Módulo Pedidos
 
-### Qué se hará
+## Bloque 1 — Migración SQL
 
-1. **Guardar el secret `ELEVENLABS_API_KEY`** usando la herramienta segura de secrets de Lovable Cloud. Te aparecerá un campo seguro donde pegar tu API key (la que empieza con `sk_...`). El valor NO queda visible en el chat.
+Una migración que incluye:
+- Recrear enum `request_status` con valores limpios: `pending`, `accepted`, `rejected`, `picking`, `dispatched`, `in_transit`, `delivered`, `received`, `logistic_closed`, `closed`
+- Limpiar enum `shipping_method`: eliminar `direct_client` y `cut_shipment`
+- Actualizar RLS UPDATE de `branch_requests` para incluir `can_access_branch(source_branch_id)` y `can_access_branch(requesting_branch_id)`
+- Crear función `fn_transition_request_status` (SECURITY DEFINER) con:
+  - `SELECT ... FOR UPDATE` para concurrencia
+  - Mapa explícito de transiciones válidas
+  - Validación de actor por sucursal (origen vs destino)
+  - Campos de auditoría automáticos
+  - Inserción de `operational_event`
+  - Creación de `fulfillment_order` al aceptar (solo no-padres, con check de duplicados)
 
-2. **Verificar** que el secret quedó configurado correctamente.
+## Bloque 2 — constants.ts + business-rules.ts
 
-### Después de este paso
+- Eliminar `partially_accepted` de `REQUEST_STATUS_CONFIG`
+- Agregar `requiresShippingCost()` en business-rules
 
-Con la key configurada, procederemos a:
-- Generar los stills de validación visual (frames 80, 180, 320, 560)
-- Generar los 6 MP3 de voiceover con ElevenLabs
-- Integrar audio en el video y render final
+## Bloque 3 — SolicitudDetail.tsx
 
-### Sin cambios de código
+- Panel de acciones condicional (status + sucursal + rol)
+- Botones de transición via `supabase.rpc('fn_transition_request_status')`
+- Sección "Ejecución logística" con fulfillments visibles
+- Labels corregidos (origen/solicitante)
 
-Este paso solo configura el secret. No se modifica ningún archivo del proyecto.
+## Bloque 4 — SolicitudCreateForm.tsx
+
+- Mono-origen: selección desde ProductCard, paso 3 solo resumen
+
+## Bloque 5 — Solicitudes.tsx
+
+- Labels de tabla actualizados
+
+## Archivos modificados
+1. Nueva migración SQL
+2. `src/lib/constants.ts`
+3. `src/lib/business-rules.ts`
+4. `src/components/solicitudes/SolicitudDetail.tsx`
+5. `src/components/solicitudes/SolicitudCreateForm.tsx`
+6. `src/pages/Solicitudes.tsx`
 
