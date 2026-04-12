@@ -18,6 +18,7 @@ type MenuItem = { title: string; url: string; icon: any; moduleKey: string };
 
 const mainItems: MenuItem[] = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard, moduleKey: "dashboard" },
+  { title: "Dashboard Ejecutivo", url: "/ejecutivo", icon: LayoutDashboard, moduleKey: "ejecutivo" },
   { title: "Alertas", url: "/alertas", icon: Bell, moduleKey: "alertas" },
   { title: "Usuarios", url: "/usuarios", icon: Users, moduleKey: "usuarios" },
   { title: "Sincronización BIMS", url: "/sincronizacion", icon: Database, moduleKey: "sincronizacion" },

@@ -27,6 +27,7 @@ import Recepcion from "./pages/Recepcion";
 import Rendicion from "./pages/Rendicion";
 import Usuarios from "./pages/Usuarios";
 import SincronizacionBims from "./pages/SincronizacionBims";
+import DashboardEjecutivo from "./pages/DashboardEjecutivo";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
 
@@ -51,6 +52,7 @@ function ProtectedRoutes() {
     <Routes>
       <Route element={<AppLayout />}>
         <Route path="/" element={<Index />} />
+        <Route path="/ejecutivo" element={<DashboardEjecutivo />} />
         <Route path="/consultas" element={<Consultas />} />
         <Route path="/solicitudes" element={<Solicitudes />} />
         <Route path="/stock-comprometido" element={<StockComprometido />} />
