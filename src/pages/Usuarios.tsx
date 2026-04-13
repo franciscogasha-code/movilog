@@ -264,6 +264,9 @@ export default function Usuarios() {
   /* --- Confirmation dialogs --- */
   const [confirmRoleChange, setConfirmRoleChange] = useState<{ newRole: RoleKey } | null>(null);
   const [confirmToggleActive, setConfirmToggleActive] = useState<{ profileId: string; newActive: boolean } | null>(null);
+  const [confirmResetPassword, setConfirmResetPassword] = useState(false);
+  const [resetResult, setResetResult] = useState<string | null>(null);
+  const [resettingPassword, setResettingPassword] = useState(false);
 
   /* --- Dirty tracking --- */
   const [originalState, setOriginalState] = useState<{
