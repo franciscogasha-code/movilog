@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Package, MapPin, DollarSign, BarChart3, Check, Zap, Clock } from "lucide-react";
+import { Package, MapPin, BarChart3, Check, Zap, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useBranches } from "@/hooks/use-branches";
 
@@ -183,33 +183,32 @@ export function ProductCard({
           </div>
         )}
 
-        {/* Prices – base + 6 & 12 unit scales only */}
+        {/* Prices – chips */}
         {(hasPrice || hasPriceScales) && (
-          <div className="space-y-2">
-            <h4 className="text-sm font-medium flex items-center gap-1.5">
-              <DollarSign className="h-3.5 w-3.5" /> Precios
-            </h4>
-            {hasPrice && (
-              <div className="flex items-center gap-2">
-                <span className="text-lg font-bold text-foreground">₲{productSellPrice!.toLocaleString()}</span>
-                <span className="text-xs text-muted-foreground">precio base</span>
-              </div>
-            )}
-            {hasPriceScales && (() => {
-              const relevant = productPriceScales!.filter(s => s.min_quantity === 6 || s.min_quantity === 12);
-              return relevant.length > 0 ? (
-                <div className="grid grid-cols-2 gap-1.5">
-                  {relevant
-                    .sort((a, b) => a.min_quantity - b.min_quantity)
-                    .map((scale, i) => (
-                      <div key={i} className="flex items-center justify-between px-2.5 py-1.5 rounded text-xs bg-muted/50">
-                        <span>≥ {scale.min_quantity} un.</span>
-                        <span className="font-medium">₲{scale.price.toLocaleString()}</span>
-                      </div>
-                    ))}
-                </div>
-              ) : null;
-            })()}
+          <div className="space-y-1.5">
+            <h4 className="text-sm font-medium">Precios</h4>
+            <div className="flex flex-wrap gap-2">
+              {hasPrice && (
+                <span className="inline-flex items-baseline gap-1 rounded-md border px-2 py-1 bg-muted/40">
+                  <span className="font-medium text-sm">Unitario</span>
+                  <span className="font-bold text-base">₲ {productSellPrice!.toLocaleString()}</span>
+                </span>
+              )}
+              {hasPriceScales && (() => {
+                const relevant = productPriceScales!
+                  .filter(s => s.min_quantity === 6 || s.min_quantity === 12)
+                  .sort((a, b) => a.min_quantity - b.min_quantity);
+                return relevant.map((scale, i) => (
+                  <span
+                    key={i}
+                    className="inline-flex items-baseline gap-1 rounded-md border px-2 py-1 text-xs text-muted-foreground bg-background"
+                  >
+                    <span>≥{scale.min_quantity} un.</span>
+                    <span className="font-medium">₲ {scale.price.toLocaleString()}</span>
+                  </span>
+                ));
+              })()}
+            </div>
           </div>
         )}
 
