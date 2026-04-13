@@ -1115,6 +1115,64 @@ export default function Usuarios() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Confirm password reset */}
+      <AlertDialog
+        open={confirmResetPassword}
+        onOpenChange={(open) => !open && setConfirmResetPassword(false)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Restablecer contraseña</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se generará una nueva contraseña temporal para <strong>{selectedProfile?.full_name}</strong>.
+              El usuario deberá cambiarla después de iniciar sesión.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleResetPassword}>
+              Restablecer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Show temporary password result */}
+      <Dialog open={!!resetResult} onOpenChange={(open) => !open && setResetResult(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Contraseña temporal generada</DialogTitle>
+            <DialogDescription>
+              Copie esta contraseña y compártala con el usuario de forma segura.
+              <strong className="block mt-1">Solo se mostrará una vez.</strong>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex items-center gap-2 p-3 rounded-md bg-muted border font-mono text-lg tracking-wider select-all text-center justify-center">
+            {resetResult}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            El usuario deberá cambiar esta contraseña después de iniciar sesión.
+          </p>
+          <DialogFooter>
+            <Button
+              onClick={() => {
+                if (resetResult) {
+                  navigator.clipboard.writeText(resetResult);
+                  toast.success("Contraseña copiada al portapapeles");
+                }
+              }}
+              variant="outline"
+              size="sm"
+            >
+              Copiar
+            </Button>
+            <Button onClick={() => setResetResult(null)} size="sm">
+              Cerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
