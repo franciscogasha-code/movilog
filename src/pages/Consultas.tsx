@@ -108,7 +108,7 @@ export default function Consultas() {
           <DialogTrigger asChild>
             <Button><Plus className="h-4 w-4 mr-2" /> Nueva Consulta</Button>
           </DialogTrigger>
-          <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto overflow-x-hidden">
             <DialogHeader><DialogTitle>Consultar Disponibilidad</DialogTitle></DialogHeader>
             <ConsultationForm onSuccess={() => { setCreateOpen(false); queryClient.invalidateQueries({ queryKey: ["availability-consultations"] }); }} />
           </DialogContent>
@@ -325,9 +325,9 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
                   </div>
 
                   {expandedProduct === p.id && (
-                    <div className="p-3 border-t border-border/50 space-y-2 overflow-hidden">
+                    <div className="p-3 border-t border-border/50 space-y-2 overflow-hidden max-w-full">
                       <DemandAlert productId={p.id} />
-                      <div className="w-full overflow-hidden">
+                      <div className="w-full overflow-hidden min-w-0">
                         <ProductCard
                           productId={p.id}
                           productName={p.name}
