@@ -570,7 +570,7 @@ function IncidentsPie({ data }: { data: { type: string; count: number }[] }) {
    MAIN DASHBOARD V3 — Torre de Control
    ══════════════════════════════════════════════════════════════ */
 export default function DashboardEjecutivo() {
-  const { isOwner, loading: authLoading } = useAuth();
+  const { isOwner, hasRole, loading: authLoading } = useAuth();
   const [dateRange, setDateRange] = useState<DateRange>("7d");
   const [branchId, setBranchId] = useState<string>("");
   const [aiEnabled, setAiEnabled] = useState(false);
