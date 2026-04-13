@@ -84,27 +84,34 @@ export default function Solicitudes() {
 
   return (
     <motion.div className="space-y-6" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
           <h1 className="font-display text-2xl font-bold text-foreground">Pedidos</h1>
           <p className="text-muted-foreground mt-1">Gestión de pedidos entre sucursales, clientes y reposiciones</p>
         </div>
-        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" /> Nuevo Pedido
+        <div className="flex flex-col sm:flex-row gap-2">
+          {(hasRole("admin") || isOwner) && (
+            <Button variant="outline" onClick={() => setAdminRepoOpen(true)}>
+              <FileSpreadsheet className="h-4 w-4 mr-2" /> Reposición admin.
             </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Crear Pedido</DialogTitle>
-            </DialogHeader>
-            <SolicitudCreateForm
-              fromConsultationId={activeConsultationId}
-              onSuccess={() => { setCreateOpen(false); setActiveConsultationId(null); refetch(); }}
-            />
-          </DialogContent>
-        </Dialog>
+          )}
+          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="h-4 w-4 mr-2" /> Nuevo Pedido
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Crear Pedido</DialogTitle>
+              </DialogHeader>
+              <SolicitudCreateForm
+                fromConsultationId={activeConsultationId}
+                onSuccess={() => { setCreateOpen(false); setActiveConsultationId(null); refetch(); }}
+              />
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {/* Filters */}
