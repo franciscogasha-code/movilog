@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { AppLayout } from "@/components/AppLayout";
 import Login from "./pages/Login";
+import CambiarContrasena from "./pages/CambiarContrasena";
 import Index from "./pages/Index";
 import Abastecimiento from "./pages/Abastecimiento";
 import Reposicion from "./pages/Reposicion";
@@ -34,7 +35,7 @@ import { Loader2 } from "lucide-react";
 const queryClient = new QueryClient();
 
 function ProtectedRoutes() {
-  const { user, loading } = useAuth();
+  const { user, loading, mustChangePassword } = useAuth();
 
   if (loading) {
     return (
@@ -46,6 +47,10 @@ function ProtectedRoutes() {
 
   if (!user) {
     return <Navigate to="/login" replace />;
+  }
+
+  if (mustChangePassword) {
+    return <Navigate to="/cambiar-contrasena" replace />;
   }
 
   return (
@@ -97,6 +102,28 @@ function LoginRoute() {
   return <Login />;
 }
 
+function ChangePasswordRoute() {
+  const { user, loading, mustChangePassword } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (!mustChangePassword) {
+    return <Navigate to="/" replace />;
+  }
+
+  return <CambiarContrasena />;
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -106,6 +133,7 @@ const App = () => (
         <AuthProvider>
           <Routes>
             <Route path="/login" element={<LoginRoute />} />
+            <Route path="/cambiar-contrasena" element={<ChangePasswordRoute />} />
             <Route path="/*" element={<ProtectedRoutes />} />
           </Routes>
         </AuthProvider>
