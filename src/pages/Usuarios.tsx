@@ -264,6 +264,9 @@ export default function Usuarios() {
   /* --- Confirmation dialogs --- */
   const [confirmRoleChange, setConfirmRoleChange] = useState<{ newRole: RoleKey } | null>(null);
   const [confirmToggleActive, setConfirmToggleActive] = useState<{ profileId: string; newActive: boolean } | null>(null);
+  const [confirmResetPassword, setConfirmResetPassword] = useState(false);
+  const [resetResult, setResetResult] = useState<string | null>(null);
+  const [resettingPassword, setResettingPassword] = useState(false);
 
   /* --- Dirty tracking --- */
   const [originalState, setOriginalState] = useState<{
@@ -559,6 +562,26 @@ export default function Usuarios() {
       setEditAllBranches(false);
     }
     setConfirmRoleChange(null);
+  };
+  const handleResetPassword = async () => {
+    if (!selectedProfile) return;
+    setResettingPassword(true);
+    setConfirmResetPassword(false);
+    try {
+      const res = await supabase.functions.invoke("reset-user-password", {
+        body: { target_user_id: selectedProfile.user_id },
+      });
+      if (res.error) throw new Error(res.error.message || "Error al restablecer");
+      const result = res.data as { success?: boolean; temp_password?: string; error?: string };
+      if (result.error) throw new Error(result.error);
+      if (!result.temp_password) throw new Error("No se recibió contraseña temporal");
+      setResetResult(result.temp_password);
+      toast.success("Contraseña restablecida correctamente");
+    } catch (err: any) {
+      toast.error(err.message || "Error al restablecer contraseña");
+    } finally {
+      setResettingPassword(false);
+    }
   };
 
   const handleSave = () => {
@@ -991,14 +1014,15 @@ export default function Usuarios() {
                     >
                       {selectedProfile.is_active ? "Desactivar usuario" : "Reactivar usuario"}
                     </Button>
-                    {/* Password reset placeholder */}
+                    {/* Password reset */}
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => toast.info("Funcionalidad de restablecimiento en desarrollo.")}
+                      disabled={resettingPassword}
+                      onClick={() => setConfirmResetPassword(true)}
                     >
                       <KeyRound className="h-3.5 w-3.5 mr-1" />
-                      Restablecer acceso
+                      {resettingPassword ? "Restableciendo..." : "Restablecer acceso"}
                     </Button>
                   </div>
                 </div>
@@ -1091,6 +1115,64 @@ export default function Usuarios() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Confirm password reset */}
+      <AlertDialog
+        open={confirmResetPassword}
+        onOpenChange={(open) => !open && setConfirmResetPassword(false)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Restablecer contraseña</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se generará una nueva contraseña temporal para <strong>{selectedProfile?.full_name}</strong>.
+              El usuario deberá cambiarla después de iniciar sesión.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleResetPassword}>
+              Restablecer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Show temporary password result */}
+      <Dialog open={!!resetResult} onOpenChange={(open) => !open && setResetResult(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Contraseña temporal generada</DialogTitle>
+            <DialogDescription>
+              Copie esta contraseña y compártala con el usuario de forma segura.
+              <strong className="block mt-1">Solo se mostrará una vez.</strong>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex items-center gap-2 p-3 rounded-md bg-muted border font-mono text-lg tracking-wider select-all text-center justify-center">
+            {resetResult}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            El usuario deberá cambiar esta contraseña después de iniciar sesión.
+          </p>
+          <DialogFooter>
+            <Button
+              onClick={() => {
+                if (resetResult) {
+                  navigator.clipboard.writeText(resetResult);
+                  toast.success("Contraseña copiada al portapapeles");
+                }
+              }}
+              variant="outline"
+              size="sm"
+            >
+              Copiar
+            </Button>
+            <Button onClick={() => setResetResult(null)} size="sm">
+              Cerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
