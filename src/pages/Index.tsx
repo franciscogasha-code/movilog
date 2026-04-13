@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import {
   AlertTriangle, ClipboardList, PackageCheck,
   Loader2, Plus, Search, ArrowRight, Clock,
-  MessageSquare, Package,
+  MessageSquare, Package, Truck, ArrowUpFromLine, MapPin,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -57,9 +57,10 @@ const PRIORITY_ROW_CLASS: Record<Priority, string> = {
 };
 
 // ── Types ──────────────────────────────────────────────────
-type ItemType = "pedido" | "consulta";
+type ItemType = "pedido" | "consulta" | "tarea";
+type TaskKind = "preparar" | "despachar" | "retirar" | "en_transito" | "recepcionar" | "entregar";
 type KpiFilter = "all" | "overdue" | "today" | "active" | "awaiting";
-type TypeFilter = "all" | "pedido" | "consulta";
+type TypeFilter = "all" | "pedido" | "consulta" | "preparacion" | "transporte" | "recepcion";
 
 interface QueueItem {
   id: string;
@@ -73,8 +74,20 @@ interface QueueItem {
   consultationStatus?: string;
   hasResponses?: boolean;
   isRequester?: boolean;
+  // task-specific
+  taskKind?: TaskKind;
   navigateTo: string;
 }
+
+// ── Task kind config ───────────────────────────────────────
+const TASK_KIND_CONFIG: Record<TaskKind, { label: string; icon: any; className: string; actionLabel: string }> = {
+  preparar: { label: "Preparar", icon: Package, className: "bg-blue-500/10 text-blue-600 border-blue-500/20", actionLabel: "Preparar" },
+  despachar: { label: "Despachar", icon: ArrowUpFromLine, className: "bg-indigo-500/10 text-indigo-600 border-indigo-500/20", actionLabel: "Despachar" },
+  retirar: { label: "Retirar", icon: Truck, className: "bg-orange-500/10 text-orange-600 border-orange-500/20", actionLabel: "Retirar" },
+  en_transito: { label: "En tránsito", icon: Truck, className: "bg-amber-500/10 text-amber-600 border-amber-500/20", actionLabel: "Continuar viaje" },
+  recepcionar: { label: "Recepcionar", icon: PackageCheck, className: "bg-teal-500/10 text-teal-600 border-teal-500/20", actionLabel: "Recepcionar" },
+  entregar: { label: "Entregar", icon: MapPin, className: "bg-green-500/10 text-green-600 border-green-500/20", actionLabel: "Reintentar" },
+};
 
 // Consultation status config for StatusBadge
 const CONSULTATION_STATUS_CONFIG: Record<string, { label: string; variant: string }> = {
@@ -84,18 +97,82 @@ const CONSULTATION_STATUS_CONFIG: Record<string, { label: string; variant: strin
   closed: { label: "Cerrada", variant: "outline" },
 };
 
+// Fulfillment status config for StatusBadge
+const FULFILLMENT_STATUS_CONFIG: Record<string, { label: string; color: string }> = {
+  pending: { label: "Pendiente", color: "bg-muted text-muted-foreground" },
+  picking: { label: "Preparando", color: "bg-blue-500/10 text-blue-600" },
+  waiting_for_cut: { label: "Esperando corte", color: "bg-indigo-500/10 text-indigo-600" },
+  waiting_for_courier: { label: "Esperando courier", color: "bg-indigo-500/10 text-indigo-600" },
+  dispatched: { label: "Despachado", color: "bg-orange-500/10 text-orange-600" },
+  in_transit: { label: "En tránsito", color: "bg-amber-500/10 text-amber-600" },
+  at_hub: { label: "En acopio", color: "bg-orange-500/10 text-orange-600" },
+  delivered: { label: "Entregado", color: "bg-teal-500/10 text-teal-600" },
+  pending_physical_confirmation: { label: "Pend. confirmación", color: "bg-teal-500/10 text-teal-600" },
+  delivery_failed: { label: "Entrega fallida", color: "bg-destructive/10 text-destructive" },
+};
+
 // ── Animation ──────────────────────────────────────────────
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.06 } } };
 const item = { hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0, transition: { duration: 0.25 } } };
 
+// ── Helper: determine taskKind from fulfillment context ────
+function getTaskKind(
+  status: string,
+  isOrigin: boolean,
+  isDestination: boolean,
+  isCustodian: boolean,
+  isAdmin: boolean
+): TaskKind | null {
+  // Custodian takes priority for driver-related statuses
+  if (isCustodian || isAdmin) {
+    if (status === "in_transit") return "en_transito";
+    if (status === "delivery_failed") return "entregar";
+  }
+  if ((isCustodian || isAdmin) && (status === "dispatched" || status === "at_hub")) return "retirar";
+
+  if (isOrigin || isAdmin) {
+    if (status === "pending" || status === "picking") return "preparar";
+    if (status === "waiting_for_cut" || status === "waiting_for_courier") return "despachar";
+  }
+
+  if (isDestination || isAdmin) {
+    if (status === "delivered" || status === "pending_physical_confirmation") return "recepcionar";
+  }
+
+  return null;
+}
+
+function getTaskAction(taskKind: TaskKind, requestId: string | null): { label: string; navigateTo: string } {
+  const cfg = TASK_KIND_CONFIG[taskKind];
+  switch (taskKind) {
+    case "preparar":
+    case "despachar":
+      return { label: cfg.actionLabel, navigateTo: requestId ? `/solicitudes?detail=${requestId}` : "/solicitudes" };
+    case "retirar":
+    case "en_transito":
+    case "entregar":
+      return { label: cfg.actionLabel, navigateTo: "/chofer" };
+    case "recepcionar":
+      return { label: cfg.actionLabel, navigateTo: "/recepcion" };
+  }
+}
+
 export default function Index() {
-  const { profile, hasRole, isOwner } = useAuth();
+  const { user, profile, hasRole, isOwner } = useAuth();
   const { isAllBranches, allowedBranchIds, defaultBranchId } = useUserBranchFilter();
   const navigate = useNavigate();
   const isDriver = hasRole("driver");
+  const isAdmin = isAllBranches || isOwner || hasRole("admin") || hasRole("supervisor");
 
   const [activeFilter, setActiveFilter] = useState<KpiFilter>("all");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
+
+  // Helper to check branch access
+  const canAccessBranch = (branchId: string | null) => {
+    if (!branchId) return false;
+    if (isAllBranches) return true;
+    return allowedBranchIds.includes(branchId);
+  };
 
   // ── Queries ────────────────────────────────────────────
   const { data: pendingRequests, isLoading: loadingRequests } = useQuery({
@@ -123,12 +200,20 @@ export default function Index() {
   });
 
   const { data: activeFulfillments, isLoading: loadingFulfillments } = useQuery({
-    queryKey: ["dashboard-fulfillments", isAllBranches, allowedBranchIds],
+    queryKey: ["dashboard-fulfillments", isAllBranches, allowedBranchIds, user?.id],
     queryFn: async () => {
       const query = supabase
         .from("fulfillment_orders")
-        .select("id, status, source_branch_id, destination_branch_id")
-        .not("status", "in", '("completed","cancelled","received")')
+        .select(`
+          id, status, source_branch_id, destination_branch_id,
+          current_custody_holder_id, created_at, updated_at,
+          branch_request:branch_requests!fulfillment_orders_branch_request_id_fkey(
+            id, request_number, request_type
+          ),
+          source_branch:branches!fulfillment_orders_source_branch_id_fkey(name),
+          destination_branch:branches!fulfillment_orders_destination_branch_id_fkey(name)
+        `)
+        .not("status", "in", '("completed","cancelled","received","logistic_closed")')
         .limit(100);
       const { data } = await query;
       return data || [];
@@ -197,18 +282,55 @@ export default function Index() {
       });
     });
 
+    // Fulfillment tasks
+    activeFulfillments?.forEach((f: any) => {
+      // Filter: source !== destination
+      if (f.source_branch_id === f.destination_branch_id) return;
+
+      const isOrigin = canAccessBranch(f.source_branch_id);
+      const isDestination = canAccessBranch(f.destination_branch_id);
+      const isCustodian = f.current_custody_holder_id === user?.id;
+
+      const taskKind = getTaskKind(f.status, isOrigin, isDestination, isCustodian, isAdmin);
+      if (!taskKind) return;
+
+      // Don't show if user doesn't participate (unless admin)
+      if (!isAdmin && !isOrigin && !isDestination && !isCustodian) return;
+
+      const requestId = f.branch_request?.id || null;
+      const requestNumber = f.branch_request?.request_number || null;
+      const { label: actionLabel, navigateTo } = getTaskAction(taskKind, requestId);
+
+      const sourceName = f.source_branch?.name ?? "?";
+      const destName = f.destination_branch?.name ?? "?";
+      const label = `${sourceName} → ${destName}`;
+
+      items.push({
+        id: f.id,
+        itemType: "tarea",
+        number: requestNumber,
+        label,
+        status: f.status,
+        priority: getRequestPriority(f.created_at),
+        createdAt: f.created_at,
+        taskKind,
+        navigateTo,
+      });
+    });
+
     items.sort((a, b) => PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority]);
     return items;
-  }, [pendingRequests, activeConsultations, defaultBranchId]);
+  }, [pendingRequests, activeConsultations, activeFulfillments, defaultBranchId, user?.id, isAdmin, isAllBranches, allowedBranchIds]);
 
   // ── Counts ─────────────────────────────────────────────
   const isOverdue = (p: Priority) => p === "overdue" || p === "overdue_critical";
   const overdueCount = queueItems.filter(i => isOverdue(i.priority)).length;
   const todayCount = queueItems.filter(i => i.priority === "today").length;
   const activeCount = queueItems.length;
-  const awaitingReceptionCount = activeFulfillments?.filter(
-    (f) => f.status === "delivered" || f.status === "pending_physical_confirmation"
-  ).length || 0;
+  const awaitingReceptionCount = queueItems.filter(i => i.itemType === "tarea" && i.taskKind === "recepcionar").length
+    || activeFulfillments?.filter(
+      (f) => f.status === "delivered" || f.status === "pending_physical_confirmation"
+    ).length || 0;
 
 
   // ── Filtered queue ─────────────────────────────────────
@@ -217,8 +339,13 @@ export default function Index() {
     // KPI filter
     if (activeFilter === "overdue") list = list.filter(i => isOverdue(i.priority));
     else if (activeFilter === "today") list = list.filter(i => i.priority === "today");
+    else if (activeFilter === "awaiting") list = list.filter(i => i.itemType === "tarea" && i.taskKind === "recepcionar");
     // Type filter
-    if (typeFilter !== "all") list = list.filter(i => i.itemType === typeFilter);
+    if (typeFilter === "pedido") list = list.filter(i => i.itemType === "pedido");
+    else if (typeFilter === "consulta") list = list.filter(i => i.itemType === "consulta");
+    else if (typeFilter === "preparacion") list = list.filter(i => i.itemType === "tarea" && (i.taskKind === "preparar" || i.taskKind === "despachar"));
+    else if (typeFilter === "transporte") list = list.filter(i => i.itemType === "tarea" && (i.taskKind === "retirar" || i.taskKind === "en_transito" || i.taskKind === "entregar"));
+    else if (typeFilter === "recepcion") list = list.filter(i => i.itemType === "tarea" && i.taskKind === "recepcionar");
     return list;
   }, [queueItems, activeFilter, typeFilter]);
 
@@ -238,21 +365,29 @@ export default function Index() {
     { key: "all", label: "Todos" },
     { key: "pedido", label: "📦 Pedidos" },
     { key: "consulta", label: "💬 Consultas" },
+    { key: "preparacion", label: "🔧 Preparación" },
+    { key: "transporte", label: "🚚 Transporte" },
+    { key: "recepcion", label: "📥 Recepción" },
   ];
 
   // Count items by type for filter badges
-  const pedidoCount = useMemo(() => {
-    let list = queueItems.filter(i => i.itemType === "pedido");
-    if (activeFilter === "overdue") list = list.filter(i => isOverdue(i.priority));
-    else if (activeFilter === "today") list = list.filter(i => i.priority === "today");
-    return list.length;
-  }, [queueItems, activeFilter]);
+  const filterCounts = useMemo(() => {
+    const base = (() => {
+      let list = queueItems;
+      if (activeFilter === "overdue") list = list.filter(i => isOverdue(i.priority));
+      else if (activeFilter === "today") list = list.filter(i => i.priority === "today");
+      else if (activeFilter === "awaiting") list = list.filter(i => i.itemType === "tarea" && i.taskKind === "recepcionar");
+      return list;
+    })();
 
-  const consultaCount = useMemo(() => {
-    let list = queueItems.filter(i => i.itemType === "consulta");
-    if (activeFilter === "overdue") list = list.filter(i => isOverdue(i.priority));
-    else if (activeFilter === "today") list = list.filter(i => i.priority === "today");
-    return list.length;
+    return {
+      all: base.length,
+      pedido: base.filter(i => i.itemType === "pedido").length,
+      consulta: base.filter(i => i.itemType === "consulta").length,
+      preparacion: base.filter(i => i.itemType === "tarea" && (i.taskKind === "preparar" || i.taskKind === "despachar")).length,
+      transporte: base.filter(i => i.itemType === "tarea" && (i.taskKind === "retirar" || i.taskKind === "en_transito" || i.taskKind === "entregar")).length,
+      recepcion: base.filter(i => i.itemType === "tarea" && i.taskKind === "recepcionar").length,
+    } as Record<TypeFilter, number>;
   }, [queueItems, activeFilter]);
 
   return (
@@ -349,12 +484,12 @@ export default function Index() {
                     </div>
                   </div>
                   {/* Type filter tabs */}
-                  <div className="flex gap-1.5 mt-2">
+                  <div className="flex gap-1.5 mt-2 flex-wrap">
                     {typeFilters.map((tf) => {
-                      const count = tf.key === "all"
-                        ? filteredItems.length
-                        : tf.key === "pedido" ? pedidoCount : consultaCount;
+                      const count = filterCounts[tf.key];
                       const isActive = typeFilter === tf.key;
+                      // Hide filter tabs with 0 items (except "Todos")
+                      if (tf.key !== "all" && count === 0) return null;
                       return (
                         <button
                           key={tf.key}
@@ -379,7 +514,7 @@ export default function Index() {
                     <p className="text-sm text-muted-foreground py-6 text-center">
                       {activeFilter !== "all" || typeFilter !== "all"
                         ? "Sin ítems en esta categoría"
-                        : "Sin pedidos ni consultas pendientes 🎉"}
+                        : "Sin tareas pendientes 🎉"}
                     </p>
                   ) : (
                     <div className="space-y-1">
@@ -387,28 +522,74 @@ export default function Index() {
                         const badge = PRIORITY_BADGE[qi.priority];
                         const rowClass = PRIORITY_ROW_CLASS[qi.priority];
                         const isPedido = qi.itemType === "pedido";
+                        const isConsulta = qi.itemType === "consulta";
+                        const isTarea = qi.itemType === "tarea";
 
-                        // Determine action label
+                        // Determine action label and handler
                         let actionLabel = "Gestionar";
                         let actionIcon = <ArrowRight className="h-3 w-3 ml-1" />;
-                        if (!isPedido) {
+                        let actionVariant: "default" | "ghost" = "ghost";
+                        let handleAction = () => navigate(qi.navigateTo);
+
+                        if (isConsulta) {
                           if (qi.hasResponses && qi.isRequester) {
                             actionLabel = "Crear pedido";
                             actionIcon = <Plus className="h-3 w-3 ml-1" />;
+                            actionVariant = "default";
+                            handleAction = () => navigate(`/solicitudes?action=new&from_consultation=${qi.id}`);
                           } else if (qi.isRequester) {
                             actionLabel = "Revisar";
                           } else {
                             actionLabel = "Responder";
                           }
+                        } else if (isTarea && qi.taskKind) {
+                          const taskCfg = TASK_KIND_CONFIG[qi.taskKind];
+                          actionLabel = taskCfg.actionLabel;
                         }
 
-                        // For consultations: navigate to create order
-                        const handleAction = () => {
-                          if (!isPedido && qi.hasResponses && qi.isRequester) {
-                            navigate(`/solicitudes?action=new&from_consultation=${qi.id}`);
-                          } else {
-                            navigate(qi.navigateTo);
+                        // Render type badge
+                        const renderTypeBadge = () => {
+                          if (isPedido) {
+                            return (
+                              <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold bg-primary/10 text-primary border border-primary/20 shrink-0">
+                                <Package className="h-3 w-3" />
+                                Pedido
+                              </span>
+                            );
                           }
+                          if (isConsulta) {
+                            return (
+                              <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold bg-secondary/80 text-secondary-foreground border border-secondary shrink-0">
+                                <MessageSquare className="h-3 w-3" />
+                                Consulta
+                              </span>
+                            );
+                          }
+                          if (isTarea && qi.taskKind) {
+                            const taskCfg = TASK_KIND_CONFIG[qi.taskKind];
+                            const TaskIcon = taskCfg.icon;
+                            return (
+                              <span className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold border shrink-0 ${taskCfg.className}`}>
+                                <TaskIcon className="h-3 w-3" />
+                                {taskCfg.label}
+                              </span>
+                            );
+                          }
+                          return null;
+                        };
+
+                        // Render status badge
+                        const renderStatusBadge = () => {
+                          if (isPedido) {
+                            return <StatusBadge status={qi.status} config={REQUEST_STATUS_CONFIG} />;
+                          }
+                          if (isConsulta) {
+                            return <StatusBadge status={qi.status} config={CONSULTATION_STATUS_CONFIG} />;
+                          }
+                          if (isTarea) {
+                            return <StatusBadge status={qi.status} config={FULFILLMENT_STATUS_CONFIG} />;
+                          }
+                          return null;
                         };
 
                         return (
@@ -418,27 +599,14 @@ export default function Index() {
                           >
                             {/* Left: Type + ID + Route */}
                             <div className="flex items-center gap-2 min-w-0 flex-1">
-                              {/* Type badge */}
-                              {isPedido ? (
-                                <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold bg-primary/10 text-primary border border-primary/20 shrink-0">
-                                  <Package className="h-3 w-3" />
-                                  Pedido
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold bg-secondary/80 text-secondary-foreground border border-secondary shrink-0">
-                                  <MessageSquare className="h-3 w-3" />
-                                  Consulta
-                                </span>
-                              )}
+                              {renderTypeBadge()}
 
-                              {/* Number */}
                               {qi.number && (
                                 <span className="text-sm font-mono font-semibold text-foreground shrink-0">
                                   #{qi.number}
                                 </span>
                               )}
 
-                              {/* Route label */}
                               <span className="text-sm text-foreground truncate min-w-0">
                                 {qi.label}
                               </span>
@@ -446,11 +614,7 @@ export default function Index() {
 
                             {/* Center: Status + Priority + Time */}
                             <div className="flex items-center gap-2 shrink-0">
-                              {isPedido ? (
-                                <StatusBadge status={qi.status} config={REQUEST_STATUS_CONFIG} />
-                              ) : (
-                                <StatusBadge status={qi.status} config={CONSULTATION_STATUS_CONFIG} />
-                              )}
+                              {renderStatusBadge()}
 
                               <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium shrink-0 ${badge.className}`}>
                                 {badge.label}
@@ -463,7 +627,7 @@ export default function Index() {
 
                             {/* Right: Action */}
                             <Button
-                              variant={!isPedido && qi.hasResponses && qi.isRequester ? "default" : "ghost"}
+                              variant={actionVariant}
                               size="sm"
                               className="h-7 px-3 text-xs shrink-0 ml-auto"
                               onClick={handleAction}
