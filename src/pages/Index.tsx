@@ -262,8 +262,9 @@ export default function Index() {
   const queueItems = useMemo(() => {
     const items: QueueItem[] = [];
 
-    // Requests
+    // Requests — exclude parent multi-origin containers (they have no items)
     pendingRequests?.forEach((r: any) => {
+      if (r.notes && r.notes.includes("[Pedido padre multi-origen]")) return;
       items.push({
         id: r.id,
         itemType: "pedido",
