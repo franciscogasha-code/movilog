@@ -46,10 +46,10 @@ const adminItems: MenuItem[] = [
 ];
 
 function MenuGroup({ label, items, collapsed }: { label: string; items: MenuItem[]; collapsed: boolean }) {
-  const { hasModule, isOwner } = useAuth();
+  const { hasModule, isOwner, hasRole } = useAuth();
 
   const visibleItems = items.filter((item) => {
-    if (item.moduleKey === "ejecutivo" && !isOwner) return false;
+    if (item.moduleKey === "ejecutivo" && !(isOwner || hasRole("admin") || hasRole("supervisor"))) return false;
     return hasModule(item.moduleKey);
   });
   if (visibleItems.length === 0) return null;

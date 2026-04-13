@@ -161,8 +161,11 @@ export default function Index() {
   const { user, profile, hasRole, isOwner } = useAuth();
   const { isAllBranches, allowedBranchIds, defaultBranchId } = useUserBranchFilter();
   const navigate = useNavigate();
-  const isDriver = hasRole("driver");
+  const isDriver = hasRole("driver") || hasRole("operador_logistico");
+  const isLogisticsOp = hasRole("operador_logistico");
   const isAdmin = isAllBranches || isOwner || hasRole("admin") || hasRole("supervisor");
+  const isViewer = hasRole("viewer") || hasRole("auditor");
+  const isSupervisor = hasRole("supervisor");
 
   const [activeFilter, setActiveFilter] = useState<KpiFilter>("all");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
@@ -202,7 +205,7 @@ export default function Index() {
   const { data: activeFulfillments, isLoading: loadingFulfillments } = useQuery({
     queryKey: ["dashboard-fulfillments", isAllBranches, allowedBranchIds, user?.id],
     queryFn: async () => {
-      const query = supabase
+      let query = supabase
         .from("fulfillment_orders")
         .select(`
           id, status, source_branch_id, destination_branch_id,
@@ -213,8 +216,19 @@ export default function Index() {
           source_branch:branches!fulfillment_orders_source_branch_id_fkey(name),
           destination_branch:branches!fulfillment_orders_destination_branch_id_fkey(name)
         `)
-        .not("status", "in", '("completed","cancelled","received","logistic_closed")')
-        .limit(100);
+        .not("status", "in", '("completed","cancelled","received","logistic_closed")');
+
+      // BLOQUE 1: Server-side filtering — only fetch relevant fulfillments
+      if (!isAllBranches && allowedBranchIds.length > 0) {
+        const branchFilter = `source_branch_id.in.(${allowedBranchIds.join(",")}),destination_branch_id.in.(${allowedBranchIds.join(",")})`;
+        if (user?.id) {
+          query = query.or(`${branchFilter},current_custody_holder_id.eq.${user.id}`);
+        } else {
+          query = query.or(branchFilter);
+        }
+      }
+
+      query = query.order("created_at", { ascending: false }).limit(200);
       const { data } = await query;
       return data || [];
     },
@@ -318,9 +332,34 @@ export default function Index() {
       });
     });
 
-    items.sort((a, b) => PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority]);
+    // Sort: priority first, then by role-specific type ordering
+    items.sort((a, b) => {
+      const pDiff = PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority];
+      if (pDiff !== 0) return pDiff;
+
+      // For operador_logístico: consultations > orders > preparation > transport
+      if (isLogisticsOp) {
+        const TYPE_ORDER: Record<string, number> = {
+          consulta: 0,
+          pedido: 1,
+          tarea: 2,
+        };
+        const TASK_ORDER: Record<string, number> = {
+          preparar: 0, despachar: 1,
+          retirar: 2, en_transito: 3, entregar: 4,
+          recepcionar: 5,
+        };
+        const tDiff = (TYPE_ORDER[a.itemType] ?? 9) - (TYPE_ORDER[b.itemType] ?? 9);
+        if (tDiff !== 0) return tDiff;
+        if (a.itemType === "tarea" && b.itemType === "tarea") {
+          return (TASK_ORDER[a.taskKind ?? ""] ?? 9) - (TASK_ORDER[b.taskKind ?? ""] ?? 9);
+        }
+      }
+
+      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+    });
     return items;
-  }, [pendingRequests, activeConsultations, activeFulfillments, defaultBranchId, user?.id, isAdmin, isAllBranches, allowedBranchIds]);
+  }, [pendingRequests, activeConsultations, activeFulfillments, defaultBranchId, user?.id, isAdmin, isAllBranches, allowedBranchIds, isLogisticsOp]);
 
   // ── Counts ─────────────────────────────────────────────
   const isOverdue = (p: Priority) => p === "overdue" || p === "overdue_critical";
@@ -396,13 +435,13 @@ export default function Index() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="font-display text-2xl font-bold text-foreground">
-            {isDriver ? "Panel del Chofer" : "Mi Panel Operativo"}
+            {isViewer ? "Panel de Seguimiento" : isLogisticsOp ? "Panel Logístico" : isDriver ? "Panel del Chofer" : "Mi Panel Operativo"}
           </h1>
           <p className="text-muted-foreground text-sm mt-0.5">
             {profile?.full_name} — {new Date().toLocaleDateString("es-PY", { weekday: "long", day: "numeric", month: "long" })}
           </p>
         </div>
-        {!isDriver && (
+        {!isDriver && !isViewer && (
           <div className="flex gap-2">
             <Button size="sm" onClick={() => navigate("/solicitudes?action=new")}>
               <Plus className="h-4 w-4" />
@@ -526,25 +565,27 @@ export default function Index() {
                         const isTarea = qi.itemType === "tarea";
 
                         // Determine action label and handler
-                        let actionLabel = "Gestionar";
+                        let actionLabel = isViewer ? "Ver" : "Gestionar";
                         let actionIcon = <ArrowRight className="h-3 w-3 ml-1" />;
                         let actionVariant: "default" | "ghost" = "ghost";
                         let handleAction = () => navigate(qi.navigateTo);
 
-                        if (isConsulta) {
-                          if (qi.hasResponses && qi.isRequester) {
-                            actionLabel = "Crear pedido";
-                            actionIcon = <Plus className="h-3 w-3 ml-1" />;
-                            actionVariant = "default";
-                            handleAction = () => navigate(`/solicitudes?action=new&from_consultation=${qi.id}`);
-                          } else if (qi.isRequester) {
-                            actionLabel = "Revisar";
-                          } else {
-                            actionLabel = "Responder";
+                        if (!isViewer) {
+                          if (isConsulta) {
+                            if (qi.hasResponses && qi.isRequester) {
+                              actionLabel = "Crear pedido";
+                              actionIcon = <Plus className="h-3 w-3 ml-1" />;
+                              actionVariant = "default";
+                              handleAction = () => navigate(`/solicitudes?action=new&from_consultation=${qi.id}`);
+                            } else if (qi.isRequester) {
+                              actionLabel = "Revisar";
+                            } else {
+                              actionLabel = "Responder";
+                            }
+                          } else if (isTarea && qi.taskKind) {
+                            const taskCfg = TASK_KIND_CONFIG[qi.taskKind];
+                            actionLabel = taskCfg.actionLabel;
                           }
-                        } else if (isTarea && qi.taskKind) {
-                          const taskCfg = TASK_KIND_CONFIG[qi.taskKind];
-                          actionLabel = taskCfg.actionLabel;
                         }
 
                         // Render type badge
