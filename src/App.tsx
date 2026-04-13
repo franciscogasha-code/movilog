@@ -97,6 +97,9 @@ function LoginRoute() {
 
   if (user) {
     return <Navigate to="/" replace />;
+  }
+
+  return <Login />;
 }
 
 function ChangePasswordRoute() {
@@ -119,9 +122,6 @@ function ChangePasswordRoute() {
   }
 
   return <CambiarContrasena />;
-}
-
-  return <Login />;
 }
 
 const App = () => (
