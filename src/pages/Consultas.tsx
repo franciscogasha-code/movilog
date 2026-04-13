@@ -21,7 +21,7 @@ import { DemandAlert } from "@/components/solicitudes/DemandAlert";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBranches } from "@/hooks/use-branches";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useUserBranchFilter } from "@/hooks/use-user-access";
 
 const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {

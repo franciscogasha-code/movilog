@@ -25,16 +25,23 @@ export default function Solicitudes() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const { isAllBranches, allowedBranchIds } = useUserBranchFilter();
   const fromConsultation = searchParams.get("from_consultation");
+  const detailParam = searchParams.get("detail");
+  const actionParam = searchParams.get("action");
   const [activeConsultationId, setActiveConsultationId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (fromConsultation) {
+    if (detailParam) {
+      setSelectedId(detailParam);
+      setSearchParams({}, { replace: true });
+    } else if (actionParam === "new") {
+      setCreateOpen(true);
+      setSearchParams({}, { replace: true });
+    } else if (fromConsultation) {
       setActiveConsultationId(fromConsultation);
       setCreateOpen(true);
-      // Clean the param so it doesn't re-trigger
       setSearchParams({}, { replace: true });
     }
-  }, [fromConsultation]);
+  }, [detailParam, actionParam, fromConsultation]);
 
   const { data: requests, isLoading, refetch } = useQuery({
     queryKey: ["branch-requests", statusFilter, isAllBranches, allowedBranchIds],
