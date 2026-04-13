@@ -21,9 +21,11 @@ import { useUserBranchFilter } from "@/hooks/use-user-access";
 export default function Solicitudes() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { hasRole, isOwner } = useAuth();
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
+  const [adminRepoOpen, setAdminRepoOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const { isAllBranches, allowedBranchIds } = useUserBranchFilter();
   const fromConsultation = searchParams.get("from_consultation");
