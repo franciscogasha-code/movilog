@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { motion } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -9,19 +10,22 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Search, Filter, ArrowRightLeft, Eye } from "lucide-react";
+import { Plus, Search, Filter, ArrowRightLeft, Eye, FileSpreadsheet } from "lucide-react";
 import { REQUEST_STATUS_CONFIG, SHIPPING_METHOD_LABELS, DELIVERY_TARGET_LABELS, REQUEST_TYPE_LABELS } from "@/lib/constants";
 import { StatusBadge } from "@/components/StatusBadge";
 import { SolicitudCreateForm } from "@/components/solicitudes/SolicitudCreateForm";
 import { SolicitudDetail } from "@/components/solicitudes/SolicitudDetail";
+import { AdminReposicionForm } from "@/components/solicitudes/AdminReposicionForm";
 import { useUserBranchFilter } from "@/hooks/use-user-access";
 
 export default function Solicitudes() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { hasRole, isOwner } = useAuth();
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
+  const [adminRepoOpen, setAdminRepoOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const { isAllBranches, allowedBranchIds } = useUserBranchFilter();
   const fromConsultation = searchParams.get("from_consultation");
@@ -80,27 +84,34 @@ export default function Solicitudes() {
 
   return (
     <motion.div className="space-y-6" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
           <h1 className="font-display text-2xl font-bold text-foreground">Pedidos</h1>
           <p className="text-muted-foreground mt-1">Gestión de pedidos entre sucursales, clientes y reposiciones</p>
         </div>
-        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" /> Nuevo Pedido
+        <div className="flex flex-col sm:flex-row gap-2">
+          {(hasRole("admin") || isOwner) && (
+            <Button variant="outline" onClick={() => setAdminRepoOpen(true)}>
+              <FileSpreadsheet className="h-4 w-4 mr-2" /> Reposición admin.
             </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Crear Pedido</DialogTitle>
-            </DialogHeader>
-            <SolicitudCreateForm
-              fromConsultationId={activeConsultationId}
-              onSuccess={() => { setCreateOpen(false); setActiveConsultationId(null); refetch(); }}
-            />
-          </DialogContent>
-        </Dialog>
+          )}
+          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="h-4 w-4 mr-2" /> Nuevo Pedido
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Crear Pedido</DialogTitle>
+              </DialogHeader>
+              <SolicitudCreateForm
+                fromConsultationId={activeConsultationId}
+                onSuccess={() => { setCreateOpen(false); setActiveConsultationId(null); refetch(); }}
+              />
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {/* Filters */}
@@ -189,6 +200,15 @@ export default function Solicitudes() {
             <DialogTitle>Detalle del Pedido</DialogTitle>
           </DialogHeader>
           {selectedId && <SolicitudDetail requestId={selectedId} onUpdate={refetch} />}
+        </DialogContent>
+      </Dialog>
+      {/* Admin Reposition Dialog */}
+      <Dialog open={adminRepoOpen} onOpenChange={setAdminRepoOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Reposición Administrativa</DialogTitle>
+          </DialogHeader>
+          <AdminReposicionForm onSuccess={() => { setAdminRepoOpen(false); refetch(); }} />
         </DialogContent>
       </Dialog>
     </motion.div>
