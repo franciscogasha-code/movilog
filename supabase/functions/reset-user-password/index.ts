@@ -94,7 +94,10 @@ Deno.serve(async (req) => {
 
     const { error: updateError } = await adminClient.auth.admin.updateUserById(
       target_user_id,
-      { password: tempPassword }
+      {
+        password: tempPassword,
+        user_metadata: { must_change_password: true },
+      }
     );
 
     if (updateError) {
