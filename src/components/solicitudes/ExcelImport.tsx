@@ -23,6 +23,7 @@ interface ParsedRow {
 
 interface ExcelImportProps {
   onConfirm: (items: { product: ProductResult; quantity: number }[]) => void;
+  onFileSelected?: (file: File | null) => void;
 }
 
 const MAX_ROWS = 500;
@@ -39,7 +40,7 @@ function normalizeHeader(h: string): string {
   return h.trim().toLowerCase().replace(/[áàä]/g, "a").replace(/[éèë]/g, "e").replace(/[íìï]/g, "i").replace(/[óòö]/g, "o").replace(/[úùü]/g, "u");
 }
 
-export function ExcelImport({ onConfirm }: ExcelImportProps) {
+export function ExcelImport({ onConfirm, onFileSelected }: ExcelImportProps) {
   const [rows, setRows] = useState<ParsedRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,6 +50,7 @@ export function ExcelImport({ onConfirm }: ExcelImportProps) {
     setError(null);
     setRows([]);
     setFileName(file.name);
+    onFileSelected?.(null);
 
     if (file.size > MAX_SIZE_MB * 1024 * 1024) {
       setError(`El archivo excede ${MAX_SIZE_MB}MB`);
@@ -215,6 +217,11 @@ export function ExcelImport({ onConfirm }: ExcelImportProps) {
       });
 
       setRows(finalRows);
+      // Expose file to parent if parsing succeeded with valid rows
+      const hasValidRows = finalRows.some((r) => r.status === "ok" || r.status === "duplicate_merged");
+      if (hasValidRows) {
+        onFileSelected?.(file);
+      }
     } catch (err) {
       console.error("Excel parse error:", err);
       setError("Error al procesar el archivo. Verifique el formato.");

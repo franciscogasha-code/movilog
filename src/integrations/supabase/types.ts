@@ -331,6 +331,7 @@ export type Database = {
           accepted_by: string | null
           admin_closed_at: string | null
           admin_closed_by: string | null
+          attached_file_path: string | null
           bims_invoice_number: string | null
           bims_sale_reference: string | null
           client_address: string | null
@@ -376,6 +377,7 @@ export type Database = {
           accepted_by?: string | null
           admin_closed_at?: string | null
           admin_closed_by?: string | null
+          attached_file_path?: string | null
           bims_invoice_number?: string | null
           bims_sale_reference?: string | null
           client_address?: string | null
@@ -421,6 +423,7 @@ export type Database = {
           accepted_by?: string | null
           admin_closed_at?: string | null
           admin_closed_by?: string | null
+          attached_file_path?: string | null
           bims_invoice_number?: string | null
           bims_sale_reference?: string | null
           client_address?: string | null
