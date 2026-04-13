@@ -59,6 +59,7 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
   const [shippingAmount, setShippingAmount] = useState<string>("");
   const [courierBillingMode, setCourierBillingMode] = useState<"on_invoice" | "collect_at_destination">("on_invoice");
   const [notes, setNotes] = useState("");
+  const [operationalResponsibleId, setOperationalResponsibleId] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [revalidating, setRevalidating] = useState(false);
@@ -252,7 +253,9 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
   const itemsWithoutSource = items.filter(i => !i.sourceBranchId);
 
   // Same-branch validation (mono-origin only; multi-origin children have different sources)
-  const isSameBranch = !isMultiOrigin && !!sourceBranchId && sourceBranchId === requestingBranchId;
+  // Exception: online + client allows same branch (direct sale from own stock)
+  const isSameBranch = !isMultiOrigin && !!sourceBranchId && sourceBranchId === requestingBranchId
+    && !(requestType === "online" && deliveryTarget === "client");
 
   // Validation
   const canSubmit = useMemo(() => {
