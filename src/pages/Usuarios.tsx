@@ -585,6 +585,7 @@ export default function Usuarios() {
   const getRoleLabel = (role: string | null): string => {
     if (!role) return "Sin rol";
     if (role === "owner") return "Propietario";
+    if (role === "driver") return "Op. Logístico"; // legacy mapping
     return getRoleDef(role)?.shortLabel ?? role;
   };
 
