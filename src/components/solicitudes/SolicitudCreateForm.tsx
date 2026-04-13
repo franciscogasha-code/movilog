@@ -59,6 +59,7 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
   const [shippingAmount, setShippingAmount] = useState<string>("");
   const [courierBillingMode, setCourierBillingMode] = useState<"on_invoice" | "collect_at_destination">("on_invoice");
   const [notes, setNotes] = useState("");
+  const [operationalResponsibleId, setOperationalResponsibleId] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [revalidating, setRevalidating] = useState(false);
@@ -126,6 +127,27 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
       };
     },
     enabled: !!fromConsultationId,
+  });
+
+  // Query operational profiles (for online requests)
+  const { data: operationalProfiles } = useQuery({
+    queryKey: ["operational-profiles"],
+    queryFn: async () => {
+      // Get profiles with operational roles
+      const { data: roleData } = await supabase
+        .from("user_roles")
+        .select("user_id, role")
+        .in("role", ["operador_logistico", "supervisor", "warehouse_operator"] as any[]);
+      if (!roleData?.length) return [];
+      const userIds = [...new Set(roleData.map(r => r.user_id))];
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, user_id, full_name")
+        .eq("is_active", true)
+        .in("user_id", userIds);
+      return profiles || [];
+    },
+    enabled: requestType === "online",
   });
 
   useEffect(() => {
@@ -252,7 +274,9 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
   const itemsWithoutSource = items.filter(i => !i.sourceBranchId);
 
   // Same-branch validation (mono-origin only; multi-origin children have different sources)
-  const isSameBranch = !isMultiOrigin && !!sourceBranchId && sourceBranchId === requestingBranchId;
+  // Exception: online + client allows same branch (direct sale from own stock)
+  const isSameBranch = !isMultiOrigin && !!sourceBranchId && sourceBranchId === requestingBranchId
+    && !(requestType === "online" && deliveryTarget === "client");
 
   // Validation
   const canSubmit = useMemo(() => {
@@ -349,6 +373,7 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
             shipping_destination_paid: showDeliveryPaidBy && deliveryPaidBy === "client" && shippingAmount ? parseFloat(shippingAmount) : 0,
             courier_billing_mode: showCourierBilling ? courierBillingMode : null,
             notes: notes ? `[Pedido padre multi-origen] ${notes}` : "[Pedido padre multi-origen]",
+            ...(operationalResponsibleId ? { operational_responsible_id: operationalResponsibleId } : {}),
             created_by: user.id,
             status: "pending" as any,
           })
@@ -451,6 +476,7 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
             shipping_destination_paid: showDeliveryPaidBy && deliveryPaidBy === "client" && shippingAmount ? parseFloat(shippingAmount) : 0,
             courier_billing_mode: showCourierBilling ? courierBillingMode : null,
             notes: notes || null,
+            ...(operationalResponsibleId ? { operational_responsible_id: operationalResponsibleId } : {}),
             created_by: user.id,
           })
           .select()
@@ -825,6 +851,24 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
               <Label>Dirección de entrega</Label>
               <Input value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} placeholder="Dirección" />
             </div>
+          </div>
+        )}
+
+        {/* Operational responsible (only for online) */}
+        {requestType === "online" && operationalProfiles && operationalProfiles.length > 0 && (
+          <div className="space-y-2 p-3 rounded-lg bg-muted/50 border border-border/50">
+            <Label>Responsable operativo (opcional)</Label>
+            <select
+              value={operationalResponsibleId}
+              onChange={(e) => setOperationalResponsibleId(e.target.value)}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <option value="">Sin asignar</option>
+              {operationalProfiles.map((p: any) => (
+                <option key={p.user_id} value={p.user_id}>{p.full_name}</option>
+              ))}
+            </select>
+            <p className="text-xs text-muted-foreground">Persona que ejecutará la operativa de este pedido</p>
           </div>
         )}
 

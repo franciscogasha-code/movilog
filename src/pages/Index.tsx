@@ -193,9 +193,12 @@ export default function Index() {
         .limit(50);
 
       if (!isAllBranches && allowedBranchIds.length > 0) {
-        query = query.or(
-          `requesting_branch_id.in.(${allowedBranchIds.join(",")}),source_branch_id.in.(${allowedBranchIds.join(",")})`
-        );
+        const branchFilter = `requesting_branch_id.in.(${allowedBranchIds.join(",")}),source_branch_id.in.(${allowedBranchIds.join(",")})`;
+        if (user?.id) {
+          query = query.or(`${branchFilter},operational_responsible_id.eq.${user.id}`);
+        } else {
+          query = query.or(branchFilter);
+        }
       }
       const { data } = await query;
       return data || [];
