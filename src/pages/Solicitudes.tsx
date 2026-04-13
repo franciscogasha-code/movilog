@@ -202,6 +202,15 @@ export default function Solicitudes() {
           {selectedId && <SolicitudDetail requestId={selectedId} onUpdate={refetch} />}
         </DialogContent>
       </Dialog>
+      {/* Admin Reposition Dialog */}
+      <Dialog open={adminRepoOpen} onOpenChange={setAdminRepoOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Reposición Administrativa</DialogTitle>
+          </DialogHeader>
+          <AdminReposicionForm onSuccess={() => { setAdminRepoOpen(false); refetch(); }} />
+        </DialogContent>
+      </Dialog>
     </motion.div>
   );
 }
