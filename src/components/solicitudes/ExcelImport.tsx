@@ -88,14 +88,15 @@ export function ExcelImport({ onConfirm }: ExcelImportProps) {
       const headerMap: Record<string, string> = {};
       Object.keys(firstRow).forEach((k) => {
         const norm = normalizeHeader(k);
-        if (norm.includes("codigo") && !norm.includes("secundario")) headerMap.codigo = k;
+        if (norm === "id" || norm === "id_bims" || norm === "idbims") headerMap.idBims = k;
+        else if (norm.includes("codigo") && !norm.includes("secundario")) headerMap.codigo = k;
         else if (norm.includes("secundario") || norm === "codigo_secundario") headerMap.codigoSecundario = k;
         else if (norm.includes("descripcion")) headerMap.descripcion = k;
         else if (norm.includes("cantidad")) headerMap.cantidad = k;
       });
 
-      if (!headerMap.codigo && !headerMap.codigoSecundario) {
-        setError("No se encontró columna 'codigo' ni 'codigo_secundario' en el archivo");
+      if (!headerMap.idBims && !headerMap.codigo && !headerMap.codigoSecundario) {
+        setError("No se encontró columna 'id', 'codigo' ni 'codigo_secundario' en el archivo");
         setLoading(false);
         return;
       }
@@ -103,6 +104,7 @@ export function ExcelImport({ onConfirm }: ExcelImportProps) {
       // Extract raw rows
       const rawRows = rawData.map((row, i) => ({
         rowNum: i + 2,
+        idBims: String(row[headerMap.idBims] || "").trim(),
         codigo: String(row[headerMap.codigo] || "").trim(),
         codigoSecundario: String(row[headerMap.codigoSecundario] || "").trim(),
         descripcion: String(row[headerMap.descripcion] || "").trim(),
@@ -110,19 +112,25 @@ export function ExcelImport({ onConfirm }: ExcelImportProps) {
       }));
 
       // Collect all codes for batch query
+      const allBimsCodes = new Set<string>();
       const allCodes = new Set<string>();
       const allBarcodes = new Set<string>();
       rawRows.forEach((r) => {
+        if (r.idBims) allBimsCodes.add(r.idBims);
         if (r.codigo) allCodes.add(r.codigo);
         if (r.codigoSecundario) allBarcodes.add(r.codigoSecundario);
       });
 
       // Batch query products
       let products: ProductResult[] = [];
-      if (allCodes.size > 0 || allBarcodes.size > 0) {
+      if (allBimsCodes.size > 0 || allCodes.size > 0 || allBarcodes.size > 0) {
         const orFilters: string[] = [];
+        if (allBimsCodes.size > 0) {
+          orFilters.push(`bims_code.in.(${Array.from(allBimsCodes).join(",")})`);
+        }
         if (allCodes.size > 0) {
           const codeArr = Array.from(allCodes);
+          orFilters.push(`barcode.in.(${codeArr.join(",")})`);
           orFilters.push(`bims_code.in.(${codeArr.join(",")})`);
           orFilters.push(`sku.in.(${codeArr.join(",")})`);
         }
@@ -153,23 +161,37 @@ export function ExcelImport({ onConfirm }: ExcelImportProps) {
       const parsed: ParsedRow[] = rawRows.map((r) => {
         const qty = Number(r.cantidadRaw);
         if (!r.cantidadRaw || isNaN(qty) || qty <= 0 || !Number.isFinite(qty)) {
-          return { rowNum: r.rowNum, codigo: r.codigo, codigoSecundario: r.codigoSecundario, descripcion: r.descripcion, cantidad: 0, status: "invalid_qty" as RowStatus, product: null };
+          return { rowNum: r.rowNum, codigo: r.idBims || r.codigo, codigoSecundario: r.codigoSecundario, descripcion: r.descripcion, cantidad: 0, status: "invalid_qty" as RowStatus, product: null };
         }
 
-        // Match: codigo → bims_code → sku, then codigoSecundario → barcode
+        // Match by confidence levels:
+        // 1. id column → bims_code (highest confidence)
+        // 2. codigo → barcode
+        // 3. codigo → bims_code
+        // 4. codigo_secundario → barcode
+        // 5. codigo → sku (fallback only)
         let found: ProductResult | null = null;
-        if (r.codigo) {
-          found = byBimsCode.get(r.codigo.toLowerCase()) || bySku.get(r.codigo.toLowerCase()) || null;
+        if (r.idBims) {
+          found = byBimsCode.get(r.idBims.toLowerCase()) || null;
+        }
+        if (!found && r.codigo) {
+          found = byBarcode.get(r.codigo.toLowerCase())
+            || byBimsCode.get(r.codigo.toLowerCase())
+            || null;
         }
         if (!found && r.codigoSecundario) {
           found = byBarcode.get(r.codigoSecundario.toLowerCase()) || null;
         }
-
-        if (!found) {
-          return { rowNum: r.rowNum, codigo: r.codigo, codigoSecundario: r.codigoSecundario, descripcion: r.descripcion, cantidad: qty, status: "not_found" as RowStatus, product: null };
+        if (!found && r.codigo) {
+          found = bySku.get(r.codigo.toLowerCase()) || null;
         }
 
-        return { rowNum: r.rowNum, codigo: r.codigo, codigoSecundario: r.codigoSecundario, descripcion: r.descripcion, cantidad: qty, status: "ok" as RowStatus, product: found };
+        const displayCode = r.idBims || r.codigo;
+        if (!found) {
+          return { rowNum: r.rowNum, codigo: displayCode, codigoSecundario: r.codigoSecundario, descripcion: r.descripcion, cantidad: qty, status: "not_found" as RowStatus, product: null };
+        }
+
+        return { rowNum: r.rowNum, codigo: displayCode, codigoSecundario: r.codigoSecundario, descripcion: r.descripcion, cantidad: qty, status: "ok" as RowStatus, product: found };
       });
 
       // Group duplicates
@@ -222,7 +244,8 @@ export function ExcelImport({ onConfirm }: ExcelImportProps) {
           <div className="text-sm space-y-1">
             <p className="font-medium">Formato del archivo</p>
             <p className="text-muted-foreground">
-              El archivo debe contener las columnas: <code className="text-xs bg-muted px-1 rounded">codigo</code>,{" "}
+              Columnas soportadas: <code className="text-xs bg-muted px-1 rounded">id</code> (ID BIMS, máxima confianza),{" "}
+              <code className="text-xs bg-muted px-1 rounded">codigo</code>,{" "}
               <code className="text-xs bg-muted px-1 rounded">codigo_secundario</code> (opcional),{" "}
               <code className="text-xs bg-muted px-1 rounded">descripcion</code> (informativa),{" "}
               <code className="text-xs bg-muted px-1 rounded">cantidad</code>
