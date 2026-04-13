@@ -140,7 +140,7 @@ export function ProductCard({
         </div>
         {effectiveTotalStock != null && (
           <Badge variant={effectiveTotalStock > 0 ? "default" : "destructive"} className="text-xs shrink-0">
-            Stock: {Math.floor(effectiveTotalStock)}
+            Stock: {Math.floor(effectiveTotalStock).toLocaleString()}
           </Badge>
         )}
         {productUnit && <span className="text-xs text-muted-foreground shrink-0">{productUnit}</span>}
@@ -159,7 +159,7 @@ export function ProductCard({
               <h3 className="font-semibold text-base leading-tight break-words min-w-0 flex-1">{productName}</h3>
               {effectiveTotalStock != null && (
                 <Badge variant={effectiveTotalStock > 0 ? "default" : "destructive"} className="text-xs shrink-0 whitespace-nowrap">
-                  Stock: {Math.floor(effectiveTotalStock)}
+                  Stock: {Math.floor(effectiveTotalStock).toLocaleString()}
                 </Badge>
               )}
             </div>
@@ -229,7 +229,7 @@ export function ProductCard({
               )}
               {effectiveTotalStock != null && (
                 <Badge variant={effectiveTotalStock > 0 ? "default" : "destructive"} className="text-xs ml-auto">
-                  Total: {Math.floor(effectiveTotalStock)}
+                  Total: {Math.floor(effectiveTotalStock).toLocaleString()}
                 </Badge>
               )}
             </h4>
@@ -279,7 +279,7 @@ export function ProductCard({
                           </span>
                         )}
                         <Badge variant={qty > 0 ? "default" : "secondary"} className="text-xs">
-                          {Math.floor(qty)}
+                          {Math.floor(qty).toLocaleString()}
                         </Badge>
                       </span>
                     </button>
