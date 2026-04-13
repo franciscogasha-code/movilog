@@ -994,14 +994,15 @@ export default function Usuarios() {
                     >
                       {selectedProfile.is_active ? "Desactivar usuario" : "Reactivar usuario"}
                     </Button>
-                    {/* Password reset placeholder */}
+                    {/* Password reset */}
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => toast.info("Funcionalidad de restablecimiento en desarrollo.")}
+                      disabled={resettingPassword}
+                      onClick={() => setConfirmResetPassword(true)}
                     >
                       <KeyRound className="h-3.5 w-3.5 mr-1" />
-                      Restablecer acceso
+                      {resettingPassword ? "Restableciendo..." : "Restablecer acceso"}
                     </Button>
                   </div>
                 </div>
