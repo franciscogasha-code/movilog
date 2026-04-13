@@ -373,6 +373,7 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
             shipping_destination_paid: showDeliveryPaidBy && deliveryPaidBy === "client" && shippingAmount ? parseFloat(shippingAmount) : 0,
             courier_billing_mode: showCourierBilling ? courierBillingMode : null,
             notes: notes ? `[Pedido padre multi-origen] ${notes}` : "[Pedido padre multi-origen]",
+            ...(operationalResponsibleId ? { operational_responsible_id: operationalResponsibleId } : {}),
             created_by: user.id,
             status: "pending" as any,
           })
@@ -475,6 +476,7 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
             shipping_destination_paid: showDeliveryPaidBy && deliveryPaidBy === "client" && shippingAmount ? parseFloat(shippingAmount) : 0,
             courier_billing_mode: showCourierBilling ? courierBillingMode : null,
             notes: notes || null,
+            ...(operationalResponsibleId ? { operational_responsible_id: operationalResponsibleId } : {}),
             created_by: user.id,
           })
           .select()
