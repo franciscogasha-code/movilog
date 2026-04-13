@@ -15,7 +15,7 @@ interface BranchSelectorProps {
 
 export function BranchSelector({ value, onChange, label, excludeIds = [], disabled, className }: BranchSelectorProps) {
   const { data: branches } = useBranches();
-  const filtered = branches?.filter(b => !excludeIds.includes(b.id)) || [];
+  const filtered = branches?.filter(b => !excludeIds.includes(b.id) && b.name && b.code) || [];
 
   return (
     <div className={cn("space-y-2", className)}>
@@ -45,7 +45,7 @@ interface MultiBranchSelectorProps {
 
 export function MultiBranchSelector({ selected, onChange, label, excludeIds = [], className }: MultiBranchSelectorProps) {
   const { data: branches } = useBranches();
-  const filtered = branches?.filter(b => !excludeIds.includes(b.id)) || [];
+  const filtered = branches?.filter(b => !excludeIds.includes(b.id) && b.name && b.code) || [];
 
   const toggle = (id: string) => {
     onChange(selected.includes(id) ? selected.filter(b => b !== id) : [...selected, id]);
