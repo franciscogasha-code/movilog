@@ -236,29 +236,41 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
     setSubmitting(true);
     try {
       if (!user) { toast.error("Debés iniciar sesión"); return; }
-      const { data: consultation, error } = await supabase
-        .from("availability_consultations")
-        .insert({ requesting_branch_id: resolvedBranchId, created_by: user.id })
-        .select().single();
-      if (error) throw error;
 
-      const cpInsert = selectedProducts.map(p => ({ consultation_id: consultation.id, product_id: p.id }));
-      const { error: cpErr } = await supabase.from("consultation_products").insert(cpInsert);
-      if (cpErr) throw cpErr;
+      // Create one consultation per target branch for cleaner chat/response threads
+      for (const targetBranchId of derivedTargetBranches) {
+        // Find products that have this branch as a source
+        const productsForBranch = selectedProducts.filter(
+          p => productSources[p.id]?.has(targetBranchId)
+        );
+        if (!productsForBranch.length) continue;
 
-      const targets = derivedTargetBranches.map(bid => ({ consultation_id: consultation.id, branch_id: bid }));
-      const { error: tErr } = await supabase.from("consultation_targets").insert(targets);
-      if (tErr) throw tErr;
+        const { data: consultation, error } = await supabase
+          .from("availability_consultations")
+          .insert({ requesting_branch_id: resolvedBranchId, created_by: user.id })
+          .select().single();
+        if (error) throw error;
 
-      if (initialMessage.trim()) {
-        await supabase.from("consultation_messages").insert({
-          consultation_id: consultation.id,
-          sender_id: user.id,
-          message: initialMessage.trim(),
-        });
+        const cpInsert = productsForBranch.map(p => ({ consultation_id: consultation.id, product_id: p.id }));
+        const { error: cpErr } = await supabase.from("consultation_products").insert(cpInsert);
+        if (cpErr) throw cpErr;
+
+        const { error: tErr } = await supabase.from("consultation_targets").insert([
+          { consultation_id: consultation.id, branch_id: targetBranchId }
+        ]);
+        if (tErr) throw tErr;
+
+        if (initialMessage.trim()) {
+          await supabase.from("consultation_messages").insert({
+            consultation_id: consultation.id,
+            sender_id: user.id,
+            message: initialMessage.trim(),
+          });
+        }
       }
 
-      toast.success("Consulta creada");
+      const count = derivedTargetBranches.length;
+      toast.success(count > 1 ? `${count} consultas creadas (una por sucursal)` : "Consulta creada");
       onSuccess();
     } catch (err: any) { toast.error(err.message); }
     finally { setSubmitting(false); }
