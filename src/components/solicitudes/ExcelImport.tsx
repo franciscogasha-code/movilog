@@ -244,7 +244,8 @@ export function ExcelImport({ onConfirm }: ExcelImportProps) {
           <div className="text-sm space-y-1">
             <p className="font-medium">Formato del archivo</p>
             <p className="text-muted-foreground">
-              El archivo debe contener las columnas: <code className="text-xs bg-muted px-1 rounded">codigo</code>,{" "}
+              Columnas soportadas: <code className="text-xs bg-muted px-1 rounded">id</code> (ID BIMS, máxima confianza),{" "}
+              <code className="text-xs bg-muted px-1 rounded">codigo</code>,{" "}
               <code className="text-xs bg-muted px-1 rounded">codigo_secundario</code> (opcional),{" "}
               <code className="text-xs bg-muted px-1 rounded">descripcion</code> (informativa),{" "}
               <code className="text-xs bg-muted px-1 rounded">cantidad</code>
