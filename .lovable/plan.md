@@ -1,95 +1,65 @@
 
 
-# Plan revisado: Ajuste Área Online — Pedido Online
+# Plan: Descarga de Excel vinculado en reposición administrativa
 
 ## Resumen
 
-Extender "Pedido online" para permitir venta directa (origen = solicitante cuando destino es cliente), agregar campo opcional de responsable operativo, y mostrar pedidos asignados en la cola del responsable. Sin alterar flujos existentes.
+Persistir el archivo Excel original al crear una reposición administrativa, almacenarlo en un bucket privado, guardar el path en `branch_requests.attached_file_path`, y mostrar un botón "Descargar Excel" en el detalle de la solicitud para usuarios autorizados (sucursal origen + roles globales).
 
 ---
 
-## 1. Migración de base de datos
+## 1. Migración SQL
 
-### a) Columna `operational_responsible_id`
+### a) Bucket privado
 
 ```sql
-ALTER TABLE public.branch_requests
-  ADD COLUMN operational_responsible_id uuid REFERENCES auth.users(id) DEFAULT NULL;
+INSERT INTO storage.buckets (id, name, public) VALUES ('request-attachments', 'request-attachments', false);
 ```
 
-### b) Trigger `fn_validate_different_branches` — AJUSTE CONTROLADO
-
-Solo se permite la excepción cuando las tres condiciones se cumplen simultáneamente:
+### b) Columna `attached_file_path`
 
 ```sql
-CREATE OR REPLACE FUNCTION public.fn_validate_different_branches()
-  RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public'
-AS $$
-BEGIN
-  IF NEW.notes IS NOT NULL AND NEW.notes LIKE '%[Pedido padre multi-origen]%' THEN
-    RETURN NEW;
-  END IF;
-
-  -- Allow online + client ONLY when origin = requester (direct sale)
-  IF NEW.request_type = 'online'
-     AND NEW.delivery_target = 'client'
-     AND NEW.source_branch_id = NEW.requesting_branch_id THEN
-    RETURN NEW;
-  END IF;
-
-  IF NEW.source_branch_id = NEW.requesting_branch_id THEN
-    RAISE EXCEPTION 'La sucursal origen no puede ser igual a la sucursal solicitante';
-  END IF;
-  RETURN NEW;
-END;
-$$;
+ALTER TABLE public.branch_requests ADD COLUMN attached_file_path text DEFAULT NULL;
 ```
 
-Esto garantiza que todas las demás validaciones siguen intactas; solo se omite el bloqueo de misma sucursal en el caso exacto de venta directa online.
+### c) Políticas de storage en `storage.objects`
+
+- **INSERT**: usuarios autenticados pueden subir a `request-attachments`
+- **SELECT**: usuarios autenticados que tengan acceso a la sucursal origen de la solicitud referenciada en el path, o roles admin/owner. Se implementa extrayendo el `request_id` del path (`branch_requests/{id}/...`) y validando con `can_access_branch` sobre `source_branch_id`.
 
 ---
 
-## 2. Frontend — `SolicitudCreateForm.tsx`
+## 2. `ExcelImport.tsx`
 
-### a) Variable `isSameBranch` (línea 255)
+Agregar prop opcional:
 
 ```ts
-const isSameBranch = !isMultiOrigin && !!sourceBranchId && sourceBranchId === requestingBranchId
-  && !(requestType === "online" && deliveryTarget === "client");
+onFileSelected?: (file: File | null) => void;
 ```
 
-### b) Estado y selector de responsable operativo
-
-- Agregar estado `operationalResponsibleId`.
-- Mostrar selector **solo si** `requestType === "online"`.
-- El selector lista únicamente perfiles activos con roles operativos válidos (`operador_logistico`, `supervisor`, `warehouse_operator`). Se consultan `profiles` + `user_roles` filtrando por estos roles.
-- Campo opcional, no bloquea envío.
-
-### c) Persistencia en `onSubmit`
-
-Incluir `operational_responsible_id` en el insert de `branch_requests` (solo si tiene valor), tanto en flujo mono como multi-origen.
+Invocar `onFileSelected(file)` cuando se selecciona un archivo válido y parsea correctamente. Invocar `onFileSelected(null)` cuando se limpia.
 
 ---
 
-## 3. Frontend — `SolicitudDetail.tsx`
+## 3. `AdminReposicionForm.tsx`
 
-Mostrar el responsable operativo asignado en el detalle del pedido. Se agrega el campo `operational_responsible_id` a la query existente y se resuelve el nombre con un join a `profiles`.
+- Agregar estado `const [excelFile, setExcelFile] = useState<File | null>(null)`
+- Pasar `onFileSelected={setExcelFile}` al `ExcelImport`
+- En `handleSubmit`, después de crear la solicitud exitosamente:
+  1. Si `excelFile` existe, subir a `request-attachments` con path `branch_requests/{request.id}/{excelFile.name}`
+  2. Actualizar `branch_requests.attached_file_path` con ese path
+  3. Si falla la subida, mostrar warning pero no bloquear (la solicitud ya se creó)
 
 ---
 
-## 4. Frontend — `Index.tsx` (Cola operativa) — AJUSTE CONTROLADO
+## 4. `SolicitudDetail.tsx`
 
-La condición `operational_responsible_id` se incorpora **como extensión** dentro del `.or(...)` existente (línea 196-198), sin reemplazar ni eliminar condiciones actuales:
-
-```ts
-if (!isAllBranches && allowedBranchIds.length > 0) {
-  query = query.or(
-    `requesting_branch_id.in.(${allowedBranchIds.join(",")}),source_branch_id.in.(${allowedBranchIds.join(",")}),operational_responsible_id.eq.${user?.id}`
-  );
-}
-```
-
-Esto mantiene toda la visibilidad actual intacta y solo agrega la posibilidad de ver pedidos asignados al usuario.
+- Verificar si `r.attached_file_path` tiene valor
+- Verificar si el usuario es `isOrigin` o `isAdmin`
+- Si ambas condiciones se cumplen, mostrar botón "Descargar Excel" con ícono `FileSpreadsheet`
+- Al hacer clic: usar `supabase.storage.from('request-attachments').download(r.attached_file_path)` para descargar el archivo
+- Extraer nombre del archivo del path para nombrar el archivo descargado
+- Manejar errores con toast
 
 ---
 
@@ -97,16 +67,15 @@ Esto mantiene toda la visibilidad actual intacta y solo agrega la posibilidad de
 
 | Archivo | Cambio |
 |---|---|
-| Migración SQL | Agregar columna + modificar trigger (controlado) |
-| `SolicitudCreateForm.tsx` | Excepción `isSameBranch`, selector filtrado por rol, persistencia |
-| `SolicitudDetail.tsx` | Mostrar responsable operativo |
-| `Index.tsx` | Extensión del `.or(...)` existente |
+| Migración SQL | Bucket + columna + políticas storage |
+| `ExcelImport.tsx` | Agregar prop `onFileSelected` |
+| `AdminReposicionForm.tsx` | Capturar File, subir post-creación, guardar path |
+| `SolicitudDetail.tsx` | Botón condicional "Descargar Excel" |
 
 ## Lo que NO se toca
 
-- Flujos existentes de reposición, cliente, transferencias
-- Lógica de stock
-- Validaciones fuera del caso específico (online + client + misma sucursal)
-- No se crean nuevos estados ni módulos
-- No se impactan otros módulos (chofer, recepción, distribución, etc.)
+- Flujo de creación, aprobación, preparación, transporte, recepción
+- Validaciones existentes
+- Otros módulos
+- No se guardan URLs en DB, solo paths estables
 
