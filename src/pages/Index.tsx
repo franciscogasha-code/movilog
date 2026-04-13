@@ -435,13 +435,13 @@ export default function Index() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="font-display text-2xl font-bold text-foreground">
-            {isDriver ? "Panel del Chofer" : "Mi Panel Operativo"}
+            {isViewer ? "Panel de Seguimiento" : isLogisticsOp ? "Panel Logístico" : isDriver ? "Panel del Chofer" : "Mi Panel Operativo"}
           </h1>
           <p className="text-muted-foreground text-sm mt-0.5">
             {profile?.full_name} — {new Date().toLocaleDateString("es-PY", { weekday: "long", day: "numeric", month: "long" })}
           </p>
         </div>
-        {!isDriver && (
+        {!isDriver && !isViewer && (
           <div className="flex gap-2">
             <Button size="sm" onClick={() => navigate("/solicitudes?action=new")}>
               <Plus className="h-4 w-4" />
