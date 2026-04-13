@@ -129,9 +129,9 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
     enabled: !!fromConsultationId,
   });
 
-  // Query operational profiles (for online requests)
+  // Query operational profiles (for online requests), filtered by branch context
   const { data: operationalProfiles } = useQuery({
-    queryKey: ["operational-profiles"],
+    queryKey: ["operational-profiles", requestingBranchId],
     queryFn: async () => {
       // Get profiles with operational roles
       const { data: roleData } = await supabase
@@ -142,10 +142,22 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
       const userIds = [...new Set(roleData.map(r => r.user_id))];
       const { data: profiles } = await supabase
         .from("profiles")
-        .select("id, user_id, full_name")
+        .select("id, user_id, full_name, all_branches_access")
         .eq("is_active", true)
         .in("user_id", userIds);
-      return profiles || [];
+      if (!profiles?.length) return [];
+
+      // Filter: only users with access to the requesting branch
+      if (!requestingBranchId) return profiles;
+      const { data: branchAccess } = await supabase
+        .from("profile_branch_access")
+        .select("profile_id")
+        .eq("branch_id", requestingBranchId);
+      const profileIdsWithAccess = new Set((branchAccess || []).map(ba => ba.profile_id));
+
+      return profiles.filter(p =>
+        p.all_branches_access || profileIdsWithAccess.has(p.id)
+      );
     },
     enabled: requestType === "online",
   });
