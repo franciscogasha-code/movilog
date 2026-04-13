@@ -852,6 +852,24 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
           </div>
         )}
 
+        {/* Operational responsible (only for online) */}
+        {requestType === "online" && operationalProfiles && operationalProfiles.length > 0 && (
+          <div className="space-y-2 p-3 rounded-lg bg-muted/50 border border-border/50">
+            <Label>Responsable operativo (opcional)</Label>
+            <select
+              value={operationalResponsibleId}
+              onChange={(e) => setOperationalResponsibleId(e.target.value)}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <option value="">Sin asignar</option>
+              {operationalProfiles.map((p: any) => (
+                <option key={p.user_id} value={p.user_id}>{p.full_name}</option>
+              ))}
+            </select>
+            <p className="text-xs text-muted-foreground">Persona que ejecutará la operativa de este pedido</p>
+          </div>
+        )}
+
         <div className="space-y-2">
           <Label>Notas</Label>
           <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Observaciones adicionales..." rows={2} />
