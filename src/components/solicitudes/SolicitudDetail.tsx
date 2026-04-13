@@ -13,7 +13,7 @@ import {
   REQUEST_STATUS_CONFIG, SHIPPING_METHOD_LABELS, DELIVERY_TARGET_LABELS,
   ITEM_PURPOSE_LABELS, REJECTION_REASONS, REQUEST_TYPE_LABELS, FULFILLMENT_STATUS_CONFIG,
 } from "@/lib/constants";
-import { Package, AlertTriangle, Check, X, Loader2, Truck, ClipboardList } from "lucide-react";
+import { Package, AlertTriangle, Check, X, Loader2, Truck, ClipboardList, FileSpreadsheet, Download } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -371,6 +371,37 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
           <span className="text-muted-foreground">Cierre admin:</span>{" "}
           <span className="font-medium">{r.admin_closed_at ? "✓" : r.request_type === "reposition" ? "N/A" : "Pendiente"}</span>
         </div>
+        {r.attached_file_path && (isOrigin || isAdmin) && (
+          <div className="col-span-2 sm:col-span-4">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              onClick={async () => {
+                try {
+                  const { data, error } = await supabase.storage
+                    .from("request-attachments")
+                    .download(r.attached_file_path);
+                  if (error) throw error;
+                  const fileName = r.attached_file_path.split("/").pop() || "archivo.xlsx";
+                  const url = URL.createObjectURL(data);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = fileName;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                } catch (err: any) {
+                  console.error("Download error:", err);
+                  toast.error("No se pudo descargar el archivo");
+                }
+              }}
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              Descargar Excel
+              <Download className="h-3 w-3" />
+            </Button>
+          </div>
+        )}
         {r.operational_responsible_id && (
           <OperationalResponsibleName userId={r.operational_responsible_id} />
         )}

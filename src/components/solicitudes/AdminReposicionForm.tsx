@@ -30,6 +30,7 @@ export function AdminReposicionForm({ onSuccess }: AdminReposicionFormProps) {
   const [items, setItems] = useState<LineItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [tab, setTab] = useState("manual");
+  const [excelFile, setExcelFile] = useState<File | null>(null);
 
   const addProduct = (product: ProductResult) => {
     const existing = items.find((i) => i.product.id === product.id);
@@ -91,6 +92,25 @@ export function AdminReposicionForm({ onSuccess }: AdminReposicionFormProps) {
 
       const { error: itemErr } = await supabase.from("branch_request_items").insert(itemRows);
       if (itemErr) throw itemErr;
+
+      // Upload Excel file if available
+      if (excelFile) {
+        try {
+          const filePath = `branch_requests/${request.id}/${excelFile.name}`;
+          const { error: uploadErr } = await supabase.storage
+            .from("request-attachments")
+            .upload(filePath, excelFile);
+          if (uploadErr) throw uploadErr;
+
+          await supabase
+            .from("branch_requests")
+            .update({ attached_file_path: filePath } as any)
+            .eq("id", request.id);
+        } catch (uploadError: any) {
+          console.warn("Error uploading Excel file:", uploadError);
+          toast.warning("Pedido creado, pero el archivo Excel no pudo adjuntarse");
+        }
+      }
 
       toast.success(`Pedido #${request.request_number} creado con ${items.length} productos`);
       onSuccess();
@@ -154,7 +174,7 @@ export function AdminReposicionForm({ onSuccess }: AdminReposicionFormProps) {
           </TabsContent>
 
           <TabsContent value="excel" className="mt-3">
-            <ExcelImport onConfirm={handleExcelConfirm} />
+            <ExcelImport onConfirm={handleExcelConfirm} onFileSelected={setExcelFile} />
           </TabsContent>
         </Tabs>
       </div>
