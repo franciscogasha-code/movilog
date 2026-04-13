@@ -17,6 +17,23 @@ import { Package, AlertTriangle, Check, X, Loader2, Truck, ClipboardList } from 
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 
+// Small helper to resolve operational responsible name
+function OperationalResponsibleName({ userId }: { userId: string }) {
+  const { data } = useQuery({
+    queryKey: ["profile-name", userId],
+    queryFn: async () => {
+      const { data } = await supabase.from("profiles").select("full_name").eq("user_id", userId).maybeSingle();
+      return data?.full_name || "—";
+    },
+  });
+  return (
+    <div>
+      <span className="text-muted-foreground">Resp. operativo:</span>{" "}
+      <span className="font-medium">{data || "..."}</span>
+    </div>
+  );
+}
+
 // ─── Action definitions per status ───────────────────────────────────
 type ActionDef = {
   label: string;
