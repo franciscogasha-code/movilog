@@ -135,12 +135,12 @@ export function ProductCard({
           <p className="text-xs text-muted-foreground">
             {productSku && <span>SKU: {productSku}</span>}
             {productBimsCode && <span className="ml-1">• Cód: {productBimsCode}</span>}
-            {hasPrice && <span className="ml-1">• ₲{productSellPrice!.toLocaleString()}</span>}
+            {hasPrice && <span className="ml-1">• ₲{productSellPrice!.toLocaleString("de-DE")}</span>}
           </p>
         </div>
         {effectiveTotalStock != null && (
           <Badge variant={effectiveTotalStock > 0 ? "default" : "destructive"} className="text-xs shrink-0">
-            Stock: {Math.floor(effectiveTotalStock).toLocaleString()}
+            Stock: {Math.floor(effectiveTotalStock).toLocaleString("de-DE")}
           </Badge>
         )}
         {productUnit && <span className="text-xs text-muted-foreground shrink-0">{productUnit}</span>}
@@ -159,7 +159,7 @@ export function ProductCard({
               <h3 className="font-semibold text-base leading-tight break-words min-w-0 flex-1">{productName}</h3>
               {effectiveTotalStock != null && (
                 <Badge variant={effectiveTotalStock > 0 ? "default" : "destructive"} className="text-xs shrink-0 whitespace-nowrap">
-                  Stock: {Math.floor(effectiveTotalStock).toLocaleString()}
+                  Stock: {Math.floor(effectiveTotalStock).toLocaleString("de-DE")}
                 </Badge>
               )}
             </div>
@@ -171,7 +171,7 @@ export function ProductCard({
             <div className="flex items-center gap-2 mt-1.5 flex-wrap">
               {productCategory && <span className="text-xs text-muted-foreground truncate">{productCategory}</span>}
               {productUnit && <span className="text-xs text-muted-foreground">• Unidad: {productUnit}</span>}
-              {hasPrice && <span className="text-xs font-medium text-foreground whitespace-nowrap">• ₲{productSellPrice!.toLocaleString()}</span>}
+              {hasPrice && <span className="text-xs font-medium text-foreground whitespace-nowrap">• ₲{productSellPrice!.toLocaleString("de-DE")}</span>}
             </div>
           </div>
         </div>
@@ -191,7 +191,7 @@ export function ProductCard({
               {hasPrice && (
                 <span className="inline-flex items-baseline gap-1 rounded-md border px-2 py-1 bg-muted/40">
                   <span className="font-medium text-sm">Unitario</span>
-                  <span className="font-bold text-base">₲ {productSellPrice!.toLocaleString()}</span>
+                  <span className="font-bold text-base">₲ {productSellPrice!.toLocaleString("de-DE")}</span>
                 </span>
               )}
               {hasPriceScales && (() => {
@@ -204,7 +204,7 @@ export function ProductCard({
                     className="inline-flex items-baseline gap-1 rounded-md border px-2 py-1 text-xs text-muted-foreground bg-background"
                   >
                     <span>≥{scale.min_quantity} un.</span>
-                    <span className="font-medium">₲ {scale.price.toLocaleString()}</span>
+                    <span className="font-medium">₲ {scale.price.toLocaleString("de-DE")}</span>
                   </span>
                 ));
               })()}
@@ -229,7 +229,7 @@ export function ProductCard({
               )}
               {effectiveTotalStock != null && (
                 <Badge variant={effectiveTotalStock > 0 ? "default" : "destructive"} className="text-xs ml-auto">
-                  Total: {Math.floor(effectiveTotalStock).toLocaleString()}
+                  Total: {Math.floor(effectiveTotalStock).toLocaleString("de-DE")}
                 </Badge>
               )}
             </h4>
@@ -279,7 +279,7 @@ export function ProductCard({
                           </span>
                         )}
                         <Badge variant={qty > 0 ? "default" : "secondary"} className="text-xs">
-                          {Math.floor(qty).toLocaleString()}
+                          {Math.floor(qty).toLocaleString("de-DE")}
                         </Badge>
                       </span>
                     </button>
