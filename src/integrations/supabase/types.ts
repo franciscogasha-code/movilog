@@ -350,6 +350,7 @@ export type Database = {
           logistic_closed_at: string | null
           logistic_closed_by: string | null
           notes: string | null
+          operational_responsible_id: string | null
           parent_request_id: string | null
           priority: string | null
           rejected_at: string | null
@@ -394,6 +395,7 @@ export type Database = {
           logistic_closed_at?: string | null
           logistic_closed_by?: string | null
           notes?: string | null
+          operational_responsible_id?: string | null
           parent_request_id?: string | null
           priority?: string | null
           rejected_at?: string | null
@@ -438,6 +440,7 @@ export type Database = {
           logistic_closed_at?: string | null
           logistic_closed_by?: string | null
           notes?: string | null
+          operational_responsible_id?: string | null
           parent_request_id?: string | null
           priority?: string | null
           rejected_at?: string | null
