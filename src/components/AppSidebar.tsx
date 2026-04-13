@@ -1,11 +1,10 @@
 import {
-  Truck, Package, ShoppingCart, ArrowRightLeft, MapPin, CreditCard,
-  Route, LayoutDashboard, FileText, Lock, AlertTriangle, Search,
+  Truck, Package, CreditCard,
+  Route, LayoutDashboard, FileText, AlertTriangle, Search,
   ClipboardList, User, Tag, Bell, PackageCheck, Receipt, Users, Database,
-  LogOut,
+  LogOut, Settings,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
-import { useLocation } from "react-router-dom";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
   SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem,
@@ -20,37 +19,30 @@ const mainItems: MenuItem[] = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard, moduleKey: "dashboard" },
   { title: "Dashboard Ejecutivo", url: "/ejecutivo", icon: LayoutDashboard, moduleKey: "ejecutivo" },
   { title: "Alertas", url: "/alertas", icon: Bell, moduleKey: "alertas" },
-  { title: "Usuarios", url: "/usuarios", icon: Users, moduleKey: "usuarios" },
-  { title: "Sincronización BIMS", url: "/sincronizacion", icon: Database, moduleKey: "sincronizacion" },
 ];
 
 const coreItems: MenuItem[] = [
   { title: "Consultas", url: "/consultas", icon: Search, moduleKey: "consultas" },
   { title: "Pedidos", url: "/solicitudes", icon: ClipboardList, moduleKey: "solicitudes" },
-  { title: "Stock Comprometido", url: "/stock-comprometido", icon: Lock, moduleKey: "stock-comprometido" },
-  { title: "Ejecución Física", url: "/cumplimiento", icon: Package, moduleKey: "cumplimiento" },
+  { title: "Stock Comprometido", url: "/stock-comprometido", icon: Settings, moduleKey: "stock-comprometido" },
+  { title: "Operaciones", url: "/cumplimiento", icon: Package, moduleKey: "cumplimiento" },
   { title: "Recepción", url: "/recepcion", icon: PackageCheck, moduleKey: "recepcion" },
   { title: "Incidencias", url: "/incidencias", icon: AlertTriangle, moduleKey: "incidencias" },
   { title: "Documentos", url: "/documentos", icon: FileText, moduleKey: "documentos" },
 ];
 
-const driverItems: MenuItem[] = [
-  { title: "Panel Chofer", url: "/chofer", icon: User, moduleKey: "chofer" },
+const logisticsItems: MenuItem[] = [
+  { title: "Transporte", url: "/chofer", icon: Truck, moduleKey: "chofer" },
   { title: "Etiquetas", url: "/etiquetas", icon: Tag, moduleKey: "etiquetas" },
   { title: "Rendición", url: "/rendicion", icon: Receipt, moduleKey: "rendicion" },
 ];
 
-const operationItems: MenuItem[] = [
-  { title: "Abastecimiento", url: "/abastecimiento", icon: Package, moduleKey: "abastecimiento" },
-  { title: "Reposición", url: "/reposicion", icon: ArrowRightLeft, moduleKey: "reposicion" },
-  { title: "Pedidos Online", url: "/pedidos", icon: ShoppingCart, moduleKey: "pedidos" },
-  { title: "Distribución", url: "/distribucion", icon: MapPin, moduleKey: "distribucion" },
-];
-
-const managementItems: MenuItem[] = [
-  { title: "Cobranzas", url: "/cobranzas", icon: CreditCard, moduleKey: "cobranzas" },
+const adminItems: MenuItem[] = [
+  { title: "Usuarios", url: "/usuarios", icon: Users, moduleKey: "usuarios" },
+  { title: "Sincronización BIMS", url: "/sincronizacion", icon: Database, moduleKey: "sincronizacion" },
   { title: "Flota", url: "/flota", icon: Truck, moduleKey: "flota" },
   { title: "Ruteo", url: "/ruteo", icon: Route, moduleKey: "ruteo" },
+  { title: "Cobranzas", url: "/cobranzas", icon: CreditCard, moduleKey: "cobranzas" },
 ];
 
 function MenuGroup({ label, items, collapsed }: { label: string; items: MenuItem[]; collapsed: boolean }) {
@@ -105,10 +97,9 @@ export function AppSidebar() {
       </SidebarHeader>
       <SidebarContent className="px-2">
         <MenuGroup label="Principal" items={mainItems} collapsed={collapsed} />
-        <MenuGroup label="Núcleo" items={coreItems} collapsed={collapsed} />
-        <MenuGroup label="Chofer / Despacho" items={driverItems} collapsed={collapsed} />
-        <MenuGroup label="Operaciones" items={operationItems} collapsed={collapsed} />
-        <MenuGroup label="Gestión" items={managementItems} collapsed={collapsed} />
+        <MenuGroup label="Operación" items={coreItems} collapsed={collapsed} />
+        <MenuGroup label="Logística" items={logisticsItems} collapsed={collapsed} />
+        <MenuGroup label="Administración" items={adminItems} collapsed={collapsed} />
       </SidebarContent>
       <SidebarFooter className="p-4 space-y-2">
         {!collapsed && profile && (
@@ -125,7 +116,7 @@ export function AppSidebar() {
           <LogOut className="h-4 w-4" />
           {!collapsed && <span className="text-xs">Cerrar sesión</span>}
         </Button>
-        {!collapsed && <p className="text-[10px] text-sidebar-foreground/30 text-center">v5.1.0 — Operacional</p>}
+        {!collapsed && <p className="text-[10px] text-sidebar-foreground/30 text-center">v5.2.0 — Operacional</p>}
       </SidebarFooter>
     </Sidebar>
   );
