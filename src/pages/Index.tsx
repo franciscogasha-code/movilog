@@ -565,25 +565,27 @@ export default function Index() {
                         const isTarea = qi.itemType === "tarea";
 
                         // Determine action label and handler
-                        let actionLabel = "Gestionar";
+                        let actionLabel = isViewer ? "Ver" : "Gestionar";
                         let actionIcon = <ArrowRight className="h-3 w-3 ml-1" />;
                         let actionVariant: "default" | "ghost" = "ghost";
                         let handleAction = () => navigate(qi.navigateTo);
 
-                        if (isConsulta) {
-                          if (qi.hasResponses && qi.isRequester) {
-                            actionLabel = "Crear pedido";
-                            actionIcon = <Plus className="h-3 w-3 ml-1" />;
-                            actionVariant = "default";
-                            handleAction = () => navigate(`/solicitudes?action=new&from_consultation=${qi.id}`);
-                          } else if (qi.isRequester) {
-                            actionLabel = "Revisar";
-                          } else {
-                            actionLabel = "Responder";
+                        if (!isViewer) {
+                          if (isConsulta) {
+                            if (qi.hasResponses && qi.isRequester) {
+                              actionLabel = "Crear pedido";
+                              actionIcon = <Plus className="h-3 w-3 ml-1" />;
+                              actionVariant = "default";
+                              handleAction = () => navigate(`/solicitudes?action=new&from_consultation=${qi.id}`);
+                            } else if (qi.isRequester) {
+                              actionLabel = "Revisar";
+                            } else {
+                              actionLabel = "Responder";
+                            }
+                          } else if (isTarea && qi.taskKind) {
+                            const taskCfg = TASK_KIND_CONFIG[qi.taskKind];
+                            actionLabel = taskCfg.actionLabel;
                           }
-                        } else if (isTarea && qi.taskKind) {
-                          const taskCfg = TASK_KIND_CONFIG[qi.taskKind];
-                          actionLabel = taskCfg.actionLabel;
                         }
 
                         // Render type badge
