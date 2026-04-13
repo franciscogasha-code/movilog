@@ -33,16 +33,12 @@ type AuthState = {
   roles: UserRole[];
   loading: boolean;
   signOut: () => Promise<void>;
-  /** Returns true if the current user has access to the given module key */
   hasModule: (key: string) => boolean;
-  /** Returns true if current user can see data for a given branch id */
   hasBranch: (branchId: string) => boolean;
-  /** Returns the list of branch IDs the user can access (empty = all) */
   allowedBranchIds: string[];
-  /** Returns true if the current user has the 'owner' role */
   isOwner: boolean;
-  /** Returns true if the user has a specific role */
   hasRole: (role: string) => boolean;
+  mustChangePassword: boolean;
 };
 
 const AuthContext = createContext<AuthState | undefined>(undefined);
@@ -161,6 +157,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const isOwner = roles.some((r) => r.role === "owner");
 
+  const mustChangePassword = user?.user_metadata?.must_change_password === true;
+
   const hasRole = useCallback(
     (role: string) => roles.some((r) => r.role === role),
     [roles]
@@ -182,6 +180,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         allowedBranchIds,
         isOwner,
         hasRole,
+        mustChangePassword,
       }}
     >
       {children}
