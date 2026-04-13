@@ -32,9 +32,22 @@ const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secon
 };
 
 export default function Consultas() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [createOpen, setCreateOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    const detailParam = searchParams.get("detail");
+    const actionParam = searchParams.get("action");
+    if (detailParam) {
+      setSelectedId(detailParam);
+      setSearchParams({}, { replace: true });
+    } else if (actionParam === "new") {
+      setCreateOpen(true);
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams]);
 
   // RLS handles branch filtering — only consultations the user participates in are returned
   const { data: consultations, isLoading } = useQuery({
