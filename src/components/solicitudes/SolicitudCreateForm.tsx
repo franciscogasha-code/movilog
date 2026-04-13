@@ -129,6 +129,27 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
     enabled: !!fromConsultationId,
   });
 
+  // Query operational profiles (for online requests)
+  const { data: operationalProfiles } = useQuery({
+    queryKey: ["operational-profiles"],
+    queryFn: async () => {
+      // Get profiles with operational roles
+      const { data: roleData } = await supabase
+        .from("user_roles")
+        .select("user_id, role")
+        .in("role", ["operador_logistico", "supervisor", "warehouse_operator"] as any[]);
+      if (!roleData?.length) return [];
+      const userIds = [...new Set(roleData.map(r => r.user_id))];
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, user_id, full_name")
+        .eq("is_active", true)
+        .in("user_id", userIds);
+      return profiles || [];
+    },
+    enabled: requestType === "online",
+  });
+
   useEffect(() => {
     if (!consultationData || consultationLoaded.current) return;
     consultationLoaded.current = true;
