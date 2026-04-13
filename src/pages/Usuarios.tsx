@@ -563,6 +563,26 @@ export default function Usuarios() {
     }
     setConfirmRoleChange(null);
   };
+  const handleResetPassword = async () => {
+    if (!selectedProfile) return;
+    setResettingPassword(true);
+    setConfirmResetPassword(false);
+    try {
+      const res = await supabase.functions.invoke("reset-user-password", {
+        body: { target_user_id: selectedProfile.user_id },
+      });
+      if (res.error) throw new Error(res.error.message || "Error al restablecer");
+      const result = res.data as { success?: boolean; temp_password?: string; error?: string };
+      if (result.error) throw new Error(result.error);
+      if (!result.temp_password) throw new Error("No se recibió contraseña temporal");
+      setResetResult(result.temp_password);
+      toast.success("Contraseña restablecida correctamente");
+    } catch (err: any) {
+      toast.error(err.message || "Error al restablecer contraseña");
+    } finally {
+      setResettingPassword(false);
+    }
+  };
 
   const handleSave = () => {
     if (!selectedProfile || !editRole) return;
