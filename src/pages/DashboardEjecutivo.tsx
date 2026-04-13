@@ -599,7 +599,8 @@ export default function DashboardEjecutivo() {
   };
 
   if (authLoading) return <div className="flex items-center justify-center h-64"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
-  if (!isOwner) return <Navigate to="/" replace />;
+  const canAccessExecutive = isOwner || hasRole("admin") || hasRole("supervisor");
+  if (!canAccessExecutive) return <Navigate to="/" replace />;
 
   return (
     <div className="space-y-5">

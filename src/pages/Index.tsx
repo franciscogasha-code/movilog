@@ -161,48 +161,16 @@ export default function Index() {
   const { user, profile, hasRole, isOwner } = useAuth();
   const { isAllBranches, allowedBranchIds, defaultBranchId } = useUserBranchFilter();
   const navigate = useNavigate();
-  const isDriver = hasRole("driver");
+  const isDriver = hasRole("driver") || hasRole("operador_logistico");
+  const isLogisticsOp = hasRole("operador_logistico");
   const isAdmin = isAllBranches || isOwner || hasRole("admin") || hasRole("supervisor");
+  const isViewer = hasRole("viewer") || hasRole("auditor");
+  const isSupervisor = hasRole("supervisor");
 
-  const [activeFilter, setActiveFilter] = useState<KpiFilter>("all");
-  const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
-
-  // Helper to check branch access
-  const canAccessBranch = (branchId: string | null) => {
-    if (!branchId) return false;
-    if (isAllBranches) return true;
-    return allowedBranchIds.includes(branchId);
-  };
-
-  // ── Queries ────────────────────────────────────────────
-  const { data: pendingRequests, isLoading: loadingRequests } = useQuery({
-    queryKey: ["dashboard-pending", isAllBranches, allowedBranchIds],
-    queryFn: async () => {
+  // Operador logístico sees the unified panel, not the chofer-specific one
+  // They handle: consultations, orders, preparation, transport, settlement
+...
       let query = supabase
-        .from("branch_requests")
-        .select(`
-          id, request_number, status, created_at, shipping_method, notes,
-          requesting_branch:branches!branch_requests_requesting_branch_id_fkey(name),
-          source_branch:branches!branch_requests_source_branch_id_fkey(name)
-        `)
-        .in("status", ["pending", "accepted", "picking", "in_preparation"] as any)
-        .order("created_at", { ascending: false })
-        .limit(50);
-
-      if (!isAllBranches && allowedBranchIds.length > 0) {
-        query = query.or(
-          `requesting_branch_id.in.(${allowedBranchIds.join(",")}),source_branch_id.in.(${allowedBranchIds.join(",")})`
-        );
-      }
-      const { data } = await query;
-      return data || [];
-    },
-  });
-
-  const { data: activeFulfillments, isLoading: loadingFulfillments } = useQuery({
-    queryKey: ["dashboard-fulfillments", isAllBranches, allowedBranchIds, user?.id],
-    queryFn: async () => {
-      const query = supabase
         .from("fulfillment_orders")
         .select(`
           id, status, source_branch_id, destination_branch_id,
@@ -213,8 +181,20 @@ export default function Index() {
           source_branch:branches!fulfillment_orders_source_branch_id_fkey(name),
           destination_branch:branches!fulfillment_orders_destination_branch_id_fkey(name)
         `)
-        .not("status", "in", '("completed","cancelled","received","logistic_closed")')
-        .limit(100);
+        .not("status", "in", '("completed","cancelled","received","logistic_closed")');
+
+      // BLOQUE 1: Server-side filtering — only fetch relevant fulfillments
+      if (!isAllBranches && allowedBranchIds.length > 0) {
+        // Filter by branches the user can access OR where they are custody holder
+        const branchFilter = `source_branch_id.in.(${allowedBranchIds.join(",")}),destination_branch_id.in.(${allowedBranchIds.join(",")})`;
+        if (user?.id) {
+          query = query.or(`${branchFilter},current_custody_holder_id.eq.${user.id}`);
+        } else {
+          query = query.or(branchFilter);
+        }
+      }
+
+      query = query.order("created_at", { ascending: false }).limit(200);
       const { data } = await query;
       return data || [];
     },
