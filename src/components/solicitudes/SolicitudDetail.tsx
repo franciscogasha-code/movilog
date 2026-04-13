@@ -354,6 +354,9 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
           <span className="text-muted-foreground">Cierre admin:</span>{" "}
           <span className="font-medium">{r.admin_closed_at ? "✓" : r.request_type === "reposition" ? "N/A" : "Pendiente"}</span>
         </div>
+        {r.operational_responsible_id && (
+          <OperationalResponsibleName userId={r.operational_responsible_id} />
+        )}
       </div>
 
       {/* BIMS Documents */}
