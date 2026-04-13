@@ -152,26 +152,26 @@ export function ProductCard({
     <Card className={cn("overflow-hidden max-w-full", className)}>
       <CardContent className="p-4 space-y-4 min-w-0 overflow-hidden">
         {/* Header */}
-        <div className="flex gap-4">
+        <div className="flex gap-3 min-w-0">
           <ProductImage url={productImageUrl} name={productName} />
-          <div className="flex-1 min-w-0">
-            <div className="flex items-start justify-between gap-2 min-w-0">
-              <h3 className="font-semibold text-base leading-tight break-words min-w-0">{productName}</h3>
+          <div className="flex-1 min-w-0 overflow-hidden">
+            <div className="flex items-start gap-2 min-w-0">
+              <h3 className="font-semibold text-base leading-tight break-words min-w-0 flex-1">{productName}</h3>
               {effectiveTotalStock != null && (
-                <Badge variant={effectiveTotalStock > 0 ? "default" : "destructive"} className="text-xs shrink-0">
+                <Badge variant={effectiveTotalStock > 0 ? "default" : "destructive"} className="text-xs shrink-0 whitespace-nowrap">
                   Stock: {Math.floor(effectiveTotalStock)}
                 </Badge>
               )}
             </div>
-            <div className="flex flex-wrap gap-1.5 mt-1.5 min-w-0">
-              {productSku && <Badge variant="outline" className="text-xs font-mono truncate max-w-full">SKU: {productSku}</Badge>}
-              {productBimsCode && <Badge variant="outline" className="text-xs font-mono truncate max-w-full">Cód: {productBimsCode}</Badge>}
-              {productBarcode && <Badge variant="outline" className="text-xs font-mono truncate max-w-full">CB: {productBarcode}</Badge>}
+            <div className="flex flex-wrap gap-1 mt-1.5">
+              {productSku && <Badge variant="outline" className="text-xs font-mono truncate max-w-[45%]">SKU: {productSku}</Badge>}
+              {productBimsCode && <Badge variant="outline" className="text-xs font-mono truncate max-w-[45%]">Cód: {productBimsCode}</Badge>}
+              {productBarcode && <Badge variant="outline" className="text-xs font-mono truncate max-w-[45%]">CB: {productBarcode}</Badge>}
             </div>
-            <div className="flex items-center gap-2 mt-1.5 flex-wrap min-w-0">
-              {productCategory && <span className="text-xs text-muted-foreground">{productCategory}</span>}
+            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+              {productCategory && <span className="text-xs text-muted-foreground truncate">{productCategory}</span>}
               {productUnit && <span className="text-xs text-muted-foreground">• Unidad: {productUnit}</span>}
-              {hasPrice && <span className="text-xs font-medium text-foreground">• ₲{productSellPrice!.toLocaleString()}</span>}
+              {hasPrice && <span className="text-xs font-medium text-foreground whitespace-nowrap">• ₲{productSellPrice!.toLocaleString()}</span>}
             </div>
           </div>
         </div>

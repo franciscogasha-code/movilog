@@ -108,7 +108,7 @@ export default function Consultas() {
           <DialogTrigger asChild>
             <Button><Plus className="h-4 w-4 mr-2" /> Nueva Consulta</Button>
           </DialogTrigger>
-          <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto overflow-x-hidden">
+          <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto overflow-x-hidden">
             <DialogHeader><DialogTitle>Consultar Disponibilidad</DialogTitle></DialogHeader>
             <ConsultationForm onSuccess={() => { setCreateOpen(false); queryClient.invalidateQueries({ queryKey: ["availability-consultations"] }); }} />
           </DialogContent>
