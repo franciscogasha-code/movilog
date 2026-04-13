@@ -1,121 +1,44 @@
 
 
-# Plan: Evolución del Panel Operativo — Cola Unificada con Tareas Logísticas
+# Plan: Reposición Administrativa Dirigida
 
 ## Resumen
+Crear 3 archivos nuevos y modificar Solicitudes.tsx para agregar modalidad de reposición administrativa exclusiva para admin/owner, con carga manual y desde Excel, completamente aislada del flujo estándar.
 
-Extender `src/pages/Index.tsx` para integrar tareas de fulfillment (preparar, despachar, retirar, en tránsito, recepcionar, entregar) como un tercer tipo de ítem en la cola existente, sin modificar la lógica actual de pedidos y consultas.
+## Archivos
 
-## Archivo a modificar
+### 1. `src/components/solicitudes/ExcelTemplate.ts` (nuevo)
+Función `downloadExcelTemplate()` que genera y descarga un `.xlsx` con SheetJS conteniendo encabezados (`codigo`, `codigo_secundario`, `descripcion`, `cantidad`) y 2 filas de ejemplo.
 
-**`src/pages/Index.tsx`** — único archivo.
+### 2. `src/components/solicitudes/ExcelImport.tsx` (nuevo)
+Componente completo de importación Excel:
+- Upload de archivo (.xlsx, .csv), validación tipo/tamaño (5MB, 500 filas max)
+- Parsing con `xlsx` (SheetJS), encabezados case-insensitive con trim
+- Consulta a Supabase `products` para matching: `codigo` → `bims_code` → `sku`; `codigo_secundario` → `barcode`
+- Agrupación automática de duplicados (suma cantidades)
+- **Tabla de validación** con columnas: Código leído, Descripción leída, Cantidad, **Producto encontrado** (nombre en sistema), Estado (badge: ✅ Correcto, ⚠️ Duplicado agrupado, ❌ No encontrado, ❌ Cantidad inválida)
+- Resumen superior: total filas, correctas, con error, duplicadas
+- Botón descargar plantilla + texto de ayuda visible
+- Props: `onConfirm(items)` habilitado solo si 0 errores
 
----
+### 3. `src/components/solicitudes/AdminReposicionForm.tsx` (nuevo)
+Formulario dedicado con 3 bloques:
+- **Datos generales**: BranchSelector origen/destino (en fila en desktop), validación origen ≠ destino, campo notas opcional
+- **Método de carga** (Tabs): "Carga manual" reutiliza `ProductSearch` + tabla de ítems editable; "Desde Excel" renderiza `ExcelImport`
+- **Confirmación**: AlertDialog antes de crear, loading state
+- **Submit**: Inserta `branch_requests` con `request_type: "reposition"`, `delivery_target: "branch"`, `shipping_method: "own_fleet"`, `notes` prefijado `[Reposición administrativa]`, `created_by: user.id`. Luego inserta ítems en `branch_request_items`. Toast éxito, llama `onSuccess`.
 
-## Cambios técnicos
+### 4. `src/pages/Solicitudes.tsx` (modificar)
+Cambios mínimos:
+- Importar `useAuth`, `AdminReposicionForm`, `FileSpreadsheet` de lucide
+- Estado `adminRepoOpen`
+- Botón condicional `outline` visible solo si `hasRole("admin") || isOwner`: "Reposición admin." con ícono FileSpreadsheet
+- Layout responsive: `flex-col sm:flex-row` para los botones
+- Dialog separado con `AdminReposicionForm`
 
-### 1. Tipos extendidos
-
-```typescript
-type ItemType = "pedido" | "consulta" | "tarea";
-type TaskKind = "preparar" | "despachar" | "retirar" | "en_transito" | "recepcionar" | "entregar";
-type TypeFilter = "all" | "pedido" | "consulta" | "preparacion" | "transporte" | "recepcion";
-```
-
-`QueueItem` gana campo opcional `taskKind?: TaskKind`.
-
-### 2. Query de fulfillments ampliada
-
-Reemplazar la query actual `activeFulfillments` (que solo trae `id, status, source_branch_id, destination_branch_id`) por una completa:
-
-```typescript
-supabase.from("fulfillment_orders").select(`
-  id, status, source_branch_id, destination_branch_id,
-  current_custody_holder_id, created_at, updated_at,
-  branch_request:branch_requests!fulfillment_orders_branch_request_id_fkey(
-    request_number, request_type
-  ),
-  source_branch:branches!fulfillment_orders_source_branch_id_fkey(name),
-  destination_branch:branches!fulfillment_orders_destination_branch_id_fkey(name)
-`)
-.not("status", "in", '("completed","cancelled","received","logistic_closed")')
-```
-
-### 3. Lógica de contexto automático
-
-Para cada fulfillment, determinar `taskKind` basado en:
-- **Usuario es origen** (`can_access_branch` via `allowedBranchIds` o `isAllBranches`):
-  - `pending`/`picking` → `preparar`
-  - `waiting_for_cut`/`waiting_for_courier` → `despachar`
-- **Usuario es custodio** (`current_custody_holder_id === user.id`):
-  - `dispatched`/`at_hub` → `retirar`
-  - `in_transit` → `en_transito`
-  - `delivery_failed` → `entregar`
-- **Usuario es destino**:
-  - `delivered`/`pending_physical_confirmation` → `recepcionar`
-- **Admin/Owner/Supervisor**: ven todo, con `taskKind` basado en estado puro
-
-Filtro obligatorio: `source_branch_id !== destination_branch_id`.
-Si el usuario no participa, no se muestra (excepto admin/owner/supervisor).
-
-### 4. Integración en la cola unificada
-
-Los fulfillments mapeados se agregan al array `queueItems` como `itemType: "tarea"` con su `taskKind`. Se ordenan junto con pedidos y consultas por **prioridad → antigüedad**.
-
-### 5. Badges visuales por taskKind
-
-| taskKind | Ícono | Label | Estilo |
-|----------|-------|-------|--------|
-| preparar | Package (📦) | Preparar | `bg-blue-500/10 text-blue-600` |
-| despachar | ArrowUpFromLine (📤) | Despachar | `bg-indigo-500/10 text-indigo-600` |
-| retirar | Truck (🚚) | Retirar | `bg-orange-500/10 text-orange-600` |
-| en_transito | Truck (🚛) | En tránsito | `bg-amber-500/10 text-amber-600` |
-| recepcionar | PackageCheck (📥) | Recepcionar | `bg-teal-500/10 text-teal-600` |
-| entregar | MapPin (📍) | Entregar | `bg-green-500/10 text-green-600` |
-
-Se agregan imports: `Truck`, `ArrowUpFromLine`, `MapPin` de lucide-react.
-
-### 6. Filtros extendidos
-
-Tabs pasan de 3 a 6:
-
-```
-Todos | Pedidos | Consultas | Preparación | Transporte | Recepción
-```
-
-Donde:
-- **Preparación** = `preparar` + `despachar`
-- **Transporte** = `retirar` + `en_transito` + `entregar`
-- **Recepción** = `recepcionar`
-
-Combinables con KPIs existentes.
-
-### 7. Acciones contextuales
-
-| taskKind | Acción | Navegación |
-|----------|--------|-----------|
-| preparar | "Preparar" | `/solicitudes?detail={request_id}` |
-| despachar | "Despachar" | `/solicitudes?detail={request_id}` |
-| retirar | "Retirar" | `/chofer` |
-| en_transito | "Continuar viaje" | `/chofer` |
-| recepcionar | "Recepcionar" | `/recepcion` |
-| entregar | "Reintentar" | `/chofer` |
-
-Pedidos y consultas mantienen sus acciones actuales sin cambios.
-
-### 8. KPIs actualizados
-
-Los conteos de KPIs incluyen tareas:
-- **Atrasados**: pedidos + consultas + tareas con prioridad overdue/critical
-- **Urgentes hoy**: ídem con prioridad today
-- **En curso**: total de la cola unificada
-- **Pend. recepción**: solo tareas con `taskKind === "recepcionar"`
-
-### 9. Sin cambios
-
-- Lógica de pedidos y consultas intacta
-- Prioridad y orden existentes intactos
-- Quick actions intactas
-- Diseño de fila en 3 zonas intacto
-- Backend no se toca
+## Lo que NO se toca
+- `SolicitudCreateForm.tsx`, `SolicitudDetail.tsx`
+- Lógica multiorigen, consultas
+- Base de datos, Edge Functions
+- Cola operativa, KPIs
 
