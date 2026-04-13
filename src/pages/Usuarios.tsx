@@ -30,7 +30,7 @@ import { useAuth } from "@/contexts/AuthContext";
 /*  Role definitions                                                   */
 /* ------------------------------------------------------------------ */
 
-type RoleKey = "admin" | "supervisor" | "warehouse_operator" | "branch_operator";
+type RoleKey = "admin" | "supervisor" | "branch_operator" | "warehouse_operator" | "viewer";
 
 type RoleDef = {
   key: RoleKey;
@@ -47,7 +47,7 @@ const ROLES: RoleDef[] = [
     key: "admin",
     label: "Administrador",
     shortLabel: "Admin",
-    description: "Acceso total al sistema, configuración y gestión de usuarios.",
+    description: "Acceso global al sistema, configuración y gestión de usuarios.",
     capabilities: [
       "Configuración general del sistema",
       "Gestión de usuarios y roles",
@@ -65,15 +65,15 @@ const ROLES: RoleDef[] = [
   },
   {
     key: "supervisor",
-    label: "Jefe de Logística",
-    shortLabel: "Jefe Log.",
-    description: "Visión global, coordinación multi-origen, intervención transversal.",
+    label: "Supervisor",
+    shortLabel: "Supervisor",
+    description: "Visión global, coordinación multi-origen y supervisión operativa completa.",
     capabilities: [
       "Ver todas las sucursales",
       "Gestionar pedidos y consultas",
-      "Coordinar operaciones multi-origen",
-      "Intervenir transversalmente en la operación",
-      "Ver incidencias y trazabilidad completa",
+      "Coordinar logística y transporte",
+      "Supervisar recepción e incidencias",
+      "Acceso a KPIs y trazabilidad completa",
     ],
     allBranchesByDefault: true,
     modules: [
@@ -87,39 +87,56 @@ const ROLES: RoleDef[] = [
     key: "branch_operator",
     label: "Operador de Sucursal",
     shortLabel: "Op. Sucursal",
-    description: "Trabajo operativo desde su sucursal, consultas y seguimiento.",
+    description: "Operación de sucursal: consultas, pedidos, stock y seguimiento.",
     capabilities: [
       "Consultar stock y disponibilidad",
       "Crear solicitudes y pedidos",
-      "Hacer seguimiento de operaciones",
+      "Gestionar recepción en su sucursal",
       "Registrar incidencias operativas",
-      "Ver stock de todas las sucursales (solo lectura)",
+      "Ver stock comprometido",
     ],
     allBranchesByDefault: false,
     modules: [
       "dashboard", "alertas", "consultas", "solicitudes", "stock-comprometido",
-      "cumplimiento", "recepcion", "incidencias", "documentos", "etiquetas",
+      "recepcion", "incidencias", "documentos", "etiquetas",
       "abastecimiento", "reposicion", "pedidos",
     ],
   },
   {
     key: "warehouse_operator",
-    label: "Depósito / Logística Operativa",
-    shortLabel: "Depósito",
-    description: "Preparación, despacho, recepción, traslado, cortes y consultas operativas.",
+    label: "Operador Logístico",
+    shortLabel: "Op. Logístico",
+    description: "Preparación, despacho, transporte, recepción, entrega y rendición.",
     capabilities: [
       "Preparar y despachar mercadería",
-      "Recibir y trasladar entregas",
-      "Registrar hitos operativos y cortes",
-      "Responder consultas de stock, colores y disponibilidad",
-      "Registrar incidencias operativas",
-      "Ver stock de todas las sucursales (solo lectura)",
+      "Retirar y transportar cargas",
+      "Entregar a sucursales y clientes",
+      "Recepcionar y registrar incidencias",
+      "Rendición de cobranzas y viáticos",
     ],
     allBranchesByDefault: false,
     modules: [
       "dashboard", "alertas", "consultas", "solicitudes", "stock-comprometido",
       "cumplimiento", "recepcion", "incidencias", "documentos", "chofer",
       "etiquetas", "rendicion", "abastecimiento", "reposicion",
+    ],
+  },
+  {
+    key: "viewer",
+    label: "Auditor",
+    shortLabel: "Auditor",
+    description: "Acceso de solo lectura: dashboards, consultas, KPIs y seguimiento.",
+    capabilities: [
+      "Ver dashboard y métricas",
+      "Consultar estado de pedidos y consultas",
+      "Acceso a KPIs y cumplimiento",
+      "Seguimiento de operaciones (solo lectura)",
+      "No puede ejecutar acciones operativas",
+    ],
+    allBranchesByDefault: false,
+    modules: [
+      "dashboard", "alertas", "consultas", "solicitudes", "cumplimiento",
+      "documentos",
     ],
   },
 ];
