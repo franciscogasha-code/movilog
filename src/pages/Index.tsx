@@ -167,9 +167,44 @@ export default function Index() {
   const isViewer = hasRole("viewer") || hasRole("auditor");
   const isSupervisor = hasRole("supervisor");
 
-  // Operador logístico sees the unified panel, not the chofer-specific one
-  // They handle: consultations, orders, preparation, transport, settlement
-...
+  const [activeFilter, setActiveFilter] = useState<KpiFilter>("all");
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
+
+  // Helper to check branch access
+  const canAccessBranch = (branchId: string | null) => {
+    if (!branchId) return false;
+    if (isAllBranches) return true;
+    return allowedBranchIds.includes(branchId);
+  };
+
+  // ── Queries ────────────────────────────────────────────
+  const { data: pendingRequests, isLoading: loadingRequests } = useQuery({
+    queryKey: ["dashboard-pending", isAllBranches, allowedBranchIds],
+    queryFn: async () => {
+      let query = supabase
+        .from("branch_requests")
+        .select(`
+          id, request_number, status, created_at, shipping_method, notes,
+          requesting_branch:branches!branch_requests_requesting_branch_id_fkey(name),
+          source_branch:branches!branch_requests_source_branch_id_fkey(name)
+        `)
+        .in("status", ["pending", "accepted", "picking", "in_preparation"] as any)
+        .order("created_at", { ascending: false })
+        .limit(50);
+
+      if (!isAllBranches && allowedBranchIds.length > 0) {
+        query = query.or(
+          `requesting_branch_id.in.(${allowedBranchIds.join(",")}),source_branch_id.in.(${allowedBranchIds.join(",")})`
+        );
+      }
+      const { data } = await query;
+      return data || [];
+    },
+  });
+
+  const { data: activeFulfillments, isLoading: loadingFulfillments } = useQuery({
+    queryKey: ["dashboard-fulfillments", isAllBranches, allowedBranchIds, user?.id],
+    queryFn: async () => {
       let query = supabase
         .from("fulfillment_orders")
         .select(`
@@ -185,7 +220,6 @@ export default function Index() {
 
       // BLOQUE 1: Server-side filtering — only fetch relevant fulfillments
       if (!isAllBranches && allowedBranchIds.length > 0) {
-        // Filter by branches the user can access OR where they are custody holder
         const branchFilter = `source_branch_id.in.(${allowedBranchIds.join(",")}),destination_branch_id.in.(${allowedBranchIds.join(",")})`;
         if (user?.id) {
           query = query.or(`${branchFilter},current_custody_holder_id.eq.${user.id}`);
