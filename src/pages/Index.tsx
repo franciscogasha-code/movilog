@@ -332,9 +332,34 @@ export default function Index() {
       });
     });
 
-    items.sort((a, b) => PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority]);
+    // Sort: priority first, then by role-specific type ordering
+    items.sort((a, b) => {
+      const pDiff = PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority];
+      if (pDiff !== 0) return pDiff;
+
+      // For operador_logístico: consultations > orders > preparation > transport
+      if (isLogisticsOp) {
+        const TYPE_ORDER: Record<string, number> = {
+          consulta: 0,
+          pedido: 1,
+          tarea: 2,
+        };
+        const TASK_ORDER: Record<string, number> = {
+          preparar: 0, despachar: 1,
+          retirar: 2, en_transito: 3, entregar: 4,
+          recepcionar: 5,
+        };
+        const tDiff = (TYPE_ORDER[a.itemType] ?? 9) - (TYPE_ORDER[b.itemType] ?? 9);
+        if (tDiff !== 0) return tDiff;
+        if (a.itemType === "tarea" && b.itemType === "tarea") {
+          return (TASK_ORDER[a.taskKind ?? ""] ?? 9) - (TASK_ORDER[b.taskKind ?? ""] ?? 9);
+        }
+      }
+
+      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+    });
     return items;
-  }, [pendingRequests, activeConsultations, activeFulfillments, defaultBranchId, user?.id, isAdmin, isAllBranches, allowedBranchIds]);
+  }, [pendingRequests, activeConsultations, activeFulfillments, defaultBranchId, user?.id, isAdmin, isAllBranches, allowedBranchIds, isLogisticsOp]);
 
   // ── Counts ─────────────────────────────────────────────
   const isOverdue = (p: Priority) => p === "overdue" || p === "overdue_critical";
