@@ -149,26 +149,26 @@ export function ProductCard({
   }
 
   return (
-    <Card className={cn("overflow-hidden", className)}>
-      <CardContent className="p-4 space-y-4">
+    <Card className={cn("overflow-hidden max-w-full", className)}>
+      <CardContent className="p-4 space-y-4 min-w-0 overflow-hidden">
         {/* Header */}
         <div className="flex gap-4">
           <ProductImage url={productImageUrl} name={productName} />
           <div className="flex-1 min-w-0">
-            <div className="flex items-start justify-between gap-2">
-              <h3 className="font-semibold text-base leading-tight">{productName}</h3>
+            <div className="flex items-start justify-between gap-2 min-w-0">
+              <h3 className="font-semibold text-base leading-tight break-words min-w-0">{productName}</h3>
               {effectiveTotalStock != null && (
                 <Badge variant={effectiveTotalStock > 0 ? "default" : "destructive"} className="text-xs shrink-0">
                   Stock: {Math.floor(effectiveTotalStock)}
                 </Badge>
               )}
             </div>
-            <div className="flex flex-wrap gap-2 mt-1.5">
-              {productSku && <Badge variant="outline" className="text-xs font-mono">SKU: {productSku}</Badge>}
-              {productBimsCode && <Badge variant="outline" className="text-xs font-mono">Cód: {productBimsCode}</Badge>}
-              {productBarcode && <Badge variant="outline" className="text-xs font-mono">CB: {productBarcode}</Badge>}
+            <div className="flex flex-wrap gap-1.5 mt-1.5 min-w-0">
+              {productSku && <Badge variant="outline" className="text-xs font-mono truncate max-w-full">SKU: {productSku}</Badge>}
+              {productBimsCode && <Badge variant="outline" className="text-xs font-mono truncate max-w-full">Cód: {productBimsCode}</Badge>}
+              {productBarcode && <Badge variant="outline" className="text-xs font-mono truncate max-w-full">CB: {productBarcode}</Badge>}
             </div>
-            <div className="flex items-center gap-2 mt-1.5">
+            <div className="flex items-center gap-2 mt-1.5 flex-wrap min-w-0">
               {productCategory && <span className="text-xs text-muted-foreground">{productCategory}</span>}
               {productUnit && <span className="text-xs text-muted-foreground">• Unidad: {productUnit}</span>}
               {hasPrice && <span className="text-xs font-medium text-foreground">• ₲{productSellPrice!.toLocaleString()}</span>}
@@ -178,8 +178,8 @@ export function ProductCard({
 
         {/* Description */}
         {productDescription && (
-          <div className="p-3 rounded-lg bg-muted/30 border border-border/30">
-            <p className="text-xs text-muted-foreground whitespace-pre-line">{productDescription}</p>
+         <div className="p-3 rounded-lg bg-muted/30 border border-border/30 min-w-0 overflow-hidden">
+            <p className="text-xs text-muted-foreground whitespace-pre-line break-words">{productDescription}</p>
           </div>
         )}
 
@@ -216,9 +216,9 @@ export function ProductCard({
         {/* Stock by warehouse */}
         {hasStock && (
           <div className="space-y-2">
-            <h4 className="text-sm font-medium flex items-center gap-1.5">
-              <BarChart3 className="h-3.5 w-3.5" />
-              {isSelectMode ? "Seleccionar sucursal origen" : isMultiSelectMode ? "Stock disponible — click para seleccionar" : "Stock disponible por sucursal"}
+            <h4 className="text-sm font-medium flex items-center gap-1.5 flex-wrap min-w-0">
+              <BarChart3 className="h-3.5 w-3.5 shrink-0" />
+              <span className="break-words">{isSelectMode ? "Seleccionar sucursal origen" : isMultiSelectMode ? "Stock disponible — click para seleccionar" : "Stock disponible por sucursal"}</span>
               {isLive ? (
                 <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-green-600 ml-1">
                   <Zap className="h-3 w-3" /> En vivo
