@@ -306,34 +306,43 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
 
               return (
                 <div key={p.id} className="border border-border rounded-lg overflow-hidden">
-                  <div className="flex items-center gap-3 p-3 bg-muted/30">
-                    {p.image_url ? (
-                      <img src={proxyImageUrl(p.image_url)} alt={p.name} className="h-8 w-8 rounded object-cover shrink-0" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                    ) : (
-                      <Package className="h-4 w-4 text-muted-foreground shrink-0" />
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{p.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {p.sku && `SKU: ${p.sku}`}
-                        {p.bims_code && ` • Cód: ${p.bims_code}`}
-                      </p>
+                  <div className="space-y-2 bg-muted/30 p-2.5 sm:p-3">
+                    <div className="flex min-w-0 items-start gap-3">
+                      {p.image_url ? (
+                        <img src={proxyImageUrl(p.image_url)} alt={p.name} className="h-8 w-8 rounded object-cover shrink-0" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                      ) : (
+                        <Package className="h-4 w-4 text-muted-foreground shrink-0" />
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium line-clamp-2">{p.name}</p>
+                        <p className="text-xs text-muted-foreground break-words">
+                          {p.sku && `SKU: ${p.sku}`}
+                          {p.bims_code && ` • Cód: ${p.bims_code}`}
+                        </p>
+                      </div>
                     </div>
-                    {headerStock != null && (
-                      <Badge variant={headerStock > 0 ? "default" : "destructive"} className="text-xs shrink-0">
-                        Stock: {Math.floor(headerStock)}
-                      </Badge>
-                    )}
-                    {selectedForProduct.size > 0 && (
-                      <Badge variant="secondary" className="text-xs shrink-0">{selectedForProduct.size} origen(es)</Badge>
-                    )}
-                    <Button type="button" variant="ghost" size="sm"
-                      onClick={() => setExpandedProduct(expandedProduct === p.id ? null : p.id)}>
-                      {expandedProduct === p.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                    </Button>
-                    <Button type="button" variant="ghost" size="sm" onClick={() => removeProduct(p.id)}>
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
+
+                    <div className="flex flex-wrap items-center justify-between gap-2 sm:justify-end">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {headerStock != null && (
+                          <Badge variant={headerStock > 0 ? "default" : "destructive"} className="text-xs shrink-0">
+                            Stock: {Math.floor(headerStock)}
+                          </Badge>
+                        )}
+                        {selectedForProduct.size > 0 && (
+                          <Badge variant="secondary" className="text-xs shrink-0">{selectedForProduct.size} origen(es)</Badge>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1 self-end sm:self-auto">
+                        <Button type="button" variant="ghost" size="sm"
+                          onClick={() => setExpandedProduct(expandedProduct === p.id ? null : p.id)}>
+                          {expandedProduct === p.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                        </Button>
+                        <Button type="button" variant="ghost" size="sm" onClick={() => removeProduct(p.id)}>
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    </div>
                   </div>
 
                   {expandedProduct === p.id && (

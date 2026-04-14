@@ -233,11 +233,11 @@ export function ProductCard({
   const isMultiSelectMode = stockMode === "select_multi" && !!onToggleBranch;
 
   return (
-    <Card className={cn(className)}>
-      <CardContent className="p-0">
+    <Card className={cn("w-full min-w-0", className)}>
+      <CardContent className="min-w-0 p-0">
         {/* ── Section 1: Header ── */}
         <div className="p-2 sm:p-4 pb-2 sm:pb-3">
-          <div className="flex gap-3">
+          <div className="flex min-w-0 gap-3">
             <ProductImage url={productImageUrl} name={productName} />
             <div className="flex-1 min-w-0 space-y-1.5">
               {/* Title + total stock */}
