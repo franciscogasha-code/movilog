@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Plus, Search, MessageCircle, Clock, CheckCircle2, ShoppingCart, Package, Trash2, XCircle, AlertTriangle, ChevronDown, ChevronUp, Send } from "lucide-react";
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import { proxyImageUrl } from "@/lib/image-utils";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ProductSearch, type ProductResult } from "@/components/shared/ProductSearch";
