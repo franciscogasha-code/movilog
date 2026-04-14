@@ -145,7 +145,7 @@ function StockWarehouseButton({
     >
       <span className="flex min-w-0 flex-1 items-center gap-1.5 font-medium">
         {isSelected && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
-        <span className="truncate">{branchName}</span>
+        <span className="min-w-0 flex-1 truncate">{branchName}</span>
       </span>
       <span className="ml-2 flex shrink-0 items-center gap-1.5">
         {isSufficient !== null && (
@@ -236,7 +236,7 @@ export function ProductCard({
     <Card className={cn(className)}>
       <CardContent className="p-0">
         {/* ── Section 1: Header ── */}
-        <div className="p-2.5 sm:p-4 pb-2 sm:pb-3">
+        <div className="p-2 sm:p-4 pb-2 sm:pb-3">
           <div className="flex gap-3">
             <ProductImage url={productImageUrl} name={productName} />
             <div className="flex-1 min-w-0 space-y-1.5">
@@ -286,7 +286,7 @@ export function ProductCard({
 
         {/* ── Section 2: Description ── */}
         {productDescription && (
-          <div className="px-2.5 sm:px-4 pb-2.5 sm:pb-3">
+          <div className="px-2 sm:px-4 pb-2 sm:pb-3">
             <div className="p-2.5 rounded-md bg-muted/30 border border-border/30">
               <p className="text-xs text-muted-foreground whitespace-pre-line break-words line-clamp-3">{productDescription}</p>
             </div>
@@ -295,7 +295,7 @@ export function ProductCard({
 
         {/* ── Section 3: Prices ── */}
         {(hasPrice || hasPriceScales) && (
-          <div className="px-2.5 sm:px-4 pb-2.5 sm:pb-3 space-y-1.5">
+          <div className="px-2 sm:px-4 pb-2 sm:pb-3 space-y-1.5">
             <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Precios</h4>
             <div className="flex flex-wrap gap-2">
               {hasPrice && (
@@ -324,7 +324,7 @@ export function ProductCard({
 
         {/* ── Section 4: Stock by warehouse ── */}
         {hasStock && (
-          <div className="px-2.5 sm:px-4 pb-2.5 sm:pb-4 space-y-2">
+          <div className="px-2 sm:px-4 pb-2 sm:pb-4 space-y-2">
             {/* Section header */}
             <div className="flex items-center justify-between gap-2">
               <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
