@@ -185,6 +185,7 @@ export default function Consultas() {
             </div>
           ) : (
             <div className="overflow-x-auto">
+            <TooltipProvider>
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border bg-muted/30">
