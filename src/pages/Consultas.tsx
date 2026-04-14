@@ -245,6 +245,7 @@ export default function Consultas() {
                   ))}
                 </tbody>
               </table>
+            </TooltipProvider>
             </div>
           )}
         </CardContent>
