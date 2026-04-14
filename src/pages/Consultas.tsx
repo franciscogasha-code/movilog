@@ -50,6 +50,8 @@ export default function Consultas() {
   }, [searchParams]);
 
   // RLS handles branch filtering — only consultations the user participates in are returned
+  const { isAllBranches, allowedBranchIds } = useUserBranchFilter();
+
   const { data: consultations, isLoading } = useQuery({
     queryKey: ["availability-consultations"],
     queryFn: async () => {
@@ -65,7 +67,7 @@ export default function Consultas() {
         const [cpRes, crRes, ctRes] = await Promise.all([
           supabase.from("consultation_products").select("consultation_id, product:products(name, sku)").in("consultation_id", ids),
           supabase.from("consultation_requests").select("consultation_id, branch_request_id").in("consultation_id", ids),
-          supabase.from("consultation_targets").select("consultation_id, responded_at").in("consultation_id", ids),
+          supabase.from("consultation_targets").select("consultation_id, responded_at, branch:branches!consultation_targets_branch_id_fkey(id, name, code)").in("consultation_id", ids),
         ]);
 
         const productsByConsultation: Record<string, any[]> = {};
@@ -80,10 +82,15 @@ export default function Consultas() {
         });
 
         const responsesByConsultation: Record<string, { total: number; responded: number }> = {};
+        const targetBranchesByConsultation: Record<string, any[]> = {};
         ctRes.data?.forEach((ct: any) => {
           if (!responsesByConsultation[ct.consultation_id]) responsesByConsultation[ct.consultation_id] = { total: 0, responded: 0 };
           responsesByConsultation[ct.consultation_id].total++;
           if (ct.responded_at) responsesByConsultation[ct.consultation_id].responded++;
+          if (ct.branch) {
+            if (!targetBranchesByConsultation[ct.consultation_id]) targetBranchesByConsultation[ct.consultation_id] = [];
+            targetBranchesByConsultation[ct.consultation_id].push(ct.branch);
+          }
         });
 
         return data.map(c => ({
@@ -91,18 +98,53 @@ export default function Consultas() {
           consultation_products: productsByConsultation[c.id] || [],
           orders_count: ordersByConsultation[c.id] || 0,
           responses: responsesByConsultation[c.id] || { total: 0, responded: 0 },
+          target_branches: targetBranchesByConsultation[c.id] || [],
         }));
       }
       return data;
     },
   });
 
+  /** Build contextual route label */
+  const buildRouteLabel = (c: any) => {
+    const reqName = c.requesting_branch?.name ?? "?";
+    const targetNames = c.target_branches?.map((b: any) => b.name).join(", ") || "?";
+    
+    if (isAllBranches) {
+      return (
+        <>
+          <span className="text-muted-foreground text-xs">De:</span>{" "}
+          <span className="font-medium">{reqName}</span>
+          <span className="text-muted-foreground mx-1">→</span>
+          <span className="text-muted-foreground text-xs">Para:</span>{" "}
+          <span className="font-medium">{targetNames}</span>
+        </>
+      );
+    }
+
+    const isRequester = allowedBranchIds.includes(c.requesting_branch_id);
+    if (isRequester) {
+      return (
+        <>
+          <span className="text-muted-foreground text-xs">Para:</span>{" "}
+          <span className="font-medium">{targetNames}</span>
+        </>
+      );
+    }
+    return (
+      <>
+        <span className="text-muted-foreground text-xs">De:</span>{" "}
+        <span className="font-medium">{reqName}</span>
+      </>
+    );
+  };
+
   return (
     <motion.div className="space-y-6" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
       <div className="flex items-center justify-between">
         <div>
           <h1 className="font-display text-2xl font-bold text-foreground">Consultas de Disponibilidad</h1>
-          <p className="text-muted-foreground mt-1">Consultar stock antes de crear pedidos</p>
+          <p className="text-muted-foreground mt-1">Historial de consultas de stock entre sucursales</p>
         </div>
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
           <DialogTrigger asChild>
@@ -122,46 +164,61 @@ export default function Consultas() {
           ) : !consultations?.length ? (
             <div className="p-8 text-center text-muted-foreground">
               <Search className="h-8 w-8 mx-auto mb-2 opacity-50" />
-              <p>No hay consultas activas</p>
+              <p>No hay consultas registradas</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border bg-muted/30">
-                    <th className="text-left p-3 font-medium text-muted-foreground">Productos</th>
-                    <th className="text-left p-3 font-medium text-muted-foreground">Solicitante</th>
-                    <th className="text-left p-3 font-medium text-muted-foreground">Estado</th>
-                    <th className="text-left p-3 font-medium text-muted-foreground">Respuestas</th>
-                    <th className="text-left p-3 font-medium text-muted-foreground">Pedidos</th>
-                    <th className="text-left p-3 font-medium text-muted-foreground">Cierre auto</th>
-                    <th className="text-left p-3 font-medium text-muted-foreground"></th>
+                    <th className="text-left px-3 py-2 font-medium text-muted-foreground">Productos</th>
+                    <th className="text-left px-3 py-2 font-medium text-muted-foreground">Ruta</th>
+                    <th className="text-left px-3 py-2 font-medium text-muted-foreground">Estado</th>
+                    <th className="text-left px-3 py-2 font-medium text-muted-foreground">Respuestas</th>
+                    <th className="text-left px-3 py-2 font-medium text-muted-foreground">Pedidos</th>
+                    <th className="text-left px-3 py-2 font-medium text-muted-foreground">Fecha</th>
+                    <th className="text-left px-3 py-2 font-medium text-muted-foreground"></th>
                   </tr>
                 </thead>
                 <tbody>
                   {consultations.map((c: any) => (
-                    <tr key={c.id} className="border-b border-border/50 hover:bg-muted/20 transition-colors cursor-pointer" onClick={() => setSelectedId(c.id)}>
-                      <td className="p-3 font-medium">
-                        {c.consultation_products?.length > 0
-                          ? c.consultation_products.map((p: any) => p?.name).filter(Boolean).join(", ")
-                          : <span className="text-muted-foreground">Sin productos</span>}
+                    <tr
+                      key={c.id}
+                      className={cn(
+                        "border-b border-border/50 hover:bg-muted/40 active:bg-muted/60 transition-all duration-150 cursor-pointer",
+                        c.status === "open" && "bg-primary/[0.03]"
+                      )}
+                      onClick={() => setSelectedId(c.id)}
+                    >
+                      <td className="px-3 py-2 font-medium max-w-[200px]">
+                        <span className="line-clamp-1">
+                          {c.consultation_products?.length > 0
+                            ? c.consultation_products.map((p: any) => p?.name).filter(Boolean).join(", ")
+                            : <span className="text-muted-foreground">Sin productos</span>}
+                        </span>
                       </td>
-                      <td className="p-3">{c.requesting_branch?.name} ({c.requesting_branch?.code})</td>
-                      <td className="p-3"><StatusBadge status={c.status} config={STATUS_CONFIG} /></td>
-                      <td className="p-3">
+                      <td className="px-3 py-2">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          {buildRouteLabel(c)}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2"><StatusBadge status={c.status} config={STATUS_CONFIG} /></td>
+                      <td className="px-3 py-2">
                         <Badge variant={c.responses?.responded > 0 ? "secondary" : "outline"} className="text-xs">
                           {c.responses?.responded ?? 0}/{c.responses?.total ?? 0}
                         </Badge>
                       </td>
-                      <td className="p-3">
+                      <td className="px-3 py-2">
                         {c.orders_count > 0
                           ? <Badge variant="secondary" className="text-xs">{c.orders_count} pedido(s)</Badge>
                           : <span className="text-muted-foreground text-xs">—</span>}
                       </td>
-                      <td className="p-3 text-xs text-muted-foreground">
-                        {c.auto_close_at ? new Date(c.auto_close_at).toLocaleString("es-PY", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—"}
+                      <td className="px-3 py-2 text-muted-foreground text-xs">
+                        {new Date(c.created_at).toLocaleDateString("es-PY", { day: "2-digit", month: "short" })}
                       </td>
-                      <td className="p-3"><Button variant="ghost" size="sm"><MessageCircle className="h-4 w-4" /></Button></td>
+                      <td className="px-3 py-2">
+                        <Button variant="ghost" size="sm" className="text-xs h-7">Ver consulta</Button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
