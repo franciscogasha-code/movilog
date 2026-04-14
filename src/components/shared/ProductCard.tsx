@@ -286,7 +286,7 @@ export function ProductCard({
 
         {/* ── Section 2: Description ── */}
         {productDescription && (
-          <div className="px-4 pb-3">
+          <div className="px-3 sm:px-4 pb-3">
             <div className="p-2.5 rounded-md bg-muted/30 border border-border/30">
               <p className="text-xs text-muted-foreground whitespace-pre-line break-words line-clamp-3">{productDescription}</p>
             </div>
@@ -295,7 +295,7 @@ export function ProductCard({
 
         {/* ── Section 3: Prices ── */}
         {(hasPrice || hasPriceScales) && (
-          <div className="px-4 pb-3 space-y-1.5">
+          <div className="px-3 sm:px-4 pb-3 space-y-1.5">
             <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Precios</h4>
             <div className="flex flex-wrap gap-2">
               {hasPrice && (
@@ -324,7 +324,7 @@ export function ProductCard({
 
         {/* ── Section 4: Stock by warehouse ── */}
         {hasStock && (
-          <div className="px-4 pb-4 space-y-2">
+          <div className="px-3 sm:px-4 pb-3 sm:pb-4 space-y-2">
             {/* Section header */}
             <div className="flex items-center justify-between gap-2">
               <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
