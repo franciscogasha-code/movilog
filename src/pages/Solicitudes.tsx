@@ -231,26 +231,33 @@ export default function Solicitudes() {
                 </thead>
                 <tbody>
                   {filtered.map((r: any) => (
-                    <tr key={r.id} className="border-b border-border/50 hover:bg-muted/20 transition-colors cursor-pointer" onClick={() => setSelectedId(r.id)}>
-                      <td className="p-3 font-mono font-semibold">#{r.request_number}</td>
-                      <td className="p-3">
+                    <tr key={r.id} className="border-b border-border/50 hover:bg-muted/40 transition-all duration-150 cursor-pointer" onClick={() => setSelectedId(r.id)}>
+                      <td className="px-3 py-2 font-mono font-semibold">#{r.request_number}</td>
+                      <td className="px-3 py-2">
                         <Badge variant="outline" className="text-xs capitalize">
                           {REQUEST_TYPE_LABELS[r.request_type] || r.request_type}
                         </Badge>
                       </td>
-                      <td className="p-3">
-                        {buildRouteCell(r)}
+                      <td className="px-3 py-2">
+                        <div className="flex items-center gap-1.5">
+                          {buildRouteCell(r)}
+                          {r.source_branch_id === r.requesting_branch_id && (
+                            <span className="inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground border border-border shrink-0">
+                              Interno
+                            </span>
+                          )}
+                        </div>
                       </td>
-                      <td className="p-3 text-xs">{DELIVERY_TARGET_LABELS[r.delivery_target] || "A sucursal"}</td>
-                      <td className="p-3 text-muted-foreground text-xs">{SHIPPING_METHOD_LABELS[r.shipping_method] || r.shipping_method}</td>
-                      <td className="p-3">
+                      <td className="px-3 py-2 text-xs">{DELIVERY_TARGET_LABELS[r.delivery_target] || "A sucursal"}</td>
+                      <td className="px-3 py-2 text-muted-foreground text-xs">{SHIPPING_METHOD_LABELS[r.shipping_method] || r.shipping_method}</td>
+                      <td className="px-3 py-2">
                         <StatusBadge status={r.status} config={REQUEST_STATUS_CONFIG} />
                       </td>
-                      <td className="p-3 text-muted-foreground text-xs">
+                      <td className="px-3 py-2 text-muted-foreground text-xs">
                         {new Date(r.created_at).toLocaleDateString("es-PY", { day: "2-digit", month: "short" })}
                       </td>
-                      <td className="p-3">
-                        <Button variant="ghost" size="sm" className="text-xs">
+                      <td className="px-3 py-2">
+                        <Button variant="ghost" size="sm" className="text-xs h-7">
                           {isViewer ? "Ver pedido" : "Gestionar"}
                         </Button>
                       </td>

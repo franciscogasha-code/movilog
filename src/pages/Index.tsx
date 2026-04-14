@@ -493,7 +493,7 @@ export default function Index() {
                 <motion.div key={kpi.key} variants={item}>
                   <Card
                     className={`cursor-pointer transition-all duration-200 hover:shadow-md ${
-                      isActive ? "ring-2 ring-primary shadow-md" : "glass-card"
+                      isActive ? "ring-2 ring-primary shadow-md bg-primary/5" : "glass-card"
                     }`}
                     onClick={() => setActiveFilter(isActive ? "all" : kpi.key)}
                   >
@@ -522,12 +522,12 @@ export default function Index() {
                   <div className="flex items-center justify-between flex-wrap gap-2">
                     <CardTitle className="font-display text-base">
                       Cola operativa
-                      {activeFilter !== "all" && (
-                        <span className="ml-2 text-xs font-normal text-muted-foreground">
-                          — {kpis.find(k => k.key === activeFilter)?.title}
-                        </span>
-                      )}
                     </CardTitle>
+                    {activeFilter !== "all" && (
+                      <Badge variant="secondary" className="text-xs font-normal ml-2">
+                        Mostrando: {kpis.find(k => k.key === activeFilter)?.title}
+                      </Badge>
+                    )}
                     <div className="flex items-center gap-1">
                       {(activeFilter !== "all" || typeFilter !== "all") && (
                         <Button
@@ -568,14 +568,42 @@ export default function Index() {
                 </CardHeader>
                 <CardContent>
                   {!filteredItems.length ? (
-                    <p className="text-sm text-muted-foreground py-6 text-center">
-                      {activeFilter !== "all" || typeFilter !== "all"
-                        ? "Sin ítems en esta categoría"
-                        : "Sin tareas pendientes 🎉"}
-                    </p>
+                    <div className="flex flex-col items-center justify-center py-10 text-center">
+                      <PackageCheck className="h-10 w-10 text-muted-foreground/30 mb-3" />
+                      <p className="text-sm font-medium text-muted-foreground">
+                        {activeFilter !== "all" || typeFilter !== "all"
+                          ? "Sin ítems en esta categoría"
+                          : "No tienes tareas pendientes 🎉"}
+                      </p>
+                      <p className="text-xs text-muted-foreground/60 mt-1">
+                        {activeFilter !== "all" || typeFilter !== "all"
+                          ? "Prueba cambiando los filtros"
+                          : "Todo al día — buen trabajo"}
+                      </p>
+                    </div>
                   ) : (
-                    <div className="space-y-1">
-                      {filteredItems.map((qi) => {
+                    <div className="space-y-0.5">
+                      {(() => {
+                        // Group items into priority sections
+                        const sections: { key: string; title: string; items: typeof filteredItems }[] = [];
+                        const immediate = filteredItems.filter(i => i.priority === "overdue_critical" || i.priority === "overdue");
+                        const today = filteredItems.filter(i => i.priority === "today");
+                        const normal = filteredItems.filter(i => i.priority === "normal");
+                        if (immediate.length) sections.push({ key: "immediate", title: "Requiere atención inmediata", items: immediate });
+                        if (today.length) sections.push({ key: "today", title: "Para hoy", items: today });
+                        if (normal.length) sections.push({ key: "normal", title: "En curso", items: normal });
+                        // If only one section or filter active, skip headers
+                        const showHeaders = sections.length > 1 && activeFilter === "all";
+                        return sections.map((section, sIdx) => (
+                          <div key={section.key} className={sIdx > 0 ? "mt-4" : ""}>
+                            {showHeaders && (
+                              <p className={`text-[11px] font-semibold uppercase tracking-wider px-3 py-1.5 ${
+                                section.key === "immediate" ? "text-destructive" : section.key === "today" ? "text-orange-600" : "text-muted-foreground"
+                              }`}>
+                                {section.title}
+                              </p>
+                            )}
+                            {section.items.map((qi) => {
                         const badge = PRIORITY_BADGE[qi.priority];
                         const rowClass = PRIORITY_ROW_CLASS[qi.priority];
                         const isPedido = qi.itemType === "pedido";
@@ -589,12 +617,7 @@ export default function Index() {
 
                         if (!isViewer) {
                           if (isConsulta) {
-                            // No "Crear pedido" from dashboard list — always navigate to detail
-                            if (qi.isRequester) {
-                              actionLabel = qi.hasResponses ? "Ver respuestas" : "Revisar";
-                            } else {
-                              actionLabel = "Responder";
-                            }
+                            actionLabel = qi.isRequester ? "Ver consulta" : "Responder";
                           } else if (isTarea && qi.taskKind) {
                             const taskCfg = TASK_KIND_CONFIG[qi.taskKind];
                             actionLabel = taskCfg.actionLabel;
@@ -641,9 +664,9 @@ export default function Index() {
                         };
 
                         return (
-                          <div
+                            <div
                             key={`${qi.itemType}-${qi.id}`}
-                            className={`flex flex-wrap md:flex-nowrap items-center gap-2 md:gap-3 py-2.5 px-3 rounded-lg cursor-pointer hover:bg-muted/50 transition-colors ${rowClass}`}
+                            className={`flex flex-wrap md:flex-nowrap items-center gap-2 md:gap-3 py-2 px-3 rounded-lg cursor-pointer hover:bg-muted/40 active:bg-muted/60 transition-all duration-150 ${rowClass}`}
                             onClick={handleAction}
                           >
                             {/* Left: Type + ID + Route */}
@@ -659,6 +682,15 @@ export default function Index() {
                               <span className="text-sm text-muted-foreground truncate min-w-0">
                                 {qi.routeLabel}
                               </span>
+                              {/* Internal transfer badge */}
+                              {qi.routeLabel.includes("→") && qi.routeLabel.split("→").length === 2 && (() => {
+                                const parts = qi.routeLabel.split("→").map(s => s.replace(/^(De:|Para:)\s*/, "").trim());
+                                return parts[0] === parts[1] ? (
+                                  <span className="inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground border border-border shrink-0">
+                                    Interno
+                                  </span>
+                                ) : null;
+                              })()}
                             </div>
 
                             {/* Center: Status + Priority + Time */}
@@ -687,6 +719,9 @@ export default function Index() {
                           </div>
                         );
                       })}
+                          </div>
+                        ));
+                      })()}
                     </div>
                   )}
                 </CardContent>
