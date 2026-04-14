@@ -233,7 +233,7 @@ export function ProductCard({
   const isMultiSelectMode = stockMode === "select_multi" && !!onToggleBranch;
 
   return (
-    <Card className={cn("overflow-hidden", className)}>
+    <Card className={cn(className)}>
       <CardContent className="p-0">
         {/* ── Section 1: Header ── */}
         <div className="p-4 pb-3">
