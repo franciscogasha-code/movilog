@@ -28,7 +28,7 @@ const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secon
   open: { label: "Abierta", variant: "default" },
   responded: { label: "Respondida", variant: "secondary" },
   converted: { label: "Convertida", variant: "outline" },
-  expired: { label: "Expirada", variant: "destructive" },
+  expired: { label: "Expirada", variant: "outline" },
 };
 
 export default function Consultas() {
@@ -108,8 +108,24 @@ export default function Consultas() {
   /** Build contextual route label */
   const buildRouteLabel = (c: any) => {
     const reqName = c.requesting_branch?.name ?? "?";
-    const targetNames = c.target_branches?.map((b: any) => b.name).join(", ") || "?";
-    
+    const targets: any[] = c.target_branches ?? [];
+    const targetCount = targets.length;
+
+    const renderTargets = () => {
+      if (targetCount === 0) return <span className="font-medium">?</span>;
+      if (targetCount === 1) return <span className="font-medium">{targets[0].name}</span>;
+      return (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="font-medium cursor-default">{targetCount} sucursales</span>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="text-xs max-w-[200px]">
+            {targets.map((b: any) => b.name).join(", ")}
+          </TooltipContent>
+        </Tooltip>
+      );
+    };
+
     if (isAllBranches) {
       return (
         <>
@@ -117,7 +133,7 @@ export default function Consultas() {
           <span className="font-medium">{reqName}</span>
           <span className="text-muted-foreground mx-1">→</span>
           <span className="text-muted-foreground text-xs">Para:</span>{" "}
-          <span className="font-medium">{targetNames}</span>
+          {renderTargets()}
         </>
       );
     }
@@ -127,7 +143,7 @@ export default function Consultas() {
       return (
         <>
           <span className="text-muted-foreground text-xs">Para:</span>{" "}
-          <span className="font-medium">{targetNames}</span>
+          {renderTargets()}
         </>
       );
     }
@@ -192,9 +208,13 @@ export default function Consultas() {
                     >
                       <td className="px-3 py-2 font-medium max-w-[200px]">
                         <span className="line-clamp-1">
-                          {c.consultation_products?.length > 0
-                            ? c.consultation_products.map((p: any) => p?.name).filter(Boolean).join(", ")
-                            : <span className="text-muted-foreground">Sin productos</span>}
+                          {(() => {
+                            const prods = c.consultation_products?.filter((p: any) => p?.name) ?? [];
+                            if (!prods.length) return <span className="text-muted-foreground">Sin productos</span>;
+                            const first = prods[0].name;
+                            const rest = prods.length - 1;
+                            return rest > 0 ? <>{first} <span className="text-muted-foreground">+{rest} más</span></> : first;
+                          })()}
                         </span>
                       </td>
                       <td className="px-3 py-2">
