@@ -597,11 +597,14 @@ export default function Index() {
                         return sections.map((section, sIdx) => (
                           <div key={section.key} className={sIdx > 0 ? "mt-4" : ""}>
                             {showHeaders && (
-                              <p className={`text-[11px] font-semibold uppercase tracking-wider px-3 py-1.5 ${
-                                section.key === "immediate" ? "text-destructive" : section.key === "today" ? "text-orange-600" : "text-muted-foreground"
+                              <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md ${
+                                section.key === "immediate" ? "text-destructive bg-destructive/5" : section.key === "today" ? "text-orange-600" : "text-muted-foreground"
                               }`}>
-                                {section.title}
-                              </p>
+                                {section.key === "immediate" && <AlertTriangle className="h-3.5 w-3.5 shrink-0" />}
+                                <p className="text-[11px] font-semibold uppercase tracking-wider">
+                                  {section.title}
+                                </p>
+                              </div>
                             )}
                             {section.items.map((qi) => {
                         const badge = PRIORITY_BADGE[qi.priority];
