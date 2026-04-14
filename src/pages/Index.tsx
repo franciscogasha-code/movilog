@@ -43,15 +43,15 @@ function timeAgo(dateStr: string): string {
 const PRIORITY_ORDER: Record<Priority, number> = { overdue_critical: 0, overdue: 1, today: 2, normal: 3 };
 
 const PRIORITY_BADGE: Record<Priority, { label: string; className: string }> = {
-  overdue_critical: { label: "Crítico", className: "bg-destructive/20 text-destructive border-destructive/40" },
-  overdue: { label: "Atrasado", className: "bg-destructive/15 text-destructive border-destructive/30" },
+  overdue_critical: { label: "Crítico", className: "bg-destructive/15 text-destructive border-destructive/30" },
+  overdue: { label: "Atrasado", className: "bg-orange-500/15 text-orange-600 border-orange-500/30" },
   today: { label: "Hoy", className: "bg-warning/15 text-warning border-warning/30" },
   normal: { label: "Normal", className: "bg-muted text-muted-foreground border-border" },
 };
 
 const PRIORITY_ROW_CLASS: Record<Priority, string> = {
-  overdue_critical: "border-l-2 border-l-destructive bg-destructive/10",
-  overdue: "border-l-2 border-l-destructive bg-destructive/5",
+  overdue_critical: "border-l-2 border-l-destructive bg-destructive/5",
+  overdue: "border-l-2 border-l-orange-500 bg-orange-500/5",
   today: "border-l-2 border-l-warning bg-warning/5",
   normal: "",
 };
@@ -66,7 +66,7 @@ interface QueueItem {
   id: string;
   itemType: ItemType;
   number: number | null;
-  label: string;
+  routeLabel: string;
   status: string;
   priority: Priority;
   createdAt: string;
@@ -123,7 +123,6 @@ function getTaskKind(
   isCustodian: boolean,
   isAdmin: boolean
 ): TaskKind | null {
-  // Custodian takes priority for driver-related statuses
   if (isCustodian || isAdmin) {
     if (status === "in_transit") return "en_transito";
     if (status === "delivery_failed") return "entregar";
@@ -157,6 +156,32 @@ function getTaskAction(taskKind: TaskKind, requestId: string | null): { label: s
   }
 }
 
+/** Build contextual route label using De:/Para: based on user's branch */
+function buildRouteLabel(
+  sourceName: string,
+  destName: string,
+  userBranchIds: string[],
+  sourceBranchId: string | null,
+  destBranchId: string | null,
+  isAllBranches: boolean
+): string {
+  if (isAllBranches) {
+    return `De: ${sourceName} → Para: ${destName}`;
+  }
+  const isSource = sourceBranchId ? userBranchIds.includes(sourceBranchId) : false;
+  const isDest = destBranchId ? userBranchIds.includes(destBranchId) : false;
+  
+  if (isSource && !isDest) return `Para: ${destName}`;
+  if (isDest && !isSource) return `De: ${sourceName}`;
+  return `De: ${sourceName} → Para: ${destName}`;
+}
+
+/** Extract first name from full name */
+function firstName(fullName?: string | null): string {
+  if (!fullName) return "";
+  return fullName.split(" ")[0];
+}
+
 export default function Index() {
   const { user, profile, hasRole, isOwner } = useAuth();
   const { isAllBranches, allowedBranchIds, defaultBranchId } = useUserBranchFilter();
@@ -165,12 +190,10 @@ export default function Index() {
   const isLogisticsOp = hasRole("operador_logistico");
   const isAdmin = isAllBranches || isOwner || hasRole("admin") || hasRole("supervisor");
   const isViewer = hasRole("viewer") || hasRole("auditor");
-  const isSupervisor = hasRole("supervisor");
 
   const [activeFilter, setActiveFilter] = useState<KpiFilter>("all");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
 
-  // Helper to check branch access
   const canAccessBranch = (branchId: string | null) => {
     if (!branchId) return false;
     if (isAllBranches) return true;
@@ -185,6 +208,7 @@ export default function Index() {
         .from("branch_requests")
         .select(`
           id, request_number, status, created_at, shipping_method, notes,
+          requesting_branch_id, source_branch_id,
           requesting_branch:branches!branch_requests_requesting_branch_id_fkey(name),
           source_branch:branches!branch_requests_source_branch_id_fkey(name)
         `)
@@ -221,7 +245,6 @@ export default function Index() {
         `)
         .not("status", "in", '("completed","cancelled","received","logistic_closed")');
 
-      // BLOQUE 1: Server-side filtering — only fetch relevant fulfillments
       if (!isAllBranches && allowedBranchIds.length > 0) {
         const branchFilter = `source_branch_id.in.(${allowedBranchIds.join(",")}),destination_branch_id.in.(${allowedBranchIds.join(",")})`;
         if (user?.id) {
@@ -237,7 +260,6 @@ export default function Index() {
     },
   });
 
-  // Active consultations
   const { data: activeConsultations, isLoading: loadingConsultations } = useQuery({
     queryKey: ["dashboard-consultations", isAllBranches, allowedBranchIds, defaultBranchId],
     queryFn: async () => {
@@ -262,14 +284,17 @@ export default function Index() {
   const queueItems = useMemo(() => {
     const items: QueueItem[] = [];
 
-    // Requests — exclude parent multi-origin containers (they have no items)
     pendingRequests?.forEach((r: any) => {
       if (r.notes && r.notes.includes("[Pedido padre multi-origen]")) return;
+      const routeLabel = buildRouteLabel(
+        r.source_branch?.name ?? "?", r.requesting_branch?.name ?? "?",
+        allowedBranchIds, r.source_branch_id, r.requesting_branch_id, isAllBranches
+      );
       items.push({
         id: r.id,
         itemType: "pedido",
         number: r.request_number,
-        label: `${r.source_branch?.name ?? "?"} → ${r.requesting_branch?.name ?? "?"}`,
+        routeLabel,
         status: r.status,
         priority: getRequestPriority(r.created_at),
         createdAt: r.created_at,
@@ -277,19 +302,22 @@ export default function Index() {
       });
     });
 
-    // Consultations
     activeConsultations?.forEach((c: any) => {
       const targets = c.consultation_targets || [];
       const hasResponses = targets.some((t: any) => t.responded_at);
       const isRequester = defaultBranchId === c.requesting_branch_id;
       const targetNames = targets.map((t: any) => t.branch?.name).filter(Boolean).join(", ");
-      const label = `${c.requesting_branch?.name ?? "?"} → ${targetNames || "Sin destino"}`;
+      
+      // Use De:/Para: for consultations too
+      const routeLabel = isRequester
+        ? `Para: ${targetNames || "Sin destino"}`
+        : `De: ${c.requesting_branch?.name ?? "?"}`;
 
       items.push({
         id: c.id,
         itemType: "consulta",
         number: null,
-        label,
+        routeLabel,
         status: c.status,
         priority: getRequestPriority(c.created_at),
         createdAt: c.created_at,
@@ -300,9 +328,7 @@ export default function Index() {
       });
     });
 
-    // Fulfillment tasks
     activeFulfillments?.forEach((f: any) => {
-      // Filter: source !== destination
       if (f.source_branch_id === f.destination_branch_id) return;
 
       const isOrigin = canAccessBranch(f.source_branch_id);
@@ -312,22 +338,22 @@ export default function Index() {
       const taskKind = getTaskKind(f.status, isOrigin, isDestination, isCustodian, isAdmin);
       if (!taskKind) return;
 
-      // Don't show if user doesn't participate (unless admin)
       if (!isAdmin && !isOrigin && !isDestination && !isCustodian) return;
 
       const requestId = f.branch_request?.id || null;
       const requestNumber = f.branch_request?.request_number || null;
-      const { label: actionLabel, navigateTo } = getTaskAction(taskKind, requestId);
+      const { navigateTo } = getTaskAction(taskKind, requestId);
 
-      const sourceName = f.source_branch?.name ?? "?";
-      const destName = f.destination_branch?.name ?? "?";
-      const label = `${sourceName} → ${destName}`;
+      const routeLabel = buildRouteLabel(
+        f.source_branch?.name ?? "?", f.destination_branch?.name ?? "?",
+        allowedBranchIds, f.source_branch_id, f.destination_branch_id, isAllBranches
+      );
 
       items.push({
         id: f.id,
         itemType: "tarea",
         number: requestNumber,
-        label,
+        routeLabel,
         status: f.status,
         priority: getRequestPriority(f.created_at),
         createdAt: f.created_at,
@@ -336,22 +362,14 @@ export default function Index() {
       });
     });
 
-    // Sort: priority first, then by role-specific type ordering
     items.sort((a, b) => {
       const pDiff = PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority];
       if (pDiff !== 0) return pDiff;
 
-      // For operador_logístico: consultations > orders > preparation > transport
       if (isLogisticsOp) {
-        const TYPE_ORDER: Record<string, number> = {
-          consulta: 0,
-          pedido: 1,
-          tarea: 2,
-        };
+        const TYPE_ORDER: Record<string, number> = { consulta: 0, pedido: 1, tarea: 2 };
         const TASK_ORDER: Record<string, number> = {
-          preparar: 0, despachar: 1,
-          retirar: 2, en_transito: 3, entregar: 4,
-          recepcionar: 5,
+          preparar: 0, despachar: 1, retirar: 2, en_transito: 3, entregar: 4, recepcionar: 5,
         };
         const tDiff = (TYPE_ORDER[a.itemType] ?? 9) - (TYPE_ORDER[b.itemType] ?? 9);
         if (tDiff !== 0) return tDiff;
@@ -379,11 +397,9 @@ export default function Index() {
   // ── Filtered queue ─────────────────────────────────────
   const filteredItems = useMemo(() => {
     let list = queueItems;
-    // KPI filter
     if (activeFilter === "overdue") list = list.filter(i => isOverdue(i.priority));
     else if (activeFilter === "today") list = list.filter(i => i.priority === "today");
     else if (activeFilter === "awaiting") list = list.filter(i => i.itemType === "tarea" && i.taskKind === "recepcionar");
-    // Type filter
     if (typeFilter === "pedido") list = list.filter(i => i.itemType === "pedido");
     else if (typeFilter === "consulta") list = list.filter(i => i.itemType === "consulta");
     else if (typeFilter === "preparacion") list = list.filter(i => i.itemType === "tarea" && (i.taskKind === "preparar" || i.taskKind === "despachar"));
@@ -396,7 +412,7 @@ export default function Index() {
 
   // ── KPI definitions ────────────────────────────────────
   const kpis: { key: KpiFilter; title: string; value: number; icon: any; colorClass: string; bgClass: string }[] = [
-    { key: "overdue", title: "Atrasados", value: overdueCount, icon: AlertTriangle, colorClass: "text-destructive", bgClass: "bg-destructive/10" },
+    { key: "overdue", title: "Atrasados", value: overdueCount, icon: AlertTriangle, colorClass: "text-orange-600", bgClass: "bg-orange-500/10" },
     { key: "today", title: "Urgentes hoy", value: todayCount, icon: Clock, colorClass: "text-warning", bgClass: "bg-warning/10" },
     { key: "active", title: "En curso", value: activeCount, icon: ClipboardList, colorClass: "text-primary", bgClass: "bg-primary/10" },
     { key: "awaiting", title: "Pend. recepción", value: awaitingReceptionCount, icon: PackageCheck, colorClass: "text-accent", bgClass: "bg-accent/10" },
@@ -413,7 +429,6 @@ export default function Index() {
     { key: "recepcion", label: "📥 Recepción" },
   ];
 
-  // Count items by type for filter badges
   const filterCounts = useMemo(() => {
     const base = (() => {
       let list = queueItems;
@@ -442,7 +457,7 @@ export default function Index() {
             {isViewer ? "Panel de Seguimiento" : isLogisticsOp ? "Panel Logístico" : isDriver ? "Panel del Chofer" : "Mi Panel Operativo"}
           </h1>
           <p className="text-muted-foreground text-sm mt-0.5">
-            {profile?.full_name} — {new Date().toLocaleDateString("es-PY", { weekday: "long", day: "numeric", month: "long" })}
+            {firstName(profile?.full_name)} — {new Date().toLocaleDateString("es-PY", { weekday: "long", day: "numeric", month: "long" })}
           </p>
         </div>
         {!isDriver && !isViewer && (
@@ -531,7 +546,6 @@ export default function Index() {
                     {typeFilters.map((tf) => {
                       const count = filterCounts[tf.key];
                       const isActive = typeFilter === tf.key;
-                      // Hide filter tabs with 0 items (except "Todos")
                       if (tf.key !== "all" && count === 0) return null;
                       return (
                         <button
@@ -571,18 +585,13 @@ export default function Index() {
                         // Determine action label and handler
                         let actionLabel = isViewer ? "Ver" : "Gestionar";
                         let actionIcon = <ArrowRight className="h-3 w-3 ml-1" />;
-                        let actionVariant: "default" | "ghost" = "ghost";
                         let handleAction = () => navigate(qi.navigateTo);
 
                         if (!isViewer) {
                           if (isConsulta) {
-                            if (qi.hasResponses && qi.isRequester) {
-                              actionLabel = "Crear pedido";
-                              actionIcon = <Plus className="h-3 w-3 ml-1" />;
-                              actionVariant = "default";
-                              handleAction = () => navigate(`/solicitudes?action=new&from_consultation=${qi.id}`);
-                            } else if (qi.isRequester) {
-                              actionLabel = "Revisar";
+                            // No "Crear pedido" from dashboard list — always navigate to detail
+                            if (qi.isRequester) {
+                              actionLabel = qi.hasResponses ? "Ver respuestas" : "Revisar";
                             } else {
                               actionLabel = "Responder";
                             }
@@ -625,22 +634,17 @@ export default function Index() {
 
                         // Render status badge
                         const renderStatusBadge = () => {
-                          if (isPedido) {
-                            return <StatusBadge status={qi.status} config={REQUEST_STATUS_CONFIG} />;
-                          }
-                          if (isConsulta) {
-                            return <StatusBadge status={qi.status} config={CONSULTATION_STATUS_CONFIG} />;
-                          }
-                          if (isTarea) {
-                            return <StatusBadge status={qi.status} config={FULFILLMENT_STATUS_CONFIG} />;
-                          }
+                          if (isPedido) return <StatusBadge status={qi.status} config={REQUEST_STATUS_CONFIG} />;
+                          if (isConsulta) return <StatusBadge status={qi.status} config={CONSULTATION_STATUS_CONFIG} />;
+                          if (isTarea) return <StatusBadge status={qi.status} config={FULFILLMENT_STATUS_CONFIG} />;
                           return null;
                         };
 
                         return (
                           <div
                             key={`${qi.itemType}-${qi.id}`}
-                            className={`flex flex-wrap md:flex-nowrap items-center gap-2 md:gap-3 py-2.5 px-3 rounded-lg hover:bg-muted/50 transition-colors ${rowClass}`}
+                            className={`flex flex-wrap md:flex-nowrap items-center gap-2 md:gap-3 py-2.5 px-3 rounded-lg cursor-pointer hover:bg-muted/50 transition-colors ${rowClass}`}
+                            onClick={handleAction}
                           >
                             {/* Left: Type + ID + Route */}
                             <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -652,8 +656,8 @@ export default function Index() {
                                 </span>
                               )}
 
-                              <span className="text-sm text-foreground truncate min-w-0">
-                                {qi.label}
+                              <span className="text-sm text-muted-foreground truncate min-w-0">
+                                {qi.routeLabel}
                               </span>
                             </div>
 
@@ -672,10 +676,10 @@ export default function Index() {
 
                             {/* Right: Action */}
                             <Button
-                              variant={actionVariant}
+                              variant="ghost"
                               size="sm"
                               className="h-7 px-3 text-xs shrink-0 ml-auto"
-                              onClick={handleAction}
+                              onClick={(e) => { e.stopPropagation(); handleAction(); }}
                             >
                               {actionLabel}
                               {actionIcon}

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Search, Filter, ArrowRightLeft, Eye, FileSpreadsheet } from "lucide-react";
+import { Plus, Search, Filter, ArrowRightLeft, FileSpreadsheet } from "lucide-react";
 import { REQUEST_STATUS_CONFIG, SHIPPING_METHOD_LABELS, DELIVERY_TARGET_LABELS, REQUEST_TYPE_LABELS } from "@/lib/constants";
 import { StatusBadge } from "@/components/StatusBadge";
 import { SolicitudCreateForm } from "@/components/solicitudes/SolicitudCreateForm";
@@ -18,10 +18,19 @@ import { SolicitudDetail } from "@/components/solicitudes/SolicitudDetail";
 import { AdminReposicionForm } from "@/components/solicitudes/AdminReposicionForm";
 import { useUserBranchFilter } from "@/hooks/use-user-access";
 
+// Status groups for visual grouping
+const STATUS_GROUPS: { key: string; label: string; statuses: string[] }[] = [
+  { key: "pending", label: "Pendientes", statuses: ["pending"] },
+  { key: "preparation", label: "En preparación", statuses: ["accepted", "picking", "in_preparation"] },
+  { key: "transit", label: "En tránsito", statuses: ["in_transit", "delivered"] },
+  { key: "closed", label: "Cerrados", statuses: ["received", "logistic_closed", "closed", "rejected"] },
+];
+
 export default function Solicitudes() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { hasRole, isOwner } = useAuth();
+  const { hasRole, isOwner, user } = useAuth();
+  const isViewer = hasRole("viewer") || hasRole("auditor");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
@@ -65,7 +74,13 @@ export default function Solicitudes() {
       }
 
       if (statusFilter !== "all") {
-        query = query.eq("status", statusFilter as any);
+        // Check if it's a group key
+        const group = STATUS_GROUPS.find(g => g.key === statusFilter);
+        if (group) {
+          query = query.in("status", group.statuses as any);
+        } else {
+          query = query.eq("status", statusFilter as any);
+        }
       }
       const { data, error } = await query;
       if (error) throw error;
@@ -73,14 +88,63 @@ export default function Solicitudes() {
     },
   });
 
-  const filtered = requests?.filter((r) => {
-    if (!search) return true;
-    const num = `#${r.request_number}`;
-    const src = (r as any).source_branch?.name || "";
-    const req = (r as any).requesting_branch?.name || "";
-    const term = search.toLowerCase();
-    return num.includes(term) || src.toLowerCase().includes(term) || req.toLowerCase().includes(term);
-  });
+  const filtered = useMemo(() => {
+    return requests?.filter((r) => {
+      if (!search) return true;
+      const num = `#${r.request_number}`;
+      const src = (r as any).source_branch?.name || "";
+      const req = (r as any).requesting_branch?.name || "";
+      const term = search.toLowerCase();
+      return num.includes(term) || src.toLowerCase().includes(term) || req.toLowerCase().includes(term);
+    });
+  }, [requests, search]);
+
+  /** Build De:/Para: label based on user's branch context */
+  const buildRouteCell = (r: any) => {
+    const srcName = r.source_branch?.name ?? "?";
+    const reqName = r.requesting_branch?.name ?? "?";
+    
+    if (isAllBranches) {
+      return (
+        <>
+          <span className="text-muted-foreground text-xs">De:</span>{" "}
+          <span className="font-medium">{srcName}</span>
+          <span className="text-muted-foreground mx-1">→</span>
+          <span className="text-muted-foreground text-xs">Para:</span>{" "}
+          <span className="font-medium">{reqName}</span>
+        </>
+      );
+    }
+
+    const isSource = allowedBranchIds.includes(r.source_branch_id);
+    const isDest = allowedBranchIds.includes(r.requesting_branch_id);
+
+    if (isSource && !isDest) {
+      return (
+        <>
+          <span className="text-muted-foreground text-xs">Para:</span>{" "}
+          <span className="font-medium">{reqName}</span>
+        </>
+      );
+    }
+    if (isDest && !isSource) {
+      return (
+        <>
+          <span className="text-muted-foreground text-xs">De:</span>{" "}
+          <span className="font-medium">{srcName}</span>
+        </>
+      );
+    }
+    return (
+      <>
+        <span className="text-muted-foreground text-xs">De:</span>{" "}
+        <span className="font-medium">{srcName}</span>
+        <span className="text-muted-foreground mx-1">→</span>
+        <span className="text-muted-foreground text-xs">Para:</span>{" "}
+        <span className="font-medium">{reqName}</span>
+      </>
+    );
+  };
 
   return (
     <motion.div className="space-y-6" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
@@ -89,29 +153,31 @@ export default function Solicitudes() {
           <h1 className="font-display text-2xl font-bold text-foreground">Pedidos</h1>
           <p className="text-muted-foreground mt-1">Gestión de pedidos entre sucursales, clientes y reposiciones</p>
         </div>
-        <div className="flex flex-col sm:flex-row gap-2">
-          {(hasRole("admin") || isOwner) && (
-            <Button variant="outline" onClick={() => setAdminRepoOpen(true)}>
-              <FileSpreadsheet className="h-4 w-4 mr-2" /> Reposición admin.
-            </Button>
-          )}
-          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" /> Nuevo Pedido
+        {!isViewer && (
+          <div className="flex flex-col sm:flex-row gap-2">
+            {(hasRole("admin") || isOwner) && (
+              <Button variant="outline" onClick={() => setAdminRepoOpen(true)}>
+                <FileSpreadsheet className="h-4 w-4 mr-2" /> Reposición admin.
               </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Crear Pedido</DialogTitle>
-              </DialogHeader>
-              <SolicitudCreateForm
-                fromConsultationId={activeConsultationId}
-                onSuccess={() => { setCreateOpen(false); setActiveConsultationId(null); refetch(); }}
-              />
-            </DialogContent>
-          </Dialog>
-        </div>
+            )}
+            <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="h-4 w-4 mr-2" /> Nuevo Pedido
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Crear Pedido</DialogTitle>
+                </DialogHeader>
+                <SolicitudCreateForm
+                  fromConsultationId={activeConsultationId}
+                  onSuccess={() => { setCreateOpen(false); setActiveConsultationId(null); refetch(); }}
+                />
+              </DialogContent>
+            </Dialog>
+          </div>
+        )}
       </div>
 
       {/* Filters */}
@@ -121,12 +187,16 @@ export default function Solicitudes() {
           <Input placeholder="Buscar por # o sucursal..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[180px]">
+          <SelectTrigger className="w-[200px]">
             <Filter className="h-4 w-4 mr-2" />
             <SelectValue placeholder="Estado" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Todos</SelectItem>
+            <SelectItem value="all">Todos los estados</SelectItem>
+            {STATUS_GROUPS.map((g) => (
+              <SelectItem key={g.key} value={g.key}>📁 {g.label}</SelectItem>
+            ))}
+            <SelectItem value="_sep" disabled>──────────</SelectItem>
             {Object.entries(REQUEST_STATUS_CONFIG).map(([key, cfg]) => (
               <SelectItem key={key} value={key}>{cfg.label}</SelectItem>
             ))}
@@ -142,7 +212,7 @@ export default function Solicitudes() {
           ) : !filtered?.length ? (
             <div className="p-8 text-center text-muted-foreground">
               <ArrowRightLeft className="h-8 w-8 mx-auto mb-2 opacity-50" />
-              <p>No hay pedidos {statusFilter !== "all" ? `con estado "${REQUEST_STATUS_CONFIG[statusFilter]?.label}"` : ""}</p>
+              <p>No hay pedidos {statusFilter !== "all" ? "con ese filtro" : ""}</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -151,7 +221,7 @@ export default function Solicitudes() {
                   <tr className="border-b border-border bg-muted/30">
                     <th className="text-left p-3 font-medium text-muted-foreground">#</th>
                     <th className="text-left p-3 font-medium text-muted-foreground">Tipo</th>
-                    <th className="text-left p-3 font-medium text-muted-foreground">Origen → Solicitante</th>
+                    <th className="text-left p-3 font-medium text-muted-foreground">Ruta</th>
                     <th className="text-left p-3 font-medium text-muted-foreground">Entrega</th>
                     <th className="text-left p-3 font-medium text-muted-foreground">Envío</th>
                     <th className="text-left p-3 font-medium text-muted-foreground">Estado</th>
@@ -169,9 +239,7 @@ export default function Solicitudes() {
                         </Badge>
                       </td>
                       <td className="p-3">
-                        <span className="font-medium">{r.source_branch?.name}</span>
-                        <span className="text-muted-foreground mx-1">→</span>
-                        <span className="font-medium">{r.requesting_branch?.name}</span>
+                        {buildRouteCell(r)}
                       </td>
                       <td className="p-3 text-xs">{DELIVERY_TARGET_LABELS[r.delivery_target] || "A sucursal"}</td>
                       <td className="p-3 text-muted-foreground text-xs">{SHIPPING_METHOD_LABELS[r.shipping_method] || r.shipping_method}</td>
@@ -182,7 +250,9 @@ export default function Solicitudes() {
                         {new Date(r.created_at).toLocaleDateString("es-PY", { day: "2-digit", month: "short" })}
                       </td>
                       <td className="p-3">
-                        <Button variant="ghost" size="sm"><Eye className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="sm" className="text-xs">
+                          {isViewer ? "Ver pedido" : "Gestionar"}
+                        </Button>
                       </td>
                     </tr>
                   ))}
