@@ -108,7 +108,7 @@ export default function Consultas() {
           <DialogTrigger asChild>
             <Button><Plus className="h-4 w-4 mr-2" /> Nueva Consulta</Button>
           </DialogTrigger>
-          <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto overflow-x-hidden">
+          <DialogContent className="w-[calc(100vw-1rem)] max-w-xl max-h-[85vh] overflow-y-auto overflow-x-hidden p-4 sm:p-6">
             <DialogHeader><DialogTitle>Consultar Disponibilidad</DialogTitle></DialogHeader>
             <ConsultationForm onSuccess={() => { setCreateOpen(false); queryClient.invalidateQueries({ queryKey: ["availability-consultations"] }); }} />
           </DialogContent>
@@ -172,7 +172,7 @@ export default function Consultas() {
       </Card>
 
       <Dialog open={!!selectedId} onOpenChange={(open) => !open && setSelectedId(null)}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[calc(100vw-1rem)] max-w-2xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
           <DialogHeader><DialogTitle>Detalle de Consulta</DialogTitle></DialogHeader>
           {selectedId && <ConsultationDetail consultationId={selectedId} onOrderCreated={() => queryClient.invalidateQueries({ queryKey: ["availability-consultations"] })} />}
         </DialogContent>
@@ -337,7 +337,7 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
                   </div>
 
                   {expandedProduct === p.id && (
-                    <div className="p-3 border-t border-border/50 space-y-2">
+                    <div className="p-2 sm:p-3 border-t border-border/50 space-y-2">
                       <DemandAlert productId={p.id} />
                       <div className="w-full min-w-0">
                         <ProductCard
@@ -364,7 +364,7 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
                         />
                       </div>
                       {selectedForProduct.size === 0 && (
-                        <p className="text-xs text-destructive flex items-center gap-1 px-3 pb-2">
+                        <p className="text-xs text-destructive flex items-center gap-1 px-2 sm:px-3 pb-2">
                           <AlertTriangle className="h-3 w-3" /> Seleccioná al menos una sucursal
                         </p>
                       )}

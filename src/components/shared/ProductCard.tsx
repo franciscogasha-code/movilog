@@ -133,7 +133,7 @@ function StockWarehouseButton({
       disabled={!isClickable}
       title={isDisabled ? "No puedes seleccionar tu propia sucursal como origen" : undefined}
       className={cn(
-        "flex items-center justify-between gap-2 px-3 py-2 rounded-md text-xs text-left transition-colors min-h-[36px]",
+        "flex w-full min-w-0 items-center justify-between gap-2 px-2.5 py-2 sm:px-3 rounded-md text-xs text-left transition-colors min-h-[36px]",
         isDisabled
           ? "bg-muted/30 opacity-50 cursor-not-allowed"
           : isSelected
@@ -143,17 +143,17 @@ function StockWarehouseButton({
               : "bg-muted/30 cursor-default border border-transparent"
       )}
     >
-      <span className="font-medium truncate flex items-center gap-1.5 min-w-0">
+      <span className="flex min-w-0 flex-1 items-center gap-1.5 font-medium">
         {isSelected && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
         <span className="truncate">{branchName}</span>
       </span>
-      <span className="flex items-center gap-1.5 shrink-0">
+      <span className="ml-2 flex shrink-0 items-center gap-1.5">
         {isSufficient !== null && (
           <span className={cn("text-[10px] hidden sm:inline", isSufficient ? "text-green-600" : "text-amber-500")}>
             {isSufficient ? "suficiente" : "insuficiente"}
           </span>
         )}
-        <Badge variant={qty > 0 ? "default" : "secondary"} className="text-xs tabular-nums">
+        <Badge variant={qty > 0 ? "default" : "secondary"} className="text-xs tabular-nums shrink-0">
           {Math.floor(qty).toLocaleString("de-DE")}
         </Badge>
       </span>
@@ -236,7 +236,7 @@ export function ProductCard({
     <Card className={cn(className)}>
       <CardContent className="p-0">
         {/* ── Section 1: Header ── */}
-        <div className="p-3 sm:p-4 pb-2 sm:pb-3">
+        <div className="p-2.5 sm:p-4 pb-2 sm:pb-3">
           <div className="flex gap-3">
             <ProductImage url={productImageUrl} name={productName} />
             <div className="flex-1 min-w-0 space-y-1.5">
@@ -286,7 +286,7 @@ export function ProductCard({
 
         {/* ── Section 2: Description ── */}
         {productDescription && (
-          <div className="px-3 sm:px-4 pb-3">
+          <div className="px-2.5 sm:px-4 pb-2.5 sm:pb-3">
             <div className="p-2.5 rounded-md bg-muted/30 border border-border/30">
               <p className="text-xs text-muted-foreground whitespace-pre-line break-words line-clamp-3">{productDescription}</p>
             </div>
@@ -295,7 +295,7 @@ export function ProductCard({
 
         {/* ── Section 3: Prices ── */}
         {(hasPrice || hasPriceScales) && (
-          <div className="px-3 sm:px-4 pb-3 space-y-1.5">
+          <div className="px-2.5 sm:px-4 pb-2.5 sm:pb-3 space-y-1.5">
             <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Precios</h4>
             <div className="flex flex-wrap gap-2">
               {hasPrice && (
@@ -324,7 +324,7 @@ export function ProductCard({
 
         {/* ── Section 4: Stock by warehouse ── */}
         {hasStock && (
-          <div className="px-3 sm:px-4 pb-3 sm:pb-4 space-y-2">
+          <div className="px-2.5 sm:px-4 pb-2.5 sm:pb-4 space-y-2">
             {/* Section header */}
             <div className="flex items-center justify-between gap-2">
               <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
