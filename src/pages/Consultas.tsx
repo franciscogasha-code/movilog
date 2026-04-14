@@ -337,9 +337,9 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
                   </div>
 
                   {expandedProduct === p.id && (
-                    <div className="p-3 border-t border-border/50 space-y-2 overflow-hidden max-w-full">
+                    <div className="p-3 border-t border-border/50 space-y-2">
                       <DemandAlert productId={p.id} />
-                      <div className="w-full overflow-hidden min-w-0">
+                      <div className="w-full min-w-0">
                         <ProductCard
                           productId={p.id}
                           productName={p.name}
