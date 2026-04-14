@@ -236,7 +236,7 @@ export function ProductCard({
     <Card className={cn(className)}>
       <CardContent className="p-0">
         {/* ── Section 1: Header ── */}
-        <div className="p-4 pb-3">
+        <div className="p-3 sm:p-4 pb-2 sm:pb-3">
           <div className="flex gap-3">
             <ProductImage url={productImageUrl} name={productName} />
             <div className="flex-1 min-w-0 space-y-1.5">
