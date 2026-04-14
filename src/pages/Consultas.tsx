@@ -50,6 +50,8 @@ export default function Consultas() {
   }, [searchParams]);
 
   // RLS handles branch filtering — only consultations the user participates in are returned
+  const { isAllBranches, allowedBranchIds } = useUserBranchFilter();
+
   const { data: consultations, isLoading } = useQuery({
     queryKey: ["availability-consultations"],
     queryFn: async () => {
@@ -65,7 +67,7 @@ export default function Consultas() {
         const [cpRes, crRes, ctRes] = await Promise.all([
           supabase.from("consultation_products").select("consultation_id, product:products(name, sku)").in("consultation_id", ids),
           supabase.from("consultation_requests").select("consultation_id, branch_request_id").in("consultation_id", ids),
-          supabase.from("consultation_targets").select("consultation_id, responded_at").in("consultation_id", ids),
+          supabase.from("consultation_targets").select("consultation_id, responded_at, branch:branches!consultation_targets_branch_id_fkey(id, name, code)").in("consultation_id", ids),
         ]);
 
         const productsByConsultation: Record<string, any[]> = {};
@@ -80,10 +82,15 @@ export default function Consultas() {
         });
 
         const responsesByConsultation: Record<string, { total: number; responded: number }> = {};
+        const targetBranchesByConsultation: Record<string, any[]> = {};
         ctRes.data?.forEach((ct: any) => {
           if (!responsesByConsultation[ct.consultation_id]) responsesByConsultation[ct.consultation_id] = { total: 0, responded: 0 };
           responsesByConsultation[ct.consultation_id].total++;
           if (ct.responded_at) responsesByConsultation[ct.consultation_id].responded++;
+          if (ct.branch) {
+            if (!targetBranchesByConsultation[ct.consultation_id]) targetBranchesByConsultation[ct.consultation_id] = [];
+            targetBranchesByConsultation[ct.consultation_id].push(ct.branch);
+          }
         });
 
         return data.map(c => ({
@@ -91,6 +98,7 @@ export default function Consultas() {
           consultation_products: productsByConsultation[c.id] || [],
           orders_count: ordersByConsultation[c.id] || 0,
           responses: responsesByConsultation[c.id] || { total: 0, responded: 0 },
+          target_branches: targetBranchesByConsultation[c.id] || [],
         }));
       }
       return data;
