@@ -317,6 +317,27 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
     try {
       if (!user) { toast.error("Debés iniciar sesión"); return; }
 
+      // ── DIAGNOSTIC: Auth preflight ──
+      const { data: sessionData } = await supabase.auth.getSession();
+      const sessionUser = sessionData?.session?.user;
+      console.group("🔍 [DIAG] Consulta — Preflight Auth");
+      console.log("user.id (AuthContext):", user.id);
+      console.log("session.user.id (getSession):", sessionUser?.id ?? "NO SESSION");
+      console.log("session.access_token present:", !!sessionData?.session?.access_token);
+      console.log("session.expires_at:", sessionData?.session?.expires_at ? new Date((sessionData.session.expires_at as number) * 1000).toISOString() : "N/A");
+      console.log("IDs match:", user.id === sessionUser?.id);
+      console.log("resolvedBranchId:", resolvedBranchId);
+      console.log("derivedTargetBranches:", derivedTargetBranches);
+      console.log("selectedProducts:", selectedProducts.map(p => ({ id: p.id, name: p.name })));
+      console.groupEnd();
+
+      if (!sessionUser || user.id !== sessionUser.id) {
+        const msg = `⚠️ Mismatch de auth: context=${user.id} vs session=${sessionUser?.id ?? "NULL"}`;
+        console.error(msg);
+        toast.error("Tu sesión se desincronizó. Cerrá sesión y volvé a ingresar.");
+        return;
+      }
+
       // Create one consultation per target branch for cleaner chat/response threads
       for (const targetBranchId of derivedTargetBranches) {
         // Find products that have this branch as a source
@@ -325,20 +346,45 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
         );
         if (!productsForBranch.length) continue;
 
+        const insertPayload = { requesting_branch_id: resolvedBranchId, created_by: user.id };
+        console.group(`🔍 [DIAG] INSERT availability_consultations → target: ${targetBranchId}`);
+        console.log("payload:", JSON.stringify(insertPayload));
+
         const { data: consultation, error } = await supabase
           .from("availability_consultations")
-          .insert({ requesting_branch_id: resolvedBranchId, created_by: user.id })
+          .insert(insertPayload)
           .select().single();
-        if (error) throw error;
+
+        if (error) {
+          console.error("❌ INSERT availability_consultations FAILED:", {
+            message: error.message,
+            code: error.code,
+            details: error.details,
+            hint: error.hint,
+          });
+          console.groupEnd();
+          throw error;
+        }
+        console.log("✅ consultation created:", consultation.id);
+        console.groupEnd();
 
         const cpInsert = productsForBranch.map(p => ({ consultation_id: consultation.id, product_id: p.id }));
+        console.log("🔍 [DIAG] INSERT consultation_products payload:", JSON.stringify(cpInsert));
         const { error: cpErr } = await supabase.from("consultation_products").insert(cpInsert);
-        if (cpErr) throw cpErr;
+        if (cpErr) {
+          console.error("❌ INSERT consultation_products FAILED:", { message: cpErr.message, code: cpErr.code, details: cpErr.details, hint: cpErr.hint });
+          throw cpErr;
+        }
+        console.log("✅ consultation_products inserted");
 
-        const { error: tErr } = await supabase.from("consultation_targets").insert([
-          { consultation_id: consultation.id, branch_id: targetBranchId }
-        ]);
-        if (tErr) throw tErr;
+        const targetsInsert = [{ consultation_id: consultation.id, branch_id: targetBranchId }];
+        console.log("🔍 [DIAG] INSERT consultation_targets payload:", JSON.stringify(targetsInsert));
+        const { error: tErr } = await supabase.from("consultation_targets").insert(targetsInsert);
+        if (tErr) {
+          console.error("❌ INSERT consultation_targets FAILED:", { message: tErr.message, code: tErr.code, details: tErr.details, hint: tErr.hint });
+          throw tErr;
+        }
+        console.log("✅ consultation_targets inserted");
 
         if (initialMessage.trim()) {
           await supabase.from("consultation_messages").insert({
@@ -352,7 +398,10 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
       const count = derivedTargetBranches.length;
       toast.success(count > 1 ? `${count} consultas creadas (una por sucursal)` : "Consulta creada");
       onSuccess();
-    } catch (err: any) { toast.error(err.message); }
+    } catch (err: any) {
+      console.error("🔍 [DIAG] Consulta creation error:", err);
+      toast.error(err.message);
+    }
     finally { setSubmitting(false); }
   };
 
