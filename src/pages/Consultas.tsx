@@ -307,8 +307,33 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
   const allProductsHaveSource = selectedProducts.length > 0 &&
     selectedProducts.every(p => (productSources[p.id]?.size ?? 0) > 0);
 
+  // ── Diagnostic state for mobile-visible error display ──
+  const [diagError, setDiagError] = useState<Record<string, any> | null>(null);
+
+  const persistDiagnostic = async (diag: Record<string, any>) => {
+    try {
+      await supabase.from("diagnostic_logs" as any).insert({
+        user_id: diag.user_id,
+        session_user_id: diag.session_user_id,
+        ids_match: diag.ids_match,
+        step_name: diag.step_name,
+        table_name: diag.table_name,
+        payload: diag.payload,
+        error_message: diag.error_message,
+        error_code: diag.error_code,
+        error_details: diag.error_details,
+        error_hint: diag.error_hint,
+        requesting_branch_id: diag.requesting_branch_id,
+        target_branches: diag.target_branches,
+      } as any);
+    } catch (e) {
+      console.error("[DIAG] Failed to persist diagnostic:", e);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setDiagError(null);
     if (!selectedProducts.length || !resolvedBranchId || !allProductsHaveSource) {
       toast.error("Seleccioná al menos una sucursal origen por cada producto");
       return;
@@ -317,74 +342,116 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
     try {
       if (!user) { toast.error("Debés iniciar sesión"); return; }
 
-      // ── DIAGNOSTIC: Auth preflight ──
+      // ── Auth preflight ──
       const { data: sessionData } = await supabase.auth.getSession();
       const sessionUser = sessionData?.session?.user;
+      const idsMatch = user.id === sessionUser?.id;
+
       console.group("🔍 [DIAG] Consulta — Preflight Auth");
       console.log("user.id (AuthContext):", user.id);
       console.log("session.user.id (getSession):", sessionUser?.id ?? "NO SESSION");
-      console.log("session.access_token present:", !!sessionData?.session?.access_token);
-      console.log("session.expires_at:", sessionData?.session?.expires_at ? new Date((sessionData.session.expires_at as number) * 1000).toISOString() : "N/A");
-      console.log("IDs match:", user.id === sessionUser?.id);
-      console.log("resolvedBranchId:", resolvedBranchId);
-      console.log("derivedTargetBranches:", derivedTargetBranches);
-      console.log("selectedProducts:", selectedProducts.map(p => ({ id: p.id, name: p.name })));
+      console.log("IDs match:", idsMatch);
       console.groupEnd();
 
-      if (!sessionUser || user.id !== sessionUser.id) {
-        const msg = `⚠️ Mismatch de auth: context=${user.id} vs session=${sessionUser?.id ?? "NULL"}`;
-        console.error(msg);
+      if (!sessionUser || !idsMatch) {
+        const diag = {
+          user_id: user.id,
+          session_user_id: sessionUser?.id ?? "NULL",
+          ids_match: false,
+          step_name: "auth_preflight",
+          table_name: null,
+          payload: null,
+          error_message: "Auth mismatch: context user ≠ session user",
+          error_code: "AUTH_MISMATCH",
+          error_details: null,
+          error_hint: null,
+          requesting_branch_id: resolvedBranchId,
+          target_branches: derivedTargetBranches,
+        };
+        setDiagError(diag);
+        await persistDiagnostic(diag);
         toast.error("Tu sesión se desincronizó. Cerrá sesión y volvé a ingresar.");
         return;
       }
 
-      // Create one consultation per target branch for cleaner chat/response threads
       for (const targetBranchId of derivedTargetBranches) {
-        // Find products that have this branch as a source
         const productsForBranch = selectedProducts.filter(
           p => productSources[p.id]?.has(targetBranchId)
         );
         if (!productsForBranch.length) continue;
 
+        // ── Step 1: availability_consultations ──
         const insertPayload = { requesting_branch_id: resolvedBranchId, created_by: user.id };
-        console.group(`🔍 [DIAG] INSERT availability_consultations → target: ${targetBranchId}`);
-        console.log("payload:", JSON.stringify(insertPayload));
-
         const { data: consultation, error } = await supabase
           .from("availability_consultations")
           .insert(insertPayload)
           .select().single();
 
         if (error) {
-          console.error("❌ INSERT availability_consultations FAILED:", {
-            message: error.message,
-            code: error.code,
-            details: error.details,
-            hint: error.hint,
-          });
-          console.groupEnd();
+          const diag = {
+            user_id: user.id,
+            session_user_id: sessionUser?.id,
+            ids_match: idsMatch,
+            step_name: "insert_consultation",
+            table_name: "availability_consultations",
+            payload: insertPayload,
+            error_message: error.message,
+            error_code: error.code,
+            error_details: error.details,
+            error_hint: error.hint,
+            requesting_branch_id: resolvedBranchId,
+            target_branches: derivedTargetBranches,
+          };
+          setDiagError(diag);
+          await persistDiagnostic(diag);
           throw error;
         }
-        console.log("✅ consultation created:", consultation.id);
-        console.groupEnd();
 
+        // ── Step 2: consultation_products ──
         const cpInsert = productsForBranch.map(p => ({ consultation_id: consultation.id, product_id: p.id }));
-        console.log("🔍 [DIAG] INSERT consultation_products payload:", JSON.stringify(cpInsert));
         const { error: cpErr } = await supabase.from("consultation_products").insert(cpInsert);
         if (cpErr) {
-          console.error("❌ INSERT consultation_products FAILED:", { message: cpErr.message, code: cpErr.code, details: cpErr.details, hint: cpErr.hint });
+          const diag = {
+            user_id: user.id,
+            session_user_id: sessionUser?.id,
+            ids_match: idsMatch,
+            step_name: "insert_products",
+            table_name: "consultation_products",
+            payload: cpInsert,
+            error_message: cpErr.message,
+            error_code: cpErr.code,
+            error_details: cpErr.details,
+            error_hint: cpErr.hint,
+            requesting_branch_id: resolvedBranchId,
+            target_branches: derivedTargetBranches,
+          };
+          setDiagError(diag);
+          await persistDiagnostic(diag);
           throw cpErr;
         }
-        console.log("✅ consultation_products inserted");
 
+        // ── Step 3: consultation_targets ──
         const targetsInsert = [{ consultation_id: consultation.id, branch_id: targetBranchId }];
-        console.log("🔍 [DIAG] INSERT consultation_targets payload:", JSON.stringify(targetsInsert));
         const { error: tErr } = await supabase.from("consultation_targets").insert(targetsInsert);
         if (tErr) {
-          console.error("❌ INSERT consultation_targets FAILED:", { message: tErr.message, code: tErr.code, details: tErr.details, hint: tErr.hint });
+          const diag = {
+            user_id: user.id,
+            session_user_id: sessionUser?.id,
+            ids_match: idsMatch,
+            step_name: "insert_targets",
+            table_name: "consultation_targets",
+            payload: targetsInsert,
+            error_message: tErr.message,
+            error_code: tErr.code,
+            error_details: tErr.details,
+            error_hint: tErr.hint,
+            requesting_branch_id: resolvedBranchId,
+            target_branches: derivedTargetBranches,
+          };
+          setDiagError(diag);
+          await persistDiagnostic(diag);
           throw tErr;
         }
-        console.log("✅ consultation_targets inserted");
 
         if (initialMessage.trim()) {
           await supabase.from("consultation_messages").insert({
@@ -407,6 +474,25 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {/* ── TEMPORARY: Mobile-visible diagnostic block ── */}
+      {diagError && (
+        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-xs space-y-1 break-all">
+          <div className="font-bold text-destructive flex items-center gap-1">
+            <AlertTriangle className="h-3.5 w-3.5" /> Diagnóstico de error (temporal)
+          </div>
+          <div><strong>Paso:</strong> {diagError.step_name}</div>
+          <div><strong>Tabla:</strong> {diagError.table_name ?? "—"}</div>
+          <div><strong>user.id:</strong> {diagError.user_id}</div>
+          <div><strong>session.user.id:</strong> {diagError.session_user_id}</div>
+          <div><strong>IDs coinciden:</strong> {diagError.ids_match ? "✅ Sí" : "❌ No"}</div>
+          <div><strong>Error:</strong> {diagError.error_message}</div>
+          <div><strong>Código:</strong> {diagError.error_code ?? "—"}</div>
+          {diagError.error_details && <div><strong>Detalles:</strong> {diagError.error_details}</div>}
+          {diagError.error_hint && <div><strong>Hint:</strong> {diagError.error_hint}</div>}
+          {diagError.payload && <div><strong>Payload:</strong> {JSON.stringify(diagError.payload)}</div>}
+          <p className="text-muted-foreground mt-1 italic">Este bloque es temporal para diagnóstico. Capturá screenshot y envialo al administrador.</p>
+        </div>
+      )}
       {/* STEP 1: My branch */}
       <div className="space-y-3">
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">1. Mi sucursal</h3>
