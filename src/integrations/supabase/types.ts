@@ -824,6 +824,57 @@ export type Database = {
           },
         ]
       }
+      diagnostic_logs: {
+        Row: {
+          created_at: string
+          error_code: string | null
+          error_details: string | null
+          error_hint: string | null
+          error_message: string | null
+          id: string
+          ids_match: boolean | null
+          payload: Json | null
+          requesting_branch_id: string | null
+          session_user_id: string | null
+          step_name: string | null
+          table_name: string | null
+          target_branches: Json | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          error_code?: string | null
+          error_details?: string | null
+          error_hint?: string | null
+          error_message?: string | null
+          id?: string
+          ids_match?: boolean | null
+          payload?: Json | null
+          requesting_branch_id?: string | null
+          session_user_id?: string | null
+          step_name?: string | null
+          table_name?: string | null
+          target_branches?: Json | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          error_code?: string | null
+          error_details?: string | null
+          error_hint?: string | null
+          error_message?: string | null
+          id?: string
+          ids_match?: boolean | null
+          payload?: Json | null
+          requesting_branch_id?: string | null
+          session_user_id?: string | null
+          step_name?: string | null
+          table_name?: string | null
+          target_branches?: Json | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       directed_inventories: {
         Row: {
           assigned_to: string | null
