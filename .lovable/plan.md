@@ -1,81 +1,41 @@
 
 
-# Plan: Descarga de Excel vinculado en reposición administrativa
+## Plan: Bloque de motivo de rechazo en SolicitudDetail
 
-## Resumen
+### Archivo a modificar
+`src/components/solicitudes/SolicitudDetail.tsx`
 
-Persistir el archivo Excel original al crear una reposición administrativa, almacenarlo en un bucket privado, guardar el path en `branch_requests.attached_file_path`, y mostrar un botón "Descargar Excel" en el detalle de la solicitud para usuarios autorizados (sucursal origen + roles globales).
+### Cambios
 
----
+**1. Resolver nombre del usuario que rechazó**
 
-## 1. Migración SQL
+Agregar un `useQuery` que consulte `profiles.full_name` usando `r.rejected_by`, habilitado solo cuando `r.status === "rejected"` y `r.rejected_by` existe. Reutiliza el mismo patrón que `OperationalResponsibleName`.
 
-### a) Bucket privado
+**2. Agregar bloque visual de rechazo**
 
-```sql
-INSERT INTO storage.buckets (id, name, public) VALUES ('request-attachments', 'request-attachments', false);
-```
+Insertar inmediatamente después del header (después de la línea 247, antes del action panel) un bloque condicional `{r.status === "rejected" && (...)}` con:
 
-### b) Columna `attached_file_path`
+- **Contenedor**: `rounded-lg border border-destructive/20 bg-destructive/5 p-4`
+- **Encabezado**: icono `XCircle` rojo suave + título "Motivo del rechazo" en `font-semibold`
+- **Contenido** (grid 1-2 columnas):
+  - **Motivo**: `REJECTION_REASONS[r.rejection_reason_type]` o fallback "No especificado"
+  - **Observación**: `r.rejection_reason` si existe, sino "Sin observaciones"
+  - **Rechazado por**: nombre resuelto del query, o "Usuario desconocido"
+  - **Fecha**: `r.rejected_at` formateado con `toLocaleString("es-PY")`, o "Sin fecha"
 
-```sql
-ALTER TABLE public.branch_requests ADD COLUMN attached_file_path text DEFAULT NULL;
-```
+**3. Import adicional**
 
-### c) Políticas de storage en `storage.objects`
+Agregar `XCircle` de lucide-react.
 
-- **INSERT**: usuarios autenticados pueden subir a `request-attachments`
-- **SELECT**: usuarios autenticados que tengan acceso a la sucursal origen de la solicitud referenciada en el path, o roles admin/owner. Se implementa extrayendo el `request_id` del path (`branch_requests/{id}/...`) y validando con `can_access_branch` sobre `source_branch_id`.
+### No se modifica
+- Lógica de negocio ni flujo de rechazo
+- Backend ni RPC
+- Otros componentes
+- Layout existente
 
----
-
-## 2. `ExcelImport.tsx`
-
-Agregar prop opcional:
-
-```ts
-onFileSelected?: (file: File | null) => void;
-```
-
-Invocar `onFileSelected(file)` cuando se selecciona un archivo válido y parsea correctamente. Invocar `onFileSelected(null)` cuando se limpia.
-
----
-
-## 3. `AdminReposicionForm.tsx`
-
-- Agregar estado `const [excelFile, setExcelFile] = useState<File | null>(null)`
-- Pasar `onFileSelected={setExcelFile}` al `ExcelImport`
-- En `handleSubmit`, después de crear la solicitud exitosamente:
-  1. Si `excelFile` existe, subir a `request-attachments` con path `branch_requests/{request.id}/{excelFile.name}`
-  2. Actualizar `branch_requests.attached_file_path` con ese path
-  3. Si falla la subida, mostrar warning pero no bloquear (la solicitud ya se creó)
-
----
-
-## 4. `SolicitudDetail.tsx`
-
-- Verificar si `r.attached_file_path` tiene valor
-- Verificar si el usuario es `isOrigin` o `isAdmin`
-- Si ambas condiciones se cumplen, mostrar botón "Descargar Excel" con ícono `FileSpreadsheet`
-- Al hacer clic: usar `supabase.storage.from('request-attachments').download(r.attached_file_path)` para descargar el archivo
-- Extraer nombre del archivo del path para nombrar el archivo descargado
-- Manejar errores con toast
-
----
-
-## Archivos afectados
-
-| Archivo | Cambio |
-|---|---|
-| Migración SQL | Bucket + columna + políticas storage |
-| `ExcelImport.tsx` | Agregar prop `onFileSelected` |
-| `AdminReposicionForm.tsx` | Capturar File, subir post-creación, guardar path |
-| `SolicitudDetail.tsx` | Botón condicional "Descargar Excel" |
-
-## Lo que NO se toca
-
-- Flujo de creación, aprobación, preparación, transporte, recepción
-- Validaciones existentes
-- Otros módulos
-- No se guardan URLs en DB, solo paths estables
+### Validación
+- TypeScript sin errores
+- Responsive: el bloque usa `grid-cols-1 sm:grid-cols-2`, legible en mobile
+- Sin desbordes ni doble scroll
+- Cumple checklist UI
 
