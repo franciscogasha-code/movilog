@@ -474,6 +474,25 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {/* ── TEMPORARY: Mobile-visible diagnostic block ── */}
+      {diagError && (
+        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-xs space-y-1 break-all">
+          <div className="font-bold text-destructive flex items-center gap-1">
+            <AlertTriangle className="h-3.5 w-3.5" /> Diagnóstico de error (temporal)
+          </div>
+          <div><strong>Paso:</strong> {diagError.step_name}</div>
+          <div><strong>Tabla:</strong> {diagError.table_name ?? "—"}</div>
+          <div><strong>user.id:</strong> {diagError.user_id}</div>
+          <div><strong>session.user.id:</strong> {diagError.session_user_id}</div>
+          <div><strong>IDs coinciden:</strong> {diagError.ids_match ? "✅ Sí" : "❌ No"}</div>
+          <div><strong>Error:</strong> {diagError.error_message}</div>
+          <div><strong>Código:</strong> {diagError.error_code ?? "—"}</div>
+          {diagError.error_details && <div><strong>Detalles:</strong> {diagError.error_details}</div>}
+          {diagError.error_hint && <div><strong>Hint:</strong> {diagError.error_hint}</div>}
+          {diagError.payload && <div><strong>Payload:</strong> {JSON.stringify(diagError.payload)}</div>}
+          <p className="text-muted-foreground mt-1 italic">Este bloque es temporal para diagnóstico. Capturá screenshot y envialo al administrador.</p>
+        </div>
+      )}
       {/* STEP 1: My branch */}
       <div className="space-y-3">
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">1. Mi sucursal</h3>
