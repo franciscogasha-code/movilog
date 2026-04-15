@@ -142,6 +142,20 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
     enabled: !!requestId,
   });
 
+  // Resolve rejected_by profile name
+  const { data: rejectedByProfile } = useQuery({
+    queryKey: ["profile-name-rejected", request?.rejected_by],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("user_id", request!.rejected_by!)
+        .maybeSingle();
+      return data?.full_name || "Usuario desconocido";
+    },
+    enabled: !!request && request.status === "rejected" && !!request.rejected_by,
+  });
+
   if (isLoading) return <div className="p-4 text-muted-foreground">Cargando...</div>;
   if (!request) return <div className="p-4 text-muted-foreground">No encontrada</div>;
 
