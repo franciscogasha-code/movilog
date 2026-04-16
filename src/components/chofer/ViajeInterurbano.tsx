@@ -29,10 +29,11 @@ const TASK_TYPE_LABELS: Record<string, string> = {
 };
 
 export function ViajeInterurbano({ trips, activeTrip, myDriverId }: Props) {
-  const { user } = useAuth();
+  const { user, isOwner, hasRole } = useAuth();
   const queryClient = useQueryClient();
   const [detailId, setDetailId] = useState<string | null>(null);
   const [addTaskOpen, setAddTaskOpen] = useState(false);
+  const [createTripOpen, setCreateTripOpen] = useState(false);
   const [startingTripId, setStartingTripId] = useState<string | null>(null);
   const [startMileage, setStartMileage] = useState("");
   const [showEndWarning, setShowEndWarning] = useState(false);
@@ -40,6 +41,13 @@ export function ViajeInterurbano({ trips, activeTrip, myDriverId }: Props) {
   const [endMileageValue, setEndMileageValue] = useState<number | null>(null);
   const [showEmptyTripWarning, setShowEmptyTripWarning] = useState(false);
   const [pendingStartTripId, setPendingStartTripId] = useState<string | null>(null);
+
+  const canCreateTrip =
+    isOwner ||
+    hasRole("admin") ||
+    hasRole("supervisor") ||
+    hasRole("jefe_logistica") ||
+    hasRole("operador_logistico");
 
   // Planned trips assigned to this driver (not yet started)
   const plannedTrips = trips.filter(t => t.status === "planned");
