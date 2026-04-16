@@ -787,7 +787,7 @@ export default function Index() {
                                    </div>
                                    <Badge variant="secondary" className="text-[10px] ml-auto">{clientItems.length}</Badge>
                                 </div>
-                                {renderSections(buildSections(clientItems), buildSections(clientItems).length > 1)}
+                                {renderSections(buildSections(clientItems), true)}
                               </div>
                             )}
                             {/* Regular queue */}
