@@ -777,29 +777,56 @@ export default function Index() {
 
                         return (
                           <>
-                            {/* Client orders section */}
-                            {clientItems.length > 0 && (
-                              <div className="mb-4">
-                                <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-purple-500/5 border border-purple-500/10 mb-2">
-                                  <Truck className="h-4 w-4 text-purple-600 shrink-0" />
-                                   <div>
-                                     <p className="text-xs font-semibold uppercase tracking-wider text-purple-600">
-                                       Pedidos con cliente
-                                     </p>
-                                     <p className="text-[10px] text-purple-500/70 font-normal normal-case tracking-normal">
-                                       Pickup, delivery y encomienda con cliente identificado
-                                     </p>
-                                   </div>
-                                   <Badge variant="secondary" className="text-[10px] ml-auto">{clientItems.length}</Badge>
+                            {/* Client orders section - clickable filter */}
+                            {(() => {
+                              const allClientItems = filteredItems.filter(isClientOrder);
+                              const isClientFilterActive = clientFilter === "client_only";
+
+                              if (allClientItems.length === 0 && !isClientFilterActive) return null;
+
+                              return (
+                                <div className="mb-4">
+                                  <div
+                                    className={`flex items-center gap-2 px-3 py-2 rounded-md border mb-2 cursor-pointer transition-all duration-200 ${
+                                      isClientFilterActive
+                                        ? "bg-purple-500/15 border-purple-500/30 ring-2 ring-purple-500/20"
+                                        : "bg-purple-500/5 border-purple-500/10 hover:bg-purple-500/10"
+                                    }`}
+                                    onClick={() => setClientFilter(isClientFilterActive ? "all" : "client_only")}
+                                  >
+                                    <Truck className="h-4 w-4 text-purple-600 shrink-0" />
+                                    <div>
+                                      <p className="text-xs font-semibold uppercase tracking-wider text-purple-600">
+                                        Pedidos con cliente
+                                      </p>
+                                      <p className="text-[10px] text-purple-500/70 font-normal normal-case tracking-normal">
+                                        {isClientFilterActive ? "Click para ver todos" : "Pickup, delivery y encomienda con cliente identificado"}
+                                      </p>
+                                    </div>
+                                    <Badge variant={isClientFilterActive ? "default" : "secondary"} className="text-[10px] ml-auto">
+                                      {allClientItems.length}
+                                    </Badge>
+                                  </div>
+                                  {/* When filter active, show all client items with priority sections */}
+                                  {isClientFilterActive && allClientItems.length > 0 && (
+                                    renderSections(buildSections(allClientItems), true)
+                                  )}
+                                  {/* When NOT active, show inline preview */}
+                                  {!isClientFilterActive && clientItems.length > 0 && (
+                                    renderSections(buildSections(clientItems), true)
+                                  )}
                                 </div>
-                                {renderSections(buildSections(clientItems), true)}
-                              </div>
-                            )}
-                            {/* Regular queue */}
-                            {restItems.length > 0 ? (
-                              renderSections(buildSections(restItems), buildSections(restItems).length > 1 && activeFilter === "all")
-                            ) : clientItems.length === 0 ? null : (
-                              <p className="text-xs text-muted-foreground text-center py-4">Sin reposiciones internas pendientes</p>
+                              );
+                            })()}
+                            {/* Regular queue - hidden when client filter active */}
+                            {clientFilter !== "client_only" && (
+                              <>
+                                {restItems.length > 0 ? (
+                                  renderSections(buildSections(restItems), buildSections(restItems).length > 1 && activeFilter === "all")
+                                ) : clientItems.length === 0 ? null : (
+                                  <p className="text-xs text-muted-foreground text-center py-4">Sin reposiciones internas pendientes</p>
+                                )}
+                              </>
                             )}
                           </>
                         );
