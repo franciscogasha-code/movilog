@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Package, ArrowRight, Truck, MapPin, Plus, Trash2, Calendar, User } from "lucide-react";
+import { Package, ArrowRight, Truck, MapPin, Plus, Trash2, Calendar, User, ShoppingBag } from "lucide-react";
 import { TRIP_TYPE_LABELS, REQUEST_TYPE_LABELS, FULFILLMENT_STATUS_CONFIG } from "@/lib/constants";
 import { toast } from "sonner";
 
@@ -20,7 +20,6 @@ export function LogisticaViajeDetalle({ tripId }: Props) {
   const [selectedRequestId, setSelectedRequestId] = useState("");
   const [assigning, setAssigning] = useState(false);
 
-  // Trip info
   const { data: trip } = useQuery({
     queryKey: ["trip-detail", tripId],
     queryFn: async () => {
@@ -39,7 +38,6 @@ export function LogisticaViajeDetalle({ tripId }: Props) {
     },
   });
 
-  // Fulfillments linked to this trip
   const { data: linkedFulfillments } = useQuery({
     queryKey: ["trip-fulfillments", tripId],
     queryFn: async () => {
@@ -58,7 +56,6 @@ export function LogisticaViajeDetalle({ tripId }: Props) {
     },
   });
 
-  // Available requests for adding (in_consolidation + interurban)
   const { data: availableRequests } = useQuery({
     queryKey: ["available-for-trip"],
     queryFn: async () => {
@@ -77,6 +74,27 @@ export function LogisticaViajeDetalle({ tripId }: Props) {
     enabled: addOpen,
   });
 
+  // Group fulfillments by source
+  const bySource = useMemo(() => {
+    if (!linkedFulfillments?.length) return {};
+    const groups: Record<string, typeof linkedFulfillments> = {};
+    linkedFulfillments.forEach(f => {
+      const src = (f.source_branch as any)?.code || "—";
+      if (!groups[src]) groups[src] = [];
+      groups[src].push(f);
+    });
+    return groups;
+  }, [linkedFulfillments]);
+
+  const invalidateAll = () => {
+    queryClient.invalidateQueries({ queryKey: ["trip-fulfillments", tripId] });
+    queryClient.invalidateQueries({ queryKey: ["consolidation-requests"] });
+    queryClient.invalidateQueries({ queryKey: ["consolidation-count"] });
+    queryClient.invalidateQueries({ queryKey: ["planned-trips"] });
+    queryClient.invalidateQueries({ queryKey: ["trip-load-counts"] });
+    queryClient.invalidateQueries({ queryKey: ["assigned-today-count"] });
+  };
+
   const addLoad = async () => {
     if (!selectedRequestId) return;
     setAssigning(true);
@@ -88,10 +106,7 @@ export function LogisticaViajeDetalle({ tripId }: Props) {
       });
       if (error) throw error;
       toast.success("Carga asignada al viaje");
-      queryClient.invalidateQueries({ queryKey: ["trip-fulfillments", tripId] });
-      queryClient.invalidateQueries({ queryKey: ["consolidation-requests"] });
-      queryClient.invalidateQueries({ queryKey: ["planned-trips"] });
-      queryClient.invalidateQueries({ queryKey: ["trip-load-counts"] });
+      invalidateAll();
       setAddOpen(false);
       setSelectedRequestId("");
     } catch (err: any) {
@@ -113,10 +128,7 @@ export function LogisticaViajeDetalle({ tripId }: Props) {
       });
       if (error) throw error;
       toast.success("Carga desvinculada del viaje");
-      queryClient.invalidateQueries({ queryKey: ["trip-fulfillments", tripId] });
-      queryClient.invalidateQueries({ queryKey: ["consolidation-requests"] });
-      queryClient.invalidateQueries({ queryKey: ["planned-trips"] });
-      queryClient.invalidateQueries({ queryKey: ["trip-load-counts"] });
+      invalidateAll();
     } catch (err: any) {
       toast.error(err.message);
     }
@@ -126,48 +138,64 @@ export function LogisticaViajeDetalle({ tripId }: Props) {
 
   const driverName = (trip.driver as any)?.profiles?.full_name || "Sin chofer";
   const isPlanned = trip.status === "planned";
+  const isSupplier = trip.trip_type === "supplier_pickup";
+  const totalLoads = linkedFulfillments?.length || 0;
+  const totalBultos = linkedFulfillments?.reduce((sum, f) => sum + ((f as any).package_count || 0), 0) || 0;
 
   return (
     <div className="space-y-4">
-      {/* Trip info */}
-      <div className="grid grid-cols-2 gap-3 text-sm">
+      {/* Trip header */}
+      <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Truck className="h-4 w-4 text-muted-foreground" />
-          <span className="font-medium">Viaje #{trip.trip_number}</span>
-          <Badge variant="outline">{TRIP_TYPE_LABELS[trip.trip_type] || trip.trip_type}</Badge>
+          <span className="font-display font-bold text-lg">Viaje #{trip.trip_number}</span>
+          <Badge variant={isSupplier ? "secondary" : "outline"} className="text-xs">
+            {isSupplier && <ShoppingBag className="h-3 w-3 mr-0.5" />}
+            {TRIP_TYPE_LABELS[trip.trip_type] || trip.trip_type}
+          </Badge>
+          <Badge variant={isPlanned ? "outline" : "default"} className="text-xs">
+            {isPlanned ? "Planificado" : "En curso"}
+          </Badge>
         </div>
+        <div className="text-right">
+          <p className="text-lg font-bold">{totalLoads} <span className="text-sm font-normal text-muted-foreground">carga(s)</span></p>
+          {totalBultos > 0 && <p className="text-xs text-muted-foreground">{totalBultos} bultos</p>}
+        </div>
+      </div>
+
+      {/* Trip info grid */}
+      <div className="grid grid-cols-2 gap-2 text-sm">
         <div className="flex items-center gap-2">
-          <User className="h-4 w-4 text-muted-foreground" />
+          <User className="h-3.5 w-3.5 text-muted-foreground" />
           <span>{driverName}</span>
         </div>
         <div className="flex items-center gap-2">
-          <MapPin className="h-4 w-4 text-muted-foreground" />
+          <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
           <span>{(trip.origin_branch as any)?.code} — {(trip.origin_branch as any)?.name}</span>
         </div>
         {(trip as any).scheduled_departure && (
           <div className="flex items-center gap-2">
-            <Calendar className="h-4 w-4 text-muted-foreground" />
+            <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
             <span>{new Date((trip as any).scheduled_departure).toLocaleString("es-PY", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
-          </div>
-        )}
-        {(trip as any).destination_description && (
-          <div className="col-span-2 flex items-center gap-2">
-            <MapPin className="h-4 w-4 text-primary" />
-            <span className="text-muted-foreground">Destino: {(trip as any).destination_description}</span>
           </div>
         )}
         {(trip.vehicle as any)?.plate_number && (
           <div className="flex items-center gap-2">
-            <Truck className="h-4 w-4 text-muted-foreground" />
+            <Truck className="h-3.5 w-3.5 text-muted-foreground" />
             <span>{(trip.vehicle as any).plate_number} {(trip.vehicle as any).brand || ""}</span>
+          </div>
+        )}
+        {(trip as any).destination_description && (
+          <div className="col-span-2 flex items-center gap-2">
+            <MapPin className="h-3.5 w-3.5 text-primary" />
+            <span className="text-muted-foreground">Destino: {(trip as any).destination_description}</span>
           </div>
         )}
       </div>
 
-      {/* Loads */}
+      {/* Loads section */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <h4 className="font-display font-semibold text-sm">Cargas asignadas ({linkedFulfillments?.length || 0})</h4>
+          <h4 className="font-display font-semibold text-sm">Cargas asignadas</h4>
           {isPlanned && (
             <Button variant="outline" size="sm" onClick={() => setAddOpen(true)} className="gap-1">
               <Plus className="h-3.5 w-3.5" /> Agregar carga
@@ -179,41 +207,29 @@ export function LogisticaViajeDetalle({ tripId }: Props) {
           <Card className="glass-card">
             <CardContent className="p-6 text-center text-muted-foreground text-sm">
               <Package className="h-6 w-6 mx-auto mb-2 opacity-50" />
-              Sin cargas asignadas
+              <p>Sin cargas asignadas</p>
+              {isPlanned && <p className="text-xs mt-1">Agregue cargas desde consolidación o con el botón de arriba</p>}
             </CardContent>
           </Card>
+        ) : Object.keys(bySource).length > 1 ? (
+          /* Grouped by source when multiple origins */
+          <div className="space-y-3">
+            {Object.entries(bySource).map(([src, items]) => (
+              <div key={src} className="p-2 rounded-lg bg-muted/10 border border-border/30">
+                <p className="text-xs font-medium text-muted-foreground mb-1.5 px-1">Origen: {src} ({items!.length})</p>
+                <div className="space-y-1">
+                  {items!.map((f: any) => (
+                    <FulfillmentRow key={f.id} f={f} isPlanned={isPlanned} onRemove={removeLoad} />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
         ) : (
           <div className="space-y-1.5">
-            {linkedFulfillments.map((f: any) => {
-              const req = f.branch_request as any;
-              const statusCfg = FULFILLMENT_STATUS_CONFIG[f.status] || FULFILLMENT_STATUS_CONFIG.pending;
-              const doc = f.bims_transfer_number || f.bims_invoice_number || "—";
-              return (
-                <div key={f.id} className="flex items-center justify-between p-2.5 rounded-lg bg-muted/20 border border-border/50 text-sm">
-                  <div className="flex items-center gap-2">
-                    <Package className="h-4 w-4 text-muted-foreground" />
-                    {req && <span className="font-mono text-xs">#{req.request_number}</span>}
-                    <span className="text-muted-foreground">{(f.source_branch as any)?.code}</span>
-                    <ArrowRight className="h-3 w-3 text-muted-foreground" />
-                    <span>{(f.destination_branch as any)?.code || req?.client_name || "—"}</span>
-                    {req && <Badge variant="outline" className="text-xs">{REQUEST_TYPE_LABELS[req.request_type] || req.request_type}</Badge>}
-                    <span className="text-xs text-muted-foreground">{doc}</span>
-                    {f.package_count > 0 && <span className="text-xs text-muted-foreground">{f.package_count} bultos</span>}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge className={`text-xs ${statusCfg.color}`}>{statusCfg.label}</Badge>
-                    {isPlanned && (
-                      <Button
-                        variant="ghost" size="icon" className="h-7 w-7"
-                        onClick={() => removeLoad(f)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+            {linkedFulfillments.map((f: any) => (
+              <FulfillmentRow key={f.id} f={f} isPlanned={isPlanned} onRemove={removeLoad} />
+            ))}
           </div>
         )}
       </div>
@@ -222,7 +238,7 @@ export function LogisticaViajeDetalle({ tripId }: Props) {
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Agregar carga al viaje</DialogTitle>
+            <DialogTitle>Agregar carga al viaje #{trip.trip_number}</DialogTitle>
           </DialogHeader>
           <Select value={selectedRequestId} onValueChange={setSelectedRequestId}>
             <SelectTrigger>
@@ -248,6 +264,41 @@ export function LogisticaViajeDetalle({ tripId }: Props) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+function FulfillmentRow({ f, isPlanned, onRemove }: { f: any; isPlanned: boolean; onRemove: (f: any) => void }) {
+  const req = f.branch_request as any;
+  const statusCfg = FULFILLMENT_STATUS_CONFIG[f.status] || FULFILLMENT_STATUS_CONFIG.pending;
+  const doc = f.bims_transfer_number || f.bims_invoice_number || "—";
+  return (
+    <div className="flex items-center justify-between p-2 rounded-lg bg-background/50 border border-border/50 text-sm">
+      <div className="flex items-center gap-2 min-w-0">
+        <Package className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+        {req && <span className="font-mono text-xs">#{req.request_number}</span>}
+        <span className="text-muted-foreground text-xs">{(f.source_branch as any)?.code}</span>
+        <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
+        <span className="text-xs">{(f.destination_branch as any)?.code || req?.client_name || "—"}</span>
+        {req && (
+          <Badge variant="outline" className="text-[10px] shrink-0">
+            {REQUEST_TYPE_LABELS[req.request_type] || req.request_type}
+          </Badge>
+        )}
+        <span className="text-xs text-muted-foreground">{doc}</span>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        <Badge className={`text-[10px] ${statusCfg.color}`}>{statusCfg.label}</Badge>
+        {isPlanned && (
+          <Button
+            variant="ghost" size="icon" className="h-7 w-7"
+            onClick={() => onRemove(f)}
+            title="Quitar del viaje"
+          >
+            <Trash2 className="h-3.5 w-3.5 text-destructive" />
+          </Button>
+        )}
+      </div>
     </div>
   );
 }

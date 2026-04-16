@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Calendar, Truck, Plus, Package, X } from "lucide-react";
+import { Calendar, Truck, Plus, Package, X, User, Clock, ShoppingBag } from "lucide-react";
 import { TRIP_TYPE_LABELS } from "@/lib/constants";
 import { CrearViajeForm } from "./CrearViajeForm";
 import { LogisticaViajeDetalle } from "./LogisticaViajeDetalle";
@@ -28,13 +28,12 @@ export function LogisticaViajesProgramados() {
           driver:drivers!trips_driver_id_fkey(id, user_id, profiles:user_id(full_name))
         `)
         .eq("status", "planned" as any)
-        .order("created_at", { ascending: false });
+        .order("scheduled_departure", { ascending: true, nullsFirst: false });
       if (error) throw error;
       return data;
     },
   });
 
-  // Count fulfillments per trip
   const { data: tripLoadCounts } = useQuery({
     queryKey: ["trip-load-counts"],
     queryFn: async () => {
@@ -68,6 +67,7 @@ export function LogisticaViajesProgramados() {
       if (error) throw error;
       toast.success("Viaje cancelado");
       queryClient.invalidateQueries({ queryKey: ["planned-trips"] });
+      queryClient.invalidateQueries({ queryKey: ["planned-count"] });
     } catch (err: any) {
       toast.error(err.message);
     }
@@ -94,53 +94,65 @@ export function LogisticaViajesProgramados() {
           ) : !trips?.length ? (
             <div className="p-8 text-center text-muted-foreground">
               <Calendar className="h-8 w-8 mx-auto mb-2 opacity-50" />
-              <p>No hay viajes programados</p>
+              <p className="font-medium">No hay viajes programados</p>
+              <p className="text-xs mt-1">Crear un viaje para comenzar a asignar cargas</p>
             </div>
           ) : (
             <div className="space-y-2">
               {trips.map((t: any) => {
                 const loadCount = tripLoadCounts?.[t.id] || 0;
                 const driverName = (t.driver as any)?.profiles?.full_name || "Sin chofer";
+                const isSupplier = t.trip_type === "supplier_pickup";
                 return (
                   <div
                     key={t.id}
-                    className="flex items-center justify-between p-3 rounded-lg bg-muted/20 border border-border/50 hover:bg-muted/30 cursor-pointer transition-colors"
+                    className="p-3 rounded-lg bg-muted/20 border border-border/50 hover:bg-muted/30 cursor-pointer transition-colors"
                     onClick={() => setDetailTripId(t.id)}
                   >
-                    <div className="flex items-center gap-3">
-                      <Truck className="h-4 w-4 text-muted-foreground" />
-                      <div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        {isSupplier ? (
+                          <ShoppingBag className="h-4 w-4 text-warning" />
+                        ) : (
+                          <Truck className="h-4 w-4 text-muted-foreground" />
+                        )}
                         <span className="font-mono font-semibold text-sm">#{t.trip_number}</span>
-                        <span className="text-xs text-muted-foreground ml-2">
-                          {(t.origin_branch as any)?.code}
-                        </span>
+                        <span className="text-xs text-muted-foreground">{(t.origin_branch as any)?.code}</span>
                         {t.destination_description && (
-                          <span className="text-xs text-muted-foreground ml-1">→ {t.destination_description}</span>
+                          <span className="text-xs text-muted-foreground">→ {t.destination_description}</span>
                         )}
                       </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="ghost" size="icon" className="h-7 w-7"
+                          onClick={(e) => { e.stopPropagation(); cancelTrip(t.id); }}
+                        >
+                          <X className="h-3.5 w-3.5 text-destructive" />
+                        </Button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground">{driverName}</span>
+                    <div className="flex items-center gap-3 mt-1.5 pl-7 text-xs text-muted-foreground flex-wrap">
+                      <span className="flex items-center gap-1">
+                        <User className="h-3 w-3" /> {driverName}
+                      </span>
                       {(t.vehicle as any)?.plate_number && (
-                        <span className="text-xs text-muted-foreground">{(t.vehicle as any).plate_number}</span>
-                      )}
-                      <Badge variant="outline" className="text-xs">
-                        {TRIP_TYPE_LABELS[t.trip_type] || t.trip_type}
-                      </Badge>
-                      <Badge variant="outline" className="text-xs">
-                        <Package className="h-3 w-3 mr-1" /> {loadCount}
-                      </Badge>
-                      {t.scheduled_departure && (
-                        <span className="text-xs text-muted-foreground">
-                          {new Date(t.scheduled_departure).toLocaleDateString("es-PY", { day: "2-digit", month: "short" })}
+                        <span className="flex items-center gap-1">
+                          <Truck className="h-3 w-3" /> {(t.vehicle as any).plate_number}
                         </span>
                       )}
-                      <Button
-                        variant="ghost" size="icon" className="h-7 w-7"
-                        onClick={(e) => { e.stopPropagation(); cancelTrip(t.id); }}
-                      >
-                        <X className="h-3.5 w-3.5 text-destructive" />
-                      </Button>
+                      <Badge variant={isSupplier ? "secondary" : "outline"} className="text-[10px]">
+                        {isSupplier && <ShoppingBag className="h-3 w-3 mr-0.5" />}
+                        {TRIP_TYPE_LABELS[t.trip_type] || t.trip_type}
+                      </Badge>
+                      <span className="flex items-center gap-1">
+                        <Package className="h-3 w-3" /> {loadCount} carga(s)
+                      </span>
+                      {t.scheduled_departure && (
+                        <span className="flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          {new Date(t.scheduled_departure).toLocaleString("es-PY", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                        </span>
+                      )}
                     </div>
                   </div>
                 );
@@ -150,7 +162,6 @@ export function LogisticaViajesProgramados() {
         </CardContent>
       </Card>
 
-      {/* Create dialog */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
@@ -160,13 +171,13 @@ export function LogisticaViajesProgramados() {
             onSuccess={() => {
               setCreateOpen(false);
               queryClient.invalidateQueries({ queryKey: ["planned-trips"] });
+              queryClient.invalidateQueries({ queryKey: ["planned-count"] });
             }}
             onCancel={() => setCreateOpen(false)}
           />
         </DialogContent>
       </Dialog>
 
-      {/* Detail sheet */}
       <Dialog open={!!detailTripId} onOpenChange={(o) => !o && setDetailTripId(null)}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
