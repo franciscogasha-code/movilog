@@ -1,243 +1,185 @@
 
 
-# Plan Maestro Consolidado: Redefinición del Flujo de Estados de Pedidos
+# Plan Final: Módulo de Planificación Logística con Ajustes Obligatorios
 
-## Contexto
+## Resumen
 
-El sistema actual usa un flujo lineal único para todos los pedidos (`pending → in_preparation → in_transit → delivered → received → logistic_closed → closed`), lo cual no refleja la operación real. Se requieren 3 escenarios diferenciados según tipo de pedido y grupo logístico.
-
----
-
-## Fase 0: Checklist de Integridad Previo
-
-Verificar antes de cualquier cambio:
-
-| Punto | Estado esperado |
-|-------|----------------|
-| Enum `request_status` actual | 11 valores (pending, in_preparation, accepted, rejected, picking, dispatched, in_transit, delivered, received, logistic_closed, closed) |
-| Datos existentes | 65 pedidos (41 pending, 9 closed, 5 logistic_closed, 4 delivered, 3 rejected, 2 in_preparation, 1 received) |
-| Fulfillments existentes | 20 (todos pending) |
-| 0 registros con estados legacy | Confirmar 0 en accepted, picking, dispatched |
-| Triggers en `branch_requests` | fn_check_request_closure, fn_validate_business_rules, fn_validate_delivery_charges, fn_validate_different_branches, update_updated_at |
-| RPC central | fn_transition_request_status operativo |
-| RPC chofer | fn_driver_action operativo |
-| Integraciones BIMS | bims-proxy, bims-sync, bims-stock-live — sin cambios |
-| RLS policies | No se modifican |
+Transformar `/ruteo` en módulo operativo completo para logística, aplicando los 7 ajustes solicitados sobre el plan base ya aprobado.
 
 ---
 
-## Fase 1: Migración de Base de Datos
+## Estado actual verificado
 
-### 1a. Agregar `logistic_group` a `branches` + poblar datos
+- `fn_transition_request_status` (5-arg version) ya tiene:
+  - Cálculo de `flow_type` correcto
+  - Validación de `p_trip_id` para `assigned_to_trip`
+  - UPDATE de `fulfillment_orders.trip_id` dentro del RPC (no directo)
+  - Actor check: `assigned_to_trip` requiere `warehouse_operator` o admin
+- `trips` table: no tiene `destination_description` ni `created_by` (hay que agregarlos)
+- `trip_type` enum: solo `urban_cutoff`, `interurban_planned` (falta `supplier_pickup`)
+- El chofer actualmente puede crear viajes interurbanos directamente (INSERT en `ViajeInterurbano.tsx`)
+- La query de trips en `Chofer.tsx` NO filtra por `driver_id`
+
+---
+
+## Fase 1: Migración BD
+
+Una sola migración:
 
 ```sql
-ALTER TABLE branches ADD COLUMN logistic_group varchar;
-
-UPDATE branches SET logistic_group = 'encarnacion_local' WHERE code IN ('1','9','15','5');
--- SUC SAN ROQUE (1), SUC. CABALLERO (9), STOCK ADMINISTRACION (15), Deposito Importación (5)
-
-UPDATE branches SET logistic_group = 'luque' WHERE code = '8';
-UPDATE branches SET logistic_group = 'oviedo' WHERE code = '21';
-UPDATE branches SET logistic_group = 'hohenau' WHERE code = '17';
-
--- MUESTRAS VENTA EXTERNA (6) y Warehouse undefined → NULL (excluidas)
+ALTER TYPE trip_type ADD VALUE IF NOT EXISTS 'supplier_pickup';
+ALTER TABLE trips ADD COLUMN destination_description text;
+ALTER TABLE trips ADD COLUMN created_by uuid;
 ```
 
-### 1b. Agregar nuevos estados al enum `request_status`
+No se crean tablas nuevas. Todo sobre `trips`, `fulfillment_orders`, `branch_requests`.
+
+---
+
+## Fase 2: Ajuste al RPC `fn_transition_request_status`
+
+**Ajuste 3 — Validación de flow_type en assigned_to_trip** (extensión controlada):
+
+Agregar dentro del bloque `IF p_new_status = 'assigned_to_trip'` existente:
 
 ```sql
-ALTER TYPE request_status ADD VALUE IF NOT EXISTS 'ready_for_pickup';
-ALTER TYPE request_status ADD VALUE IF NOT EXISTS 'ready_for_delivery';
-ALTER TYPE request_status ADD VALUE IF NOT EXISTS 'in_consolidation';
-ALTER TYPE request_status ADD VALUE IF NOT EXISTS 'assigned_to_trip';
-ALTER TYPE request_status ADD VALUE IF NOT EXISTS 'delivered_to_third_party';
+IF v_flow_type != 'interurban' THEN
+  RAISE EXCEPTION 'Solo pedidos interurbanos pueden asignarse a viaje (flow_type actual: %)', COALESCE(v_flow_type, 'NULL');
+END IF;
 ```
 
-### 1c. Agregar campos a `branch_requests`
+Esto bloquea urbanos, client_delivery y legacy. El resto del RPC no se toca.
+
+---
+
+## Fase 3: Reescribir `/ruteo` — 4 tabs
+
+### Tab A: Consolidación
+
+**Ajuste 1 — Fuente de verdad**: Query principal sobre `branch_requests`:
 
 ```sql
-ALTER TABLE branch_requests ADD COLUMN flow_type varchar;
-ALTER TABLE branch_requests ADD COLUMN consolidation_override boolean DEFAULT null;
+branch_requests WHERE status = 'in_consolidation'
+  JOIN branches (source, requesting)
+  JOIN fulfillment_orders (para obtener trip_id, package_count)
 ```
 
----
+No usar `fulfillment_orders.status` como criterio. El filtro es `branch_requests.status = 'in_consolidation'`.
 
-## Fase 2: Actualizar RPC `fn_transition_request_status`
+Muestra: agrupado por destino, con origen, documento BIMS, tipo de pedido, flow_type, fecha, prioridad SLA.
 
-### 2a. Cálculo de `flow_type` al aceptar (`pending → in_preparation`)
-
-Lógica de determinación (en este orden):
-
-1. Si `request_type IN ('client','online') AND delivery_target = 'client'` → `'client_delivery'`
-2. Si `consolidation_override = false` → `'urban'`
-3. Si `consolidation_override = true` → `'interurban'`
-4. Si ambas sucursales tienen `logistic_group NOT NULL` e iguales → `'urban'`
-5. Si alguna sucursal tiene `logistic_group = NULL` → `'interurban'` (fallback) + insertar warning en `ai_anomalies` con `anomaly_type = 'missing_logistic_group'`, `severity = 'warning'`
-6. Default (grupos distintos) → `'interurban'`
-
-El `flow_type` se persiste en el campo de `branch_requests`.
-
-### 2b. Transiciones válidas por escenario
-
-**Tronco común (sin cambio):**
-- `pending → in_preparation` (origin/admin)
-- `pending → rejected` (origin/admin, requiere reason)
-
-**client_delivery:**
-- `in_preparation → ready_for_delivery` (origin/admin, requiere doc BIMS factura)
-- `ready_for_delivery → delivered_to_third_party` (origin/admin)
-- `delivered_to_third_party → closed` (auto-trigger)
-
-**urban:**
-- `in_preparation → ready_for_pickup` (origin/admin, requiere doc BIMS transferencia)
-- `ready_for_pickup → in_transit` (solo vía fn_driver_action pickup)
-- `in_transit → delivered` (origin/driver/admin)
-- `delivered → received` (destination/admin)
-- `received → logistic_closed` (destination/admin)
-- `logistic_closed → closed` (auto-trigger existente)
-
-**interurban:**
-- `in_preparation → ready_for_pickup` (origin/admin, requiere doc BIMS transferencia)
-- `ready_for_pickup → in_consolidation` (solo vía fn_driver_action pickup)
-- `in_consolidation → assigned_to_trip` (admin/supervisor/warehouse_operator)
-- `assigned_to_trip → in_transit` (chofer/admin, al iniciar viaje)
-- `in_transit → delivered → received → logistic_closed → closed` (igual que urban)
-
-### 2c. Validación de consistencia de `flow_type`
-
-En cada transición posterior a `in_preparation`, el RPC verifica que la transición solicitada sea coherente con el `flow_type` almacenado. Si no coincide, rechaza con error descriptivo.
-
-### 2d. Backward compatibility
-
-Las transiciones actuales (`in_preparation → in_transit`, etc.) se mantienen válidas para pedidos con `flow_type IS NULL` (los 65 existentes).
-
-### 2e. Función `fn_recalculate_flow_type(p_request_id)`
-
-Nueva función que permite a un admin recalcular el `flow_type` si cambiaron las condiciones maestras. Solo aplicable a pedidos en estado `pending` o `in_preparation`.
-
----
-
-## Fase 3: Actualizar RPC `fn_driver_action` — Pickup diferenciado
-
-En la acción `pickup`:
-1. Leer el `flow_type` del `branch_request` asociado al fulfillment
-2. **Si `flow_type = 'urban'`**: actualizar el request a `in_transit`
-3. **Si `flow_type = 'interurban'`**: actualizar el request a `in_consolidation`
-4. **Si `flow_type IS NULL`** (pedidos legacy): no tocar el request status (comportamiento actual)
-
-La consolidación NUNCA es automática — solo ocurre cuando el chofer ejecuta retiro físico.
-
----
-
-## Fase 4: Trigger `fn_check_request_closure`
-
-Agregar al trigger existente:
-- Cuando el estado cambia a `delivered_to_third_party` en pedidos `client_delivery`: auto-setear `closed_at = now()` y `status = 'closed'`
-- Sin cambios para reposición (ya funciona con `logistic_closed_at`)
-- Sin cambios para lógica `logistic_closed_at + admin_closed_at`
-
----
-
-## Fase 5: Trigger `fn_validate_request_edit`
-
-Agregar nuevos estados bloqueados al array:
-```sql
-v_blocked_statuses := ARRAY[
-  'ready_for_pickup', 'ready_for_delivery',
-  'in_consolidation', 'assigned_to_trip',
-  'in_transit', 'delivered', 'delivered_to_third_party',
-  'received', 'logistic_closed', 'closed'
-];
-```
-
----
-
-## Fase 6: Frontend
-
-### 6a. `src/lib/constants.ts` — Nuevos labels
+**Ajuste 2 — Asignación centralizada via RPC**: Al asignar cargas a viaje:
 
 ```typescript
-ready_for_pickup: { label: "Listo para retiro", variant: "default" },
-ready_for_delivery: { label: "Listo para entrega", variant: "default" },
-in_consolidation: { label: "En consolidación", variant: "default" },
-assigned_to_trip: { label: "Asignado a viaje", variant: "default" },
-delivered_to_third_party: { label: "Entregado a tercero", variant: "default" },
+// NO hacer UPDATE directo
+// Sí: llamar al RPC por cada request seleccionado
+await supabase.rpc("fn_transition_request_status", {
+  p_request_id: requestId,
+  p_new_status: "assigned_to_trip",
+  p_trip_id: selectedTripId,
+});
 ```
 
-### 6b. `src/components/solicitudes/SolicitudDetail.tsx` — Acciones dinámicas
+**Ajuste 3 — Validación**: Solo mostrar pedidos con `flow_type = 'interurban'` en la vista de consolidación. El RPC refuerza esto server-side.
 
-Reemplazar el `STATUS_ACTIONS` estático por uno dinámico basado en `flow_type`:
+Acciones:
+- Checkbox multi-selección
+- "Asignar a viaje existente" → selector de viajes `planned`
+- "Crear viaje y asignar" → dialog de creación + asignación secuencial
 
-**client_delivery:**
-- `in_preparation`: "Listo para entrega" → `ready_for_delivery`
-- `ready_for_delivery`: "Confirmar entrega a tercero" → `delivered_to_third_party`
+### Tab B: Viajes Programados
 
-**urban / interurban:**
-- `in_preparation`: "Listo para retiro" → `ready_for_pickup`
-- (transiciones posteriores las maneja el chofer o logística)
+Query: `trips WHERE status = 'planned'` + joins (vehicles, drivers, branches, count fulfillments).
 
-**interurban adicional:**
-- `in_consolidation`: "Asignar a viaje" → `assigned_to_trip` (solo admin/supervisor/warehouse_operator)
-- `assigned_to_trip`: "Iniciar tránsito" → `in_transit` (chofer/admin)
+Acciones:
+- "Crear viaje" → Dialog: tipo (interurbano/retiro proveedor), chofer, vehículo, origen, fecha/hora, destino o descripción. **Ajuste 5**: `created_by = auth.uid()` al insertar.
+- Click → Detalle (Tab C en sheet/dialog)
+- "Cancelar viaje" (solo si `planned` y sin cargas)
+- "Editar" (solo si `planned`)
 
-**Común:**
-- `delivered`: "Confirmar recepción" → `received` (destination)
-- `received`: "Cierre logístico" → `logistic_closed` (destination)
-- `logistic_closed` (no reposición + admin): "Cierre administrativo" → setea `admin_closed_at` + `admin_closed_by`
+### Tab C: Detalle del Viaje (Sheet)
 
-**Sin `flow_type` (legacy):** mantener acciones actuales.
+Query: trip + fulfillments vinculados + branch_requests asociados.
 
-### 6c. `src/components/solicitudes/RequestProgressBar.tsx` — Pasos dinámicos
+Muestra: info viaje + lista de cargas con documento, origen, destino, estado.
 
-Recibir `flow_type` como prop. Renderizar según escenario:
+Acciones:
+- "Agregar carga" → selector de requests `in_consolidation` con `flow_type = 'interurban'`, ejecuta via RPC
+- "Quitar carga" → desvincula: `UPDATE fulfillment_orders SET trip_id = null` + revertir request a `in_consolidation` via RPC (nueva transición `assigned_to_trip → in_consolidation` — se agrega al interurban flow del RPC)
 
-- **client_delivery**: Pendiente → Preparación → Listo entrega → Entregado tercero → Cerrado (5 pasos)
-- **urban**: Pendiente → Preparación → Listo retiro → Tránsito → Entregado → Recibido → Cierre log. → Cerrado (8 pasos)
-- **interurban**: Pendiente → Preparación → Listo retiro → Consolidación → Asignado viaje → Tránsito → Entregado → Recibido → Cierre log. → Cerrado (10 pasos)
-- **null (legacy)**: pasos actuales sin cambio
+### Tab D: En Curso
 
-### 6d. `src/pages/Solicitudes.tsx` — Filtros actualizados
+Query: `trips WHERE status = 'in_progress'` + fulfillments + drivers.
+
+Solo lectura + monitoreo.
+
+---
+
+## Fase 4: Ajustes al chofer
+
+### 4a. Restringir creación de viajes (Ajuste 4)
+
+**`ViajeInterurbano.tsx`**: Reemplazar INSERT directo por:
+- Mostrar viajes `planned` asignados al chofer (`driver_id = myDriver.id`)
+- Botón "Iniciar viaje" que hace UPDATE `planned → in_progress` (ya existe esta lógica)
+- Si no hay viajes planned: "No hay viajes programados"
+- Mantener: finalizar viaje, agregar tarea emergente en ruta
+
+**`CorteUrbano.tsx`**: Sin cambios (cortes urbanos son sesiones operativas, no planificación).
+
+### 4b. Filtrar trips por driver (Ajuste 7)
+
+**`Chofer.tsx` línea 72-84**: Agregar filtro por `driver_id`:
 
 ```typescript
-STATUS_GROUPS = [
-  { key: "pending", label: "Pendientes", statuses: ["pending"] },
-  { key: "preparation", label: "En preparación", statuses: ["in_preparation", "ready_for_pickup", "ready_for_delivery"] },
-  { key: "transit", label: "En tránsito / logística", statuses: ["in_consolidation", "assigned_to_trip", "in_transit", "delivered", "delivered_to_third_party"] },
-  { key: "closed", label: "Cerrados", statuses: ["received", "logistic_closed", "closed", "rejected"] },
-];
+// Necesita myDriver.id antes de esta query
+.eq("driver_id", myDriverId)
 ```
 
-### 6e. `src/pages/Index.tsx` — Incluir nuevos estados en queries de pendientes
-
-Agregar los nuevos estados activos a las consultas que alimentan la cola operativa.
+El chofer solo ve sus viajes asignados.
 
 ---
 
-## Fase 7: Validación Post-implementación
+## Fase 5: Retiros de proveedores
 
-| Verificación | Método |
-|-------------|--------|
-| 65 pedidos existentes siguen funcionando | Query: todos con `flow_type IS NULL` mantienen acciones legacy |
-| 20 fulfillments sin impacto | Query: todos siguen en `pending` |
-| Triggers existentes no fallan con nuevos estados | Probar transición completa en cada escenario |
-| `fn_driver_action` pickup diferencia urban/interurban | Test con fulfillment de cada tipo |
-| `fn_validate_request_edit` bloquea en nuevos estados | Intentar editar ítem en `ready_for_pickup` |
-| Fallback genera warning en `ai_anomalies` | Crear pedido con sucursal sin `logistic_group` |
-| Auto-cierre `delivered_to_third_party → closed` funciona | Probar flujo cliente completo |
-| BIMS intacto | bims-sync, bims-stock-live, bims-proxy sin cambios |
-| RLS intacto | Policies no se modifican |
+- Crear viaje con `trip_type = 'supplier_pickup'`
+- `destination_description` almacena nombre/dirección del proveedor
+- Se visualiza con badge diferenciado en listas
+- El chofer lo inicia y ejecuta igual que un viaje interurbano
+- No requiere fulfillments previos (puede no tener pedido interno asociado)
 
 ---
 
-## Lo que NO se modifica
+## Fase 6: Extensión controlada al RPC — Desasignación
 
-- Flujo de consultas de disponibilidad
-- Integraciones BIMS (bims-sync, bims-stock-live, bims-proxy)
-- RLS policies (operan sobre roles/sucursales, no estados)
-- Tabla `fulfillment_orders` ni su enum `fulfillment_status`
-- Triggers de alertas existentes (fn_auto_resolve_alerts, fn_preparation_time_alert, etc.)
-- Tabla `diagnostic_logs`
-- Módulo chofer (excepto lógica de pickup en fn_driver_action)
+Agregar una transición inversa al interurban flow:
+
+```sql
+(v_old_status = 'assigned_to_trip' AND p_new_status = 'in_consolidation')
+```
+
+Con permisos: `admin`, `supervisor`, `warehouse_operator`. Esto permite quitar cargas de un viaje desde el detalle.
+
+Al ejecutar esta transición inversa, también limpiar `trip_id`:
+
+```sql
+IF v_old_status = 'assigned_to_trip' AND p_new_status = 'in_consolidation' THEN
+  UPDATE fulfillment_orders SET trip_id = NULL, updated_at = now()
+  WHERE branch_request_id = p_request_id;
+END IF;
+```
+
+---
+
+## Componentes nuevos
+
+| Componente | Ubicación |
+|-----------|-----------|
+| `LogisticaConsolidacion.tsx` | `src/components/logistica/` |
+| `LogisticaViajesProgramados.tsx` | `src/components/logistica/` |
+| `LogisticaViajeDetalle.tsx` | `src/components/logistica/` |
+| `LogisticaViajesEnCurso.tsx` | `src/components/logistica/` |
+| `CrearViajeForm.tsx` | `src/components/logistica/` |
 
 ---
 
@@ -245,15 +187,35 @@ Agregar los nuevos estados activos a las consultas que alimentan la cola operati
 
 | Archivo | Cambio |
 |---------|--------|
-| Migración SQL (nueva) | Enum, campos, datos logistic_group |
-| `fn_transition_request_status` (SQL) | Flow_type calc, nuevas transiciones, validación consistencia |
-| `fn_driver_action` (SQL) | Pickup diferenciado urban/interurban |
-| `fn_check_request_closure` (SQL) | Auto-close para delivered_to_third_party |
-| `fn_validate_request_edit` (SQL) | Nuevos estados bloqueados |
-| `fn_recalculate_flow_type` (SQL nuevo) | Recalculo manual admin |
-| `src/lib/constants.ts` | Labels nuevos estados |
-| `src/components/solicitudes/SolicitudDetail.tsx` | STATUS_ACTIONS dinámico por flow_type |
-| `src/components/solicitudes/RequestProgressBar.tsx` | Pasos dinámicos por flow_type |
-| `src/pages/Solicitudes.tsx` | STATUS_GROUPS actualizados |
-| `src/pages/Index.tsx` | Queries actualizadas |
+| Migración SQL | `supplier_pickup` enum, `destination_description`, `created_by` en trips |
+| Migración SQL | Extensión controlada a `fn_transition_request_status`: validación flow_type + desasignación |
+| `src/pages/Ruteo.tsx` | Reescritura completa: 4 tabs |
+| 5 componentes nuevos en `src/components/logistica/` | Consolidación, programados, detalle, en curso, crear viaje |
+| `src/components/chofer/ViajeInterurbano.tsx` | Solo iniciar viajes planned asignados |
+| `src/pages/Chofer.tsx` | Filtrar trips por `driver_id` |
+
+## Lo que NO se toca
+
+- `fn_driver_action` — sin cambios
+- Panel operativo (`Index.tsx`) — sin cambios
+- Tabs "Mis cargas", "Retiro", "Historial" del chofer — sin cambios
+- `CorteUrbano.tsx` — sin cambios
+- RLS, BIMS, eventos, backward compatibility — sin cambios
+- `SolicitudDetail.tsx` — el selector de viaje ya funciona ahí
+
+---
+
+## Validación post-implementación (Ajuste 7)
+
+| Check | Método |
+|-------|--------|
+| Consolidación muestra solo `branch_requests.status = 'in_consolidation'` | Verificar query |
+| Asignación usa exclusivamente RPC, no UPDATE directo | Revisar código |
+| Solo `flow_type = 'interurban'` permite asignación a viaje | Intentar asignar urbano → debe fallar |
+| Chofer no puede crear viajes interurbanos | Verificar UI |
+| Chofer solo ve sus viajes | Verificar query con filtro driver_id |
+| `created_by` se completa al crear viaje | Verificar INSERT |
+| Desasignación revierte a `in_consolidation` y limpia `trip_id` | Probar quitar carga de viaje |
+| 65 pedidos legacy siguen funcionando | Query flow_type IS NULL |
+| 20 fulfillments sin impacto | Verificar status |
 
