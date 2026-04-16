@@ -12,6 +12,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Play, Square, MapPin, Truck, Plus, Route, AlertTriangle, Calendar } from "lucide-react";
 import { CorteDetalle } from "./CorteDetalle";
 import { AgregarTareaViaje } from "./AgregarTareaViaje";
+import { CrearViajeForm } from "@/components/logistica/CrearViajeForm";
 import { TRIP_TYPE_LABELS } from "@/lib/constants";
 import { toast } from "sonner";
 
@@ -28,10 +29,11 @@ const TASK_TYPE_LABELS: Record<string, string> = {
 };
 
 export function ViajeInterurbano({ trips, activeTrip, myDriverId }: Props) {
-  const { user } = useAuth();
+  const { user, isOwner, hasRole } = useAuth();
   const queryClient = useQueryClient();
   const [detailId, setDetailId] = useState<string | null>(null);
   const [addTaskOpen, setAddTaskOpen] = useState(false);
+  const [createTripOpen, setCreateTripOpen] = useState(false);
   const [startingTripId, setStartingTripId] = useState<string | null>(null);
   const [startMileage, setStartMileage] = useState("");
   const [showEndWarning, setShowEndWarning] = useState(false);
@@ -39,6 +41,13 @@ export function ViajeInterurbano({ trips, activeTrip, myDriverId }: Props) {
   const [endMileageValue, setEndMileageValue] = useState<number | null>(null);
   const [showEmptyTripWarning, setShowEmptyTripWarning] = useState(false);
   const [pendingStartTripId, setPendingStartTripId] = useState<string | null>(null);
+
+  const canCreateTrip =
+    isOwner ||
+    hasRole("admin") ||
+    hasRole("supervisor") ||
+    hasRole("jefe_logistica") ||
+    hasRole("operador_logistico");
 
   // Planned trips assigned to this driver (not yet started)
   const plannedTrips = trips.filter(t => t.status === "planned");
@@ -144,6 +153,15 @@ export function ViajeInterurbano({ trips, activeTrip, myDriverId }: Props) {
 
   return (
     <div className="space-y-4">
+      {/* Create trip action — visible only for logistics/admin roles */}
+      {canCreateTrip && (
+        <div className="flex justify-end">
+          <Button size="sm" onClick={() => setCreateTripOpen(true)} className="gap-1.5">
+            <Plus className="h-4 w-4" /> Crear viaje
+          </Button>
+        </div>
+      )}
+
       {/* Active trip */}
       {activeTrip ? (
         <Card className="glass-card border-accent/30">
@@ -354,6 +372,22 @@ export function ViajeInterurbano({ trips, activeTrip, myDriverId }: Props) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Create trip dialog */}
+      <Dialog open={createTripOpen} onOpenChange={setCreateTripOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Crear viaje</DialogTitle>
+          </DialogHeader>
+          <CrearViajeForm
+            onSuccess={() => {
+              setCreateTripOpen(false);
+              queryClient.invalidateQueries({ queryKey: ["active-trips"] });
+            }}
+            onCancel={() => setCreateTripOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
