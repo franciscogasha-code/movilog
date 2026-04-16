@@ -236,7 +236,7 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
 
   // Block "in_transit" transition if no documents
   const hasDocuments = (documents?.length || 0) > 0;
-  const isTransitBlocked = r.status === "in_preparation" && !hasDocuments;
+  const isAdvanceBlocked = r.status === "in_preparation" && !hasDocuments;
 
   // ─── Transition handler ─────────────────────────────────────────
   const handleTransition = async (newStatus: string, reason?: string, reasonType?: string) => {
@@ -278,8 +278,8 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
 
   // ─── Warnings ───────────────────────────────────────────────────
   const warnings: string[] = [];
-  if (isTransitBlocked && r.status === "in_preparation") {
-    warnings.push("Se requiere al menos un documento BIMS para avanzar a tránsito");
+  if (isAdvanceBlocked && r.status === "in_preparation") {
+    warnings.push("Se requiere al menos un documento BIMS para avanzar");
   }
   const hasQtyMismatch = items?.some((item: any) =>
     item.quantity_accepted != null && item.quantity_accepted > 0 &&
@@ -290,7 +290,7 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
   return (
     <div className="space-y-6">
       {/* Progress Bar */}
-      <RequestProgressBar currentStatus={r.status} events={progressEvents} />
+      <RequestProgressBar currentStatus={r.status} events={progressEvents} flowType={r.flow_type} />
 
       {/* Warning panel */}
       {warnings.length > 0 && (
@@ -399,7 +399,7 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
             ) : (
               <div className="flex flex-wrap gap-2">
                 {availableActions.map((action) => {
-                  const isBlocked = action.newStatus === "in_transit" && isTransitBlocked;
+                  const isBlocked = (action.newStatus === "in_transit" || action.newStatus === "ready_for_pickup" || action.newStatus === "ready_for_delivery") && isAdvanceBlocked;
                   return (
                     <Button
                       key={action.newStatus}
