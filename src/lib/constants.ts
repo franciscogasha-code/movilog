@@ -121,6 +121,7 @@ export const DAMAGE_CAUSE_LABELS: Record<string, string> = {
 export const TRIP_TYPE_LABELS: Record<string, string> = {
   urban_cutoff: "Corte urbano",
   interurban_planned: "Interurbano planificado",
+  supplier_pickup: "Retiro de proveedor",
 };
 
 export const CONSULTATION_STATUS_LABELS: Record<string, string> = {
