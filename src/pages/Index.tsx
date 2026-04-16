@@ -224,6 +224,7 @@ export default function Index() {
 
   const [activeFilter, setActiveFilter] = useState<KpiFilter>("all");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
+  const [clientFilter, setClientFilter] = useState<ClientFilter>("all");
 
   const canAccessBranch = (branchId: string | null) => {
     if (!branchId) return false;
