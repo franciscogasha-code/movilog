@@ -338,6 +338,7 @@ export type Database = {
           client_name: string | null
           closed_at: string | null
           closed_by: string | null
+          consolidation_override: boolean | null
           courier_billing_mode: string | null
           created_at: string
           created_by: string
@@ -347,6 +348,7 @@ export type Database = {
           delivery_target: Database["public"]["Enums"]["delivery_target"]
           expected_next_event: string | null
           expected_next_event_deadline: string | null
+          flow_type: string | null
           id: string
           logistic_closed_at: string | null
           logistic_closed_by: string | null
@@ -384,6 +386,7 @@ export type Database = {
           client_name?: string | null
           closed_at?: string | null
           closed_by?: string | null
+          consolidation_override?: boolean | null
           courier_billing_mode?: string | null
           created_at?: string
           created_by: string
@@ -393,6 +396,7 @@ export type Database = {
           delivery_target?: Database["public"]["Enums"]["delivery_target"]
           expected_next_event?: string | null
           expected_next_event_deadline?: string | null
+          flow_type?: string | null
           id?: string
           logistic_closed_at?: string | null
           logistic_closed_by?: string | null
@@ -430,6 +434,7 @@ export type Database = {
           client_name?: string | null
           closed_at?: string | null
           closed_by?: string | null
+          consolidation_override?: boolean | null
           courier_billing_mode?: string | null
           created_at?: string
           created_by?: string
@@ -439,6 +444,7 @@ export type Database = {
           delivery_target?: Database["public"]["Enums"]["delivery_target"]
           expected_next_event?: string | null
           expected_next_event_deadline?: string | null
+          flow_type?: string | null
           id?: string
           logistic_closed_at?: string | null
           logistic_closed_by?: string | null
@@ -511,6 +517,7 @@ export type Database = {
           id: string
           is_active: boolean | null
           is_central_warehouse: boolean | null
+          logistic_group: string | null
           name: string
           phone: string | null
           updated_at: string
@@ -523,6 +530,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           is_central_warehouse?: boolean | null
+          logistic_group?: string | null
           name: string
           phone?: string | null
           updated_at?: string
@@ -535,6 +543,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           is_central_warehouse?: boolean | null
+          logistic_group?: string | null
           name?: string
           phone?: string | null
           updated_at?: string
@@ -2815,6 +2824,10 @@ export type Database = {
         Args: { p_action: string; p_fulfillment_id: string; p_metadata?: Json }
         Returns: Json
       }
+      fn_recalculate_flow_type: {
+        Args: { p_request_id: string }
+        Returns: Json
+      }
       fn_respond_consultation_target: {
         Args: {
           p_colors?: string
@@ -2991,6 +3004,11 @@ export type Database = {
         | "received"
         | "logistic_closed"
         | "closed"
+        | "ready_for_pickup"
+        | "ready_for_delivery"
+        | "in_consolidation"
+        | "assigned_to_trip"
+        | "delivered_to_third_party"
       request_type:
         | "client"
         | "reposition"
@@ -3301,6 +3319,11 @@ export const Constants = {
         "received",
         "logistic_closed",
         "closed",
+        "ready_for_pickup",
+        "ready_for_delivery",
+        "in_consolidation",
+        "assigned_to_trip",
+        "delivered_to_third_party",
       ],
       request_type: [
         "client",

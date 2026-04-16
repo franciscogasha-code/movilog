@@ -21,8 +21,8 @@ import { useUserBranchFilter } from "@/hooks/use-user-access";
 // Status groups for visual grouping
 const STATUS_GROUPS: { key: string; label: string; statuses: string[] }[] = [
   { key: "pending", label: "Pendientes", statuses: ["pending"] },
-  { key: "preparation", label: "En preparación", statuses: ["accepted", "picking", "in_preparation"] },
-  { key: "transit", label: "En tránsito", statuses: ["in_transit", "delivered"] },
+  { key: "preparation", label: "En preparación", statuses: ["accepted", "picking", "in_preparation", "ready_for_pickup", "ready_for_delivery"] },
+  { key: "transit", label: "En tránsito / logística", statuses: ["in_consolidation", "assigned_to_trip", "in_transit", "delivered", "delivered_to_third_party"] },
   { key: "closed", label: "Cerrados", statuses: ["received", "logistic_closed", "closed", "rejected"] },
 ];
 

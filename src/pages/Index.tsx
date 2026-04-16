@@ -212,7 +212,7 @@ export default function Index() {
           requesting_branch:branches!branch_requests_requesting_branch_id_fkey(name),
           source_branch:branches!branch_requests_source_branch_id_fkey(name)
         `)
-        .in("status", ["pending", "accepted", "picking", "in_preparation"] as any)
+        .in("status", ["pending", "accepted", "picking", "in_preparation", "ready_for_pickup", "ready_for_delivery"] as any)
         .order("created_at", { ascending: false })
         .limit(50);
 
