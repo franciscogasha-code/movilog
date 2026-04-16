@@ -312,6 +312,7 @@ export default function Index() {
         r.source_branch?.name ?? "?", r.requesting_branch?.name ?? "?",
         allowedBranchIds, r.source_branch_id, r.requesting_branch_id, isAllBranches
       );
+      const mode = classifyOrderMode(r.shipping_method, r.delivery_target, r.request_type);
       items.push({
         id: r.id,
         itemType: "pedido",
@@ -320,6 +321,7 @@ export default function Index() {
         status: r.status,
         priority: getRequestPriority(r.created_at),
         createdAt: r.created_at,
+        orderMode: mode,
         navigateTo: `/solicitudes?detail=${r.id}`,
       });
     });
