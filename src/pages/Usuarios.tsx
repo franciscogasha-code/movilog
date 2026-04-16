@@ -30,7 +30,7 @@ import { useAuth } from "@/contexts/AuthContext";
 /*  Role definitions                                                   */
 /* ------------------------------------------------------------------ */
 
-type RoleKey = "admin" | "supervisor" | "branch_operator" | "warehouse_operator" | "viewer";
+type RoleKey = "admin" | "supervisor" | "jefe_logistica" | "branch_operator" | "warehouse_operator" | "viewer";
 
 type RoleDef = {
   key: RoleKey;
@@ -81,6 +81,25 @@ const ROLES: RoleDef[] = [
       "cumplimiento", "recepcion", "incidencias", "documentos", "chofer",
       "etiquetas", "rendicion", "abastecimiento", "reposicion", "pedidos",
       "distribucion", "cobranzas", "flota", "ruteo",
+    ],
+  },
+  {
+    key: "jefe_logistica",
+    label: "Jefe de Logística",
+    shortLabel: "Jefe Logística",
+    description: "Responsable de coordinar y supervisar la operación logística completa con visión global.",
+    capabilities: [
+      "Visión global de pedidos, cargas y viajes",
+      "Coordinación de cortes urbanos e interurbanos",
+      "Monitoreo de incidencias y rendición",
+      "Seguimiento operativo en tiempo real",
+      "Sin acceso a configuración ni gestión de usuarios",
+    ],
+    allBranchesByDefault: true,
+    modules: [
+      "dashboard", "alertas", "consultas", "solicitudes", "stock-comprometido",
+      "cumplimiento", "recepcion", "incidencias", "documentos", "chofer",
+      "etiquetas", "rendicion", "pedidos", "distribucion", "ruteo",
     ],
   },
   {
@@ -601,7 +620,7 @@ export default function Usuarios() {
 
   const getRoleBadgeVariant = (role: string | null): "default" | "secondary" | "outline" => {
     if (role === "owner" || role === "admin") return "default";
-    if (role === "supervisor") return "secondary";
+    if (role === "supervisor" || role === "jefe_logistica") return "secondary";
     return "outline";
   };
 
