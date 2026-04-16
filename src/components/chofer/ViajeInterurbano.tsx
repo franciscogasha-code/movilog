@@ -43,8 +43,24 @@ export function ViajeInterurbano({ trips, activeTrip, myDriverId }: Props) {
   // Planned trips assigned to this driver (not yet started)
   const plannedTrips = trips.filter(t => t.status === "planned");
 
-  const startTrip = async (tripId: string) => {
+  const checkAndStartTrip = async (tripId: string) => {
     if (!startMileage) { toast.error("Ingresar kilometraje inicial"); return; }
+    // Check if trip has assigned loads
+    const { count } = await supabase
+      .from("fulfillment_orders")
+      .select("id", { count: "exact", head: true })
+      .eq("trip_id", tripId);
+    if (!count || count === 0) {
+      setPendingStartTripId(tripId);
+      setShowEmptyTripWarning(true);
+      return;
+    }
+    await doStartTrip(tripId);
+  };
+
+  const doStartTrip = async (tripId: string) => {
+    setShowEmptyTripWarning(false);
+    setPendingStartTripId(null);
     try {
       const { error } = await supabase
         .from("trips")
