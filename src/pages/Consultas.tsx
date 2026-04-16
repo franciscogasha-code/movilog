@@ -466,31 +466,33 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
       toast.success(count > 1 ? `${count} consultas creadas (una por sucursal)` : "Consulta creada");
       onSuccess();
     } catch (err: any) {
-      console.error("🔍 [DIAG] Consulta creation error:", err);
-      toast.error(err.message);
+      console.error("[DIAG] Consulta creation error:", err);
+      const isRLS = err?.code === "42501" || err?.message?.includes("row-level security");
+      const isAuth = diagError?.step_name === "auth_preflight";
+      if (isAuth) {
+        // auth mismatch already toasted
+      } else if (isRLS) {
+        toast.error("No pudimos enviar la consulta. Verifica tus permisos o intenta nuevamente. Si el problema continúa, contacta al administrador.");
+      } else {
+        toast.error("Ocurrió un error inesperado al enviar la consulta. Por favor, intenta de nuevo.");
+      }
     }
     finally { setSubmitting(false); }
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      {/* ── TEMPORARY: Mobile-visible diagnostic block ── */}
+      {/* ── Clean error message for users ── */}
       {diagError && (
-        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-xs space-y-1 break-all">
-          <div className="font-bold text-destructive flex items-center gap-1">
-            <AlertTriangle className="h-3.5 w-3.5" /> Diagnóstico de error (temporal)
+        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-sm space-y-1">
+          <div className="font-semibold text-destructive flex items-center gap-1.5">
+            <AlertTriangle className="h-4 w-4" /> No se pudo enviar la consulta
           </div>
-          <div><strong>Paso:</strong> {diagError.step_name}</div>
-          <div><strong>Tabla:</strong> {diagError.table_name ?? "—"}</div>
-          <div><strong>user.id:</strong> {diagError.user_id}</div>
-          <div><strong>session.user.id:</strong> {diagError.session_user_id}</div>
-          <div><strong>IDs coinciden:</strong> {diagError.ids_match ? "✅ Sí" : "❌ No"}</div>
-          <div><strong>Error:</strong> {diagError.error_message}</div>
-          <div><strong>Código:</strong> {diagError.error_code ?? "—"}</div>
-          {diagError.error_details && <div><strong>Detalles:</strong> {diagError.error_details}</div>}
-          {diagError.error_hint && <div><strong>Hint:</strong> {diagError.error_hint}</div>}
-          {diagError.payload && <div><strong>Payload:</strong> {JSON.stringify(diagError.payload)}</div>}
-          <p className="text-muted-foreground mt-1 italic">Este bloque es temporal para diagnóstico. Capturá screenshot y envialo al administrador.</p>
+          <p className="text-muted-foreground">
+            {diagError.step_name === "auth_preflight"
+              ? "Tu sesión se desincronizó. Cerrá sesión y volvé a ingresar."
+              : "Verifica tus permisos o intenta nuevamente. Si el problema continúa, contacta al administrador."}
+          </p>
         </div>
       )}
       {/* STEP 1: My branch */}
