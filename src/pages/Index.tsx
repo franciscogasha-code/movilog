@@ -229,6 +229,7 @@ export default function Index() {
         .from("branch_requests")
         .select(`
           id, request_number, status, created_at, shipping_method, notes,
+          delivery_target, request_type, client_name,
           requesting_branch_id, source_branch_id,
           requesting_branch:branches!branch_requests_requesting_branch_id_fkey(name),
           source_branch:branches!branch_requests_source_branch_id_fkey(name)
