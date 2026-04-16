@@ -307,9 +307,6 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
   const allProductsHaveSource = selectedProducts.length > 0 &&
     selectedProducts.every(p => (productSources[p.id]?.size ?? 0) > 0);
 
-  // ── Diagnostic state for mobile-visible error display ──
-  const [diagError, setDiagError] = useState<Record<string, any> | null>(null);
-
   const persistDiagnostic = async (diag: Record<string, any>) => {
     try {
       await supabase.from("diagnostic_logs" as any).insert({
@@ -333,7 +330,6 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setDiagError(null);
     if (!selectedProducts.length || !resolvedBranchId || !allProductsHaveSource) {
       toast.error("Seleccioná al menos una sucursal origen por cada producto");
       return;
@@ -368,9 +364,8 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
           requesting_branch_id: resolvedBranchId,
           target_branches: derivedTargetBranches,
         };
-        setDiagError(diag);
         await persistDiagnostic(diag);
-        toast.error("Tu sesión se desincronizó. Cerrá sesión y volvé a ingresar.");
+        toast.error("Tu sesión venció o se desincronizó. Cerrá sesión y volvé a ingresar.");
         return;
       }
 
@@ -381,11 +376,11 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
         if (!productsForBranch.length) continue;
 
         // ── Step 1: availability_consultations ──
-        const insertPayload = { requesting_branch_id: resolvedBranchId, created_by: user.id };
-        const { data: consultation, error } = await supabase
+        const consultationId = crypto.randomUUID();
+        const insertPayload = { id: consultationId, requesting_branch_id: resolvedBranchId, created_by: user.id };
+        const { error } = await supabase
           .from("availability_consultations")
-          .insert(insertPayload)
-          .select().single();
+          .insert(insertPayload);
 
         if (error) {
           const diag = {
@@ -402,13 +397,12 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
             requesting_branch_id: resolvedBranchId,
             target_branches: derivedTargetBranches,
           };
-          setDiagError(diag);
           await persistDiagnostic(diag);
           throw error;
         }
 
         // ── Step 2: consultation_products ──
-        const cpInsert = productsForBranch.map(p => ({ consultation_id: consultation.id, product_id: p.id }));
+        const cpInsert = productsForBranch.map(p => ({ consultation_id: consultationId, product_id: p.id }));
         const { error: cpErr } = await supabase.from("consultation_products").insert(cpInsert);
         if (cpErr) {
           const diag = {
@@ -425,13 +419,12 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
             requesting_branch_id: resolvedBranchId,
             target_branches: derivedTargetBranches,
           };
-          setDiagError(diag);
           await persistDiagnostic(diag);
           throw cpErr;
         }
 
         // ── Step 3: consultation_targets ──
-        const targetsInsert = [{ consultation_id: consultation.id, branch_id: targetBranchId }];
+        const targetsInsert = [{ consultation_id: consultationId, branch_id: targetBranchId }];
         const { error: tErr } = await supabase.from("consultation_targets").insert(targetsInsert);
         if (tErr) {
           const diag = {
@@ -448,14 +441,13 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
             requesting_branch_id: resolvedBranchId,
             target_branches: derivedTargetBranches,
           };
-          setDiagError(diag);
           await persistDiagnostic(diag);
           throw tErr;
         }
 
         if (initialMessage.trim()) {
           await supabase.from("consultation_messages").insert({
-            consultation_id: consultation.id,
+            consultation_id: consultationId,
             sender_id: user.id,
             message: initialMessage.trim(),
           });
@@ -467,14 +459,15 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
       onSuccess();
     } catch (err: any) {
       console.error("[DIAG] Consulta creation error:", err);
-      const isRLS = err?.code === "42501" || err?.message?.includes("row-level security");
-      const isAuth = diagError?.step_name === "auth_preflight";
-      if (isAuth) {
-        // auth mismatch already toasted
+      const errorMessage = String(err?.message ?? "").toLowerCase();
+      const isRLS = err?.code === "42501" || errorMessage.includes("row-level security");
+      const isSession = errorMessage.includes("jwt") || errorMessage.includes("session") || errorMessage.includes("token");
+      if (isSession) {
+        toast.error("Tu sesión venció o se desincronizó. Cerrá sesión y volvé a ingresar.");
       } else if (isRLS) {
-        toast.error("No pudimos enviar la consulta. Verifica tus permisos o intenta nuevamente. Si el problema continúa, contacta al administrador.");
+        toast.error("No se pudo enviar la consulta. Verificá tus permisos o contactá al administrador.");
       } else {
-        toast.error("Ocurrió un error inesperado al enviar la consulta. Por favor, intenta de nuevo.");
+        toast.error("Ocurrió un error al enviar la consulta. Intentá nuevamente.");
       }
     }
     finally { setSubmitting(false); }
@@ -482,19 +475,6 @@ function ConsultationForm({ onSuccess }: { onSuccess: () => void }) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      {/* ── Clean error message for users ── */}
-      {diagError && (
-        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-sm space-y-1">
-          <div className="font-semibold text-destructive flex items-center gap-1.5">
-            <AlertTriangle className="h-4 w-4" /> No se pudo enviar la consulta
-          </div>
-          <p className="text-muted-foreground">
-            {diagError.step_name === "auth_preflight"
-              ? "Tu sesión se desincronizó. Cerrá sesión y volvé a ingresar."
-              : "Verifica tus permisos o intenta nuevamente. Si el problema continúa, contacta al administrador."}
-          </p>
-        </div>
-      )}
       {/* STEP 1: My branch */}
       <div className="space-y-3">
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">1. Mi sucursal</h3>
