@@ -89,6 +89,7 @@ type ItemType = "pedido" | "consulta" | "tarea";
 type TaskKind = "preparar" | "despachar" | "retirar" | "en_transito" | "recepcionar" | "entregar";
 type KpiFilter = "all" | "overdue" | "today" | "active" | "awaiting";
 type TypeFilter = "all" | "pedido" | "consulta" | "preparacion" | "transporte" | "recepcion";
+type ClientFilter = "all" | "client_only";
 
 interface QueueItem {
   id: string;
