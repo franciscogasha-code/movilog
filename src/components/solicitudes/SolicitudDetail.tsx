@@ -276,6 +276,8 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
       queryClient.invalidateQueries({ queryKey: ["request-bims-documents", requestId] });
       onUpdate();
       setShowRejectForm(false);
+      setShowTripSelector(false);
+      setSelectedTripId("");
       setRejectionReason("");
       setRejectionReasonType("");
     } catch (err: any) {
