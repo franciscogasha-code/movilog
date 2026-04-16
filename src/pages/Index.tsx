@@ -74,6 +74,14 @@ const ORDER_MODE_CONFIG: Record<OrderMode, { label: string; emoji: string; class
   reposicion: { label: "Reposición", emoji: "⚪", className: "bg-muted text-muted-foreground border-border", actionLabel: "Gestionar" },
 };
 
+/** A pedido qualifies for "Pedidos con cliente" only if mode is client-facing AND there's real client evidence */
+function hasClientEvidence(clientName?: string | null, deliveryTarget?: string | null, clientAddress?: string | null): boolean {
+  const validTarget = deliveryTarget && deliveryTarget !== "branch" && deliveryTarget.trim() !== "";
+  const validName = clientName && clientName.trim() !== "";
+  const validAddress = clientAddress && clientAddress.trim() !== "";
+  return !!(validName || validTarget || validAddress);
+}
+
 const isClientMode = (m: OrderMode) => m !== "reposicion";
 
 // ── Types ──────────────────────────────────────────────────
@@ -91,6 +99,7 @@ interface QueueItem {
   priority: Priority;
   createdAt: string;
   orderMode?: OrderMode;
+  clientEvidence?: boolean;
   // consultation-specific
   consultationStatus?: string;
   hasResponses?: boolean;
@@ -229,7 +238,7 @@ export default function Index() {
         .from("branch_requests")
         .select(`
           id, request_number, status, created_at, shipping_method, notes,
-          delivery_target, request_type, client_name,
+          delivery_target, request_type, client_name, client_address,
           requesting_branch_id, source_branch_id,
           requesting_branch:branches!branch_requests_requesting_branch_id_fkey(name),
           source_branch:branches!branch_requests_source_branch_id_fkey(name)
@@ -313,6 +322,7 @@ export default function Index() {
         allowedBranchIds, r.source_branch_id, r.requesting_branch_id, isAllBranches
       );
       const mode = classifyOrderMode(r.shipping_method, r.delivery_target, r.request_type);
+      const evidence = hasClientEvidence(r.client_name, r.delivery_target, r.client_address);
       items.push({
         id: r.id,
         itemType: "pedido",
@@ -322,6 +332,7 @@ export default function Index() {
         priority: getRequestPriority(r.created_at),
         createdAt: r.created_at,
         orderMode: mode,
+        clientEvidence: evidence,
         navigateTo: `/solicitudes?detail=${r.id}`,
       });
     });
@@ -609,8 +620,9 @@ export default function Index() {
                     <div className="space-y-0.5">
                       {(() => {
                         // Separate client orders from the rest
-                        const clientItems = filteredItems.filter(i => i.itemType === "pedido" && i.orderMode && isClientMode(i.orderMode));
-                        const restItems = filteredItems.filter(i => !(i.itemType === "pedido" && i.orderMode && isClientMode(i.orderMode)));
+                        const isClientOrder = (i: QueueItem) => i.itemType === "pedido" && i.orderMode && isClientMode(i.orderMode) && i.clientEvidence === true;
+                        const clientItems = filteredItems.filter(isClientOrder);
+                        const restItems = filteredItems.filter(i => !isClientOrder(i));
 
                         // Render a single queue item row
                         const renderQueueRow = (qi: QueueItem) => {
@@ -765,10 +777,15 @@ export default function Index() {
                               <div className="mb-4">
                                 <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-purple-500/5 border border-purple-500/10 mb-2">
                                   <Truck className="h-4 w-4 text-purple-600 shrink-0" />
-                                  <p className="text-xs font-semibold uppercase tracking-wider text-purple-600">
-                                    Pedidos con cliente
-                                  </p>
-                                  <Badge variant="secondary" className="text-[10px] ml-auto">{clientItems.length}</Badge>
+                                   <div>
+                                     <p className="text-xs font-semibold uppercase tracking-wider text-purple-600">
+                                       Pedidos con cliente
+                                     </p>
+                                     <p className="text-[10px] text-purple-500/70 font-normal normal-case tracking-normal">
+                                       Pickup, delivery y encomienda con cliente identificado
+                                     </p>
+                                   </div>
+                                   <Badge variant="secondary" className="text-[10px] ml-auto">{clientItems.length}</Badge>
                                 </div>
                                 {renderSections(buildSections(clientItems), buildSections(clientItems).length > 1)}
                               </div>
