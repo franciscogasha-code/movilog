@@ -144,10 +144,10 @@ export function LogisticaViajeDetalle({ tripId }: Props) {
           <MapPin className="h-4 w-4 text-muted-foreground" />
           <span>{(trip.origin_branch as any)?.code} — {(trip.origin_branch as any)?.name}</span>
         </div>
-        {trip.scheduled_departure && (
+        {(trip as any).scheduled_departure && (
           <div className="flex items-center gap-2">
             <Calendar className="h-4 w-4 text-muted-foreground" />
-            <span>{new Date(trip.scheduled_departure).toLocaleString("es-PY", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
+            <span>{new Date((trip as any).scheduled_departure).toLocaleString("es-PY", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
           </div>
         )}
         {(trip as any).destination_description && (

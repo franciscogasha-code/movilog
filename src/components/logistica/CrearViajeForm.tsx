@@ -73,18 +73,19 @@ export function CrearViajeForm({ onSuccess, onCancel }: Props) {
 
       const effectiveVehicleId = vehicleId || selectedDriver?.assigned_vehicle_id;
 
-      const { data: trip, error } = await supabase
-        .from("trips")
-        .insert({
+      const insertData: any = {
           driver_id: driverId,
           vehicle_id: effectiveVehicleId || null,
           origin_branch_id: originBranchId,
-          trip_type: tripType as any,
-          status: "planned" as any,
+          trip_type: tripType,
+          status: "planned",
           scheduled_departure: scheduledDate || null,
           destination_description: destDescription || null,
           created_by: user.id,
-        })
+        };
+      const { data: trip, error } = await supabase
+        .from("trips")
+        .insert(insertData)
         .select()
         .single();
 

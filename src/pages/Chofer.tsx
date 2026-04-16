@@ -65,10 +65,11 @@ export default function Chofer() {
     enabled: !!myDriver?.assigned_branch_id,
   });
 
-  // Active trips
+  // Active trips — filtered by driver
   const { data: activeTrips } = useQuery({
-    queryKey: ["active-trips"],
+    queryKey: ["active-trips", myDriver?.id],
     queryFn: async () => {
+      if (!myDriver?.id) return [];
       const { data, error } = await supabase
         .from("trips")
         .select(`
@@ -76,12 +77,14 @@ export default function Chofer() {
           origin_branch:branches!trips_origin_branch_id_fkey(name, code),
           vehicle:vehicles(plate_number, brand, model)
         `)
+        .eq("driver_id", myDriver.id)
         .in("status", ["planned", "in_progress"])
         .order("created_at", { ascending: false })
         .limit(20);
       if (error) throw error;
       return data;
     },
+    enabled: !!myDriver?.id,
   });
 
   // Recent delivery history
