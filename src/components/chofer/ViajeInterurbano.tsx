@@ -37,12 +37,30 @@ export function ViajeInterurbano({ trips, activeTrip, myDriverId }: Props) {
   const [showEndWarning, setShowEndWarning] = useState(false);
   const [pendingCustodyCount, setPendingCustodyCount] = useState(0);
   const [endMileageValue, setEndMileageValue] = useState<number | null>(null);
+  const [showEmptyTripWarning, setShowEmptyTripWarning] = useState(false);
+  const [pendingStartTripId, setPendingStartTripId] = useState<string | null>(null);
 
   // Planned trips assigned to this driver (not yet started)
   const plannedTrips = trips.filter(t => t.status === "planned");
 
-  const startTrip = async (tripId: string) => {
+  const checkAndStartTrip = async (tripId: string) => {
     if (!startMileage) { toast.error("Ingresar kilometraje inicial"); return; }
+    // Check if trip has assigned loads
+    const { count } = await supabase
+      .from("fulfillment_orders")
+      .select("id", { count: "exact", head: true })
+      .eq("trip_id", tripId);
+    if (!count || count === 0) {
+      setPendingStartTripId(tripId);
+      setShowEmptyTripWarning(true);
+      return;
+    }
+    await doStartTrip(tripId);
+  };
+
+  const doStartTrip = async (tripId: string) => {
+    setShowEmptyTripWarning(false);
+    setPendingStartTripId(null);
     try {
       const { error } = await supabase
         .from("trips")
@@ -200,7 +218,7 @@ export function ViajeInterurbano({ trips, activeTrip, myDriverId }: Props) {
                       <Label className="text-xs">Km inicial</Label>
                       <Input type="number" value={startMileage} onChange={(e) => setStartMileage(e.target.value)} placeholder="0" />
                     </div>
-                    <Button onClick={() => startTrip(t.id)} className="gap-2">
+                    <Button onClick={() => checkAndStartTrip(t.id)} className="gap-2">
                       <Play className="h-4 w-4" /> Iniciar
                     </Button>
                     <Button variant="ghost" onClick={() => setStartingTripId(null)}>Cancelar</Button>
@@ -312,6 +330,27 @@ export function ViajeInterurbano({ trips, activeTrip, myDriverId }: Props) {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={() => doEndTrip()}>Finalizar igual</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Empty trip warning */}
+      <AlertDialog open={showEmptyTripWarning} onOpenChange={setShowEmptyTripWarning}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-secondary" /> Viaje sin cargas asignadas
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Este viaje no tiene cargas asignadas todavía. Normalmente, logística asigna las cargas antes de la salida.
+              ¿Querés iniciarlo de todas formas?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => pendingStartTripId && doStartTrip(pendingStartTripId)}>
+              Iniciar sin cargas
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

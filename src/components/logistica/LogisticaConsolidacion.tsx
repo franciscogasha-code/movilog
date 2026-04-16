@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Package, MapPin, ArrowRight, Truck, Plus } from "lucide-react";
+import { Package, MapPin, ArrowRight, Truck, Plus, AlertTriangle } from "lucide-react";
 import { REQUEST_TYPE_LABELS } from "@/lib/constants";
 import { toast } from "sonner";
 import { CrearViajeForm } from "./CrearViajeForm";
@@ -37,6 +37,25 @@ export function LogisticaConsolidacion() {
         .order("created_at", { ascending: true });
       if (error) throw error;
       return data;
+    },
+  });
+
+  // Inconsistent requests: in_consolidation but NOT interurban (or null flow_type)
+  const { data: inconsistentRequests } = useQuery({
+    queryKey: ["consolidation-inconsistent"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("branch_requests")
+        .select(`
+          id, request_number, request_type, flow_type, created_at,
+          source_branch:branches!branch_requests_source_branch_id_fkey(name, code),
+          requesting_branch:branches!branch_requests_requesting_branch_id_fkey(name, code)
+        `)
+        .eq("status", "in_consolidation" as any)
+        .or("flow_type.is.null,flow_type.neq.interurban")
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      return (data || []).filter(r => r.flow_type !== "interurban");
     },
   });
 
@@ -77,6 +96,7 @@ export function LogisticaConsolidacion() {
 
   const assignToTrip = async (tripId: string) => {
     setAssigning(true);
+    const totalSelected = selected.size;
     let success = 0;
     let errors: string[] = [];
     for (const requestId of selected) {
@@ -92,14 +112,24 @@ export function LogisticaConsolidacion() {
         errors.push(err.message);
       }
     }
+
+    // Find trip number for clear feedback
+    const tripLabel = plannedTrips?.find((t: any) => t.id === tripId);
+    const tripNum = tripLabel ? `#${(tripLabel as any).trip_number}` : "";
+
     if (success > 0) {
-      toast.success(`${success} pedido(s) asignados al viaje`);
+      toast.success(`✓ ${success} de ${totalSelected} pedido(s) asignados al viaje ${tripNum}`.trim(), {
+        duration: 4000,
+      });
       queryClient.invalidateQueries({ queryKey: ["consolidation-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["consolidation-inconsistent"] });
+      queryClient.invalidateQueries({ queryKey: ["consolidation-count"] });
       queryClient.invalidateQueries({ queryKey: ["planned-trips"] });
       queryClient.invalidateQueries({ queryKey: ["planned-trips-for-assignment"] });
+      queryClient.invalidateQueries({ queryKey: ["planned-count"] });
     }
     if (errors.length > 0) {
-      toast.error(`${errors.length} error(es): ${errors[0]}`);
+      toast.error(`${errors.length} error(es): ${errors[0]}`, { duration: 6000 });
     }
     setSelected(new Set());
     setAssignMode(null);
@@ -126,6 +156,33 @@ export function LogisticaConsolidacion() {
 
   return (
     <div className="space-y-4">
+      {/* Inconsistency alert */}
+      {inconsistentRequests && inconsistentRequests.length > 0 && (
+        <Card className="border-destructive/40 bg-destructive/5">
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+              <div className="space-y-1.5">
+                <p className="text-sm font-semibold text-destructive">
+                  {inconsistentRequests.length} pedido(s) en consolidación sin flow_type interurbano
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Estos pedidos no pueden asignarse a viajes. Revisar y corregir desde el detalle del pedido.
+                </p>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {inconsistentRequests.map((r: any) => (
+                    <Badge key={r.id} variant="outline" className="text-xs border-destructive/30 text-destructive">
+                      #{r.request_number} — {(r.source_branch as any)?.code} → {(r.requesting_branch as any)?.code}
+                      <span className="ml-1 opacity-60">({r.flow_type || "sin flow_type"})</span>
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Actions bar */}
       {selected.size > 0 && (
         <Card className="glass-card border-primary/30">
