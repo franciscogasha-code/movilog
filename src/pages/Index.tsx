@@ -56,6 +56,26 @@ const PRIORITY_ROW_CLASS: Record<Priority, string> = {
   normal: "",
 };
 
+// ── Order mode classification ──────────────────────────────
+type OrderMode = "pickup" | "delivery" | "encomienda" | "reposicion";
+
+function classifyOrderMode(shippingMethod?: string, deliveryTarget?: string, requestType?: string): OrderMode {
+  if (shippingMethod === "pickup") return "pickup";
+  if (shippingMethod === "delivery") return "delivery";
+  if (shippingMethod === "courier") return "encomienda";
+  if (deliveryTarget === "client" || requestType === "client" || requestType === "online") return "delivery";
+  return "reposicion";
+}
+
+const ORDER_MODE_CONFIG: Record<OrderMode, { label: string; emoji: string; className: string; actionLabel: string }> = {
+  pickup: { label: "Retiro", emoji: "🟣", className: "bg-purple-500/10 text-purple-600 border-purple-500/20", actionLabel: "Preparar retiro" },
+  delivery: { label: "Delivery", emoji: "🔵", className: "bg-blue-500/10 text-blue-600 border-blue-500/20", actionLabel: "Despachar delivery" },
+  encomienda: { label: "Encomienda", emoji: "🟢", className: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20", actionLabel: "Preparar envío" },
+  reposicion: { label: "Reposición", emoji: "⚪", className: "bg-muted text-muted-foreground border-border", actionLabel: "Gestionar" },
+};
+
+const isClientMode = (m: OrderMode) => m !== "reposicion";
+
 // ── Types ──────────────────────────────────────────────────
 type ItemType = "pedido" | "consulta" | "tarea";
 type TaskKind = "preparar" | "despachar" | "retirar" | "en_transito" | "recepcionar" | "entregar";
@@ -70,6 +90,7 @@ interface QueueItem {
   status: string;
   priority: Priority;
   createdAt: string;
+  orderMode?: OrderMode;
   // consultation-specific
   consultationStatus?: string;
   hasResponses?: boolean;
