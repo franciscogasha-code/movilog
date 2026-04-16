@@ -37,6 +37,8 @@ export function ViajeInterurbano({ trips, activeTrip, myDriverId }: Props) {
   const [showEndWarning, setShowEndWarning] = useState(false);
   const [pendingCustodyCount, setPendingCustodyCount] = useState(0);
   const [endMileageValue, setEndMileageValue] = useState<number | null>(null);
+  const [showEmptyTripWarning, setShowEmptyTripWarning] = useState(false);
+  const [pendingStartTripId, setPendingStartTripId] = useState<string | null>(null);
 
   // Planned trips assigned to this driver (not yet started)
   const plannedTrips = trips.filter(t => t.status === "planned");

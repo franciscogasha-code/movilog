@@ -96,6 +96,7 @@ export function LogisticaConsolidacion() {
 
   const assignToTrip = async (tripId: string) => {
     setAssigning(true);
+    const totalSelected = selected.size;
     let success = 0;
     let errors: string[] = [];
     for (const requestId of selected) {
@@ -111,14 +112,24 @@ export function LogisticaConsolidacion() {
         errors.push(err.message);
       }
     }
+
+    // Find trip number for clear feedback
+    const tripLabel = plannedTrips?.find((t: any) => t.id === tripId);
+    const tripNum = tripLabel ? `#${(tripLabel as any).trip_number}` : "";
+
     if (success > 0) {
-      toast.success(`${success} pedido(s) asignados al viaje`);
+      toast.success(`✓ ${success} de ${totalSelected} pedido(s) asignados al viaje ${tripNum}`.trim(), {
+        duration: 4000,
+      });
       queryClient.invalidateQueries({ queryKey: ["consolidation-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["consolidation-inconsistent"] });
+      queryClient.invalidateQueries({ queryKey: ["consolidation-count"] });
       queryClient.invalidateQueries({ queryKey: ["planned-trips"] });
       queryClient.invalidateQueries({ queryKey: ["planned-trips-for-assignment"] });
+      queryClient.invalidateQueries({ queryKey: ["planned-count"] });
     }
     if (errors.length > 0) {
-      toast.error(`${errors.length} error(es): ${errors[0]}`);
+      toast.error(`${errors.length} error(es): ${errors[0]}`, { duration: 6000 });
     }
     setSelected(new Set());
     setAssignMode(null);
