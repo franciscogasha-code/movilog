@@ -129,6 +129,8 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
   const [rejectionReason, setRejectionReason] = useState("");
   const [rejectionReasonType, setRejectionReasonType] = useState("");
   const [showRejectForm, setShowRejectForm] = useState(false);
+  const [showTripSelector, setShowTripSelector] = useState(false);
+  const [selectedTripId, setSelectedTripId] = useState("");
 
   const { data: request, isLoading } = useQuery({
     queryKey: ["branch-request-detail", requestId],
