@@ -372,6 +372,22 @@ export function ViajeInterurbano({ trips, activeTrip, myDriverId }: Props) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Create trip dialog */}
+      <Dialog open={createTripOpen} onOpenChange={setCreateTripOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Crear viaje</DialogTitle>
+          </DialogHeader>
+          <CrearViajeForm
+            onSuccess={() => {
+              setCreateTripOpen(false);
+              queryClient.invalidateQueries({ queryKey: ["active-trips"] });
+            }}
+            onCancel={() => setCreateTripOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
