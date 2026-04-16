@@ -153,6 +153,15 @@ export function ViajeInterurbano({ trips, activeTrip, myDriverId }: Props) {
 
   return (
     <div className="space-y-4">
+      {/* Create trip action — visible only for logistics/admin roles */}
+      {canCreateTrip && (
+        <div className="flex justify-end">
+          <Button size="sm" onClick={() => setCreateTripOpen(true)} className="gap-1.5">
+            <Plus className="h-4 w-4" /> Crear viaje
+          </Button>
+        </div>
+      )}
+
       {/* Active trip */}
       {activeTrip ? (
         <Card className="glass-card border-accent/30">
