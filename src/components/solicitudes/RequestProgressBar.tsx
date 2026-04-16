@@ -1,7 +1,41 @@
-import { Check, Clock, Package, Truck, MapPin, Archive, Lock, X } from "lucide-react";
+import { Check, Clock, Package, Truck, MapPin, Archive, Lock, X, PackageCheck, Warehouse, Route, Send } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const FLOW_STEPS = [
+// Flow-specific step configurations
+const CLIENT_DELIVERY_STEPS = [
+  { status: "pending", label: "Pendiente", icon: Clock },
+  { status: "in_preparation", label: "En preparación", icon: Package },
+  { status: "ready_for_delivery", label: "Listo entrega", icon: Send },
+  { status: "delivered_to_third_party", label: "Entregado", icon: MapPin },
+  { status: "closed", label: "Cerrado", icon: Lock },
+];
+
+const URBAN_STEPS = [
+  { status: "pending", label: "Pendiente", icon: Clock },
+  { status: "in_preparation", label: "En preparación", icon: Package },
+  { status: "ready_for_pickup", label: "Listo retiro", icon: PackageCheck },
+  { status: "in_transit", label: "En tránsito", icon: Truck },
+  { status: "delivered", label: "Entregado", icon: MapPin },
+  { status: "received", label: "Recibido", icon: Check },
+  { status: "logistic_closed", label: "Cierre log.", icon: Archive },
+  { status: "closed", label: "Cerrado", icon: Lock },
+];
+
+const INTERURBAN_STEPS = [
+  { status: "pending", label: "Pendiente", icon: Clock },
+  { status: "in_preparation", label: "En preparación", icon: Package },
+  { status: "ready_for_pickup", label: "Listo retiro", icon: PackageCheck },
+  { status: "in_consolidation", label: "Consolidación", icon: Warehouse },
+  { status: "assigned_to_trip", label: "Asignado", icon: Route },
+  { status: "in_transit", label: "En tránsito", icon: Truck },
+  { status: "delivered", label: "Entregado", icon: MapPin },
+  { status: "received", label: "Recibido", icon: Check },
+  { status: "logistic_closed", label: "Cierre log.", icon: Archive },
+  { status: "closed", label: "Cerrado", icon: Lock },
+];
+
+// Legacy flow (for orders without flow_type)
+const LEGACY_STEPS = [
   { status: "pending", label: "Pendiente", icon: Clock },
   { status: "in_preparation", label: "En preparación", icon: Package },
   { status: "in_transit", label: "En tránsito", icon: Truck },
@@ -20,12 +54,23 @@ interface StepEvent {
 interface RequestProgressBarProps {
   currentStatus: string;
   events?: StepEvent[];
+  flowType?: string | null;
 }
 
-export function RequestProgressBar({ currentStatus, events = [] }: RequestProgressBarProps) {
+function getStepsForFlow(flowType?: string | null) {
+  switch (flowType) {
+    case "client_delivery": return CLIENT_DELIVERY_STEPS;
+    case "urban": return URBAN_STEPS;
+    case "interurban": return INTERURBAN_STEPS;
+    default: return LEGACY_STEPS;
+  }
+}
+
+export function RequestProgressBar({ currentStatus, events = [], flowType }: RequestProgressBarProps) {
   const isRejected = currentStatus === "rejected";
 
-  const currentIndex = FLOW_STEPS.findIndex((s) => s.status === currentStatus);
+  const steps = getStepsForFlow(flowType);
+  const currentIndex = steps.findIndex((s) => s.status === currentStatus);
   const eventMap = new Map(events.map((e) => [e.status, e]));
 
   if (isRejected) {
@@ -54,12 +99,12 @@ export function RequestProgressBar({ currentStatus, events = [] }: RequestProgre
         <div
           className="absolute top-5 left-5 h-0.5 bg-primary z-0 transition-all duration-500"
           style={{
-            width: currentIndex >= 0 ? `${(currentIndex / (FLOW_STEPS.length - 1)) * 100}%` : "0%",
+            width: currentIndex >= 0 ? `${(currentIndex / (steps.length - 1)) * 100}%` : "0%",
             maxWidth: "calc(100% - 40px)",
           }}
         />
 
-        {FLOW_STEPS.map((step, idx) => {
+        {steps.map((step, idx) => {
           const isCompleted = idx < currentIndex;
           const isCurrent = idx === currentIndex;
           const isFuture = idx > currentIndex;
