@@ -44,24 +44,83 @@ type ActionDef = {
   requiresReason?: boolean;
 };
 
-const STATUS_ACTIONS: Record<string, ActionDef[]> = {
-  pending: [
-    { label: "Aceptar", newStatus: "in_preparation", variant: "default", icon: <Check className="h-4 w-4" />, actor: "origin" },
-    { label: "Rechazar", newStatus: "rejected", variant: "destructive", icon: <X className="h-4 w-4" />, actor: "origin", requiresReason: true },
-  ],
-  in_preparation: [
-    { label: "Enviar a tránsito", newStatus: "in_transit", variant: "default", icon: <Truck className="h-4 w-4" />, actor: "origin" },
-  ],
-  in_transit: [
-    { label: "Confirmar entrega", newStatus: "delivered", variant: "default", icon: <Check className="h-4 w-4" />, actor: "driver" },
-  ],
-  delivered: [
-    { label: "Confirmar recepción", newStatus: "received", variant: "default", icon: <Check className="h-4 w-4" />, actor: "destination" },
-  ],
-  received: [
-    { label: "Cierre logístico", newStatus: "logistic_closed", variant: "outline", icon: <Check className="h-4 w-4" />, actor: "destination" },
-  ],
-};
+function getStatusActions(status: string, flowType?: string | null): ActionDef[] {
+  // Common: pending actions for all flows
+  if (status === "pending") {
+    return [
+      { label: "Aceptar", newStatus: "in_preparation", variant: "default", icon: <Check className="h-4 w-4" />, actor: "origin" },
+      { label: "Rechazar", newStatus: "rejected", variant: "destructive", icon: <X className="h-4 w-4" />, actor: "origin", requiresReason: true },
+    ];
+  }
+
+  // Legacy flow (no flow_type)
+  if (!flowType) {
+    switch (status) {
+      case "in_preparation":
+        return [{ label: "Enviar a tránsito", newStatus: "in_transit", variant: "default", icon: <Truck className="h-4 w-4" />, actor: "origin" }];
+      case "in_transit":
+        return [{ label: "Confirmar entrega", newStatus: "delivered", variant: "default", icon: <Check className="h-4 w-4" />, actor: "driver" }];
+      case "delivered":
+        return [{ label: "Confirmar recepción", newStatus: "received", variant: "default", icon: <Check className="h-4 w-4" />, actor: "destination" }];
+      case "received":
+        return [{ label: "Cierre logístico", newStatus: "logistic_closed", variant: "outline", icon: <Check className="h-4 w-4" />, actor: "destination" }];
+      default:
+        return [];
+    }
+  }
+
+  // client_delivery flow
+  if (flowType === "client_delivery") {
+    switch (status) {
+      case "in_preparation":
+        return [{ label: "Listo para entrega", newStatus: "ready_for_delivery", variant: "default", icon: <Package className="h-4 w-4" />, actor: "origin" }];
+      case "ready_for_delivery":
+        return [{ label: "Confirmar entrega a tercero", newStatus: "delivered_to_third_party", variant: "default", icon: <Check className="h-4 w-4" />, actor: "origin" }];
+      default:
+        return [];
+    }
+  }
+
+  // urban flow
+  if (flowType === "urban") {
+    switch (status) {
+      case "in_preparation":
+        return [{ label: "Listo para retiro", newStatus: "ready_for_pickup", variant: "default", icon: <Package className="h-4 w-4" />, actor: "origin" }];
+      // ready_for_pickup → in_transit handled by driver (fn_driver_action)
+      case "in_transit":
+        return [{ label: "Confirmar entrega", newStatus: "delivered", variant: "default", icon: <Check className="h-4 w-4" />, actor: "driver" }];
+      case "delivered":
+        return [{ label: "Confirmar recepción", newStatus: "received", variant: "default", icon: <Check className="h-4 w-4" />, actor: "destination" }];
+      case "received":
+        return [{ label: "Cierre logístico", newStatus: "logistic_closed", variant: "outline", icon: <Check className="h-4 w-4" />, actor: "destination" }];
+      default:
+        return [];
+    }
+  }
+
+  // interurban flow
+  if (flowType === "interurban") {
+    switch (status) {
+      case "in_preparation":
+        return [{ label: "Listo para retiro", newStatus: "ready_for_pickup", variant: "default", icon: <Package className="h-4 w-4" />, actor: "origin" }];
+      // ready_for_pickup → in_consolidation handled by driver (fn_driver_action)
+      case "in_consolidation":
+        return [{ label: "Asignar a viaje", newStatus: "assigned_to_trip", variant: "default", icon: <Truck className="h-4 w-4" />, actor: "admin" }];
+      case "assigned_to_trip":
+        return [{ label: "Iniciar tránsito", newStatus: "in_transit", variant: "default", icon: <Truck className="h-4 w-4" />, actor: "driver" }];
+      case "in_transit":
+        return [{ label: "Confirmar entrega", newStatus: "delivered", variant: "default", icon: <Check className="h-4 w-4" />, actor: "driver" }];
+      case "delivered":
+        return [{ label: "Confirmar recepción", newStatus: "received", variant: "default", icon: <Check className="h-4 w-4" />, actor: "destination" }];
+      case "received":
+        return [{ label: "Cierre logístico", newStatus: "logistic_closed", variant: "outline", icon: <Check className="h-4 w-4" />, actor: "destination" }];
+      default:
+        return [];
+    }
+  }
+
+  return [];
+}
 
 export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; onUpdate: () => void }) {
   const { hasBranch, hasRole, isOwner } = useAuth();
@@ -166,11 +225,12 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
   const isOrigin = hasBranch(r.source_branch_id);
   const isDestination = hasBranch(r.requesting_branch_id);
 
-  const availableActions = (STATUS_ACTIONS[r.status] || []).filter((action) => {
+  const availableActions = getStatusActions(r.status, r.flow_type).filter((action) => {
     if (isAdmin) return true;
     if (action.actor === "origin") return isOrigin;
     if (action.actor === "destination") return isDestination;
     if (action.actor === "driver") return isOrigin || hasRole("driver");
+    if (action.actor === "admin") return false; // only isAdmin above
     return false;
   });
 
