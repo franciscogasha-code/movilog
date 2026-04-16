@@ -255,7 +255,7 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
   const isAdvanceBlocked = r.status === "in_preparation" && !hasDocuments;
 
   // ─── Transition handler ─────────────────────────────────────────
-  const handleTransition = async (newStatus: string, reason?: string, reasonType?: string) => {
+  const handleTransition = async (newStatus: string, reason?: string, reasonType?: string, tripId?: string) => {
     setTransitioning(true);
     try {
       const { data, error } = await supabase.rpc("fn_transition_request_status", {
@@ -263,7 +263,8 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
         p_new_status: newStatus,
         p_reason: reason || null,
         p_rejection_reason_type: reasonType || null,
-      });
+        p_trip_id: tripId || null,
+      } as any);
       if (error) throw error;
 
       const result = data as any;
