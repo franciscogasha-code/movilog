@@ -129,6 +129,8 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
   const [rejectionReason, setRejectionReason] = useState("");
   const [rejectionReasonType, setRejectionReasonType] = useState("");
   const [showRejectForm, setShowRejectForm] = useState(false);
+  const [showTripSelector, setShowTripSelector] = useState(false);
+  const [selectedTripId, setSelectedTripId] = useState("");
 
   const { data: request, isLoading } = useQuery({
     queryKey: ["branch-request-detail", requestId],
@@ -201,7 +203,21 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
     enabled: !!requestId,
   });
 
-  // Resolve rejected_by profile name
+  // Available trips for assignment (active or planned)
+  const { data: availableTrips } = useQuery({
+    queryKey: ["available-trips-for-assignment"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("trips")
+        .select("id, status, driver_id, created_at, drivers!inner(user_id, profiles:profiles!inner(full_name))")
+        .in("status", ["planned", "in_progress"] as any[])
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!request && (request as any).status === "in_consolidation",
+  });
+
   const { data: rejectedByProfile } = useQuery({
     queryKey: ["profile-name-rejected", request?.rejected_by],
     queryFn: async () => {
@@ -229,8 +245,8 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
     if (isAdmin) return true;
     if (action.actor === "origin") return isOrigin;
     if (action.actor === "destination") return isDestination;
-    if (action.actor === "driver") return isOrigin || hasRole("driver");
-    if (action.actor === "admin") return false; // only isAdmin above
+    if (action.actor === "driver") return hasRole("driver"); // STRICT: only driver role
+    if (action.actor === "admin") return false;
     return false;
   });
 
@@ -239,7 +255,7 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
   const isAdvanceBlocked = r.status === "in_preparation" && !hasDocuments;
 
   // ─── Transition handler ─────────────────────────────────────────
-  const handleTransition = async (newStatus: string, reason?: string, reasonType?: string) => {
+  const handleTransition = async (newStatus: string, reason?: string, reasonType?: string, tripId?: string) => {
     setTransitioning(true);
     try {
       const { data, error } = await supabase.rpc("fn_transition_request_status", {
@@ -247,7 +263,8 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
         p_new_status: newStatus,
         p_reason: reason || null,
         p_rejection_reason_type: reasonType || null,
-      });
+        p_trip_id: tripId || null,
+      } as any);
       if (error) throw error;
 
       const result = data as any;
@@ -259,6 +276,8 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
       queryClient.invalidateQueries({ queryKey: ["request-bims-documents", requestId] });
       onUpdate();
       setShowRejectForm(false);
+      setShowTripSelector(false);
+      setSelectedTripId("");
       setRejectionReason("");
       setRejectionReasonType("");
     } catch (err: any) {
@@ -396,6 +415,42 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
                   </Button>
                 </div>
               </div>
+            ) : showTripSelector ? (
+              <div className="space-y-3">
+                <p className="text-sm font-medium">Seleccionar viaje para asignar:</p>
+                <Select value={selectedTripId} onValueChange={setSelectedTripId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccione un viaje" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(availableTrips || []).map((trip: any) => {
+                      const driverName = trip.drivers?.profiles?.full_name || "Chofer";
+                      const statusLabel = trip.status === "in_progress" ? "En curso" : "Planificado";
+                      return (
+                        <SelectItem key={trip.id} value={trip.id}>
+                          {driverName} — {statusLabel} ({new Date(trip.created_at).toLocaleDateString("es-PY")})
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+                {(!availableTrips || availableTrips.length === 0) && (
+                  <p className="text-xs text-muted-foreground">No hay viajes disponibles. Cree uno primero desde el módulo de Distribución.</p>
+                )}
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    disabled={!selectedTripId || transitioning}
+                    onClick={() => handleTransition("assigned_to_trip", undefined, undefined, selectedTripId)}
+                  >
+                    {transitioning && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+                    Confirmar asignación
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => { setShowTripSelector(false); setSelectedTripId(""); }}>
+                    Cancelar
+                  </Button>
+                </div>
+              </div>
             ) : (
               <div className="flex flex-wrap gap-2">
                 {availableActions.map((action) => {
@@ -410,6 +465,8 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
                       onClick={() => {
                         if (action.requiresReason) {
                           setShowRejectForm(true);
+                        } else if (action.newStatus === "assigned_to_trip") {
+                          setShowTripSelector(true);
                         } else {
                           handleTransition(action.newStatus);
                         }

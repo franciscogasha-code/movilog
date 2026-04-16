@@ -2837,15 +2837,26 @@ export type Database = {
         }
         Returns: Json
       }
-      fn_transition_request_status: {
-        Args: {
-          p_new_status: string
-          p_reason?: string
-          p_rejection_reason_type?: string
-          p_request_id: string
-        }
-        Returns: Json
-      }
+      fn_transition_request_status:
+        | {
+            Args: {
+              p_new_status: string
+              p_reason?: string
+              p_rejection_reason_type?: string
+              p_request_id: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_new_status: string
+              p_reason?: string
+              p_rejection_reason_type?: string
+              p_request_id: string
+              p_trip_id?: string
+            }
+            Returns: Json
+          }
       fn_validate_driver_pickup: {
         Args: { p_fulfillment_id: string }
         Returns: Json
