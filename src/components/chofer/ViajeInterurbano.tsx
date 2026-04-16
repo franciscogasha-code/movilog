@@ -333,6 +333,27 @@ export function ViajeInterurbano({ trips, activeTrip, myDriverId }: Props) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Empty trip warning */}
+      <AlertDialog open={showEmptyTripWarning} onOpenChange={setShowEmptyTripWarning}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-secondary" /> Viaje sin cargas asignadas
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Este viaje no tiene cargas asignadas todavía. Normalmente, logística asigna las cargas antes de la salida.
+              ¿Querés iniciarlo de todas formas?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => pendingStartTripId && doStartTrip(pendingStartTripId)}>
+              Iniciar sin cargas
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
