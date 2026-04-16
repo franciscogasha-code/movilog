@@ -415,6 +415,42 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
                   </Button>
                 </div>
               </div>
+            ) : showTripSelector ? (
+              <div className="space-y-3">
+                <p className="text-sm font-medium">Seleccionar viaje para asignar:</p>
+                <Select value={selectedTripId} onValueChange={setSelectedTripId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccione un viaje" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(availableTrips || []).map((trip: any) => {
+                      const driverName = trip.drivers?.profiles?.full_name || "Chofer";
+                      const statusLabel = trip.status === "in_progress" ? "En curso" : "Planificado";
+                      return (
+                        <SelectItem key={trip.id} value={trip.id}>
+                          {driverName} — {statusLabel} ({new Date(trip.created_at).toLocaleDateString("es-PY")})
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+                {(!availableTrips || availableTrips.length === 0) && (
+                  <p className="text-xs text-muted-foreground">No hay viajes disponibles. Cree uno primero desde el módulo de Distribución.</p>
+                )}
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    disabled={!selectedTripId || transitioning}
+                    onClick={() => handleTransition("assigned_to_trip", undefined, undefined, selectedTripId)}
+                  >
+                    {transitioning && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+                    Confirmar asignación
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => { setShowTripSelector(false); setSelectedTripId(""); }}>
+                    Cancelar
+                  </Button>
+                </div>
+              </div>
             ) : (
               <div className="flex flex-wrap gap-2">
                 {availableActions.map((action) => {
@@ -429,6 +465,8 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
                       onClick={() => {
                         if (action.requiresReason) {
                           setShowRejectForm(true);
+                        } else if (action.newStatus === "assigned_to_trip") {
+                          setShowTripSelector(true);
                         } else {
                           handleTransition(action.newStatus);
                         }
