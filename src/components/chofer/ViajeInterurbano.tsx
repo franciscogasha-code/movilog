@@ -12,6 +12,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Play, Square, MapPin, Truck, Plus, Route, AlertTriangle, Calendar } from "lucide-react";
 import { CorteDetalle } from "./CorteDetalle";
 import { AgregarTareaViaje } from "./AgregarTareaViaje";
+import { CrearViajeForm } from "@/components/logistica/CrearViajeForm";
 import { TRIP_TYPE_LABELS } from "@/lib/constants";
 import { toast } from "sonner";
 
