@@ -218,7 +218,7 @@ export function ViajeInterurbano({ trips, activeTrip, myDriverId }: Props) {
                       <Label className="text-xs">Km inicial</Label>
                       <Input type="number" value={startMileage} onChange={(e) => setStartMileage(e.target.value)} placeholder="0" />
                     </div>
-                    <Button onClick={() => startTrip(t.id)} className="gap-2">
+                    <Button onClick={() => checkAndStartTrip(t.id)} className="gap-2">
                       <Play className="h-4 w-4" /> Iniciar
                     </Button>
                     <Button variant="ghost" onClick={() => setStartingTripId(null)}>Cancelar</Button>
