@@ -203,7 +203,21 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
     enabled: !!requestId,
   });
 
-  // Resolve rejected_by profile name
+  // Available trips for assignment (active or planned)
+  const { data: availableTrips } = useQuery({
+    queryKey: ["available-trips-for-assignment"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("trips")
+        .select("id, status, driver_id, created_at, drivers!inner(user_id, profiles:profiles!inner(full_name))")
+        .in("status", ["planned", "in_progress"] as any[])
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!request && (request as any).status === "in_consolidation",
+  });
+
   const { data: rejectedByProfile } = useQuery({
     queryKey: ["profile-name-rejected", request?.rejected_by],
     queryFn: async () => {
