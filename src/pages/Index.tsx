@@ -608,146 +608,180 @@ export default function Index() {
                   ) : (
                     <div className="space-y-0.5">
                       {(() => {
-                        // Group items into priority sections
-                        const sections: { key: string; title: string; items: typeof filteredItems }[] = [];
-                        const immediate = filteredItems.filter(i => i.priority === "overdue_critical" || i.priority === "overdue");
-                        const today = filteredItems.filter(i => i.priority === "today");
-                        const normal = filteredItems.filter(i => i.priority === "normal");
-                        if (immediate.length) sections.push({ key: "immediate", title: "Requiere atención inmediata", items: immediate });
-                        if (today.length) sections.push({ key: "today", title: "Para hoy", items: today });
-                        if (normal.length) sections.push({ key: "normal", title: "En curso", items: normal });
-                        // If only one section or filter active, skip headers
-                        const showHeaders = sections.length > 1 && activeFilter === "all";
-                        return sections.map((section, sIdx) => (
-                          <div key={section.key} className={sIdx > 0 ? "mt-4" : ""}>
-                            {showHeaders && (
-                              <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md ${
-                                section.key === "immediate" ? "text-destructive bg-destructive/5" : section.key === "today" ? "text-orange-600" : "text-muted-foreground"
-                              }`}>
-                                {section.key === "immediate" && <AlertTriangle className="h-3.5 w-3.5 shrink-0" />}
-                                <p className="text-[11px] font-semibold uppercase tracking-wider">
-                                  {section.title}
-                                </p>
+                        // Separate client orders from the rest
+                        const clientItems = filteredItems.filter(i => i.itemType === "pedido" && i.orderMode && isClientMode(i.orderMode));
+                        const restItems = filteredItems.filter(i => !(i.itemType === "pedido" && i.orderMode && isClientMode(i.orderMode)));
+
+                        // Render a single queue item row
+                        const renderQueueRow = (qi: QueueItem) => {
+                          const badge = PRIORITY_BADGE[qi.priority];
+                          const rowClass = PRIORITY_ROW_CLASS[qi.priority];
+                          const isPedido = qi.itemType === "pedido";
+                          const isConsulta = qi.itemType === "consulta";
+                          const isTarea = qi.itemType === "tarea";
+
+                          let actionLabel = isViewer ? "Ver" : "Gestionar";
+                          const actionIcon = <ArrowRight className="h-3 w-3 ml-1" />;
+                          const handleAction = () => navigate(qi.navigateTo);
+
+                          if (!isViewer) {
+                            if (isPedido && qi.orderMode && qi.orderMode !== "reposicion") {
+                              actionLabel = ORDER_MODE_CONFIG[qi.orderMode].actionLabel;
+                            } else if (isConsulta) {
+                              actionLabel = qi.isRequester ? "Ver consulta" : "Responder";
+                            } else if (isTarea && qi.taskKind) {
+                              actionLabel = TASK_KIND_CONFIG[qi.taskKind].actionLabel;
+                            }
+                          }
+
+                          const renderTypeBadge = () => {
+                            if (isPedido) {
+                              return (
+                                <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold bg-primary/10 text-primary border border-primary/20 shrink-0">
+                                  <Package className="h-3 w-3" />
+                                  Pedido
+                                </span>
+                              );
+                            }
+                            if (isConsulta) {
+                              return (
+                                <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold bg-secondary/80 text-secondary-foreground border border-secondary shrink-0">
+                                  <MessageSquare className="h-3 w-3" />
+                                  Consulta
+                                </span>
+                              );
+                            }
+                            if (isTarea && qi.taskKind) {
+                              const taskCfg = TASK_KIND_CONFIG[qi.taskKind];
+                              const TaskIcon = taskCfg.icon;
+                              return (
+                                <span className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold border shrink-0 ${taskCfg.className}`}>
+                                  <TaskIcon className="h-3 w-3" />
+                                  {taskCfg.label}
+                                </span>
+                              );
+                            }
+                            return null;
+                          };
+
+                          const renderModeBadge = () => {
+                            if (!isPedido || !qi.orderMode) return null;
+                            const cfg = ORDER_MODE_CONFIG[qi.orderMode];
+                            return (
+                              <span className={`inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[10px] font-semibold border shrink-0 ${cfg.className}`}>
+                                {cfg.emoji} {cfg.label}
+                              </span>
+                            );
+                          };
+
+                          const renderStatusBadge = () => {
+                            if (isPedido) return <StatusBadge status={qi.status} config={REQUEST_STATUS_CONFIG} />;
+                            if (isConsulta) return <StatusBadge status={qi.status} config={CONSULTATION_STATUS_CONFIG} />;
+                            if (isTarea) return <StatusBadge status={qi.status} config={FULFILLMENT_STATUS_CONFIG} />;
+                            return null;
+                          };
+
+                          return (
+                            <div
+                              key={`${qi.itemType}-${qi.id}`}
+                              className={`flex flex-wrap md:flex-nowrap items-center gap-2 md:gap-3 py-2 px-3 rounded-lg cursor-pointer hover:bg-muted/40 active:bg-muted/60 transition-all duration-150 ${rowClass}`}
+                              onClick={handleAction}
+                            >
+                              <div className="flex items-center gap-2 min-w-0 flex-1">
+                                {renderTypeBadge()}
+                                {renderModeBadge()}
+                                {qi.number && (
+                                  <span className="text-sm font-mono font-semibold text-foreground shrink-0">
+                                    #{qi.number}
+                                  </span>
+                                )}
+                                <span className="text-sm text-muted-foreground truncate min-w-0">
+                                  {qi.routeLabel}
+                                </span>
+                                {qi.routeLabel.includes("→") && qi.routeLabel.split("→").length === 2 && (() => {
+                                  const parts = qi.routeLabel.split("→").map(s => s.replace(/^(De:|Para:)\s*/, "").trim());
+                                  return parts[0] === parts[1] ? (
+                                    <span className="inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground border border-border shrink-0">
+                                      Interno
+                                    </span>
+                                  ) : null;
+                                })()}
                               </div>
-                            )}
-                            {section.items.map((qi) => {
-                        const badge = PRIORITY_BADGE[qi.priority];
-                        const rowClass = PRIORITY_ROW_CLASS[qi.priority];
-                        const isPedido = qi.itemType === "pedido";
-                        const isConsulta = qi.itemType === "consulta";
-                        const isTarea = qi.itemType === "tarea";
-
-                        // Determine action label and handler
-                        let actionLabel = isViewer ? "Ver" : "Gestionar";
-                        let actionIcon = <ArrowRight className="h-3 w-3 ml-1" />;
-                        let handleAction = () => navigate(qi.navigateTo);
-
-                        if (!isViewer) {
-                          if (isConsulta) {
-                            actionLabel = qi.isRequester ? "Ver consulta" : "Responder";
-                          } else if (isTarea && qi.taskKind) {
-                            const taskCfg = TASK_KIND_CONFIG[qi.taskKind];
-                            actionLabel = taskCfg.actionLabel;
-                          }
-                        }
-
-                        // Render type badge
-                        const renderTypeBadge = () => {
-                          if (isPedido) {
-                            return (
-                              <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold bg-primary/10 text-primary border border-primary/20 shrink-0">
-                                <Package className="h-3 w-3" />
-                                Pedido
-                              </span>
-                            );
-                          }
-                          if (isConsulta) {
-                            return (
-                              <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold bg-secondary/80 text-secondary-foreground border border-secondary shrink-0">
-                                <MessageSquare className="h-3 w-3" />
-                                Consulta
-                              </span>
-                            );
-                          }
-                          if (isTarea && qi.taskKind) {
-                            const taskCfg = TASK_KIND_CONFIG[qi.taskKind];
-                            const TaskIcon = taskCfg.icon;
-                            return (
-                              <span className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold border shrink-0 ${taskCfg.className}`}>
-                                <TaskIcon className="h-3 w-3" />
-                                {taskCfg.label}
-                              </span>
-                            );
-                          }
-                          return null;
+                              <div className="flex items-center gap-2 shrink-0">
+                                {renderStatusBadge()}
+                                <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium shrink-0 ${badge.className}`}>
+                                  {badge.label}
+                                </span>
+                                <span className="text-[11px] text-muted-foreground shrink-0 hidden sm:inline">
+                                  {timeAgo(qi.createdAt)}
+                                </span>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-3 text-xs shrink-0 ml-auto"
+                                onClick={(e) => { e.stopPropagation(); handleAction(); }}
+                              >
+                                {actionLabel}
+                                {actionIcon}
+                              </Button>
+                            </div>
+                          );
                         };
 
-                        // Render status badge
-                        const renderStatusBadge = () => {
-                          if (isPedido) return <StatusBadge status={qi.status} config={REQUEST_STATUS_CONFIG} />;
-                          if (isConsulta) return <StatusBadge status={qi.status} config={CONSULTATION_STATUS_CONFIG} />;
-                          if (isTarea) return <StatusBadge status={qi.status} config={FULFILLMENT_STATUS_CONFIG} />;
-                          return null;
+                        // Build priority sections for a set of items
+                        const buildSections = (items: QueueItem[]) => {
+                          const sections: { key: string; title: string; items: QueueItem[] }[] = [];
+                          const immediate = items.filter(i => i.priority === "overdue_critical" || i.priority === "overdue");
+                          const todayItems = items.filter(i => i.priority === "today");
+                          const normalItems = items.filter(i => i.priority === "normal");
+                          if (immediate.length) sections.push({ key: "immediate", title: "Requiere atención inmediata", items: immediate });
+                          if (todayItems.length) sections.push({ key: "today", title: "Para hoy", items: todayItems });
+                          if (normalItems.length) sections.push({ key: "normal", title: "En curso", items: normalItems });
+                          return sections;
                         };
+
+                        const renderSections = (sections: ReturnType<typeof buildSections>, showHeaders: boolean) =>
+                          sections.map((section, sIdx) => (
+                            <div key={section.key} className={sIdx > 0 ? "mt-4" : ""}>
+                              {showHeaders && (
+                                <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md ${
+                                  section.key === "immediate" ? "text-destructive bg-destructive/5" : section.key === "today" ? "text-orange-600" : "text-muted-foreground"
+                                }`}>
+                                  {section.key === "immediate" && <AlertTriangle className="h-3.5 w-3.5 shrink-0" />}
+                                  <p className="text-[11px] font-semibold uppercase tracking-wider">
+                                    {section.title}
+                                  </p>
+                                </div>
+                              )}
+                              {section.items.map(renderQueueRow)}
+                            </div>
+                          ));
 
                         return (
-                            <div
-                            key={`${qi.itemType}-${qi.id}`}
-                            className={`flex flex-wrap md:flex-nowrap items-center gap-2 md:gap-3 py-2 px-3 rounded-lg cursor-pointer hover:bg-muted/40 active:bg-muted/60 transition-all duration-150 ${rowClass}`}
-                            onClick={handleAction}
-                          >
-                            {/* Left: Type + ID + Route */}
-                            <div className="flex items-center gap-2 min-w-0 flex-1">
-                              {renderTypeBadge()}
-
-                              {qi.number && (
-                                <span className="text-sm font-mono font-semibold text-foreground shrink-0">
-                                  #{qi.number}
-                                </span>
-                              )}
-
-                              <span className="text-sm text-muted-foreground truncate min-w-0">
-                                {qi.routeLabel}
-                              </span>
-                              {/* Internal transfer badge */}
-                              {qi.routeLabel.includes("→") && qi.routeLabel.split("→").length === 2 && (() => {
-                                const parts = qi.routeLabel.split("→").map(s => s.replace(/^(De:|Para:)\s*/, "").trim());
-                                return parts[0] === parts[1] ? (
-                                  <span className="inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground border border-border shrink-0">
-                                    Interno
-                                  </span>
-                                ) : null;
-                              })()}
-                            </div>
-
-                            {/* Center: Status + Priority + Time */}
-                            <div className="flex items-center gap-2 shrink-0">
-                              {renderStatusBadge()}
-
-                              <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium shrink-0 ${badge.className}`}>
-                                {badge.label}
-                              </span>
-
-                              <span className="text-[11px] text-muted-foreground shrink-0 hidden sm:inline">
-                                {timeAgo(qi.createdAt)}
-                              </span>
-                            </div>
-
-                            {/* Right: Action */}
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 px-3 text-xs shrink-0 ml-auto"
-                              onClick={(e) => { e.stopPropagation(); handleAction(); }}
-                            >
-                              {actionLabel}
-                              {actionIcon}
-                            </Button>
-                          </div>
+                          <>
+                            {/* Client orders section */}
+                            {clientItems.length > 0 && (
+                              <div className="mb-4">
+                                <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-purple-500/5 border border-purple-500/10 mb-2">
+                                  <Truck className="h-4 w-4 text-purple-600 shrink-0" />
+                                  <p className="text-xs font-semibold uppercase tracking-wider text-purple-600">
+                                    Pedidos con cliente
+                                  </p>
+                                  <Badge variant="secondary" className="text-[10px] ml-auto">{clientItems.length}</Badge>
+                                </div>
+                                {renderSections(buildSections(clientItems), buildSections(clientItems).length > 1)}
+                              </div>
+                            )}
+                            {/* Regular queue */}
+                            {restItems.length > 0 ? (
+                              renderSections(buildSections(restItems), buildSections(restItems).length > 1 && activeFilter === "all")
+                            ) : clientItems.length === 0 ? null : (
+                              <p className="text-xs text-muted-foreground text-center py-4">Sin reposiciones internas pendientes</p>
+                            )}
+                          </>
                         );
-                      })}
-                          </div>
-                        ));
+                      })()}
                       })()}
                     </div>
                   )}
