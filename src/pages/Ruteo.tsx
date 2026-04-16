@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Package, Calendar, Truck, Clock } from "lucide-react";
+import { Package, Calendar, Truck, Clock, CheckCircle2 } from "lucide-react";
 import { LogisticaConsolidacion } from "@/components/logistica/LogisticaConsolidacion";
 import { LogisticaViajesProgramados } from "@/components/logistica/LogisticaViajesProgramados";
 import { LogisticaViajesEnCurso } from "@/components/logistica/LogisticaViajesEnCurso";
@@ -51,6 +51,21 @@ export default function Ruteo() {
     },
   });
 
+  const { data: assignedTodayCount } = useQuery({
+    queryKey: ["assigned-today-count"],
+    queryFn: async () => {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const { count, error } = await supabase
+        .from("branch_requests")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "assigned_to_trip" as any)
+        .gte("updated_at", today.toISOString());
+      if (error) return 0;
+      return count || 0;
+    },
+  });
+
   return (
     <motion.div className="space-y-6" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
       <div>
@@ -59,36 +74,56 @@ export default function Ruteo() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="glass-card">
-          <CardContent className="p-5 flex items-center gap-4">
-            <div className="bg-primary/10 p-3 rounded-xl">
-              <Package className="h-5 w-5 text-primary" />
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <Card
+          className={`glass-card cursor-pointer transition-all ${activeTab === "consolidacion" ? "ring-2 ring-primary/40" : ""}`}
+          onClick={() => setActiveTab("consolidacion")}
+        >
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="bg-primary/10 p-2.5 rounded-xl">
+              <Package className="h-4 w-4 text-primary" />
             </div>
             <div>
-              <p className="text-xs text-muted-foreground uppercase">En consolidación</p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">En consolidación</p>
               <p className="text-lg font-display font-bold">{consolidationCount ?? 0}</p>
             </div>
           </CardContent>
         </Card>
         <Card className="glass-card">
-          <CardContent className="p-5 flex items-center gap-4">
-            <div className="bg-secondary/10 p-3 rounded-xl">
-              <Calendar className="h-5 w-5 text-secondary" />
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="bg-accent/10 p-2.5 rounded-xl">
+              <CheckCircle2 className="h-4 w-4 text-accent" />
             </div>
             <div>
-              <p className="text-xs text-muted-foreground uppercase">Viajes programados</p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Asignados hoy</p>
+              <p className="text-lg font-display font-bold">{assignedTodayCount ?? 0}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card
+          className={`glass-card cursor-pointer transition-all ${activeTab === "programados" ? "ring-2 ring-primary/40" : ""}`}
+          onClick={() => setActiveTab("programados")}
+        >
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="bg-secondary/10 p-2.5 rounded-xl">
+              <Calendar className="h-4 w-4 text-secondary" />
+            </div>
+            <div>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Viajes programados</p>
               <p className="text-lg font-display font-bold">{plannedCount ?? 0}</p>
             </div>
           </CardContent>
         </Card>
-        <Card className="glass-card">
-          <CardContent className="p-5 flex items-center gap-4">
-            <div className="bg-accent/10 p-3 rounded-xl">
-              <Truck className="h-5 w-5 text-accent" />
+        <Card
+          className={`glass-card cursor-pointer transition-all ${activeTab === "en-curso" ? "ring-2 ring-primary/40" : ""}`}
+          onClick={() => setActiveTab("en-curso")}
+        >
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="bg-warning/10 p-2.5 rounded-xl">
+              <Truck className="h-4 w-4 text-warning" />
             </div>
             <div>
-              <p className="text-xs text-muted-foreground uppercase">Viajes en curso</p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Viajes en curso</p>
               <p className="text-lg font-display font-bold">{inProgressCount ?? 0}</p>
             </div>
           </CardContent>

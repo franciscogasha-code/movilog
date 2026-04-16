@@ -4,9 +4,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Truck, Package, MapPin, Clock } from "lucide-react";
-import { TRIP_TYPE_LABELS, FULFILLMENT_STATUS_CONFIG } from "@/lib/constants";
+import { Truck, Package, Clock, User, ShoppingBag } from "lucide-react";
+import { TRIP_TYPE_LABELS } from "@/lib/constants";
 import { LogisticaViajeDetalle } from "./LogisticaViajeDetalle";
+import { Progress } from "@/components/ui/progress";
 
 export function LogisticaViajesEnCurso() {
   const [detailTripId, setDetailTripId] = useState<string | null>(null);
@@ -29,7 +30,6 @@ export function LogisticaViajesEnCurso() {
     },
   });
 
-  // Fulfillments for all active trips
   const { data: tripFulfillments } = useQuery({
     queryKey: ["active-trip-fulfillments"],
     queryFn: async () => {
@@ -54,7 +54,7 @@ export function LogisticaViajesEnCurso() {
       <Card className="glass-card">
         <CardHeader className="pb-2">
           <CardTitle className="font-display text-base flex items-center gap-2">
-            <Clock className="h-4 w-4 text-accent" /> Viajes en curso
+            <Clock className="h-4 w-4 text-warning" /> Viajes en curso
             {trips && <Badge variant="outline" className="ml-2">{trips.length}</Badge>}
           </CardTitle>
         </CardHeader>
@@ -64,7 +64,8 @@ export function LogisticaViajesEnCurso() {
           ) : !trips?.length ? (
             <div className="p-8 text-center text-muted-foreground">
               <Truck className="h-8 w-8 mx-auto mb-2 opacity-50" />
-              <p>No hay viajes en curso</p>
+              <p className="font-medium">No hay viajes en curso</p>
+              <p className="text-xs mt-1">Los viajes iniciados por los choferes aparecerán aquí</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -72,6 +73,8 @@ export function LogisticaViajesEnCurso() {
                 const driverName = (t.driver as any)?.profiles?.full_name || "Sin chofer";
                 const loads = tripFulfillments?.filter(f => f.trip_id === t.id) || [];
                 const delivered = loads.filter(f => ["delivered", "received", "completed"].includes(f.status));
+                const progress = loads.length > 0 ? Math.round((delivered.length / loads.length) * 100) : 0;
+                const isSupplier = t.trip_type === "supplier_pickup";
                 return (
                   <div
                     key={t.id}
@@ -88,25 +91,31 @@ export function LogisticaViajesEnCurso() {
                         )}
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">{driverName}</span>
-                        <Badge variant="outline" className="text-xs">
+                        <Badge variant={isSupplier ? "secondary" : "outline"} className="text-[10px]">
+                          {isSupplier && <ShoppingBag className="h-3 w-3 mr-0.5" />}
                           {TRIP_TYPE_LABELS[t.trip_type] || t.trip_type}
                         </Badge>
-                        <Badge variant="default" className="text-xs">En curso</Badge>
+                        <Badge variant="default" className="text-[10px]">En curso</Badge>
                       </div>
                     </div>
-                    {loads.length > 0 && (
-                      <div className="flex items-center gap-3 text-xs text-muted-foreground pl-5">
+                    <div className="flex items-center gap-4 text-xs text-muted-foreground pl-5 mb-2">
+                      <span className="flex items-center gap-1">
+                        <User className="h-3 w-3" /> {driverName}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Package className="h-3 w-3" /> {loads.length} carga(s)
+                      </span>
+                      <span>Entregadas: {delivered.length}/{loads.length}</span>
+                      {t.actual_departure && (
                         <span className="flex items-center gap-1">
-                          <Package className="h-3 w-3" /> {loads.length} cargas
+                          <Clock className="h-3 w-3" />
+                          Salida: {new Date(t.actual_departure).toLocaleTimeString("es-PY", { hour: "2-digit", minute: "2-digit" })}
                         </span>
-                        <span>Entregadas: {delivered.length}/{loads.length}</span>
-                        {t.start_mileage && (
-                          <span>Km inicio: {t.start_mileage}</span>
-                        )}
-                        {t.actual_departure && (
-                          <span>Salida: {new Date(t.actual_departure).toLocaleTimeString("es-PY", { hour: "2-digit", minute: "2-digit" })}</span>
-                        )}
+                      )}
+                    </div>
+                    {loads.length > 0 && (
+                      <div className="pl-5">
+                        <Progress value={progress} className="h-1.5" />
                       </div>
                     )}
                   </div>

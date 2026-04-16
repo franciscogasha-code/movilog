@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,10 +7,26 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Package, MapPin, ArrowRight, Truck, Plus, AlertTriangle } from "lucide-react";
+import { Package, MapPin, ArrowRight, Truck, Plus, AlertTriangle, Clock } from "lucide-react";
 import { REQUEST_TYPE_LABELS } from "@/lib/constants";
 import { toast } from "sonner";
 import { CrearViajeForm } from "./CrearViajeForm";
+import { motion, AnimatePresence } from "framer-motion";
+
+const URGENCY_HOURS = 48;
+
+function getUrgency(createdAt: string): "critical" | "warning" | "normal" {
+  const hours = (Date.now() - new Date(createdAt).getTime()) / 3_600_000;
+  if (hours >= URGENCY_HOURS) return "critical";
+  if (hours >= URGENCY_HOURS / 2) return "warning";
+  return "normal";
+}
+
+const urgencyConfig = {
+  critical: { dot: "bg-destructive", border: "border-destructive/30", label: "Atrasado", sortOrder: 0 },
+  warning: { dot: "bg-warning", border: "border-warning/30", label: "Pendiente", sortOrder: 1 },
+  normal: { dot: "bg-accent", border: "border-border/50", label: "Reciente", sortOrder: 2 },
+};
 
 export function LogisticaConsolidacion() {
   const queryClient = useQueryClient();
@@ -19,7 +35,6 @@ export function LogisticaConsolidacion() {
   const [selectedTripId, setSelectedTripId] = useState<string>("");
   const [assigning, setAssigning] = useState(false);
 
-  // Source of truth: branch_requests.status = 'in_consolidation' + flow_type = 'interurban'
   const { data: requests, isLoading } = useQuery({
     queryKey: ["consolidation-requests"],
     queryFn: async () => {
@@ -40,7 +55,6 @@ export function LogisticaConsolidacion() {
     },
   });
 
-  // Inconsistent requests: in_consolidation but NOT interurban (or null flow_type)
   const { data: inconsistentRequests } = useQuery({
     queryKey: ["consolidation-inconsistent"],
     queryFn: async () => {
@@ -59,7 +73,6 @@ export function LogisticaConsolidacion() {
     },
   });
 
-  // Planned trips for assignment
   const { data: plannedTrips } = useQuery({
     queryKey: ["planned-trips-for-assignment"],
     queryFn: async () => {
@@ -77,6 +90,28 @@ export function LogisticaConsolidacion() {
     },
   });
 
+  // Sort by urgency then date
+  const sortedRequests = useMemo(() => {
+    if (!requests) return [];
+    return [...requests].sort((a, b) => {
+      const ua = urgencyConfig[getUrgency(a.created_at)].sortOrder;
+      const ub = urgencyConfig[getUrgency(b.created_at)].sortOrder;
+      if (ua !== ub) return ua - ub;
+      return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+    });
+  }, [requests]);
+
+  // Group by destination
+  const byDest = useMemo(() => {
+    const groups: Record<string, typeof sortedRequests> = {};
+    sortedRequests.forEach(r => {
+      const dest = (r.requesting_branch as any)?.code || "Sin destino";
+      if (!groups[dest]) groups[dest] = [];
+      groups[dest].push(r);
+    });
+    return groups;
+  }, [sortedRequests]);
+
   const toggleSelect = (id: string) => {
     setSelected(prev => {
       const next = new Set(prev);
@@ -86,12 +121,22 @@ export function LogisticaConsolidacion() {
   };
 
   const toggleAll = () => {
-    if (!requests) return;
-    if (selected.size === requests.length) {
+    if (!sortedRequests.length) return;
+    if (selected.size === sortedRequests.length) {
       setSelected(new Set());
     } else {
-      setSelected(new Set(requests.map(r => r.id)));
+      setSelected(new Set(sortedRequests.map(r => r.id)));
     }
+  };
+
+  const toggleGroup = (items: typeof sortedRequests) => {
+    const ids = items.map(r => r.id);
+    const allSelected = ids.every(id => selected.has(id));
+    setSelected(prev => {
+      const next = new Set(prev);
+      ids.forEach(id => allSelected ? next.delete(id) : next.add(id));
+      return next;
+    });
   };
 
   const assignToTrip = async (tripId: string) => {
@@ -113,12 +158,11 @@ export function LogisticaConsolidacion() {
       }
     }
 
-    // Find trip number for clear feedback
     const tripLabel = plannedTrips?.find((t: any) => t.id === tripId);
     const tripNum = tripLabel ? `#${(tripLabel as any).trip_number}` : "";
 
     if (success > 0) {
-      toast.success(`✓ ${success} de ${totalSelected} pedido(s) asignados al viaje ${tripNum}`.trim(), {
+      toast.success(`✓ ${success} de ${totalSelected} carga(s) asignadas al viaje ${tripNum}`.trim(), {
         duration: 4000,
       });
       queryClient.invalidateQueries({ queryKey: ["consolidation-requests"] });
@@ -127,6 +171,8 @@ export function LogisticaConsolidacion() {
       queryClient.invalidateQueries({ queryKey: ["planned-trips"] });
       queryClient.invalidateQueries({ queryKey: ["planned-trips-for-assignment"] });
       queryClient.invalidateQueries({ queryKey: ["planned-count"] });
+      queryClient.invalidateQueries({ queryKey: ["trip-load-counts"] });
+      queryClient.invalidateQueries({ queryKey: ["assigned-today-count"] });
     }
     if (errors.length > 0) {
       toast.error(`${errors.length} error(es): ${errors[0]}`, { duration: 6000 });
@@ -146,13 +192,13 @@ export function LogisticaConsolidacion() {
     assignToTrip(tripId);
   };
 
-  // Group by destination
-  const byDest: Record<string, typeof requests> = {};
-  requests?.forEach(r => {
-    const dest = (r.requesting_branch as any)?.code || "Sin destino";
-    if (!byDest[dest]) byDest[dest] = [];
-    byDest[dest].push(r);
-  });
+  const timeAgo = (date: string) => {
+    const h = Math.floor((Date.now() - new Date(date).getTime()) / 3_600_000);
+    if (h < 1) return "Hace menos de 1h";
+    if (h < 24) return `Hace ${h}h`;
+    const d = Math.floor(h / 24);
+    return `Hace ${d}d`;
+  };
 
   return (
     <div className="space-y-4">
@@ -167,7 +213,7 @@ export function LogisticaConsolidacion() {
                   {inconsistentRequests.length} pedido(s) en consolidación sin flow_type interurbano
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Estos pedidos no pueden asignarse a viajes. Revisar y corregir desde el detalle del pedido.
+                  No pueden asignarse a viajes. Revisar desde el detalle del pedido.
                 </p>
                 <div className="flex flex-wrap gap-2 mt-2">
                   {inconsistentRequests.map((r: any) => (
@@ -183,34 +229,42 @@ export function LogisticaConsolidacion() {
         </Card>
       )}
 
-      {/* Actions bar */}
-      {selected.size > 0 && (
-        <Card className="glass-card border-primary/30">
-          <CardContent className="p-3 flex items-center justify-between">
-            <span className="text-sm font-medium">{selected.size} pedido(s) seleccionado(s)</span>
-            <div className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={() => setAssignMode("existing")} className="gap-1">
-                <Truck className="h-3.5 w-3.5" /> Asignar a viaje
-              </Button>
-              <Button size="sm" onClick={() => setAssignMode("new")} className="gap-1">
-                <Plus className="h-3.5 w-3.5" /> Crear viaje y asignar
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Floating action bar */}
+      <AnimatePresence>
+        {selected.size > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+          >
+            <Card className="glass-card border-primary/30 sticky top-0 z-10">
+              <CardContent className="p-3 flex items-center justify-between">
+                <span className="text-sm font-medium">{selected.size} carga(s) seleccionada(s)</span>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" onClick={() => setAssignMode("existing")} className="gap-1">
+                    <Truck className="h-3.5 w-3.5" /> Asignar a viaje
+                  </Button>
+                  <Button size="sm" onClick={() => setAssignMode("new")} className="gap-1">
+                    <Plus className="h-3.5 w-3.5" /> Crear viaje y asignar
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {/* List */}
+      {/* Main list */}
       <Card className="glass-card">
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
             <CardTitle className="font-display text-base flex items-center gap-2">
               <Package className="h-4 w-4 text-primary" /> Cargas en consolidación
-              {requests && <Badge variant="outline" className="ml-2">{requests.length}</Badge>}
+              {sortedRequests.length > 0 && <Badge variant="outline" className="ml-2">{sortedRequests.length}</Badge>}
             </CardTitle>
-            {requests && requests.length > 0 && (
+            {sortedRequests.length > 0 && (
               <Button variant="ghost" size="sm" onClick={toggleAll} className="text-xs">
-                {selected.size === requests.length ? "Deseleccionar todo" : "Seleccionar todo"}
+                {selected.size === sortedRequests.length ? "Deseleccionar todo" : "Seleccionar todo"}
               </Button>
             )}
           </div>
@@ -221,44 +275,78 @@ export function LogisticaConsolidacion() {
           ) : Object.keys(byDest).length === 0 ? (
             <div className="p-8 text-center text-muted-foreground">
               <Package className="h-8 w-8 mx-auto mb-2 opacity-50" />
-              <p>No hay cargas en consolidación</p>
+              <p className="font-medium">No hay cargas en consolidación</p>
+              <p className="text-xs mt-1">Esperando retiros o preparación de sucursal</p>
             </div>
           ) : (
             <div className="space-y-3">
-              {Object.entries(byDest).map(([dest, items]) => (
-                <div key={dest} className="p-3 rounded-lg bg-muted/20 border border-border/50">
-                  <div className="flex items-center gap-2 mb-2">
-                    <MapPin className="h-4 w-4 text-primary" />
-                    <span className="font-semibold text-sm">{dest}</span>
-                    <Badge variant="outline" className="text-xs">{items!.length} carga(s)</Badge>
+              {Object.entries(byDest).map(([dest, items]) => {
+                const groupIds = items!.map(r => r.id);
+                const allGroupSelected = groupIds.every(id => selected.has(id));
+                const someGroupSelected = groupIds.some(id => selected.has(id));
+                return (
+                  <div key={dest} className="p-3 rounded-lg bg-muted/20 border border-border/50">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          checked={allGroupSelected}
+                          className={someGroupSelected && !allGroupSelected ? "opacity-60" : ""}
+                          onCheckedChange={() => toggleGroup(items!)}
+                        />
+                        <MapPin className="h-4 w-4 text-primary" />
+                        <span className="font-semibold text-sm">Destino: {dest}</span>
+                        <Badge variant="outline" className="text-xs">{items!.length} carga(s)</Badge>
+                      </div>
+                      {selected.size === 0 && items!.length > 1 && (
+                        <Button variant="ghost" size="sm" className="text-xs h-6 px-2" onClick={() => toggleGroup(items!)}>
+                          Seleccionar grupo
+                        </Button>
+                      )}
+                    </div>
+                    <AnimatePresence mode="popLayout">
+                      <div className="space-y-1">
+                        {items!.map((r: any) => {
+                          const fo = r.fulfillment_orders?.[0];
+                          const doc = fo?.bims_transfer_number || fo?.bims_invoice_number || r.bims_invoice_number || "—";
+                          const urgency = getUrgency(r.created_at);
+                          const ucfg = urgencyConfig[urgency];
+                          return (
+                            <motion.div
+                              key={r.id}
+                              layout
+                              initial={{ opacity: 1 }}
+                              exit={{ opacity: 0, x: -20, height: 0 }}
+                              transition={{ duration: 0.2 }}
+                              className={`flex items-center gap-3 p-2 rounded bg-background/50 text-sm border ${ucfg.border}`}
+                            >
+                              <Checkbox
+                                checked={selected.has(r.id)}
+                                onCheckedChange={() => toggleSelect(r.id)}
+                              />
+                              <div className={`w-2 h-2 rounded-full shrink-0 ${ucfg.dot}`} title={ucfg.label} />
+                              <span className="font-mono text-xs text-muted-foreground w-14 shrink-0">#{r.request_number}</span>
+                              <span className="text-muted-foreground text-xs">{(r.source_branch as any)?.code}</span>
+                              <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
+                              <span className="text-xs font-medium">{(r.requesting_branch as any)?.code}</span>
+                              <Badge variant="outline" className="text-[10px] ml-auto shrink-0">
+                                {REQUEST_TYPE_LABELS[r.request_type] || r.request_type}
+                              </Badge>
+                              <span className="text-xs text-muted-foreground shrink-0 w-16 text-right">{doc}</span>
+                              {fo?.package_count > 0 && (
+                                <span className="text-xs text-muted-foreground shrink-0">{fo.package_count} bto.</span>
+                              )}
+                              <span className="text-[10px] text-muted-foreground shrink-0 flex items-center gap-0.5">
+                                <Clock className="h-3 w-3" />
+                                {timeAgo(r.created_at)}
+                              </span>
+                            </motion.div>
+                          );
+                        })}
+                      </div>
+                    </AnimatePresence>
                   </div>
-                  <div className="space-y-1">
-                    {items!.map((r: any) => {
-                      const fo = r.fulfillment_orders?.[0];
-                      const doc = fo?.bims_transfer_number || fo?.bims_invoice_number || r.bims_invoice_number || "—";
-                      return (
-                        <div key={r.id} className="flex items-center gap-3 p-2 rounded bg-background/50 text-sm">
-                          <Checkbox
-                            checked={selected.has(r.id)}
-                            onCheckedChange={() => toggleSelect(r.id)}
-                          />
-                          <span className="font-mono text-xs text-muted-foreground">#{r.request_number}</span>
-                          <span className="text-muted-foreground">{(r.source_branch as any)?.code}</span>
-                          <ArrowRight className="h-3 w-3 text-muted-foreground" />
-                          <span>{(r.requesting_branch as any)?.code}</span>
-                          <Badge variant="outline" className="text-xs ml-auto">
-                            {REQUEST_TYPE_LABELS[r.request_type] || r.request_type}
-                          </Badge>
-                          <span className="text-xs text-muted-foreground">{doc}</span>
-                          {fo?.package_count > 0 && (
-                            <span className="text-xs text-muted-foreground">{fo.package_count} bultos</span>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>
@@ -271,6 +359,7 @@ export function LogisticaConsolidacion() {
             <DialogTitle>Asignar a viaje existente</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">{selected.size} carga(s) seleccionada(s)</p>
             <Select value={selectedTripId} onValueChange={setSelectedTripId}>
               <SelectTrigger>
                 <SelectValue placeholder="Seleccionar viaje..." />
@@ -291,7 +380,7 @@ export function LogisticaConsolidacion() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setAssignMode(null)}>Cancelar</Button>
             <Button onClick={handleAssignExisting} disabled={assigning || !selectedTripId}>
-              {assigning ? "Asignando..." : "Asignar"}
+              {assigning ? "Asignando..." : `Asignar ${selected.size} carga(s)`}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -301,7 +390,7 @@ export function LogisticaConsolidacion() {
       <Dialog open={assignMode === "new"} onOpenChange={(o) => !o && setAssignMode(null)}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Crear viaje y asignar cargas</DialogTitle>
+            <DialogTitle>Crear viaje y asignar {selected.size} carga(s)</DialogTitle>
           </DialogHeader>
           <CrearViajeForm
             onSuccess={handleTripCreated}
