@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -8,14 +9,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Play, Square, MapPin, Truck, Plus, Route, AlertTriangle } from "lucide-react";
+import { Play, Square, MapPin, Truck, Plus, Route, AlertTriangle, Calendar } from "lucide-react";
 import { CorteDetalle } from "./CorteDetalle";
 import { AgregarTareaViaje } from "./AgregarTareaViaje";
+import { TRIP_TYPE_LABELS } from "@/lib/constants";
 import { toast } from "sonner";
 
 interface Props {
   trips: any[];
   activeTrip: any | undefined;
+  myDriverId?: string;
 }
 
 const TASK_TYPE_LABELS: Record<string, string> = {
@@ -24,87 +27,67 @@ const TASK_TYPE_LABELS: Record<string, string> = {
   pickup_supplier: "Retiro proveedor",
 };
 
-export function ViajeInterurbano({ trips, activeTrip }: Props) {
+export function ViajeInterurbano({ trips, activeTrip, myDriverId }: Props) {
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const [detailId, setDetailId] = useState<string | null>(null);
   const [addTaskOpen, setAddTaskOpen] = useState(false);
-  const [starting, setStarting] = useState(false);
+  const [startingTripId, setStartingTripId] = useState<string | null>(null);
   const [startMileage, setStartMileage] = useState("");
   const [showEndWarning, setShowEndWarning] = useState(false);
   const [pendingCustodyCount, setPendingCustodyCount] = useState(0);
+  const [endMileageValue, setEndMileageValue] = useState<number | null>(null);
 
-  const startTrip = async () => {
+  // Planned trips assigned to this driver (not yet started)
+  const plannedTrips = trips.filter(t => t.status === "planned");
+
+  const startTrip = async (tripId: string) => {
     if (!startMileage) { toast.error("Ingresar kilometraje inicial"); return; }
-    setStarting(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { toast.error("Iniciar sesión"); return; }
-
-      const { data: driver } = await supabase
-        .from("drivers")
-        .select("id, assigned_vehicle_id, assigned_branch_id")
-        .eq("user_id", user.id)
-        .single();
-
-      if (!driver) { toast.error("No estás registrado como chofer"); return; }
-      if (!driver.assigned_vehicle_id) { toast.error("No tenés vehículo asignado"); return; }
-
-      const { data: trip, error } = await supabase
+      const { error } = await supabase
         .from("trips")
-        .insert({
-          driver_id: driver.id,
-          vehicle_id: driver.assigned_vehicle_id,
-          origin_branch_id: driver.assigned_branch_id!,
-          trip_type: "interurban_planned" as any,
+        .update({
           status: "in_progress" as any,
           actual_departure: new Date().toISOString(),
           start_mileage: parseInt(startMileage),
         })
-        .select()
-        .single();
-
+        .eq("id", tripId);
       if (error) throw error;
 
       await supabase.from("operational_events").insert({
-        reference_type: "trip", reference_id: trip.id, event_type: "trip_started",
+        reference_type: "trip", reference_id: tripId, event_type: "trip_started",
         category: "logistics" as any, event_description: "Inicio de viaje interurbano",
-        new_status: "in_progress", triggered_by: user.id,
+        new_status: "in_progress", triggered_by: user!.id,
         metadata: { start_mileage: parseInt(startMileage) },
       });
 
-      toast.success(`Viaje #${trip.trip_number} iniciado`);
+      toast.success("Viaje iniciado");
       setStartMileage("");
+      setStartingTripId(null);
       queryClient.invalidateQueries({ queryKey: ["active-trips"] });
     } catch (err: any) {
       toast.error(err.message);
-    } finally {
-      setStarting(false);
     }
   };
 
   const attemptEndTrip = async () => {
     if (!activeTrip) return;
-    const endMileage = prompt("Kilometraje final:");
-    if (!endMileage) return;
+    const mileage = prompt("Kilometraje final:");
+    if (!mileage) return;
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      // Check custody
       const { count } = await supabase
         .from("fulfillment_orders")
         .select("id", { count: "exact", head: true })
-        .eq("current_custody_holder_id", user.id)
+        .eq("current_custody_holder_id", user!.id)
         .in("status", ["in_transit", "dispatched", "delivery_failed"] as any[]);
 
       if (count && count > 0) {
         setPendingCustodyCount(count);
+        setEndMileageValue(parseInt(mileage));
         setShowEndWarning(true);
-        // Store mileage for deferred execution
-        (window as any).__endMileage = parseInt(endMileage);
       } else {
-        await doEndTrip(parseInt(endMileage));
+        await doEndTrip(parseInt(mileage));
       }
     } catch (err: any) {
       toast.error(err.message);
@@ -114,11 +97,8 @@ export function ViajeInterurbano({ trips, activeTrip }: Props) {
   const doEndTrip = async (endMileage?: number) => {
     if (!activeTrip) return;
     setShowEndWarning(false);
-    const mileage = endMileage || (window as any).__endMileage;
+    const mileage = endMileage || endMileageValue;
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
       const { error } = await supabase
         .from("trips")
         .update({ status: "completed" as any, actual_arrival: new Date().toISOString(), end_mileage: mileage })
@@ -128,11 +108,12 @@ export function ViajeInterurbano({ trips, activeTrip }: Props) {
       await supabase.from("operational_events").insert({
         reference_type: "trip", reference_id: activeTrip.id, event_type: "trip_completed",
         category: "logistics" as any, event_description: "Fin de viaje interurbano",
-        previous_status: "in_progress", new_status: "completed", triggered_by: user.id,
+        previous_status: "in_progress", new_status: "completed", triggered_by: user!.id,
         metadata: { end_mileage: mileage },
       });
 
       toast.success("Viaje finalizado");
+      setEndMileageValue(null);
       queryClient.invalidateQueries({ queryKey: ["active-trips"] });
     } catch (err: any) {
       toast.error(err.message);
@@ -145,24 +126,8 @@ export function ViajeInterurbano({ trips, activeTrip }: Props) {
 
   return (
     <div className="space-y-4">
-      {/* Start / End */}
-      {!activeTrip ? (
-        <Card className="glass-card">
-          <CardContent className="p-4 space-y-3">
-            <h4 className="font-display font-semibold text-sm">Iniciar viaje interurbano</h4>
-            <div className="flex gap-3 items-end">
-              <div className="space-y-1 flex-1 max-w-[200px]">
-                <Label className="text-xs">Km inicial</Label>
-                <Input type="number" value={startMileage} onChange={(e) => setStartMileage(e.target.value)} placeholder="0" />
-              </div>
-              <Button onClick={startTrip} disabled={starting} className="gap-2">
-                <Play className="h-4 w-4" />
-                {starting ? "Iniciando..." : "Iniciar Viaje"}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      ) : (
+      {/* Active trip */}
+      {activeTrip ? (
         <Card className="glass-card border-accent/30">
           <CardContent className="p-4 space-y-3">
             <div className="flex items-center justify-between">
@@ -188,7 +153,6 @@ export function ViajeInterurbano({ trips, activeTrip }: Props) {
               </div>
             </div>
 
-            {/* Planned tasks */}
             {plannedStops.length > 0 && (
               <div className="space-y-2 mt-2">
                 {originalTasks.length > 0 && (
@@ -224,19 +188,68 @@ export function ViajeInterurbano({ trips, activeTrip }: Props) {
             )}
           </CardContent>
         </Card>
+      ) : plannedTrips.length > 0 ? (
+        /* Planned trips assigned to me — ready to start */
+        <div className="space-y-2">
+          {plannedTrips.map(t => (
+            <Card key={t.id} className="glass-card">
+              <CardContent className="p-4">
+                {startingTripId === t.id ? (
+                  <div className="flex gap-3 items-end">
+                    <div className="space-y-1 flex-1 max-w-[200px]">
+                      <Label className="text-xs">Km inicial</Label>
+                      <Input type="number" value={startMileage} onChange={(e) => setStartMileage(e.target.value)} placeholder="0" />
+                    </div>
+                    <Button onClick={() => startTrip(t.id)} className="gap-2">
+                      <Play className="h-4 w-4" /> Iniciar
+                    </Button>
+                    <Button variant="ghost" onClick={() => setStartingTripId(null)}>Cancelar</Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <Calendar className="h-4 w-4 text-muted-foreground" />
+                      <div>
+                        <span className="font-mono font-semibold text-sm">Viaje #{t.trip_number}</span>
+                        <span className="text-xs text-muted-foreground ml-2">{t.origin_branch?.code}</span>
+                        {(t as any).destination_description && (
+                          <span className="text-xs text-muted-foreground ml-1">→ {(t as any).destination_description}</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="text-xs">
+                        {TRIP_TYPE_LABELS[t.trip_type] || t.trip_type}
+                      </Badge>
+                      <Badge variant="outline" className="text-xs">Programado</Badge>
+                      <Button size="sm" onClick={() => setStartingTripId(t.id)} className="gap-1">
+                        <Play className="h-3.5 w-3.5" /> Iniciar viaje
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <Card className="glass-card">
+          <CardContent className="p-6 text-center text-muted-foreground text-sm">
+            <Calendar className="h-6 w-6 mx-auto mb-2 opacity-50" />
+            No hay viajes programados asignados
+          </CardContent>
+        </Card>
       )}
 
-      {/* Trip list */}
-      <Card className="glass-card">
-        <CardHeader className="pb-3">
-          <CardTitle className="font-display text-lg">Viajes recientes</CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          {!trips.length ? (
-            <div className="p-6 text-center text-muted-foreground">No hay viajes registrados</div>
-          ) : (
+      {/* Recent trips list */}
+      {trips.filter(t => t.status !== "planned").length > 0 && (
+        <Card className="glass-card">
+          <CardHeader className="pb-3">
+            <CardTitle className="font-display text-lg">Viajes recientes</CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
             <div className="divide-y divide-border/50">
-              {trips.map((t: any) => (
+              {trips.filter(t => t.status !== "planned").map((t: any) => (
                 <div key={t.id} className="flex items-center justify-between p-3 hover:bg-muted/20 transition-colors cursor-pointer" onClick={() => setDetailId(t.id)}>
                   <div className="flex items-center gap-3">
                     <Truck className="h-4 w-4 text-muted-foreground" />
@@ -259,9 +272,9 @@ export function ViajeInterurbano({ trips, activeTrip }: Props) {
                 </div>
               ))}
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Detail dialog */}
       <Dialog open={!!detailId} onOpenChange={(o) => !o && setDetailId(null)}>

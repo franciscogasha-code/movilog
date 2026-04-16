@@ -2444,8 +2444,10 @@ export type Database = {
           actual_arrival: string | null
           actual_departure: string | null
           created_at: string
+          created_by: string | null
           cutoff_ended_at: string | null
           cutoff_started_at: string | null
+          destination_description: string | null
           driver_id: string
           end_mileage: number | null
           end_mileage_photo_url: string | null
@@ -2470,8 +2472,10 @@ export type Database = {
           actual_arrival?: string | null
           actual_departure?: string | null
           created_at?: string
+          created_by?: string | null
           cutoff_ended_at?: string | null
           cutoff_started_at?: string | null
+          destination_description?: string | null
           driver_id: string
           end_mileage?: number | null
           end_mileage_photo_url?: string | null
@@ -2496,8 +2500,10 @@ export type Database = {
           actual_arrival?: string | null
           actual_departure?: string | null
           created_at?: string
+          created_by?: string | null
           cutoff_ended_at?: string | null
           cutoff_started_at?: string | null
+          destination_description?: string | null
           driver_id?: string
           end_mileage?: number | null
           end_mileage_photo_url?: string | null
@@ -3040,7 +3046,7 @@ export type Database = {
         | "reconteo_pendiente"
         | "other"
       trip_status: "planned" | "in_progress" | "completed" | "cancelled"
-      trip_type: "urban_cutoff" | "interurban_planned"
+      trip_type: "urban_cutoff" | "interurban_planned" | "supplier_pickup"
       vehicle_loan_status:
         | "requested"
         | "approved"
@@ -3358,7 +3364,7 @@ export const Constants = {
         "other",
       ],
       trip_status: ["planned", "in_progress", "completed", "cancelled"],
-      trip_type: ["urban_cutoff", "interurban_planned"],
+      trip_type: ["urban_cutoff", "interurban_planned", "supplier_pickup"],
       vehicle_loan_status: [
         "requested",
         "approved",

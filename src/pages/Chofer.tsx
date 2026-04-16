@@ -65,10 +65,11 @@ export default function Chofer() {
     enabled: !!myDriver?.assigned_branch_id,
   });
 
-  // Active trips
+  // Active trips — filtered by driver
   const { data: activeTrips } = useQuery({
-    queryKey: ["active-trips"],
+    queryKey: ["active-trips", myDriver?.id],
     queryFn: async () => {
+      if (!myDriver?.id) return [];
       const { data, error } = await supabase
         .from("trips")
         .select(`
@@ -76,12 +77,14 @@ export default function Chofer() {
           origin_branch:branches!trips_origin_branch_id_fkey(name, code),
           vehicle:vehicles(plate_number, brand, model)
         `)
+        .eq("driver_id", myDriver.id)
         .in("status", ["planned", "in_progress"])
         .order("created_at", { ascending: false })
         .limit(20);
       if (error) throw error;
       return data;
     },
+    enabled: !!myDriver?.id,
   });
 
   // Recent delivery history
@@ -210,7 +213,7 @@ export default function Chofer() {
 
         <TabsContent value="cortes-viajes" className="mt-4 space-y-6">
           <CorteUrbano cutoffs={urbanCutoffs} activeCutoff={activeCutoff} />
-          <ViajeInterurbano trips={interurbanTrips} activeTrip={activeTrip} />
+          <ViajeInterurbano trips={interurbanTrips} activeTrip={activeTrip} myDriverId={myDriver?.id} />
         </TabsContent>
 
         <TabsContent value="historial" className="mt-4">
