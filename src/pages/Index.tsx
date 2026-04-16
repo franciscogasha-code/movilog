@@ -569,12 +569,12 @@ export default function Index() {
                       </Badge>
                     )}
                     <div className="flex items-center gap-1">
-                      {(activeFilter !== "all" || typeFilter !== "all") && (
+                      {(activeFilter !== "all" || typeFilter !== "all" || clientFilter !== "all") && (
                         <Button
                           variant="ghost"
                           size="sm"
                           className="text-xs h-7"
-                          onClick={() => { setActiveFilter("all"); setTypeFilter("all"); }}
+                          onClick={() => { setActiveFilter("all"); setTypeFilter("all"); setClientFilter("all"); }}
                         >
                           Limpiar filtros
                         </Button>
