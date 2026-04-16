@@ -213,7 +213,7 @@ export default function Chofer() {
 
         <TabsContent value="cortes-viajes" className="mt-4 space-y-6">
           <CorteUrbano cutoffs={urbanCutoffs} activeCutoff={activeCutoff} />
-          <ViajeInterurbano trips={interurbanTrips} activeTrip={activeTrip} />
+          <ViajeInterurbano trips={interurbanTrips} activeTrip={activeTrip} myDriverId={myDriver?.id} />
         </TabsContent>
 
         <TabsContent value="historial" className="mt-4">
