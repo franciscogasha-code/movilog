@@ -442,8 +442,11 @@ export default function Index() {
     else if (typeFilter === "preparacion") list = list.filter(i => i.itemType === "tarea" && (i.taskKind === "preparar" || i.taskKind === "despachar"));
     else if (typeFilter === "transporte") list = list.filter(i => i.itemType === "tarea" && (i.taskKind === "retirar" || i.taskKind === "en_transito" || i.taskKind === "entregar"));
     else if (typeFilter === "recepcion") list = list.filter(i => i.itemType === "tarea" && i.taskKind === "recepcionar");
+    if (clientFilter === "client_only") {
+      list = list.filter(i => i.itemType === "pedido" && i.orderMode && isClientMode(i.orderMode) && i.clientEvidence === true);
+    }
     return list;
-  }, [queueItems, activeFilter, typeFilter]);
+  }, [queueItems, activeFilter, typeFilter, clientFilter]);
 
   const isLoading = loadingRequests || loadingFulfillments || loadingConsultations;
 
