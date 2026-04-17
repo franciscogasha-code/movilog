@@ -36,13 +36,15 @@ export function CorteUrbano({ cutoffs, activeCutoff }: Props) {
         .single();
 
       if (!driver) { toast.error("No estás registrado como chofer"); return; }
-      if (!driver.assigned_vehicle_id) { toast.error("No tenés vehículo asignado"); return; }
+      if (!driver.assigned_vehicle_id) {
+        toast.warning("Iniciando corte sin vehículo asignado");
+      }
 
       const { data: trip, error } = await supabase
         .from("trips")
         .insert({
           driver_id: driver.id,
-          vehicle_id: driver.assigned_vehicle_id,
+          vehicle_id: driver.assigned_vehicle_id ?? null,
           origin_branch_id: driver.assigned_branch_id!,
           trip_type: "urban_cutoff" as any,
           status: "in_progress" as any,
