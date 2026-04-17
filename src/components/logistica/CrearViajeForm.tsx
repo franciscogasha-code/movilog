@@ -165,13 +165,9 @@ export function CrearViajeForm({ onSuccess, onCancel }: Props) {
         driverId = newDriver.id;
       }
 
-      let effectiveVehicleId = vehicleId || selectedDriver.assignedVehicleId || null;
-      // vehicle_id es NOT NULL en la BD; si no se eligió ni hay asignado, tomamos el primer vehículo activo como fallback
-      if (!effectiveVehicleId && vehicles && vehicles.length > 0) {
-        effectiveVehicleId = vehicles[0].id;
-      }
+      const effectiveVehicleId = vehicleResolution.vehicle?.id ?? null;
       if (!effectiveVehicleId) {
-        toast.error("No hay vehículos cargados en el sistema. Cargá al menos uno desde Flota.");
+        toast.error("No hay vehículos activos en el sistema. Cargá al menos uno desde Flota.");
         return;
       }
 
