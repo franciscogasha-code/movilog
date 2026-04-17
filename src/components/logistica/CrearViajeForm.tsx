@@ -275,7 +275,7 @@ export function CrearViajeForm({ onSuccess, onCancel }: Props) {
             <SelectContent>
               {vehicles?.map((v: any) => (
                 <SelectItem key={v.id} value={v.id}>
-                  {v.plate_number} {v.brand ? `— ${v.brand}` : ""}
+                  {v.plate} {v.brand ? `— ${v.brand}` : ""}
                 </SelectItem>
               ))}
             </SelectContent>
