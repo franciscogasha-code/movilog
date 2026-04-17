@@ -143,7 +143,7 @@ export function LogisticaViajeDetalle({ tripId }: Props) {
 
   if (!trip) return <div className="p-4 text-center text-muted-foreground text-sm">Cargando...</div>;
 
-  const driverName = (trip.driver as any)?.profiles?.full_name || "Sin chofer";
+  const driverName = (trip as any).driver_name || "Sin chofer";
   const isPlanned = trip.status === "planned";
   const isSupplier = trip.trip_type === "supplier_pickup";
   const totalLoads = linkedFulfillments?.length || 0;
