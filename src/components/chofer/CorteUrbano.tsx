@@ -33,11 +33,37 @@ export function CorteUrbano({ cutoffs, activeCutoff }: Props) {
         .from("drivers")
         .select("id, assigned_vehicle_id, assigned_branch_id")
         .eq("user_id", user.id)
-        .single();
+        .maybeSingle();
 
       if (!driver) { toast.error("No estás registrado como chofer"); return; }
       if (!driver.assigned_vehicle_id) {
         toast.warning("Iniciando corte sin vehículo asignado");
+      }
+
+      // Resolve origin branch: driver assignment → profile default → first allowed branch
+      let originBranchId: string | null = driver.assigned_branch_id ?? null;
+      if (!originBranchId) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("id, default_branch_id")
+          .eq("user_id", user.id)
+          .maybeSingle();
+        originBranchId = profile?.default_branch_id ?? null;
+
+        if (!originBranchId && profile?.id) {
+          const { data: access } = await supabase
+            .from("profile_branch_access")
+            .select("branch_id")
+            .eq("profile_id", profile.id)
+            .limit(1)
+            .maybeSingle();
+          originBranchId = access?.branch_id ?? null;
+        }
+      }
+
+      if (!originBranchId) {
+        toast.error("No se pudo determinar la sucursal de origen. Configurá una sucursal por defecto en tu perfil.");
+        return;
       }
 
       const { data: trip, error } = await supabase
@@ -45,7 +71,7 @@ export function CorteUrbano({ cutoffs, activeCutoff }: Props) {
         .insert({
           driver_id: driver.id,
           vehicle_id: driver.assigned_vehicle_id ?? null,
-          origin_branch_id: driver.assigned_branch_id!,
+          origin_branch_id: originBranchId,
           trip_type: "urban_cutoff" as any,
           status: "in_progress" as any,
           cutoff_started_at: new Date().toISOString(),
