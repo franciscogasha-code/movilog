@@ -95,31 +95,37 @@ export function CargasDisponibles() {
   });
 
   // ── B) Available loads at selected branch ──
-  // Incluye fulfillments cuyo branch_request está 'ready_for_pickup' (listo para retiro),
-  // además de los estados clásicos de espera de corte/courier/picking.
+  // Trae todos los fulfillments de la sucursal sin trip asignado, y filtra en cliente
+  // por estados operativos del fulfillment O por branch_request en 'ready_for_pickup'.
   const { data: availableLoads } = useQuery({
     queryKey: ["available-loads", effectiveBranchId],
     queryFn: async () => {
       if (!effectiveBranchId) return [];
       const { data, error } = await supabase
         .from("fulfillment_orders")
-        .select(`*, source_branch:branches!fulfillment_orders_source_branch_id_fkey(name, code), destination_branch:branches!fulfillment_orders_destination_branch_id_fkey(name, code), branch_request:branch_requests!inner(request_number, request_type, delivery_target, status)`)
+        .select(`*, source_branch:branches!fulfillment_orders_source_branch_id_fkey(name, code), destination_branch:branches!fulfillment_orders_destination_branch_id_fkey(name, code), branch_request:branch_requests(request_number, request_type, delivery_target, status)`)
         .eq("source_branch_id", effectiveBranchId)
         .is("trip_id", null)
-        .or(
-          "status.in.(waiting_for_cut,waiting_for_courier,picking),and(status.eq.pending,branch_request.status.eq.ready_for_pickup)"
-        )
+        .in("status", ["pending", "waiting_for_cut", "waiting_for_courier", "picking"])
         .order("created_at", { ascending: true })
-        .limit(50);
+        .limit(100);
       if (error) throw error;
-      return data;
+      // Si status=pending, exigir branch_request.status = 'ready_for_pickup'
+      return (data || []).filter((f: any) => {
+        if (f.status === "pending") return f.branch_request?.status === "ready_for_pickup";
+        return true;
+      });
     },
     enabled: !!effectiveBranchId,
   });
 
+  // Considera "listo para retirar" si tiene documentos BIMS O si el pedido ya fue marcado como ready_for_pickup
+  const isReadyForPickup = (f: any) =>
+    hasBindingDocument(f) || f.branch_request?.status === "ready_for_pickup";
+
   // Split into ready vs pending-docs
-  const readyLoads = availableLoads?.filter(hasBindingDocument) || [];
-  const pendingDocsLoads = availableLoads?.filter((f) => !hasBindingDocument(f)) || [];
+  const readyLoads = availableLoads?.filter(isReadyForPickup) || [];
+  const pendingDocsLoads = availableLoads?.filter((f: any) => !isReadyForPickup(f)) || [];
 
   // ── Rejection events ──
   const { data: rejectionEvents } = useQuery({
