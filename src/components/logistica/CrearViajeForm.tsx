@@ -70,7 +70,7 @@ export function CrearViajeForm({ onSuccess, onCancel }: Props) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("vehicles")
-        .select("id, plate_number, brand, model")
+        .select("id, plate, brand, model")
         .eq("is_active", true);
       if (error) throw error;
       return data;
