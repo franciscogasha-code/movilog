@@ -32,48 +32,12 @@ export function CrearViajeForm({ onSuccess, onCancel }: Props) {
   const [observations, setObservations] = useState("");
   const [creating, setCreating] = useState(false);
 
-  // Choferes con ficha
-  const { data: drivers } = useQuery({
-    queryKey: ["active-drivers"],
+  const { data: driverOptions = [] } = useQuery<DriverOption[]>({
+    queryKey: ["trip-eligible-drivers"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("drivers")
-        .select("id, user_id, assigned_vehicle_id, profiles:user_id(full_name)")
-        .eq("is_active", true);
+      const { data, error } = await supabase.functions.invoke("trip-eligible-drivers");
       if (error) throw error;
-      return data;
-    },
-  });
-
-  // Usuarios con roles operativos logísticos (operador logístico / chofer / jefe logística)
-  // — para incluir los que aún no tienen ficha en `drivers`
-  const { data: driverRoleUsers } = useQuery({
-    queryKey: ["logistic-role-users"],
-    queryFn: async () => {
-      const { data: roles, error: rolesErr } = await supabase
-        .from("user_roles")
-        .select("user_id, role")
-        .in("role", ["warehouse_operator", "driver", "jefe_logistica"]);
-      if (rolesErr) throw rolesErr;
-      const ids = Array.from(new Set((roles ?? []).map((r: any) => r.user_id)));
-      if (!ids.length) return [];
-
-      // Excluir owners y admins (no son operadores logísticos reales)
-      const { data: ownersAdmins } = await supabase
-        .from("user_roles")
-        .select("user_id")
-        .in("role", ["owner", "admin"])
-        .in("user_id", ids);
-      const excluded = new Set((ownersAdmins ?? []).map((r: any) => r.user_id));
-      const filteredIds = ids.filter(id => !excluded.has(id));
-      if (!filteredIds.length) return [];
-
-      const { data: profs, error: profsErr } = await supabase
-        .from("profiles")
-        .select("user_id, full_name, is_active")
-        .in("user_id", filteredIds);
-      if (profsErr) throw profsErr;
-      return (profs ?? []).filter((p: any) => p.is_active !== false);
+      return ((data?.drivers ?? []) as DriverOption[]).sort((a, b) => a.name.localeCompare(b.name));
     },
   });
 
@@ -101,32 +65,6 @@ export function CrearViajeForm({ onSuccess, onCancel }: Props) {
       return data;
     },
   });
-
-  // Lista unificada de opciones de chofer (sin duplicados)
-  const driverOptions = useMemo<DriverOption[]>(() => {
-    const map = new Map<string, DriverOption>();
-    (drivers ?? []).forEach((d: any) => {
-      map.set(d.user_id, {
-        driverId: d.id,
-        userId: d.user_id,
-        name: (d.profiles as any)?.full_name || "Sin nombre",
-        assignedVehicleId: d.assigned_vehicle_id ?? null,
-        hasDriverRecord: true,
-      });
-    });
-    (driverRoleUsers ?? []).forEach((u: any) => {
-      if (!map.has(u.user_id)) {
-        map.set(u.user_id, {
-          driverId: null,
-          userId: u.user_id,
-          name: u.full_name || "Sin nombre",
-          assignedVehicleId: null,
-          hasDriverRecord: false,
-        });
-      }
-    });
-    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
-  }, [drivers, driverRoleUsers]);
 
   const selectedDriver = driverOptions.find(d => {
     if (selectedDriverKey.startsWith("d:")) return d.driverId === selectedDriverKey.slice(2);

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,11 +10,24 @@ import { TRIP_TYPE_LABELS } from "@/lib/constants";
 import { CrearViajeForm } from "./CrearViajeForm";
 import { LogisticaViajeDetalle } from "./LogisticaViajeDetalle";
 import { toast } from "sonner";
+import { useSearchParams } from "react-router-dom";
 
 export function LogisticaViajesProgramados() {
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [createOpen, setCreateOpen] = useState(false);
   const [detailTripId, setDetailTripId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const tripIdFromUrl = searchParams.get("detail");
+    if (!tripIdFromUrl) return;
+
+    setDetailTripId(tripIdFromUrl);
+
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete("detail");
+    setSearchParams(nextParams, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   const { data: trips, isLoading } = useQuery({
     queryKey: ["planned-trips"],
@@ -168,10 +181,11 @@ export function LogisticaViajesProgramados() {
             <DialogTitle>Crear viaje</DialogTitle>
           </DialogHeader>
           <CrearViajeForm
-            onSuccess={() => {
+            onSuccess={(tripId) => {
               setCreateOpen(false);
               queryClient.invalidateQueries({ queryKey: ["planned-trips"] });
               queryClient.invalidateQueries({ queryKey: ["planned-count"] });
+              setDetailTripId(tripId);
             }}
             onCancel={() => setCreateOpen(false)}
           />
