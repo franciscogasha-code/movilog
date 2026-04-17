@@ -2466,7 +2466,7 @@ export type Database = {
           trip_number: number
           trip_type: Database["public"]["Enums"]["trip_type"]
           updated_at: string
-          vehicle_id: string
+          vehicle_id: string | null
         }
         Insert: {
           actual_arrival?: string | null
@@ -2494,7 +2494,7 @@ export type Database = {
           trip_number?: number
           trip_type?: Database["public"]["Enums"]["trip_type"]
           updated_at?: string
-          vehicle_id: string
+          vehicle_id?: string | null
         }
         Update: {
           actual_arrival?: string | null
@@ -2522,7 +2522,7 @@ export type Database = {
           trip_number?: number
           trip_type?: Database["public"]["Enums"]["trip_type"]
           updated_at?: string
-          vehicle_id?: string
+          vehicle_id?: string | null
         }
         Relationships: [
           {
