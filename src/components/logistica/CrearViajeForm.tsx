@@ -122,11 +122,31 @@ export function CrearViajeForm({ onSuccess, onCancel }: Props) {
     return false;
   });
 
+  // Resolución dinámica del vehículo a usar y motivo (para aviso UI)
+  const vehicleResolution = useMemo(() => {
+    if (vehicleId) {
+      const v = vehicles?.find((x: any) => x.id === vehicleId);
+      return { kind: "manual" as const, vehicle: v ?? null };
+    }
+    if (selectedDriver?.assignedVehicleId) {
+      const v = vehicles?.find((x: any) => x.id === selectedDriver.assignedVehicleId);
+      return { kind: "driver" as const, vehicle: v ?? null };
+    }
+    if (vehicles && vehicles.length > 0) {
+      return { kind: "fallback" as const, vehicle: vehicles[0] };
+    }
+    return { kind: "none" as const, vehicle: null };
+  }, [vehicleId, selectedDriver, vehicles]);
+
   const handleCreate = async () => {
     if (!selectedDriver) { toast.error("Seleccionar chofer"); return; }
     if (!originBranchId) { toast.error("Seleccionar punto de salida"); return; }
     if (!mainRoute.trim()) { toast.error("Indicar la ruta principal"); return; }
     if (!scheduledDate) { toast.error("Indicar fecha y hora prevista de salida"); return; }
+    if (vehicleResolution.kind === "none") {
+      toast.error("No hay vehículos activos en el sistema. Cargá al menos uno desde Flota.");
+      return;
+    }
 
     setCreating(true);
     try {
