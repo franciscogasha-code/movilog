@@ -283,10 +283,7 @@ export function CrearViajeForm({ onSuccess, onCancel }: Props) {
         </div>
         <div className="space-y-1.5">
           <Label className="text-xs">Vehículo <span className="text-muted-foreground">(opcional)</span></Label>
-          <Select
-            value={vehicleId || selectedDriver?.assignedVehicleId || ""}
-            onValueChange={setVehicleId}
-          >
+          <Select value={vehicleId} onValueChange={setVehicleId}>
             <SelectTrigger><SelectValue placeholder="Sin asignar" /></SelectTrigger>
             <SelectContent>
               {vehicles?.map((v: any) => (
@@ -296,6 +293,29 @@ export function CrearViajeForm({ onSuccess, onCancel }: Props) {
               ))}
             </SelectContent>
           </Select>
+          {vehicleResolution.kind === "driver" && vehicleResolution.vehicle && (
+            <p className="text-[10px] text-muted-foreground">
+              Si no seleccionás un vehículo, se usará el asignado al chofer:{" "}
+              <span className="font-medium text-foreground">
+                {vehicleResolution.vehicle.plate}
+                {vehicleResolution.vehicle.brand ? ` — ${vehicleResolution.vehicle.brand}` : ""}
+              </span>.
+            </p>
+          )}
+          {vehicleResolution.kind === "fallback" && vehicleResolution.vehicle && (
+            <p className="text-[10px] text-amber-600 dark:text-amber-500">
+              ⚠ Si no seleccionás un vehículo, se asignará automáticamente:{" "}
+              <span className="font-medium">
+                {vehicleResolution.vehicle.plate}
+                {vehicleResolution.vehicle.brand ? ` — ${vehicleResolution.vehicle.brand}` : ""}
+              </span>.
+            </p>
+          )}
+          {vehicleResolution.kind === "none" && (
+            <p className="text-[10px] text-destructive">
+              No hay vehículos activos disponibles. Cargá al menos uno desde Flota para crear el viaje.
+            </p>
+          )}
         </div>
       </div>
 
