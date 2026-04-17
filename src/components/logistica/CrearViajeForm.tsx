@@ -138,7 +138,7 @@ export function CrearViajeForm({ onSuccess, onCancel }: Props) {
       if (!driverId) {
         const { data: newDriver, error: driverErr } = await supabase
           .from("drivers")
-          .insert({ user_id: selectedDriver.userId, is_active: true })
+          .insert([{ user_id: selectedDriver.userId, is_active: true }])
           .select("id")
           .single();
         if (driverErr) throw driverErr;
