@@ -55,12 +55,23 @@ export function CrearViajeForm({ onSuccess, onCancel }: Props) {
         .select("user_id, role")
         .in("role", ["warehouse_operator", "driver", "jefe_logistica"]);
       if (rolesErr) throw rolesErr;
-      const ids = (roles ?? []).map((r: any) => r.user_id);
+      const ids = Array.from(new Set((roles ?? []).map((r: any) => r.user_id)));
       if (!ids.length) return [];
+
+      // Excluir owners y admins (no son operadores logísticos reales)
+      const { data: ownersAdmins } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .in("role", ["owner", "admin"])
+        .in("user_id", ids);
+      const excluded = new Set((ownersAdmins ?? []).map((r: any) => r.user_id));
+      const filteredIds = ids.filter(id => !excluded.has(id));
+      if (!filteredIds.length) return [];
+
       const { data: profs, error: profsErr } = await supabase
         .from("profiles")
         .select("user_id, full_name, is_active")
-        .in("user_id", ids);
+        .in("user_id", filteredIds);
       if (profsErr) throw profsErr;
       return (profs ?? []).filter((p: any) => p.is_active !== false);
     },
