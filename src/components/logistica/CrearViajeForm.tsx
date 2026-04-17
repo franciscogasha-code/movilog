@@ -194,26 +194,11 @@ export function CrearViajeForm({ onSuccess, onCancel }: Props) {
         </div>
         <div className="space-y-1.5">
           <Label className="text-xs">Fecha y hora prevista de salida *</Label>
-          <div className="grid grid-cols-2 gap-2">
-            <Input
-              type="date"
-              value={scheduledDate.split("T")[0] || ""}
-              onChange={e => {
-                const d = e.target.value;
-                const t = scheduledDate.split("T")[1] || "08:00";
-                setScheduledDate(d ? `${d}T${t}` : "");
-              }}
-            />
-            <Input
-              type="time"
-              value={scheduledDate.split("T")[1] || ""}
-              onChange={e => {
-                const t = e.target.value;
-                const d = scheduledDate.split("T")[0] || new Date().toISOString().slice(0, 10);
-                setScheduledDate(t ? `${d}T${t}` : "");
-              }}
-            />
-          </div>
+          <Input
+            type="datetime-local"
+            value={scheduledDate}
+            onChange={e => setScheduledDate(e.target.value)}
+          />
         </div>
       </div>
 
