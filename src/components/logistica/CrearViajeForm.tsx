@@ -303,7 +303,7 @@ export function CrearViajeForm({ onSuccess, onCancel }: Props) {
             </p>
           )}
           {vehicleResolution.kind === "fallback" && vehicleResolution.vehicle && (
-            <p className="text-[10px] text-amber-600 dark:text-amber-500">
+            <p className="text-[10px] text-warning">
               ⚠ Si no seleccionás un vehículo, se asignará automáticamente:{" "}
               <span className="font-medium">
                 {vehicleResolution.vehicle.plate}
