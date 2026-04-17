@@ -126,7 +126,7 @@ export function LogisticaViajesProgramados() {
             <div className="space-y-2">
               {trips.map((t: any) => {
                 const loadCount = tripLoadCounts?.[t.id] || 0;
-                const driverName = (t.driver as any)?.profiles?.full_name || "Sin chofer";
+                const driverName = (t as any).driver_name || "Sin chofer";
                 const isSupplier = t.trip_type === "supplier_pickup";
                 return (
                   <div
