@@ -41,7 +41,7 @@ export function LogisticaViajesProgramados() {
           driver:drivers!trips_driver_id_fkey(id, user_id, profiles:user_id(full_name))
         `)
         .eq("status", "planned" as any)
-        .order("scheduled_departure", { ascending: true, nullsFirst: false });
+        .order("planned_departure", { ascending: true, nullsFirst: false });
       if (error) throw error;
       return data;
     },
