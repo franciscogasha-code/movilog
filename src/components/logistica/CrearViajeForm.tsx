@@ -122,11 +122,31 @@ export function CrearViajeForm({ onSuccess, onCancel }: Props) {
     return false;
   });
 
+  // Resolución dinámica del vehículo a usar y motivo (para aviso UI)
+  const vehicleResolution = useMemo(() => {
+    if (vehicleId) {
+      const v = vehicles?.find((x: any) => x.id === vehicleId);
+      return { kind: "manual" as const, vehicle: v ?? null };
+    }
+    if (selectedDriver?.assignedVehicleId) {
+      const v = vehicles?.find((x: any) => x.id === selectedDriver.assignedVehicleId);
+      return { kind: "driver" as const, vehicle: v ?? null };
+    }
+    if (vehicles && vehicles.length > 0) {
+      return { kind: "fallback" as const, vehicle: vehicles[0] };
+    }
+    return { kind: "none" as const, vehicle: null };
+  }, [vehicleId, selectedDriver, vehicles]);
+
   const handleCreate = async () => {
     if (!selectedDriver) { toast.error("Seleccionar chofer"); return; }
     if (!originBranchId) { toast.error("Seleccionar punto de salida"); return; }
     if (!mainRoute.trim()) { toast.error("Indicar la ruta principal"); return; }
     if (!scheduledDate) { toast.error("Indicar fecha y hora prevista de salida"); return; }
+    if (vehicleResolution.kind === "none") {
+      toast.error("No hay vehículos activos en el sistema. Cargá al menos uno desde Flota.");
+      return;
+    }
 
     setCreating(true);
     try {
@@ -145,13 +165,9 @@ export function CrearViajeForm({ onSuccess, onCancel }: Props) {
         driverId = newDriver.id;
       }
 
-      let effectiveVehicleId = vehicleId || selectedDriver.assignedVehicleId || null;
-      // vehicle_id es NOT NULL en la BD; si no se eligió ni hay asignado, tomamos el primer vehículo activo como fallback
-      if (!effectiveVehicleId && vehicles && vehicles.length > 0) {
-        effectiveVehicleId = vehicles[0].id;
-      }
+      const effectiveVehicleId = vehicleResolution.vehicle?.id ?? null;
       if (!effectiveVehicleId) {
-        toast.error("No hay vehículos cargados en el sistema. Cargá al menos uno desde Flota.");
+        toast.error("No hay vehículos activos en el sistema. Cargá al menos uno desde Flota.");
         return;
       }
 
@@ -267,10 +283,7 @@ export function CrearViajeForm({ onSuccess, onCancel }: Props) {
         </div>
         <div className="space-y-1.5">
           <Label className="text-xs">Vehículo <span className="text-muted-foreground">(opcional)</span></Label>
-          <Select
-            value={vehicleId || selectedDriver?.assignedVehicleId || ""}
-            onValueChange={setVehicleId}
-          >
+          <Select value={vehicleId} onValueChange={setVehicleId}>
             <SelectTrigger><SelectValue placeholder="Sin asignar" /></SelectTrigger>
             <SelectContent>
               {vehicles?.map((v: any) => (
@@ -280,6 +293,29 @@ export function CrearViajeForm({ onSuccess, onCancel }: Props) {
               ))}
             </SelectContent>
           </Select>
+          {vehicleResolution.kind === "driver" && vehicleResolution.vehicle && (
+            <p className="text-[10px] text-muted-foreground">
+              Si no seleccionás un vehículo, se usará el asignado al chofer:{" "}
+              <span className="font-medium text-foreground">
+                {vehicleResolution.vehicle.plate}
+                {vehicleResolution.vehicle.brand ? ` — ${vehicleResolution.vehicle.brand}` : ""}
+              </span>.
+            </p>
+          )}
+          {vehicleResolution.kind === "fallback" && vehicleResolution.vehicle && (
+            <p className="text-[10px] text-warning">
+              ⚠ Si no seleccionás un vehículo, se asignará automáticamente:{" "}
+              <span className="font-medium">
+                {vehicleResolution.vehicle.plate}
+                {vehicleResolution.vehicle.brand ? ` — ${vehicleResolution.vehicle.brand}` : ""}
+              </span>.
+            </p>
+          )}
+          {vehicleResolution.kind === "none" && (
+            <p className="text-[10px] text-destructive">
+              No hay vehículos activos disponibles. Cargá al menos uno desde Flota para crear el viaje.
+            </p>
+          )}
         </div>
       </div>
 
