@@ -145,9 +145,16 @@ export function CrearViajeForm({ onSuccess, onCancel }: Props) {
         driverId = newDriver.id;
       }
 
-      const effectiveVehicleId = vehicleId || selectedDriver.assignedVehicleId || null;
+      let effectiveVehicleId = vehicleId || selectedDriver.assignedVehicleId || null;
+      // vehicle_id es NOT NULL en la BD; si no se eligió ni hay asignado, tomamos el primer vehículo activo como fallback
+      if (!effectiveVehicleId && vehicles && vehicles.length > 0) {
+        effectiveVehicleId = vehicles[0].id;
+      }
+      if (!effectiveVehicleId) {
+        toast.error("No hay vehículos cargados en el sistema. Cargá al menos uno desde Flota.");
+        return;
+      }
 
-      // Combinar ruta principal + observaciones en destination_description (campo existente)
       const destinationDescription = observations.trim()
         ? `${mainRoute.trim()} — Obs: ${observations.trim()}`
         : mainRoute.trim();
@@ -160,7 +167,7 @@ export function CrearViajeForm({ onSuccess, onCancel }: Props) {
           origin_branch_id: originBranchId,
           trip_type: tripType as any,
           status: "planned",
-          scheduled_departure: scheduledDate,
+          planned_departure: scheduledDate,
           destination_description: destinationDescription,
           created_by: user.id,
         }])
