@@ -159,16 +159,14 @@ export function CrearViajeForm({ onSuccess, onCancel }: Props) {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { toast.error("Sesión expirada"); return; }
 
-      // Si el chofer no tiene ficha, crearla automáticamente para no bloquear el alta
+      // Garantizar ficha de chofer vía RPC SECURITY DEFINER (respeta RLS).
+      // El Operador Logístico puede ser asignado como chofer aunque no tenga ficha previa.
       let driverId = selectedDriver.driverId;
       if (!driverId) {
-        const { data: newDriver, error: driverErr } = await supabase
-          .from("drivers")
-          .insert([{ user_id: selectedDriver.userId, is_active: true }])
-          .select("id")
-          .single();
-        if (driverErr) throw driverErr;
-        driverId = newDriver.id;
+        const { data: ensuredId, error: ensureErr } = await supabase
+          .rpc("fn_ensure_driver_for_user", { _user_id: selectedDriver.userId });
+        if (ensureErr) throw ensureErr;
+        driverId = ensuredId as string;
       }
 
       const effectiveVehicleId = vehicleResolution.vehicle?.id ?? null;
