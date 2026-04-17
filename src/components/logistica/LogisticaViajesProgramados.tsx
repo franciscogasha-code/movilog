@@ -37,11 +37,11 @@ export function LogisticaViajesProgramados() {
         .select(`
           *,
           origin_branch:branches!trips_origin_branch_id_fkey(name, code),
-          vehicle:vehicles(plate_number, brand, model),
+          vehicle:vehicles(plate, brand, model),
           driver:drivers!trips_driver_id_fkey(id, user_id, profiles:user_id(full_name))
         `)
         .eq("status", "planned" as any)
-        .order("scheduled_departure", { ascending: true, nullsFirst: false });
+        .order("planned_departure", { ascending: true, nullsFirst: false });
       if (error) throw error;
       return data;
     },
@@ -148,9 +148,9 @@ export function LogisticaViajesProgramados() {
                       <span className="flex items-center gap-1">
                         <User className="h-3 w-3" /> {driverName}
                       </span>
-                      {(t.vehicle as any)?.plate_number && (
+                      {(t.vehicle as any)?.plate && (
                         <span className="flex items-center gap-1">
-                          <Truck className="h-3 w-3" /> {(t.vehicle as any).plate_number}
+                          <Truck className="h-3 w-3" /> {(t.vehicle as any).plate}
                         </span>
                       )}
                       <Badge variant={isSupplier ? "secondary" : "outline"} className="text-[10px]">
@@ -160,10 +160,10 @@ export function LogisticaViajesProgramados() {
                       <span className="flex items-center gap-1">
                         <Package className="h-3 w-3" /> {loadCount} carga(s)
                       </span>
-                      {t.scheduled_departure && (
+                      {(t as any).planned_departure && (
                         <span className="flex items-center gap-1">
                           <Clock className="h-3 w-3" />
-                          {new Date(t.scheduled_departure).toLocaleString("es-PY", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                          {new Date((t as any).planned_departure).toLocaleString("es-PY", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
                         </span>
                       )}
                     </div>
