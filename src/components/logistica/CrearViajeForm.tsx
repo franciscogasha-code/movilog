@@ -45,14 +45,15 @@ export function CrearViajeForm({ onSuccess, onCancel }: Props) {
     },
   });
 
-  // Usuarios con rol 'driver' (operador logístico) — para incluir los que aún no tienen ficha
+  // Usuarios con roles operativos logísticos (operador logístico / chofer / jefe logística)
+  // — para incluir los que aún no tienen ficha en `drivers`
   const { data: driverRoleUsers } = useQuery({
-    queryKey: ["driver-role-users"],
+    queryKey: ["logistic-role-users"],
     queryFn: async () => {
       const { data: roles, error: rolesErr } = await supabase
         .from("user_roles")
-        .select("user_id")
-        .eq("role", "driver");
+        .select("user_id, role")
+        .in("role", ["warehouse_operator", "driver", "jefe_logistica"]);
       if (rolesErr) throw rolesErr;
       const ids = (roles ?? []).map((r: any) => r.user_id);
       if (!ids.length) return [];
