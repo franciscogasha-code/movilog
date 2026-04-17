@@ -28,7 +28,7 @@ export function LogisticaViajeDetalle({ tripId }: Props) {
         .select(`
           *,
           origin_branch:branches!trips_origin_branch_id_fkey(name, code),
-          vehicle:vehicles(plate_number, brand, model),
+          vehicle:vehicles(plate, brand, model),
           driver:drivers!trips_driver_id_fkey(id, user_id, profiles:user_id(full_name))
         `)
         .eq("id", tripId)
@@ -172,16 +172,16 @@ export function LogisticaViajeDetalle({ tripId }: Props) {
           <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
           <span>{(trip.origin_branch as any)?.code} — {(trip.origin_branch as any)?.name}</span>
         </div>
-        {(trip as any).scheduled_departure && (
+        {(trip as any).planned_departure && (
           <div className="flex items-center gap-2">
             <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-            <span>{new Date((trip as any).scheduled_departure).toLocaleString("es-PY", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
+            <span>{new Date((trip as any).planned_departure).toLocaleString("es-PY", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
           </div>
         )}
-        {(trip.vehicle as any)?.plate_number && (
+        {(trip.vehicle as any)?.plate && (
           <div className="flex items-center gap-2">
             <Truck className="h-3.5 w-3.5 text-muted-foreground" />
-            <span>{(trip.vehicle as any).plate_number} {(trip.vehicle as any).brand || ""}</span>
+            <span>{(trip.vehicle as any).plate} {(trip.vehicle as any).brand || ""}</span>
           </div>
         )}
         {(trip as any).destination_description && (
