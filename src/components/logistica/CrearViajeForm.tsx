@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -13,24 +13,55 @@ interface Props {
   onCancel: () => void;
 }
 
+interface DriverOption {
+  driverId: string | null;        // id en tabla drivers (si existe)
+  userId: string;                 // user_id (siempre)
+  name: string;
+  assignedVehicleId: string | null;
+  hasDriverRecord: boolean;
+}
+
 export function CrearViajeForm({ onSuccess, onCancel }: Props) {
   const [tripType, setTripType] = useState<string>("interurban_planned");
-  const [driverId, setDriverId] = useState("");
+  // selectedDriverKey: prefijo "d:" para drivers, "u:" para user_roles sin ficha
+  const [selectedDriverKey, setSelectedDriverKey] = useState("");
   const [vehicleId, setVehicleId] = useState("");
   const [originBranchId, setOriginBranchId] = useState("");
   const [scheduledDate, setScheduledDate] = useState("");
-  const [destDescription, setDestDescription] = useState("");
+  const [mainRoute, setMainRoute] = useState("");
+  const [observations, setObservations] = useState("");
   const [creating, setCreating] = useState(false);
 
+  // Choferes con ficha
   const { data: drivers } = useQuery({
     queryKey: ["active-drivers"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("drivers")
-        .select("id, user_id, assigned_vehicle_id, assigned_branch_id, profiles:user_id(full_name)")
+        .select("id, user_id, assigned_vehicle_id, profiles:user_id(full_name)")
         .eq("is_active", true);
       if (error) throw error;
       return data;
+    },
+  });
+
+  // Usuarios con rol 'driver' (operador logístico) — para incluir los que aún no tienen ficha
+  const { data: driverRoleUsers } = useQuery({
+    queryKey: ["driver-role-users"],
+    queryFn: async () => {
+      const { data: roles, error: rolesErr } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", "driver");
+      if (rolesErr) throw rolesErr;
+      const ids = (roles ?? []).map((r: any) => r.user_id);
+      if (!ids.length) return [];
+      const { data: profs, error: profsErr } = await supabase
+        .from("profiles")
+        .select("user_id, full_name, is_active")
+        .in("user_id", ids);
+      if (profsErr) throw profsErr;
+      return (profs ?? []).filter((p: any) => p.is_active !== false);
     },
   });
 
@@ -39,7 +70,7 @@ export function CrearViajeForm({ onSuccess, onCancel }: Props) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("vehicles")
-        .select("id, plate_number, brand, model")
+        .select("id, plate, brand, model")
         .eq("is_active", true);
       if (error) throw error;
       return data;
@@ -59,39 +90,92 @@ export function CrearViajeForm({ onSuccess, onCancel }: Props) {
     },
   });
 
-  // Auto-fill vehicle when driver selected
-  const selectedDriver = drivers?.find(d => d.id === driverId);
+  // Lista unificada de opciones de chofer (sin duplicados)
+  const driverOptions = useMemo<DriverOption[]>(() => {
+    const map = new Map<string, DriverOption>();
+    (drivers ?? []).forEach((d: any) => {
+      map.set(d.user_id, {
+        driverId: d.id,
+        userId: d.user_id,
+        name: (d.profiles as any)?.full_name || "Sin nombre",
+        assignedVehicleId: d.assigned_vehicle_id ?? null,
+        hasDriverRecord: true,
+      });
+    });
+    (driverRoleUsers ?? []).forEach((u: any) => {
+      if (!map.has(u.user_id)) {
+        map.set(u.user_id, {
+          driverId: null,
+          userId: u.user_id,
+          name: u.full_name || "Sin nombre",
+          assignedVehicleId: null,
+          hasDriverRecord: false,
+        });
+      }
+    });
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [drivers, driverRoleUsers]);
+
+  const selectedDriver = driverOptions.find(d => {
+    if (selectedDriverKey.startsWith("d:")) return d.driverId === selectedDriverKey.slice(2);
+    if (selectedDriverKey.startsWith("u:")) return d.userId === selectedDriverKey.slice(2);
+    return false;
+  });
 
   const handleCreate = async () => {
-    if (!driverId) { toast.error("Seleccionar chofer"); return; }
-    if (!originBranchId) { toast.error("Seleccionar sucursal de origen"); return; }
+    if (!selectedDriver) { toast.error("Seleccionar chofer"); return; }
+    if (!originBranchId) { toast.error("Seleccionar punto de salida"); return; }
+    if (!mainRoute.trim()) { toast.error("Indicar la ruta principal"); return; }
+    if (!scheduledDate) { toast.error("Indicar fecha y hora prevista de salida"); return; }
 
     setCreating(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { toast.error("Sesión expirada"); return; }
 
-      const effectiveVehicleId = vehicleId || selectedDriver?.assigned_vehicle_id;
+      // Si el chofer no tiene ficha, crearla automáticamente para no bloquear el alta
+      let driverId = selectedDriver.driverId;
+      if (!driverId) {
+        const { data: newDriver, error: driverErr } = await supabase
+          .from("drivers")
+          .insert([{ user_id: selectedDriver.userId, is_active: true }])
+          .select("id")
+          .single();
+        if (driverErr) throw driverErr;
+        driverId = newDriver.id;
+      }
 
-      const insertData: any = {
-          driver_id: driverId,
-          vehicle_id: effectiveVehicleId || null,
-          origin_branch_id: originBranchId,
-          trip_type: tripType,
-          status: "planned",
-          scheduled_departure: scheduledDate || null,
-          destination_description: destDescription || null,
-          created_by: user.id,
-        };
+      let effectiveVehicleId = vehicleId || selectedDriver.assignedVehicleId || null;
+      // vehicle_id es NOT NULL en la BD; si no se eligió ni hay asignado, tomamos el primer vehículo activo como fallback
+      if (!effectiveVehicleId && vehicles && vehicles.length > 0) {
+        effectiveVehicleId = vehicles[0].id;
+      }
+      if (!effectiveVehicleId) {
+        toast.error("No hay vehículos cargados en el sistema. Cargá al menos uno desde Flota.");
+        return;
+      }
+
+      const destinationDescription = observations.trim()
+        ? `${mainRoute.trim()} — Obs: ${observations.trim()}`
+        : mainRoute.trim();
+
       const { data: trip, error } = await supabase
         .from("trips")
-        .insert(insertData)
+        .insert([{
+          driver_id: driverId!,
+          vehicle_id: effectiveVehicleId,
+          origin_branch_id: originBranchId,
+          trip_type: tripType as any,
+          status: "planned",
+          planned_departure: scheduledDate,
+          destination_description: destinationDescription,
+          created_by: user.id,
+        }])
         .select()
         .single();
 
       if (error) throw error;
 
-      // Log event
       await supabase.from("operational_events").insert({
         reference_type: "trip",
         reference_id: trip.id,
@@ -100,7 +184,11 @@ export function CrearViajeForm({ onSuccess, onCancel }: Props) {
         event_description: `Viaje #${trip.trip_number} planificado`,
         new_status: "planned",
         triggered_by: user.id,
-        metadata: { trip_type: tripType, destination_description: destDescription },
+        metadata: {
+          trip_type: tripType,
+          main_route: mainRoute.trim(),
+          observations: observations.trim() || null,
+        },
       });
 
       toast.success(`Viaje #${trip.trip_number} creado`);
@@ -116,7 +204,7 @@ export function CrearViajeForm({ onSuccess, onCancel }: Props) {
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
-          <Label className="text-xs">Tipo de viaje</Label>
+          <Label className="text-xs">Tipo de viaje *</Label>
           <Select value={tripType} onValueChange={setTripType}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -126,9 +214,9 @@ export function CrearViajeForm({ onSuccess, onCancel }: Props) {
           </Select>
         </div>
         <div className="space-y-1.5">
-          <Label className="text-xs">Origen</Label>
+          <Label className="text-xs">Punto de salida *</Label>
           <Select value={originBranchId} onValueChange={setOriginBranchId}>
-            <SelectTrigger><SelectValue placeholder="Sucursal..." /></SelectTrigger>
+            <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
             <SelectContent>
               {branches?.map(b => (
                 <SelectItem key={b.id} value={b.id}>{b.code} — {b.name}</SelectItem>
@@ -140,50 +228,75 @@ export function CrearViajeForm({ onSuccess, onCancel }: Props) {
 
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
-          <Label className="text-xs">Chofer</Label>
-          <Select value={driverId} onValueChange={setDriverId}>
-            <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
-            <SelectContent>
-              {drivers?.map((d: any) => (
-                <SelectItem key={d.id} value={d.id}>
-                  {(d.profiles as any)?.full_name || "Sin nombre"}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Label className="text-xs">Ruta principal *</Label>
+          <Input
+            value={mainRoute}
+            onChange={e => setMainRoute(e.target.value)}
+            placeholder="Ej: Encarnación → Luque"
+          />
+          <p className="text-[10px] text-muted-foreground">
+            Eje principal del recorrido (no necesariamente el único destino).
+          </p>
         </div>
         <div className="space-y-1.5">
-          <Label className="text-xs">Vehículo</Label>
-          <Select value={vehicleId || selectedDriver?.assigned_vehicle_id || ""} onValueChange={setVehicleId}>
-            <SelectTrigger><SelectValue placeholder="Automático..." /></SelectTrigger>
-            <SelectContent>
-              {vehicles?.map((v: any) => (
-                <SelectItem key={v.id} value={v.id}>
-                  {v.plate_number} {v.brand ? `— ${v.brand}` : ""}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Label className="text-xs">Fecha y hora prevista de salida *</Label>
+          <Input
+            type="datetime-local"
+            value={scheduledDate}
+            onChange={e => setScheduledDate(e.target.value)}
+          />
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
-          <Label className="text-xs">Fecha/hora prevista</Label>
-          <Input type="datetime-local" value={scheduledDate} onChange={e => setScheduledDate(e.target.value)} />
+          <Label className="text-xs">Chofer *</Label>
+          <Select value={selectedDriverKey} onValueChange={setSelectedDriverKey}>
+            <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
+            <SelectContent>
+              {driverOptions.map(d => {
+                const key = d.driverId ? `d:${d.driverId}` : `u:${d.userId}`;
+                return (
+                  <SelectItem key={key} value={key}>
+                    {d.name}{!d.hasDriverRecord ? " (operador logístico)" : ""}
+                  </SelectItem>
+                );
+              })}
+            </SelectContent>
+          </Select>
         </div>
         <div className="space-y-1.5">
-          <Label className="text-xs">Destino / Descripción</Label>
-          <Input value={destDescription} onChange={e => setDestDescription(e.target.value)} placeholder="Proveedor, ciudad..." />
+          <Label className="text-xs">Vehículo <span className="text-muted-foreground">(opcional)</span></Label>
+          <Select
+            value={vehicleId || selectedDriver?.assignedVehicleId || ""}
+            onValueChange={setVehicleId}
+          >
+            <SelectTrigger><SelectValue placeholder="Sin asignar" /></SelectTrigger>
+            <SelectContent>
+              {vehicles?.map((v: any) => (
+                <SelectItem key={v.id} value={v.id}>
+                  {v.plate} {v.brand ? `— ${v.brand}` : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
-      {tripType === "supplier_pickup" && (
-        <div className="space-y-1.5">
-          <Label className="text-xs">Detalle del retiro</Label>
-          <Textarea placeholder="Dirección del proveedor, contacto, instrucciones..." className="h-20" />
-        </div>
-      )}
+      <div className="space-y-1.5">
+        <Label className="text-xs">Observaciones <span className="text-muted-foreground">(opcional)</span></Label>
+        <Textarea
+          value={observations}
+          onChange={e => setObservations(e.target.value)}
+          placeholder="Ej: retiro proveedor en trayecto, bajar reposición en Oviedo, entregar muestras antes de Luque..."
+          className="h-20"
+        />
+      </div>
+
+      <div className="rounded-md border border-dashed border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+        Las cargas (pedidos, transferencias, facturas) se asignan en el paso siguiente,
+        desde el detalle del viaje.
+      </div>
 
       <div className="flex justify-end gap-2 pt-2">
         <Button variant="outline" onClick={onCancel}>Cancelar</Button>
