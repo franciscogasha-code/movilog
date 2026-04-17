@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -30,6 +31,7 @@ const TASK_TYPE_LABELS: Record<string, string> = {
 
 export function ViajeInterurbano({ trips, activeTrip, myDriverId }: Props) {
   const { user, isOwner, hasRole } = useAuth();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [detailId, setDetailId] = useState<string | null>(null);
   const [addTaskOpen, setAddTaskOpen] = useState(false);
@@ -42,12 +44,13 @@ export function ViajeInterurbano({ trips, activeTrip, myDriverId }: Props) {
   const [showEmptyTripWarning, setShowEmptyTripWarning] = useState(false);
   const [pendingStartTripId, setPendingStartTripId] = useState<string | null>(null);
 
-  const canCreateTrip =
+  const isManagementUser =
     isOwner ||
     hasRole("admin") ||
     hasRole("supervisor") ||
-    hasRole("jefe_logistica") ||
-    hasRole("operador_logistico");
+    hasRole("jefe_logistica");
+
+  const canCreateTrip = isManagementUser || hasRole("operador_logistico");
 
   // Planned trips assigned to this driver (not yet started)
   const plannedTrips = trips.filter(t => t.status === "planned");
@@ -268,6 +271,17 @@ export function ViajeInterurbano({ trips, activeTrip, myDriverId }: Props) {
             </Card>
           ))}
         </div>
+      ) : isManagementUser ? (
+        <Card className="glass-card">
+          <CardContent className="p-6 text-center text-muted-foreground text-sm">
+            <Calendar className="h-6 w-6 mx-auto mb-2 opacity-50" />
+            <p className="font-medium">No hay viajes asignados a tu usuario en este panel</p>
+            <p className="mt-1 text-xs">La gestión global de viajes programados se realiza en Ruteo.</p>
+            <Button variant="outline" size="sm" className="mt-4" onClick={() => navigate("/ruteo?tab=programados")}>
+              Ver viajes programados
+            </Button>
+          </CardContent>
+        </Card>
       ) : (
         <Card className="glass-card">
           <CardContent className="p-6 text-center text-muted-foreground text-sm">
@@ -380,9 +394,15 @@ export function ViajeInterurbano({ trips, activeTrip, myDriverId }: Props) {
             <DialogTitle>Crear viaje</DialogTitle>
           </DialogHeader>
           <CrearViajeForm
-            onSuccess={() => {
+            onSuccess={(tripId) => {
               setCreateTripOpen(false);
               queryClient.invalidateQueries({ queryKey: ["active-trips"] });
+              queryClient.invalidateQueries({ queryKey: ["planned-trips"] });
+              queryClient.invalidateQueries({ queryKey: ["planned-count"] });
+
+              if (isManagementUser) {
+                navigate(`/ruteo?tab=programados&detail=${tripId}`);
+              }
             }}
             onCancel={() => setCreateTripOpen(false)}
           />

@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { motion } from "framer-motion";
+import { useSearchParams } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -11,7 +12,15 @@ import { LogisticaViajesProgramados } from "@/components/logistica/LogisticaViaj
 import { LogisticaViajesEnCurso } from "@/components/logistica/LogisticaViajesEnCurso";
 
 export default function Ruteo() {
+  const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState("consolidacion");
+
+  useEffect(() => {
+    const requestedTab = searchParams.get("tab");
+    if (requestedTab === "consolidacion" || requestedTab === "programados" || requestedTab === "en-curso") {
+      setActiveTab(requestedTab);
+    }
+  }, [searchParams]);
 
   // Summary counts
   const { data: consolidationCount } = useQuery({
