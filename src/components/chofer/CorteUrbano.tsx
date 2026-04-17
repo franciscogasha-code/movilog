@@ -40,17 +40,17 @@ export function CorteUrbano({ cutoffs, activeCutoff }: Props) {
         toast.warning("Iniciando corte sin vehículo asignado");
       }
 
-      // Resolve origin branch: driver assignment → profile default → first allowed branch
+      // Resolve origin branch: driver assignment → profile default → first allowed branch → central warehouse → first active
       let originBranchId: string | null = driver.assigned_branch_id ?? null;
       if (!originBranchId) {
         const { data: profile } = await supabase
           .from("profiles")
-          .select("id, default_branch_id")
+          .select("id, default_branch_id, all_branches_access")
           .eq("user_id", user.id)
           .maybeSingle();
         originBranchId = profile?.default_branch_id ?? null;
 
-        if (!originBranchId && profile?.id) {
+        if (!originBranchId && profile?.id && !profile.all_branches_access) {
           const { data: access } = await supabase
             .from("profile_branch_access")
             .select("branch_id")
@@ -58,6 +58,28 @@ export function CorteUrbano({ cutoffs, activeCutoff }: Props) {
             .limit(1)
             .maybeSingle();
           originBranchId = access?.branch_id ?? null;
+        }
+
+        // Global access fallback: central warehouse, then any active branch
+        if (!originBranchId) {
+          const { data: central } = await supabase
+            .from("branches")
+            .select("id")
+            .eq("is_active", true)
+            .eq("is_central_warehouse", true)
+            .limit(1)
+            .maybeSingle();
+          originBranchId = central?.id ?? null;
+        }
+        if (!originBranchId) {
+          const { data: anyBranch } = await supabase
+            .from("branches")
+            .select("id")
+            .eq("is_active", true)
+            .order("code", { ascending: true })
+            .limit(1)
+            .maybeSingle();
+          originBranchId = anyBranch?.id ?? null;
         }
       }
 

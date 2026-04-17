@@ -75,7 +75,7 @@ export default function Chofer() {
         .select(`
           *,
           origin_branch:branches!trips_origin_branch_id_fkey(name, code),
-          vehicle:vehicles(plate_number, brand, model)
+          vehicle:vehicles(plate, brand, model)
         `)
         .eq("driver_id", myDriver.id)
         .in("status", ["planned", "in_progress"])
