@@ -198,6 +198,7 @@ export function CrearViajeForm({ onSuccess, onCancel }: Props) {
             type="datetime-local"
             value={scheduledDate}
             onChange={e => setScheduledDate(e.target.value)}
+            onInput={e => setScheduledDate((e.target as HTMLInputElement).value)}
           />
         </div>
       </div>
