@@ -29,12 +29,19 @@ export function LogisticaViajeDetalle({ tripId }: Props) {
           *,
           origin_branch:branches!trips_origin_branch_id_fkey(name, code),
           vehicle:vehicles(plate, brand, model),
-          driver:drivers!trips_driver_id_fkey(id, user_id, profiles:user_id(full_name))
+          driver:drivers!trips_driver_id_fkey(id, user_id)
         `)
         .eq("id", tripId)
         .single();
       if (error) throw error;
-      return data;
+      let driver_name = "Sin chofer";
+      const uid = (data as any)?.driver?.user_id;
+      if (uid) {
+        const { data: prof } = await supabase
+          .from("profiles").select("full_name").eq("user_id", uid).maybeSingle();
+        if (prof?.full_name) driver_name = prof.full_name;
+      }
+      return { ...data, driver_name } as any;
     },
   });
 
@@ -136,7 +143,7 @@ export function LogisticaViajeDetalle({ tripId }: Props) {
 
   if (!trip) return <div className="p-4 text-center text-muted-foreground text-sm">Cargando...</div>;
 
-  const driverName = (trip.driver as any)?.profiles?.full_name || "Sin chofer";
+  const driverName = (trip as any).driver_name || "Sin chofer";
   const isPlanned = trip.status === "planned";
   const isSupplier = trip.trip_type === "supplier_pickup";
   const totalLoads = linkedFulfillments?.length || 0;
