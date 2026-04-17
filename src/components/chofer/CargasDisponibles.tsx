@@ -95,16 +95,20 @@ export function CargasDisponibles() {
   });
 
   // ── B) Available loads at selected branch ──
+  // Incluye fulfillments cuyo branch_request está 'ready_for_pickup' (listo para retiro),
+  // además de los estados clásicos de espera de corte/courier/picking.
   const { data: availableLoads } = useQuery({
     queryKey: ["available-loads", effectiveBranchId],
     queryFn: async () => {
       if (!effectiveBranchId) return [];
       const { data, error } = await supabase
         .from("fulfillment_orders")
-        .select(`*, source_branch:branches!fulfillment_orders_source_branch_id_fkey(name, code), destination_branch:branches!fulfillment_orders_destination_branch_id_fkey(name, code), branch_request:branch_requests(request_number, request_type, delivery_target)`)
+        .select(`*, source_branch:branches!fulfillment_orders_source_branch_id_fkey(name, code), destination_branch:branches!fulfillment_orders_destination_branch_id_fkey(name, code), branch_request:branch_requests!inner(request_number, request_type, delivery_target, status)`)
         .eq("source_branch_id", effectiveBranchId)
-        .in("status", ["waiting_for_cut", "waiting_for_courier", "picking"])
         .is("trip_id", null)
+        .or(
+          "status.in.(waiting_for_cut,waiting_for_courier,picking),and(status.eq.pending,branch_request.status.eq.ready_for_pickup)"
+        )
         .order("created_at", { ascending: true })
         .limit(50);
       if (error) throw error;
