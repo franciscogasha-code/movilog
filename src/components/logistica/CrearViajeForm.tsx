@@ -134,7 +134,8 @@ export function CrearViajeForm({ onSuccess, onCancel }: Props) {
     return false;
   });
 
-  // Resolución dinámica del vehículo a usar y motivo (para aviso UI)
+  // Resolución del vehículo a usar (sin fallback silencioso).
+  // Si no hay selección manual ni asignado al chofer → se crea el viaje sin vehículo.
   const vehicleResolution = useMemo(() => {
     if (vehicleId) {
       const v = vehicles?.find((x: any) => x.id === vehicleId);
@@ -144,10 +145,7 @@ export function CrearViajeForm({ onSuccess, onCancel }: Props) {
       const v = vehicles?.find((x: any) => x.id === selectedDriver.assignedVehicleId);
       return { kind: "driver" as const, vehicle: v ?? null };
     }
-    if (vehicles && vehicles.length > 0) {
-      return { kind: "fallback" as const, vehicle: vehicles[0] };
-    }
-    return { kind: "none" as const, vehicle: null };
+    return { kind: "unassigned" as const, vehicle: null };
   }, [vehicleId, selectedDriver, vehicles]);
 
   const handleCreate = async () => {
@@ -155,10 +153,6 @@ export function CrearViajeForm({ onSuccess, onCancel }: Props) {
     if (!originBranchId) { toast.error("Seleccionar punto de salida"); return; }
     if (!mainRoute.trim()) { toast.error("Indicar la ruta principal"); return; }
     if (!scheduledDate) { toast.error("Indicar fecha y hora prevista de salida"); return; }
-    if (vehicleResolution.kind === "none") {
-      toast.error("No hay vehículos activos en el sistema. Cargá al menos uno desde Flota.");
-      return;
-    }
 
     setCreating(true);
     try {
@@ -178,10 +172,6 @@ export function CrearViajeForm({ onSuccess, onCancel }: Props) {
       }
 
       const effectiveVehicleId = vehicleResolution.vehicle?.id ?? null;
-      if (!effectiveVehicleId) {
-        toast.error("No hay vehículos activos en el sistema. Cargá al menos uno desde Flota.");
-        return;
-      }
 
       const destinationDescription = observations.trim()
         ? `${mainRoute.trim()} — Obs: ${observations.trim()}`
@@ -314,18 +304,10 @@ export function CrearViajeForm({ onSuccess, onCancel }: Props) {
               </span>.
             </p>
           )}
-          {vehicleResolution.kind === "fallback" && vehicleResolution.vehicle && (
-            <p className="text-[10px] text-warning">
-              ⚠ Si no seleccionás un vehículo, se asignará automáticamente:{" "}
-              <span className="font-medium">
-                {vehicleResolution.vehicle.plate}
-                {vehicleResolution.vehicle.brand ? ` — ${vehicleResolution.vehicle.brand}` : ""}
-              </span>.
-            </p>
-          )}
-          {vehicleResolution.kind === "none" && (
-            <p className="text-[10px] text-destructive">
-              No hay vehículos activos disponibles. Cargá al menos uno desde Flota para crear el viaje.
+          {vehicleResolution.kind === "unassigned" && (
+            <p className="text-[10px] text-muted-foreground">
+              El viaje se creará <span className="font-medium text-foreground">sin vehículo asignado</span>.
+              Podrás asignarlo más adelante, antes o al iniciar el viaje.
             </p>
           )}
         </div>
