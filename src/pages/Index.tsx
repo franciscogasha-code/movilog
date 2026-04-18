@@ -217,8 +217,8 @@ export default function Index() {
   const { user, profile, hasRole, isOwner } = useAuth();
   const { isAllBranches, allowedBranchIds, defaultBranchId } = useUserBranchFilter();
   const navigate = useNavigate();
-  const isDriver = hasRole("driver") || hasRole("operador_logistico");
-  const isLogisticsOp = hasRole("operador_logistico");
+  const isDriver = hasRole("driver") || hasRole("warehouse_operator");
+  const isLogisticsOp = hasRole("warehouse_operator");
   const isAdmin = isAllBranches || isOwner || hasRole("admin") || hasRole("supervisor");
   const isViewer = hasRole("viewer") || hasRole("auditor");
 
