@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useBranches } from "@/hooks/use-branches";
 import { toast } from "sonner";
+import { runDriverAction } from "@/lib/driver-actions";
 
 interface Props {
   fulfillmentId: string;
@@ -86,10 +87,10 @@ export function EntregaModal({ fulfillmentId, mode, open, onClose, onSuccess }: 
           return;
       }
 
-      const { data, error } = await supabase.rpc("fn_driver_action", {
-        p_fulfillment_id: fulfillmentId,
-        p_action: action,
-        p_metadata: metadata,
+      const { data, error } = await runDriverAction({
+        action: action as any,
+        fulfillmentId,
+        metadata,
       });
 
       if (error) throw error;

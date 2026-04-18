@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { User, Truck } from "lucide-react";
 import { toast } from "sonner";
+import { runDriverAction } from "@/lib/driver-actions";
 
 interface Props {
   fulfillmentId: string;
@@ -48,10 +49,10 @@ export function TransferirCustodiaModal({ fulfillmentId, open, onClose, onSucces
     }
     setSubmitting(true);
     try {
-      const { data, error } = await supabase.rpc("fn_driver_action", {
-        p_fulfillment_id: fulfillmentId,
-        p_action: "transfer_to_driver",
-        p_metadata: {
+      const { data, error } = await runDriverAction({
+        action: "transfer_to_driver",
+        fulfillmentId,
+        metadata: {
           target_user_id: selectedDriverUserId,
           reason: reason || null,
         },

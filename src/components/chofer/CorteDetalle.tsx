@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CheckCircle2, XCircle, Package, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
+import { runDriverAction } from "@/lib/driver-actions";
 
 const REJECTION_REASONS = [
   { value: "no_space", label: "No entra en el móvil" },
@@ -105,10 +106,10 @@ export function CorteDetalle({ tripId }: { tripId: string }) {
 
   const confirmPickup = async (fulfillmentId: string) => {
     try {
-      const { data, error } = await supabase.rpc("fn_driver_action", {
-        p_fulfillment_id: fulfillmentId,
-        p_action: "pickup",
-        p_metadata: {},
+      const { data, error } = await runDriverAction({
+        action: "pickup",
+        fulfillmentId,
+        tripId,
       });
       if (error) throw error;
 

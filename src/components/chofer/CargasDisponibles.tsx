@@ -9,6 +9,7 @@ import { Package, CheckCircle2, AlertTriangle, XCircle, Truck, MapPin, Clock, Fi
 import { toast } from "sonner";
 import { BranchSelector } from "@/components/shared/BranchSelector";
 import { DELIVERY_TARGET_LABELS, REQUEST_TYPE_LABELS } from "@/lib/constants";
+import { runDriverAction } from "@/lib/driver-actions";
 
 const REJECTION_REASONS = [
   { value: "no_space", label: "No entra en el móvil" },
@@ -181,10 +182,9 @@ export function CargasDisponibles() {
 
   const pickupOutOfCutoff = async (fulfillmentId: string) => {
     try {
-      const { data, error } = await supabase.rpc("fn_driver_action", {
-        p_fulfillment_id: fulfillmentId,
-        p_action: "pickup",
-        p_metadata: {},
+      const { data, error } = await runDriverAction({
+        action: "pickup",
+        fulfillmentId,
       });
       if (error) throw error;
       const result = data as any;
