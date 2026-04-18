@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
 
 export type DriverActionName =
   | "pickup"
@@ -26,6 +27,6 @@ export async function runDriverAction({
     p_action: action,
     p_fulfillment_id: fulfillmentId,
     p_trip_id: tripId,
-    p_metadata: metadata,
+    p_metadata: metadata as Json,
   });
 }
