@@ -137,7 +137,7 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
       const { data: roleData } = await supabase
         .from("user_roles")
         .select("user_id, role")
-        .in("role", ["operador_logistico", "supervisor", "warehouse_operator"] as any[]);
+        .in("role", ["supervisor", "warehouse_operator"] as any[]);
       if (!roleData?.length) return [];
       const userIds = [...new Set(roleData.map(r => r.user_id))];
       const { data: profiles } = await supabase

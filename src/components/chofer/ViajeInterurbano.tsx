@@ -50,7 +50,7 @@ export function ViajeInterurbano({ trips, activeTrip, myDriverId }: Props) {
     hasRole("supervisor") ||
     hasRole("jefe_logistica");
 
-  const canCreateTrip = isManagementUser || hasRole("operador_logistico");
+  const canCreateTrip = isManagementUser || hasRole("warehouse_operator");
 
   // Planned trips assigned to this driver (not yet started)
   const plannedTrips = trips.filter(t => t.status === "planned");

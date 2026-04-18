@@ -245,7 +245,7 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
     if (isAdmin) return true;
     if (action.actor === "origin") return isOrigin;
     if (action.actor === "destination") return isDestination;
-    if (action.actor === "driver") return hasRole("driver") || hasRole("operador_logistico") || hasRole("jefe_logistica") || hasRole("admin") || hasRole("supervisor");
+    if (action.actor === "driver") return hasRole("driver") || hasRole("warehouse_operator") || hasRole("jefe_logistica") || hasRole("admin") || hasRole("supervisor");
     if (action.actor === "admin") return false;
     return false;
   });
