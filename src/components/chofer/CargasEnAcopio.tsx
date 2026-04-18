@@ -8,6 +8,7 @@ import { Warehouse, ArrowRight, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
+import { runDriverAction } from "@/lib/driver-actions";
 
 export function CargasEnAcopio() {
   const { user, profile } = useAuth();
@@ -53,10 +54,9 @@ export function CargasEnAcopio() {
 
   const pickupFromHub = async (fulfillmentId: string) => {
     try {
-      const { data, error } = await supabase.rpc("fn_driver_action", {
-        p_fulfillment_id: fulfillmentId,
-        p_action: "pickup_from_hub",
-        p_metadata: {},
+      const { data, error } = await runDriverAction({
+        action: "pickup_from_hub",
+        fulfillmentId,
       });
       if (error) throw error;
 
