@@ -13,12 +13,6 @@ import { CrearViajeForm } from "./CrearViajeForm";
 import { motion, AnimatePresence } from "framer-motion";
 import { branchName, branchLabel } from "@/lib/branch-format";
 
-/** Normaliza nombre de sucursal eliminando prefijo "SUC." si existiera. */
-function branchClean(b: any): string {
-  const raw = branchLabel(b);
-  return raw.replace(/^SUC\.?\s+/i, "").trim() || raw;
-}
-
 const URGENCY_HOURS = 24; // pedidos cliente: SLA más corto
 function getUrgency(createdAt: string): "critical" | "warning" | "normal" {
   const hours = (Date.now() - new Date(createdAt).getTime()) / 3_600_000;
