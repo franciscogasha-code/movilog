@@ -269,6 +269,19 @@ export default function Consultas() {
             </TooltipProvider>
             </div>
           )}
+          {!isLoading && total > 0 && (
+            <PaginationBar
+              page={page}
+              pageSize={pageSize}
+              total={total}
+              totalPages={totalPages}
+              from={from}
+              to={to}
+              onPageChange={setPage}
+              isFetching={isFetching}
+              itemLabel="consultas"
+            />
+          )}
         </CardContent>
       </Card>
 
