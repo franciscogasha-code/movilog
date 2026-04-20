@@ -11,45 +11,29 @@ import { es } from "date-fns/locale";
 import { runDriverAction } from "@/lib/driver-actions";
 
 export function CargasEnAcopio() {
-  const { user, profile } = useAuth();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  // Get driver info for branch context
-  const { data: myDriver } = useQuery({
-    queryKey: ["my-driver-record"],
-    queryFn: async () => {
-      if (!user?.id) return null;
-      const { data } = await supabase
-        .from("drivers")
-        .select("id, assigned_branch_id")
-        .eq("user_id", user.id)
-        .single();
-      return data;
-    },
-    enabled: !!user?.id,
-  });
-
-  const branchId = myDriver?.assigned_branch_id || profile?.default_branch_id;
-
   const { data: hubLoads, isLoading } = useQuery({
-    queryKey: ["hub-loads", branchId],
+    queryKey: ["hub-loads", user?.id],
     queryFn: async () => {
-      if (!branchId) return [];
+      if (!user?.id) return [];
+      // RLS ya filtra por sucursales accesibles al usuario
       const { data, error } = await supabase
         .from("fulfillment_orders")
         .select(`
           *,
           source_branch:branches!fulfillment_orders_source_branch_id_fkey(name, code),
           destination_branch:branches!fulfillment_orders_destination_branch_id_fkey(name, code),
+          current_location_branch:branches!fulfillment_orders_current_location_branch_id_fkey(name, code),
           branch_request:branch_requests(request_number, request_type, delivery_target)
         `)
         .eq("status", "at_hub" as any)
-        .eq("current_location_branch_id", branchId)
         .order("updated_at", { ascending: false });
       if (error) throw error;
       return data;
     },
-    enabled: !!branchId,
+    enabled: !!user?.id,
   });
 
   const pickupFromHub = async (fulfillmentId: string) => {
