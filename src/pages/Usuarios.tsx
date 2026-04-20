@@ -371,7 +371,12 @@ export default function Usuarios() {
     return profiles.filter((p) => {
       const role = getUserRole(p.user_id);
       const term = searchTerm.toLowerCase();
-      if (term && !p.full_name.toLowerCase().includes(term)) return false;
+      if (term) {
+        const email = getUserEmail(p.user_id) ?? "";
+        const matchesName = p.full_name.toLowerCase().includes(term);
+        const matchesEmail = email.toLowerCase().includes(term);
+        if (!matchesName && !matchesEmail) return false;
+      }
       if (filterRole !== "all" && role !== filterRole && !(filterRole === "owner" && isUserOwner(p.user_id))) return false;
       if (filterStatus === "active" && !p.is_active) return false;
       if (filterStatus === "inactive" && p.is_active) return false;
@@ -383,7 +388,7 @@ export default function Usuarios() {
       }
       return true;
     });
-  }, [profiles, searchTerm, filterRole, filterStatus, filterBranch, getUserRole, isUserOwner, profileBranchAccess]);
+  }, [profiles, searchTerm, filterRole, filterStatus, filterBranch, getUserRole, getUserEmail, isUserOwner, profileBranchAccess]);
 
   const selectedProfile = useMemo(
     () => profiles.find((p) => p.id === selectedUser),
