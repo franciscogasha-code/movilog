@@ -314,7 +314,7 @@ export function LogisticaConsolidacion() {
                           onCheckedChange={() => toggleGroup(items!)}
                         />
                         <MapPin className="h-4 w-4 text-primary" />
-                        <span className="font-semibold text-sm">Destino: {dest}</span>
+                        <span className="font-display font-semibold text-sm tracking-wide">Destino: <span className="text-primary">{dest}</span></span>
                         <Badge variant="outline" className="text-xs">{items!.length} carga(s)</Badge>
                       </div>
                       {selected.size === 0 && items!.length > 1 && (
