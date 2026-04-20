@@ -51,9 +51,8 @@ export default function Cumplimiento() {
   // Debounce búsqueda server-side por # pedido o cliente
   const [debouncedSearch, setDebouncedSearch] = useState("");
   useEffect(() => {
-    const t = setTimeout(() => setSearch((s) => s), 0); // noop para evitar warning
-    const t2 = setTimeout(() => setDebouncedSearch(search.trim()), 300);
-    return () => { clearTimeout(t); clearTimeout(t2); };
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => clearTimeout(t);
   }, [search]);
 
   const {
