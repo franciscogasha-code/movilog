@@ -45,13 +45,20 @@ export function LogisticaConsolidacion() {
           bims_invoice_number, bims_sale_reference, client_name, delivery_target, notes,
           source_branch:branches!branch_requests_source_branch_id_fkey(name, code),
           requesting_branch:branches!branch_requests_requesting_branch_id_fkey(name, code),
-          fulfillment_orders!fulfillment_orders_branch_request_id_fkey(id, trip_id, package_count, bims_transfer_number, bims_invoice_number)
+          fulfillment_orders!fulfillment_orders_branch_request_id_fkey(
+            id, trip_id, package_count, bims_transfer_number, bims_invoice_number, status,
+            current_location_branch:branches!fulfillment_orders_current_location_branch_id_fkey(code, name)
+          )
         `)
         .eq("status", "in_consolidation" as any)
-        .eq("flow_type", "interurban")
         .order("created_at", { ascending: true });
       if (error) throw error;
-      return data;
+      // Incluye interurbanos + cualquier pedido cuyo fulfillment esté at_hub (urbanos dejados en acopio)
+      return (data || []).filter((r: any) => {
+        if (r.flow_type === "interurban") return true;
+        const fo = r.fulfillment_orders?.[0];
+        return fo?.status === "at_hub";
+      });
     },
   });
 
@@ -63,13 +70,19 @@ export function LogisticaConsolidacion() {
         .select(`
           id, request_number, request_type, flow_type, created_at,
           source_branch:branches!branch_requests_source_branch_id_fkey(name, code),
-          requesting_branch:branches!branch_requests_requesting_branch_id_fkey(name, code)
+          requesting_branch:branches!branch_requests_requesting_branch_id_fkey(name, code),
+          fulfillment_orders!fulfillment_orders_branch_request_id_fkey(status)
         `)
         .eq("status", "in_consolidation" as any)
         .or("flow_type.is.null,flow_type.neq.interurban")
         .order("created_at", { ascending: true });
       if (error) throw error;
-      return (data || []).filter(r => r.flow_type !== "interurban");
+      // Inconsistente = no interurbano y NO está en acopio (esos sí los mostramos en lista normal)
+      return (data || []).filter((r: any) => {
+        if (r.flow_type === "interurban") return false;
+        const fo = r.fulfillment_orders?.[0];
+        return fo?.status !== "at_hub";
+      });
     },
   });
 
@@ -310,6 +323,8 @@ export function LogisticaConsolidacion() {
                           const doc = fo?.bims_transfer_number || fo?.bims_invoice_number || r.bims_invoice_number || "—";
                           const urgency = getUrgency(r.created_at);
                           const ucfg = urgencyConfig[urgency];
+                          const atHub = fo?.status === "at_hub";
+                          const hubCode = (fo?.current_location_branch as any)?.code;
                           return (
                             <motion.div
                               key={r.id}
@@ -328,6 +343,11 @@ export function LogisticaConsolidacion() {
                               <span className="text-muted-foreground text-xs">{(r.source_branch as any)?.code}</span>
                               <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
                               <span className="text-xs font-medium">{(r.requesting_branch as any)?.code}</span>
+                              {atHub && (
+                                <Badge className="text-[10px] shrink-0 bg-info/10 text-info border-info/20" variant="outline">
+                                  En acopio{hubCode ? ` · ${hubCode}` : ""}
+                                </Badge>
+                              )}
                               <Badge variant="outline" className="text-[10px] ml-auto shrink-0">
                                 {REQUEST_TYPE_LABELS[r.request_type] || r.request_type}
                               </Badge>
