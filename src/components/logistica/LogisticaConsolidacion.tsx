@@ -28,6 +28,13 @@ const urgencyConfig = {
   normal: { dot: "bg-accent", border: "border-border/50", label: "Reciente", sortOrder: 2 },
 };
 
+/** Normaliza nombre de sucursal: "SUC. CABALLERO" → "CABALLERO", "SUC LUQUE" → "LUQUE" */
+function branchLabel(b: any): string {
+  if (!b) return "—";
+  const raw = (b.name || b.code || "").toString().trim();
+  return raw.replace(/^SUC\.?\s+/i, "").trim() || raw;
+}
+
 export function LogisticaConsolidacion() {
   const queryClient = useQueryClient();
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -43,8 +50,8 @@ export function LogisticaConsolidacion() {
         .select(`
           id, request_number, request_type, flow_type, created_at, priority, 
           bims_invoice_number, bims_sale_reference, client_name, delivery_target, notes,
-          source_branch:branches!branch_requests_source_branch_id_fkey(name, code),
-          requesting_branch:branches!branch_requests_requesting_branch_id_fkey(name, code),
+          source_branch:branches!branch_requests_source_branch_id_fkey(name, code, city),
+          requesting_branch:branches!branch_requests_requesting_branch_id_fkey(name, code, city),
           fulfillment_orders!fulfillment_orders_branch_request_id_fkey(
             id, trip_id, package_count, bims_transfer_number, bims_invoice_number, status,
             current_location_branch:branches!fulfillment_orders_current_location_branch_id_fkey(code, name)
@@ -114,11 +121,11 @@ export function LogisticaConsolidacion() {
     });
   }, [requests]);
 
-  // Group by destination
+  // Group by destination (usa name limpio para que la cabecera sea legible)
   const byDest = useMemo(() => {
     const groups: Record<string, typeof sortedRequests> = {};
     sortedRequests.forEach(r => {
-      const dest = (r.requesting_branch as any)?.code || "Sin destino";
+      const dest = branchLabel((r as any).requesting_branch);
       if (!groups[dest]) groups[dest] = [];
       groups[dest].push(r);
     });
@@ -307,7 +314,7 @@ export function LogisticaConsolidacion() {
                           onCheckedChange={() => toggleGroup(items!)}
                         />
                         <MapPin className="h-4 w-4 text-primary" />
-                        <span className="font-semibold text-sm">Destino: {dest}</span>
+                        <span className="font-display font-semibold text-sm tracking-wide">Destino: <span className="text-primary">{dest}</span></span>
                         <Badge variant="outline" className="text-xs">{items!.length} carga(s)</Badge>
                       </div>
                       {selected.size === 0 && items!.length > 1 && (
@@ -324,7 +331,10 @@ export function LogisticaConsolidacion() {
                           const urgency = getUrgency(r.created_at);
                           const ucfg = urgencyConfig[urgency];
                           const atHub = fo?.status === "at_hub";
-                          const hubCode = (fo?.current_location_branch as any)?.code;
+                          const hub = fo?.current_location_branch as any;
+                          const hubLabel = hub ? branchLabel(hub) : null;
+                          const originLabel = branchLabel(r.source_branch);
+                          const destLabel = branchLabel(r.requesting_branch);
                           return (
                             <motion.div
                               key={r.id}
@@ -332,33 +342,47 @@ export function LogisticaConsolidacion() {
                               initial={{ opacity: 1 }}
                               exit={{ opacity: 0, x: -20, height: 0 }}
                               transition={{ duration: 0.2 }}
-                              className={`flex items-center gap-3 p-2 rounded bg-background/50 text-sm border ${ucfg.border}`}
+                              className={`flex flex-wrap items-center gap-x-3 gap-y-1.5 p-2.5 rounded bg-background/50 text-sm border ${ucfg.border}`}
                             >
                               <Checkbox
                                 checked={selected.has(r.id)}
                                 onCheckedChange={() => toggleSelect(r.id)}
                               />
                               <div className={`w-2 h-2 rounded-full shrink-0 ${ucfg.dot}`} title={ucfg.label} />
-                              <span className="font-mono text-xs text-muted-foreground w-14 shrink-0">#{r.request_number}</span>
-                              <span className="text-muted-foreground text-xs">{(r.source_branch as any)?.code}</span>
-                              <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
-                              <span className="text-xs font-medium">{(r.requesting_branch as any)?.code}</span>
+
+                              {/* Ruta: origen tenue → DESTINO destacado */}
+                              <div className="flex items-center gap-1.5 min-w-0 flex-1 sm:flex-initial">
+                                <span className="text-xs text-muted-foreground truncate max-w-[100px]" title={originLabel}>
+                                  {originLabel}
+                                </span>
+                                <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                <span className="font-display font-semibold text-sm text-foreground truncate max-w-[140px]" title={destLabel}>
+                                  {destLabel}
+                                </span>
+                              </div>
+
                               {atHub && (
                                 <Badge className="text-[10px] shrink-0 bg-info/10 text-info border-info/20" variant="outline">
-                                  En acopio{hubCode ? ` · ${hubCode}` : ""}
+                                  En acopio{hubLabel ? ` · ${hubLabel}` : ""}
                                 </Badge>
                               )}
-                              <Badge variant="outline" className="text-[10px] ml-auto shrink-0">
+
+                              <Badge variant="outline" className="text-[10px] shrink-0">
                                 {REQUEST_TYPE_LABELS[r.request_type] || r.request_type}
                               </Badge>
-                              <span className="text-xs text-muted-foreground shrink-0 w-16 text-right">{doc}</span>
-                              {fo?.package_count > 0 && (
-                                <span className="text-xs text-muted-foreground shrink-0">{fo.package_count} bto.</span>
-                              )}
-                              <span className="text-[10px] text-muted-foreground shrink-0 flex items-center gap-0.5">
-                                <Clock className="h-3 w-3" />
-                                {timeAgo(r.created_at)}
-                              </span>
+
+                              {/* Bloque secundario: #pedido, doc, bultos, antigüedad */}
+                              <div className="flex items-center gap-3 ml-auto text-[11px] text-muted-foreground shrink-0">
+                                <span className="font-mono opacity-70" title="Número de pedido">#{r.request_number}</span>
+                                <span className="font-mono" title="Documento BIMS">{doc}</span>
+                                {fo?.package_count > 0 && (
+                                  <span>{fo.package_count} bto.</span>
+                                )}
+                                <span className="flex items-center gap-0.5">
+                                  <Clock className="h-3 w-3" />
+                                  {timeAgo(r.created_at)}
+                                </span>
+                              </div>
                             </motion.div>
                           );
                         })}
