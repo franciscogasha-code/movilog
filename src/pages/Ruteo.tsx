@@ -6,10 +6,11 @@ import { useSearchParams } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Package, Calendar, Truck, Clock, CheckCircle2 } from "lucide-react";
+import { Package, Calendar, Truck, Clock, CheckCircle2, User } from "lucide-react";
 import { LogisticaConsolidacion } from "@/components/logistica/LogisticaConsolidacion";
 import { LogisticaViajesProgramados } from "@/components/logistica/LogisticaViajesProgramados";
 import { LogisticaViajesEnCurso } from "@/components/logistica/LogisticaViajesEnCurso";
+import { PedidosClienteFlotaPropia } from "@/components/logistica/PedidosClienteFlotaPropia";
 
 export default function Ruteo() {
   const [searchParams] = useSearchParams();
@@ -17,7 +18,12 @@ export default function Ruteo() {
 
   useEffect(() => {
     const requestedTab = searchParams.get("tab");
-    if (requestedTab === "consolidacion" || requestedTab === "programados" || requestedTab === "en-curso") {
+    if (
+      requestedTab === "consolidacion" ||
+      requestedTab === "cliente" ||
+      requestedTab === "programados" ||
+      requestedTab === "en-curso"
+    ) {
       setActiveTab(requestedTab);
     }
   }, [searchParams]);
@@ -33,6 +39,27 @@ export default function Ruteo() {
         .eq("flow_type", "interurban");
       if (error) return 0;
       return count || 0;
+    },
+  });
+
+  const { data: clientFleetCount } = useQuery({
+    queryKey: ["client-own-fleet-count"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("branch_requests")
+        .select(`id, fulfillment_orders!fulfillment_orders_branch_request_id_fkey(trip_id, status)`)
+        .eq("request_type", "client" as any)
+        .eq("shipping_method", "own_fleet" as any)
+        .eq("delivery_target", "client" as any)
+        .in("status", ["in_preparation", "ready_for_dispatch", "in_consolidation"] as any);
+      if (error) return 0;
+      return (data || []).filter((r: any) => {
+        const fo = r.fulfillment_orders?.[0];
+        if (!fo) return true;
+        if (fo.trip_id) return false;
+        if (fo.status === "on_vehicle" || fo.status === "delivered" || fo.status === "at_hub") return false;
+        return true;
+      }).length;
     },
   });
 
@@ -83,7 +110,7 @@ export default function Ruteo() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         <Card
           className={`glass-card cursor-pointer transition-all ${activeTab === "consolidacion" ? "ring-2 ring-primary/40" : ""}`}
           onClick={() => setActiveTab("consolidacion")}
@@ -93,8 +120,22 @@ export default function Ruteo() {
               <Package className="h-4 w-4 text-primary" />
             </div>
             <div>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">En consolidación</p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Consolidación</p>
               <p className="text-lg font-display font-bold">{consolidationCount ?? 0}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card
+          className={`glass-card cursor-pointer transition-all ${activeTab === "cliente" ? "ring-2 ring-secondary/40" : ""}`}
+          onClick={() => setActiveTab("cliente")}
+        >
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="bg-secondary/10 p-2.5 rounded-xl">
+              <User className="h-4 w-4 text-secondary" />
+            </div>
+            <div>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Pedidos cliente</p>
+              <p className="text-lg font-display font-bold">{clientFleetCount ?? 0}</p>
             </div>
           </CardContent>
         </Card>
@@ -141,13 +182,21 @@ export default function Ruteo() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="consolidacion" className="gap-1.5 text-xs sm:text-sm">
             <Package className="h-4 w-4" />
             <span className="hidden sm:inline">Consolidación</span>
             <span className="sm:hidden">Consol.</span>
             {(consolidationCount ?? 0) > 0 && (
               <Badge variant="default" className="text-[10px] h-4 px-1">{consolidationCount}</Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="cliente" className="gap-1.5 text-xs sm:text-sm">
+            <User className="h-4 w-4" />
+            <span className="hidden sm:inline">Pedidos cliente</span>
+            <span className="sm:hidden">Cliente</span>
+            {(clientFleetCount ?? 0) > 0 && (
+              <Badge variant="default" className="text-[10px] h-4 px-1">{clientFleetCount}</Badge>
             )}
           </TabsTrigger>
           <TabsTrigger value="programados" className="gap-1.5 text-xs sm:text-sm">
@@ -170,6 +219,10 @@ export default function Ruteo() {
 
         <TabsContent value="consolidacion" className="mt-4">
           <LogisticaConsolidacion />
+        </TabsContent>
+
+        <TabsContent value="cliente" className="mt-4">
+          <PedidosClienteFlotaPropia />
         </TabsContent>
 
         <TabsContent value="programados" className="mt-4">
