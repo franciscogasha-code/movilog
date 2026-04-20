@@ -411,6 +411,19 @@ export function LogisticaConsolidacion() {
             </div>
           )}
         </CardContent>
+        {!isLoading && total > 0 && (
+          <PaginationBar
+            page={page}
+            pageSize={pageSize}
+            total={total}
+            totalPages={totalPages}
+            from={from}
+            to={to}
+            onPageChange={setPage}
+            isFetching={isFetching}
+            itemLabel="cargas"
+          />
+        )}
       </Card>
 
       {/* Assign to existing trip dialog */}
