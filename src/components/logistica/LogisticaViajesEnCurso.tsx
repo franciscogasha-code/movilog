@@ -139,6 +139,19 @@ export function LogisticaViajesEnCurso() {
             </div>
           )}
         </CardContent>
+        {!isLoading && total > 0 && (
+          <PaginationBar
+            page={page}
+            pageSize={pageSize}
+            total={total}
+            totalPages={totalPages}
+            from={from}
+            to={to}
+            onPageChange={setPage}
+            isFetching={isFetching}
+            itemLabel="viajes"
+          />
+        )}
       </Card>
 
       <Dialog open={!!detailTripId} onOpenChange={(o) => !o && setDetailTripId(null)}>
