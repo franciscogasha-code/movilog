@@ -345,6 +345,11 @@ export default function Usuarios() {
     [userRoles]
   );
 
+  const getUserEmail = useCallback(
+    (userId: string): string | null => userEmails.find((u) => u.user_id === userId)?.email ?? null,
+    [userEmails]
+  );
+
   const getBranchName = useCallback(
     (branchId: string | null) => {
       if (!branchId) return "—";
