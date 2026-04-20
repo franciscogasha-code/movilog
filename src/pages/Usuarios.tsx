@@ -21,7 +21,7 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import {
   UserPlus, Users, Shield, Building2, Eye, Wrench, ChevronRight, Crown,
-  Search, Filter, Package, AlertTriangle, KeyRound, Save,
+  Search, Filter, Package, AlertTriangle, KeyRound, Save, Mail,
 } from "lucide-react";
 import { useBranches } from "@/hooks/use-branches";
 import { useAuth } from "@/contexts/AuthContext";
@@ -325,6 +325,15 @@ export default function Usuarios() {
     },
   });
 
+  const { data: userEmails = [] } = useQuery({
+    queryKey: ["user_emails"],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_users_emails");
+      if (error) throw error;
+      return (data ?? []) as { user_id: string; email: string }[];
+    },
+  });
+
   /* --- Helpers --- */
   const getUserRole = useCallback(
     (userId: string): string | null => userRoles.find((ur) => ur.user_id === userId)?.role ?? null,
@@ -334,6 +343,11 @@ export default function Usuarios() {
   const isUserOwner = useCallback(
     (userId: string): boolean => userRoles.some((ur) => ur.user_id === userId && ur.role === "owner"),
     [userRoles]
+  );
+
+  const getUserEmail = useCallback(
+    (userId: string): string | null => userEmails.find((u) => u.user_id === userId)?.email ?? null,
+    [userEmails]
   );
 
   const getBranchName = useCallback(
@@ -357,7 +371,12 @@ export default function Usuarios() {
     return profiles.filter((p) => {
       const role = getUserRole(p.user_id);
       const term = searchTerm.toLowerCase();
-      if (term && !p.full_name.toLowerCase().includes(term)) return false;
+      if (term) {
+        const email = getUserEmail(p.user_id) ?? "";
+        const matchesName = p.full_name.toLowerCase().includes(term);
+        const matchesEmail = email.toLowerCase().includes(term);
+        if (!matchesName && !matchesEmail) return false;
+      }
       if (filterRole !== "all" && role !== filterRole && !(filterRole === "owner" && isUserOwner(p.user_id))) return false;
       if (filterStatus === "active" && !p.is_active) return false;
       if (filterStatus === "inactive" && p.is_active) return false;
@@ -369,7 +388,7 @@ export default function Usuarios() {
       }
       return true;
     });
-  }, [profiles, searchTerm, filterRole, filterStatus, filterBranch, getUserRole, isUserOwner, profileBranchAccess]);
+  }, [profiles, searchTerm, filterRole, filterStatus, filterBranch, getUserRole, getUserEmail, isUserOwner, profileBranchAccess]);
 
   const selectedProfile = useMemo(
     () => profiles.find((p) => p.id === selectedUser),
@@ -760,7 +779,7 @@ export default function Usuarios() {
             <div className="relative">
               <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
               <Input
-                placeholder="Buscar por nombre..."
+                placeholder="Buscar por nombre o correo..."
                 className="pl-8 h-9 text-sm"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -829,6 +848,12 @@ export default function Usuarios() {
                             {profileIsOwner && <Crown className="h-3.5 w-3.5 text-amber-500 shrink-0" />}
                             {profile.full_name}
                           </p>
+                          {getUserEmail(profile.user_id) && (
+                            <p className="text-[11px] text-muted-foreground truncate flex items-center gap-1 mt-0.5">
+                              <Mail className="h-3 w-3 shrink-0" />
+                              {getUserEmail(profile.user_id)}
+                            </p>
+                          )}
                           <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                             {profileIsOwner ? (
                               <Badge className="text-[10px] px-1.5 py-0 bg-amber-500/15 text-amber-700 border-amber-300">
@@ -908,9 +933,9 @@ export default function Usuarios() {
             ) : selectedProfile ? (
               <div className="space-y-5">
                 {/* Section: General info */}
-                <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-1.5">
+                <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-2">
                   <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Datos generales</p>
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-2">
                     <div>
                       <p className="text-[11px] text-muted-foreground">Nombre</p>
                       <p className="text-sm font-medium">{selectedProfile.full_name}</p>
@@ -926,6 +951,14 @@ export default function Usuarios() {
                           <Badge variant="destructive" className="text-[10px]">Inactivo</Badge>
                         )}
                       </div>
+                    </div>
+                    <div className="col-span-2">
+                      <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+                        <Mail className="h-3 w-3" /> Correo de acceso
+                      </p>
+                      <p className="text-sm font-medium break-all">
+                        {getUserEmail(selectedProfile.user_id) ?? "—"}
+                      </p>
                     </div>
                   </div>
                 </div>
