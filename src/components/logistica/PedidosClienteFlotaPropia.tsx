@@ -64,7 +64,9 @@ export function PedidosClienteFlotaPropia() {
           fulfillment_orders!fulfillment_orders_branch_request_id_fkey(
             id, trip_id, status, package_count,
             bims_transfer_number, bims_invoice_number,
-            destination_client_name, destination_client_address
+            current_location_type, current_location_branch_id, current_custody_type,
+            destination_client_name, destination_client_address,
+            current_location_branch:branches!fulfillment_orders_current_location_branch_id_fkey(name, code)
           )
         `)
         .eq("request_type", "client" as any)
@@ -73,19 +75,13 @@ export function PedidosClienteFlotaPropia() {
         .in("status", [
           "in_preparation",
           "ready_for_dispatch",
+          "ready_for_pickup",
           "in_consolidation",
+          "in_transit",
         ] as any)
         .order("created_at", { ascending: true });
       if (error) throw error;
-      // Excluir los que ya están dentro de un viaje (asignados / en tránsito)
-      return (data || []).filter((r: any) => {
-        const fo = r.fulfillment_orders?.[0];
-        // si tiene trip_id => ya fue planificado; si está at_hub o on_vehicle, también descartar
-        if (!fo) return true;
-        if (fo.trip_id) return false;
-        if (fo.status === "on_vehicle" || fo.status === "delivered" || fo.status === "at_hub") return false;
-        return true;
-      });
+      return data || [];
     },
   });
 
