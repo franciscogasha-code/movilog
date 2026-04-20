@@ -331,7 +331,10 @@ export function LogisticaConsolidacion() {
                           const urgency = getUrgency(r.created_at);
                           const ucfg = urgencyConfig[urgency];
                           const atHub = fo?.status === "at_hub";
-                          const hubCode = (fo?.current_location_branch as any)?.code;
+                          const hub = fo?.current_location_branch as any;
+                          const hubLabel = hub ? branchLabel(hub) : null;
+                          const originLabel = branchLabel(r.source_branch);
+                          const destLabel = branchLabel(r.requesting_branch);
                           return (
                             <motion.div
                               key={r.id}
@@ -339,33 +342,47 @@ export function LogisticaConsolidacion() {
                               initial={{ opacity: 1 }}
                               exit={{ opacity: 0, x: -20, height: 0 }}
                               transition={{ duration: 0.2 }}
-                              className={`flex items-center gap-3 p-2 rounded bg-background/50 text-sm border ${ucfg.border}`}
+                              className={`flex flex-wrap items-center gap-x-3 gap-y-1.5 p-2.5 rounded bg-background/50 text-sm border ${ucfg.border}`}
                             >
                               <Checkbox
                                 checked={selected.has(r.id)}
                                 onCheckedChange={() => toggleSelect(r.id)}
                               />
                               <div className={`w-2 h-2 rounded-full shrink-0 ${ucfg.dot}`} title={ucfg.label} />
-                              <span className="font-mono text-xs text-muted-foreground w-14 shrink-0">#{r.request_number}</span>
-                              <span className="text-muted-foreground text-xs">{(r.source_branch as any)?.code}</span>
-                              <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
-                              <span className="text-xs font-medium">{(r.requesting_branch as any)?.code}</span>
+
+                              {/* Ruta: origen tenue → DESTINO destacado */}
+                              <div className="flex items-center gap-1.5 min-w-0 flex-1 sm:flex-initial">
+                                <span className="text-xs text-muted-foreground truncate max-w-[100px]" title={originLabel}>
+                                  {originLabel}
+                                </span>
+                                <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                <span className="font-display font-semibold text-sm text-foreground truncate max-w-[140px]" title={destLabel}>
+                                  {destLabel}
+                                </span>
+                              </div>
+
                               {atHub && (
                                 <Badge className="text-[10px] shrink-0 bg-info/10 text-info border-info/20" variant="outline">
-                                  En acopio{hubCode ? ` · ${hubCode}` : ""}
+                                  En acopio{hubLabel ? ` · ${hubLabel}` : ""}
                                 </Badge>
                               )}
-                              <Badge variant="outline" className="text-[10px] ml-auto shrink-0">
+
+                              <Badge variant="outline" className="text-[10px] shrink-0">
                                 {REQUEST_TYPE_LABELS[r.request_type] || r.request_type}
                               </Badge>
-                              <span className="text-xs text-muted-foreground shrink-0 w-16 text-right">{doc}</span>
-                              {fo?.package_count > 0 && (
-                                <span className="text-xs text-muted-foreground shrink-0">{fo.package_count} bto.</span>
-                              )}
-                              <span className="text-[10px] text-muted-foreground shrink-0 flex items-center gap-0.5">
-                                <Clock className="h-3 w-3" />
-                                {timeAgo(r.created_at)}
-                              </span>
+
+                              {/* Bloque secundario: #pedido, doc, bultos, antigüedad */}
+                              <div className="flex items-center gap-3 ml-auto text-[11px] text-muted-foreground shrink-0">
+                                <span className="font-mono opacity-70" title="Número de pedido">#{r.request_number}</span>
+                                <span className="font-mono" title="Documento BIMS">{doc}</span>
+                                {fo?.package_count > 0 && (
+                                  <span>{fo.package_count} bto.</span>
+                                )}
+                                <span className="flex items-center gap-0.5">
+                                  <Clock className="h-3 w-3" />
+                                  {timeAgo(r.created_at)}
+                                </span>
+                              </div>
                             </motion.div>
                           );
                         })}
