@@ -67,7 +67,7 @@ export function LogisticaViajesEnCurso() {
         <CardHeader className="pb-2">
           <CardTitle className="font-display text-base flex items-center gap-2">
             <Clock className="h-4 w-4 text-warning" /> Viajes en curso
-            {trips && <Badge variant="outline" className="ml-2">{trips.length}</Badge>}
+            <Badge variant="outline" className="ml-2">{total}</Badge>
           </CardTitle>
         </CardHeader>
         <CardContent>

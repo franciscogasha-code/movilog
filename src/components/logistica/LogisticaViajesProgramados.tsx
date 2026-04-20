@@ -129,7 +129,7 @@ export function LogisticaViajesProgramados() {
         <CardHeader className="pb-2">
           <CardTitle className="font-display text-base flex items-center gap-2">
             <Calendar className="h-4 w-4 text-primary" /> Viajes programados
-            {trips && <Badge variant="outline" className="ml-2">{trips.length}</Badge>}
+            <Badge variant="outline" className="ml-2">{total}</Badge>
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -207,6 +207,19 @@ export function LogisticaViajesProgramados() {
             </div>
           )}
         </CardContent>
+        {!isLoading && total > 0 && (
+          <PaginationBar
+            page={page}
+            pageSize={pageSize}
+            total={total}
+            totalPages={totalPages}
+            from={from}
+            to={to}
+            onPageChange={setPage}
+            isFetching={isFetching}
+            itemLabel="viajes"
+          />
+        )}
       </Card>
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
