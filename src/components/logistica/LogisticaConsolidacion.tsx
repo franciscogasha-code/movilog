@@ -28,6 +28,13 @@ const urgencyConfig = {
   normal: { dot: "bg-accent", border: "border-border/50", label: "Reciente", sortOrder: 2 },
 };
 
+/** Normaliza nombre de sucursal: "SUC. CABALLERO" → "CABALLERO", "SUC LUQUE" → "LUQUE" */
+function branchLabel(b: any): string {
+  if (!b) return "—";
+  const raw = (b.name || b.code || "").toString().trim();
+  return raw.replace(/^SUC\.?\s+/i, "").trim() || raw;
+}
+
 export function LogisticaConsolidacion() {
   const queryClient = useQueryClient();
   const [selected, setSelected] = useState<Set<string>>(new Set());
