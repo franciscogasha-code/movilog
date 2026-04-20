@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Calendar, Truck, Plus, Package, X, User, Clock, ShoppingBag } from "lucide-react";
 import { TRIP_TYPE_LABELS } from "@/lib/constants";
+import { branchLabel } from "@/lib/branch-format";
 import { CrearViajeForm } from "./CrearViajeForm";
 import { LogisticaViajeDetalle } from "./LogisticaViajeDetalle";
 import { toast } from "sonner";
@@ -142,9 +143,12 @@ export function LogisticaViajesProgramados() {
                           <Truck className="h-4 w-4 text-muted-foreground" />
                         )}
                         <span className="font-mono font-semibold text-sm">#{t.trip_number}</span>
-                        <span className="text-xs text-muted-foreground">{(t.origin_branch as any)?.code}</span>
+                        <span className="text-xs font-medium">{branchLabel(t.origin_branch as any)}</span>
                         {t.destination_description && (
-                          <span className="text-xs text-muted-foreground">→ {t.destination_description}</span>
+                          <>
+                            <span className="text-xs text-muted-foreground">→</span>
+                            <span className="text-xs font-medium">{t.destination_description}</span>
+                          </>
                         )}
                       </div>
                       <div className="flex items-center gap-2">

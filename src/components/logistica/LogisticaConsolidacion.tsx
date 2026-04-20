@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Package, MapPin, ArrowRight, Truck, Plus, AlertTriangle, Clock } from "lucide-react";
 import { REQUEST_TYPE_LABELS } from "@/lib/constants";
+import { branchName } from "@/lib/branch-format";
 import { toast } from "sonner";
 import { CrearViajeForm } from "./CrearViajeForm";
 import { motion, AnimatePresence } from "framer-motion";
@@ -411,7 +412,7 @@ export function LogisticaConsolidacion() {
               <SelectContent>
                 {plannedTrips?.map((t: any) => (
                   <SelectItem key={t.id} value={t.id}>
-                    Viaje #{t.trip_number} — {(t.origin_branch as any)?.code}
+                    Viaje #{t.trip_number} — {branchName(t.origin_branch as any)}
                     {(t.vehicle as any)?.plate_number ? ` (${(t.vehicle as any).plate_number})` : ""}
                   </SelectItem>
                 ))}

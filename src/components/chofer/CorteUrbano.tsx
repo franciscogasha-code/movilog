@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Play, Square, MapPin, Clock, AlertTriangle } from "lucide-react";
 import { CorteDetalle } from "./CorteDetalle";
+import { branchLabel } from "@/lib/branch-format";
 import { toast } from "sonner";
 
 interface Props {
@@ -228,7 +229,7 @@ export function CorteUrbano({ cutoffs, activeCutoff }: Props) {
               </span>
               <span className="flex items-center gap-1">
                 <MapPin className="h-3.5 w-3.5" />
-                {activeCutoff.origin_branch?.code}
+                {branchLabel(activeCutoff.origin_branch)}
               </span>
             </div>
             <Button variant="outline" size="sm" onClick={() => setDetailId(activeCutoff.id)} className="gap-2">
@@ -254,7 +255,7 @@ export function CorteUrbano({ cutoffs, activeCutoff }: Props) {
                     <div className={`w-2 h-2 rounded-full ${c.status === "in_progress" ? "bg-primary animate-pulse" : "bg-muted-foreground/30"}`} />
                     <div>
                       <span className="font-mono font-semibold text-sm">#{c.trip_number}</span>
-                      <span className="text-muted-foreground text-xs ml-2">{c.origin_branch?.code}</span>
+                      <span className="text-xs ml-2 font-medium">{branchLabel(c.origin_branch)}</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">

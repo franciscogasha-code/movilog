@@ -11,13 +11,7 @@ import { User, MapPin, ArrowRight, Truck, Plus, Clock, Info, Package, Warehouse,
 import { toast } from "sonner";
 import { CrearViajeForm } from "./CrearViajeForm";
 import { motion, AnimatePresence } from "framer-motion";
-
-/** Normaliza nombre de sucursal */
-function branchLabel(b: any): string {
-  if (!b) return "—";
-  const raw = (b.name || b.code || "").toString().trim();
-  return raw.replace(/^SUC\.?\s+/i, "").trim() || raw;
-}
+import { branchName, branchLabel } from "@/lib/branch-format";
 
 const URGENCY_HOURS = 24; // pedidos cliente: SLA más corto
 function getUrgency(createdAt: string): "critical" | "warning" | "normal" {
@@ -331,7 +325,7 @@ export function PedidosClienteFlotaPropia() {
               <SelectContent>
                 {(plannedTrips || []).map((t: any) => (
                   <SelectItem key={t.id} value={t.id}>
-                    Viaje #{t.trip_number} — {(t.origin_branch as any)?.code} {t.vehicle ? `· ${(t.vehicle as any).plate_number}` : ""}
+                    Viaje #{t.trip_number} — {branchName(t.origin_branch as any)} {t.vehicle ? `· ${(t.vehicle as any).plate}` : ""}
                   </SelectItem>
                 ))}
                 {plannedTrips && plannedTrips.length === 0 && (

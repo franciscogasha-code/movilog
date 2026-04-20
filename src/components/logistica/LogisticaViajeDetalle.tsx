@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Package, ArrowRight, Truck, MapPin, Plus, Trash2, Calendar, User, ShoppingBag } from "lucide-react";
 import { TRIP_TYPE_LABELS, REQUEST_TYPE_LABELS, FULFILLMENT_STATUS_CONFIG } from "@/lib/constants";
+import { branchLabel, branchName } from "@/lib/branch-format";
 import { toast } from "sonner";
 
 interface Props {
@@ -86,7 +87,7 @@ export function LogisticaViajeDetalle({ tripId }: Props) {
     if (!linkedFulfillments?.length) return {};
     const groups: Record<string, typeof linkedFulfillments> = {};
     linkedFulfillments.forEach(f => {
-      const src = (f.source_branch as any)?.code || "—";
+      const src = branchName(f.source_branch as any);
       if (!groups[src]) groups[src] = [];
       groups[src].push(f);
     });
@@ -177,7 +178,7 @@ export function LogisticaViajeDetalle({ tripId }: Props) {
         </div>
         <div className="flex items-center gap-2">
           <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
-          <span>{(trip.origin_branch as any)?.code} — {(trip.origin_branch as any)?.name}</span>
+          <span>{branchLabel(trip.origin_branch as any)}</span>
         </div>
         {(trip as any).planned_departure && (
           <div className="flex items-center gap-2">
@@ -254,7 +255,7 @@ export function LogisticaViajeDetalle({ tripId }: Props) {
             <SelectContent>
               {availableRequests?.map((r: any) => (
                 <SelectItem key={r.id} value={r.id}>
-                  #{r.request_number} — {(r.source_branch as any)?.code} → {(r.requesting_branch as any)?.code}
+                  #{r.request_number} — {branchName(r.source_branch as any)} → {branchName(r.requesting_branch as any)}
                   {r.client_name ? ` (${r.client_name})` : ""}
                 </SelectItem>
               ))}
@@ -284,9 +285,9 @@ function FulfillmentRow({ f, isPlanned, onRemove }: { f: any; isPlanned: boolean
       <div className="flex items-center gap-2 min-w-0">
         <Package className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
         {req && <span className="font-mono text-xs">#{req.request_number}</span>}
-        <span className="text-muted-foreground text-xs">{(f.source_branch as any)?.code}</span>
+        <span className="text-muted-foreground text-xs">{branchName(f.source_branch as any)}</span>
         <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
-        <span className="text-xs">{(f.destination_branch as any)?.code || req?.client_name || "—"}</span>
+        <span className="text-xs font-medium">{branchName(f.destination_branch as any, req?.client_name || "—")}</span>
         {req && (
           <Badge variant="outline" className="text-[10px] shrink-0">
             {REQUEST_TYPE_LABELS[req.request_type] || req.request_type}
