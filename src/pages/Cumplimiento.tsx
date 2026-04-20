@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,6 +8,8 @@ import { FULFILLMENT_STATUS_CONFIG, SHIPPING_METHOD_LABELS, REQUEST_TYPE_LABELS,
 import { Package, Truck, MapPin, Search, Clock, User } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useUserBranchFilter } from "@/hooks/use-user-access";
+import { usePaginatedQuery } from "@/hooks/use-paginated-query";
+import { PaginationBar } from "@/components/shared/PaginationBar";
 
 // MODULE 5: Priority order (visual only, no blocking)
 const PRIORITY_ORDER: Record<string, number> = {
@@ -47,29 +48,51 @@ export default function Cumplimiento() {
   const [search, setSearch] = useState("");
   const { isAllBranches, allowedBranchIds } = useUserBranchFilter();
 
-  const { data: fulfillments, isLoading } = useQuery({
-    queryKey: ["all-fulfillments-prioritized", isAllBranches, allowedBranchIds],
-    queryFn: async () => {
-      let query = supabase
+  // Debounce búsqueda server-side por # pedido o cliente
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setSearch((s) => s), 0); // noop para evitar warning
+    const t2 = setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => { clearTimeout(t); clearTimeout(t2); };
+  }, [search]);
+
+  const {
+    rows: fulfillments,
+    total,
+    page,
+    pageSize,
+    totalPages,
+    from,
+    to,
+    isLoading,
+    isFetching,
+    setPage,
+  } = usePaginatedQuery<any>({
+    queryKey: ["all-fulfillments-prioritized", debouncedSearch, isAllBranches, allowedBranchIds],
+    initialPageSize: 25,
+    buildQuery: () => {
+      let query: any = supabase
         .from("fulfillment_orders")
-        .select(`
-          *,
-          source_branch:branches!fulfillment_orders_source_branch_id_fkey(name, code),
-          destination_branch:branches!fulfillment_orders_destination_branch_id_fkey(name, code),
-          trip:trips(trip_number, status),
-          branch_request:branch_requests(request_number, request_type, delivery_target, client_name)
-        `)
+        .select(
+          `*,
+           source_branch:branches!fulfillment_orders_source_branch_id_fkey(name, code),
+           destination_branch:branches!fulfillment_orders_destination_branch_id_fkey(name, code),
+           trip:trips(trip_number, status),
+           branch_request:branch_requests(request_number, request_type, delivery_target, client_name)`,
+          { count: "exact" },
+        )
         .in("status", ["pending", "picking", "waiting_for_cut", "waiting_for_courier", "dispatched", "in_transit", "pending_physical_confirmation"] as any)
-        .order("created_at", { ascending: false })
-        .limit(100);
+        .order("created_at", { ascending: false });
 
       if (!isAllBranches && allowedBranchIds.length > 0) {
         query = query.or(`source_branch_id.in.(${allowedBranchIds.join(",")}),destination_branch_id.in.(${allowedBranchIds.join(",")})`);
       }
 
-      const { data, error } = await query;
-      if (error) throw error;
-      return data;
+      if (debouncedSearch) {
+        query = query.or(`destination_client_name.ilike.%${debouncedSearch}%,bims_invoice_number.ilike.%${debouncedSearch}%`);
+      }
+
+      return query;
     },
   });
 
