@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Play, Square, MapPin, Clock, AlertTriangle } from "lucide-react";
 import { CorteDetalle } from "./CorteDetalle";
+import { branchLabel } from "@/lib/branch-format";
 import { toast } from "sonner";
 
 interface Props {

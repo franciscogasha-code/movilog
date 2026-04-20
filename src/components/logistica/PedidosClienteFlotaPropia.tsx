@@ -11,11 +11,11 @@ import { User, MapPin, ArrowRight, Truck, Plus, Clock, Info, Package, Warehouse,
 import { toast } from "sonner";
 import { CrearViajeForm } from "./CrearViajeForm";
 import { motion, AnimatePresence } from "framer-motion";
+import { branchName, branchLabel } from "@/lib/branch-format";
 
-/** Normaliza nombre de sucursal */
-function branchLabel(b: any): string {
-  if (!b) return "—";
-  const raw = (b.name || b.code || "").toString().trim();
+/** Normaliza nombre de sucursal eliminando prefijo "SUC." si existiera. */
+function branchClean(b: any): string {
+  const raw = branchLabel(b);
   return raw.replace(/^SUC\.?\s+/i, "").trim() || raw;
 }
 
