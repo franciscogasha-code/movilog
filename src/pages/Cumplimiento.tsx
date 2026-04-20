@@ -219,6 +219,22 @@ export default function Cumplimiento() {
           })}
         </div>
       )}
+
+      {!isLoading && total > 0 && (
+        <Card className="glass-card">
+          <PaginationBar
+            page={page}
+            pageSize={pageSize}
+            total={total}
+            totalPages={totalPages}
+            from={from}
+            to={to}
+            onPageChange={setPage}
+            isFetching={isFetching}
+            itemLabel="fulfillments"
+          />
+        </Card>
+      )}
     </motion.div>
   );
 }
