@@ -293,6 +293,19 @@ export default function Solicitudes() {
               </table>
             </div>
           )}
+          {!isLoading && total > 0 && (
+            <PaginationBar
+              page={page}
+              pageSize={pageSize}
+              total={total}
+              totalPages={totalPages}
+              from={from}
+              to={to}
+              onPageChange={setPage}
+              isFetching={isFetching}
+              itemLabel="pedidos"
+            />
+          )}
         </CardContent>
       </Card>
 
