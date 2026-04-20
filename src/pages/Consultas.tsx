@@ -24,6 +24,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useBranches } from "@/hooks/use-branches";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useUserBranchFilter } from "@/hooks/use-user-access";
+import { usePaginatedQuery } from "@/hooks/use-paginated-query";
+import { PaginationBar } from "@/components/shared/PaginationBar";
 
 const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   open: { label: "Abierta", variant: "default" },
@@ -53,58 +55,77 @@ export default function Consultas() {
   // RLS handles branch filtering — only consultations the user participates in are returned
   const { isAllBranches, allowedBranchIds } = useUserBranchFilter();
 
-  const { data: consultations, isLoading } = useQuery({
-    queryKey: ["availability-consultations"],
-    queryFn: async () => {
-      const { data, error } = await supabase
+  // Paginación server-side de la lista base
+  const {
+    rows: baseRows,
+    total,
+    page,
+    pageSize,
+    totalPages,
+    from,
+    to,
+    isLoading: isLoadingBase,
+    isFetching,
+    setPage,
+  } = usePaginatedQuery<any>({
+    queryKey: ["availability-consultations-base"],
+    initialPageSize: 25,
+    buildQuery: () =>
+      supabase
         .from("availability_consultations")
-        .select(`*, requesting_branch:branches!availability_consultations_requesting_branch_id_fkey(name, code)`)
-        .order("created_at", { ascending: false })
-        .limit(50);
-      if (error) throw error;
+        .select(
+          `*, requesting_branch:branches!availability_consultations_requesting_branch_id_fkey(name, code)`,
+          { count: "exact" },
+        )
+        .order("created_at", { ascending: false }),
+  });
 
-      if (data?.length) {
-        const ids = data.map(c => c.id);
-        const [cpRes, crRes, ctRes] = await Promise.all([
-          supabase.from("consultation_products").select("consultation_id, product:products(name, sku)").in("consultation_id", ids),
-          supabase.from("consultation_requests").select("consultation_id, branch_request_id").in("consultation_id", ids),
-          supabase.from("consultation_targets").select("consultation_id, responded_at, branch:branches!consultation_targets_branch_id_fkey(id, name, code)").in("consultation_id", ids),
-        ]);
+  // Enriquecimiento dependiente: solo trae detalles de la página visible
+  const { data: consultations, isLoading: isLoadingEnrich } = useQuery({
+    queryKey: ["availability-consultations-enrich", baseRows.map((c: any) => c.id)],
+    enabled: baseRows.length > 0,
+    queryFn: async () => {
+      const ids = baseRows.map((c: any) => c.id);
+      const [cpRes, crRes, ctRes] = await Promise.all([
+        supabase.from("consultation_products").select("consultation_id, product:products(name, sku)").in("consultation_id", ids),
+        supabase.from("consultation_requests").select("consultation_id, branch_request_id").in("consultation_id", ids),
+        supabase.from("consultation_targets").select("consultation_id, responded_at, branch:branches!consultation_targets_branch_id_fkey(id, name, code)").in("consultation_id", ids),
+      ]);
 
-        const productsByConsultation: Record<string, any[]> = {};
-        cpRes.data?.forEach((cp: any) => {
-          if (!productsByConsultation[cp.consultation_id]) productsByConsultation[cp.consultation_id] = [];
-          productsByConsultation[cp.consultation_id].push(cp.product);
-        });
+      const productsByConsultation: Record<string, any[]> = {};
+      cpRes.data?.forEach((cp: any) => {
+        if (!productsByConsultation[cp.consultation_id]) productsByConsultation[cp.consultation_id] = [];
+        productsByConsultation[cp.consultation_id].push(cp.product);
+      });
 
-        const ordersByConsultation: Record<string, number> = {};
-        crRes.data?.forEach((cr: any) => {
-          ordersByConsultation[cr.consultation_id] = (ordersByConsultation[cr.consultation_id] || 0) + 1;
-        });
+      const ordersByConsultation: Record<string, number> = {};
+      crRes.data?.forEach((cr: any) => {
+        ordersByConsultation[cr.consultation_id] = (ordersByConsultation[cr.consultation_id] || 0) + 1;
+      });
 
-        const responsesByConsultation: Record<string, { total: number; responded: number }> = {};
-        const targetBranchesByConsultation: Record<string, any[]> = {};
-        ctRes.data?.forEach((ct: any) => {
-          if (!responsesByConsultation[ct.consultation_id]) responsesByConsultation[ct.consultation_id] = { total: 0, responded: 0 };
-          responsesByConsultation[ct.consultation_id].total++;
-          if (ct.responded_at) responsesByConsultation[ct.consultation_id].responded++;
-          if (ct.branch) {
-            if (!targetBranchesByConsultation[ct.consultation_id]) targetBranchesByConsultation[ct.consultation_id] = [];
-            targetBranchesByConsultation[ct.consultation_id].push(ct.branch);
-          }
-        });
+      const responsesByConsultation: Record<string, { total: number; responded: number }> = {};
+      const targetBranchesByConsultation: Record<string, any[]> = {};
+      ctRes.data?.forEach((ct: any) => {
+        if (!responsesByConsultation[ct.consultation_id]) responsesByConsultation[ct.consultation_id] = { total: 0, responded: 0 };
+        responsesByConsultation[ct.consultation_id].total++;
+        if (ct.responded_at) responsesByConsultation[ct.consultation_id].responded++;
+        if (ct.branch) {
+          if (!targetBranchesByConsultation[ct.consultation_id]) targetBranchesByConsultation[ct.consultation_id] = [];
+          targetBranchesByConsultation[ct.consultation_id].push(ct.branch);
+        }
+      });
 
-        return data.map(c => ({
-          ...c,
-          consultation_products: productsByConsultation[c.id] || [],
-          orders_count: ordersByConsultation[c.id] || 0,
-          responses: responsesByConsultation[c.id] || { total: 0, responded: 0 },
-          target_branches: targetBranchesByConsultation[c.id] || [],
-        }));
-      }
-      return data;
+      return baseRows.map((c: any) => ({
+        ...c,
+        consultation_products: productsByConsultation[c.id] || [],
+        orders_count: ordersByConsultation[c.id] || 0,
+        responses: responsesByConsultation[c.id] || { total: 0, responded: 0 },
+        target_branches: targetBranchesByConsultation[c.id] || [],
+      }));
     },
   });
+
+  const isLoading = isLoadingBase || (baseRows.length > 0 && isLoadingEnrich);
 
   /** Build contextual route label */
   const buildRouteLabel = (c: any) => {
