@@ -121,11 +121,11 @@ export function LogisticaConsolidacion() {
     });
   }, [requests]);
 
-  // Group by destination
+  // Group by destination (usa name limpio para que la cabecera sea legible)
   const byDest = useMemo(() => {
     const groups: Record<string, typeof sortedRequests> = {};
     sortedRequests.forEach(r => {
-      const dest = (r.requesting_branch as any)?.code || "Sin destino";
+      const dest = branchLabel((r as any).requesting_branch);
       if (!groups[dest]) groups[dest] = [];
       groups[dest].push(r);
     });
