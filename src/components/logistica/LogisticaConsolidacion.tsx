@@ -43,8 +43,8 @@ export function LogisticaConsolidacion() {
         .select(`
           id, request_number, request_type, flow_type, created_at, priority, 
           bims_invoice_number, bims_sale_reference, client_name, delivery_target, notes,
-          source_branch:branches!branch_requests_source_branch_id_fkey(name, code),
-          requesting_branch:branches!branch_requests_requesting_branch_id_fkey(name, code),
+          source_branch:branches!branch_requests_source_branch_id_fkey(name, code, city),
+          requesting_branch:branches!branch_requests_requesting_branch_id_fkey(name, code, city),
           fulfillment_orders!fulfillment_orders_branch_request_id_fkey(
             id, trip_id, package_count, bims_transfer_number, bims_invoice_number, status,
             current_location_branch:branches!fulfillment_orders_current_location_branch_id_fkey(code, name)
