@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { User, MapPin, ArrowRight, Truck, Plus, Clock, Info } from "lucide-react";
+import { User, MapPin, ArrowRight, Truck, Plus, Clock, Info, Package, Warehouse, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { CrearViajeForm } from "./CrearViajeForm";
 import { motion, AnimatePresence } from "framer-motion";
