@@ -933,9 +933,9 @@ export default function Usuarios() {
             ) : selectedProfile ? (
               <div className="space-y-5">
                 {/* Section: General info */}
-                <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-1.5">
+                <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-2">
                   <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Datos generales</p>
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-2">
                     <div>
                       <p className="text-[11px] text-muted-foreground">Nombre</p>
                       <p className="text-sm font-medium">{selectedProfile.full_name}</p>
@@ -951,6 +951,14 @@ export default function Usuarios() {
                           <Badge variant="destructive" className="text-[10px]">Inactivo</Badge>
                         )}
                       </div>
+                    </div>
+                    <div className="col-span-2">
+                      <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+                        <Mail className="h-3 w-3" /> Correo de acceso
+                      </p>
+                      <p className="text-sm font-medium break-all">
+                        {getUserEmail(selectedProfile.user_id) ?? "—"}
+                      </p>
                     </div>
                   </div>
                 </div>
