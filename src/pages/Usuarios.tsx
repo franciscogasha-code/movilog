@@ -21,7 +21,7 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import {
   UserPlus, Users, Shield, Building2, Eye, Wrench, ChevronRight, Crown,
-  Search, Filter, Package, AlertTriangle, KeyRound, Save,
+  Search, Filter, Package, AlertTriangle, KeyRound, Save, Mail,
 } from "lucide-react";
 import { useBranches } from "@/hooks/use-branches";
 import { useAuth } from "@/contexts/AuthContext";
