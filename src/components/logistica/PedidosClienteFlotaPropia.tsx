@@ -74,9 +74,9 @@ export function PedidosClienteFlotaPropia() {
         .eq("delivery_target", "client" as any)
         .in("status", [
           "in_preparation",
-          "ready_for_dispatch",
           "ready_for_pickup",
           "in_consolidation",
+          "assigned_to_trip",
           "in_transit",
         ] as any)
         .order("created_at", { ascending: true });
@@ -93,7 +93,7 @@ export function PedidosClienteFlotaPropia() {
         .select(`
           id, trip_number, trip_type, scheduled_departure,
           origin_branch:branches!trips_origin_branch_id_fkey(name, code),
-          vehicle:vehicles(plate_number)
+          vehicle:vehicles(plate)
         `)
         .eq("status", "planned" as any)
         .order("created_at", { ascending: false });

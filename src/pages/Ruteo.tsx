@@ -51,15 +51,9 @@ export default function Ruteo() {
         .eq("request_type", "client" as any)
         .eq("shipping_method", "own_fleet" as any)
         .eq("delivery_target", "client" as any)
-        .in("status", ["in_preparation", "ready_for_dispatch", "in_consolidation"] as any);
+        .in("status", ["in_preparation", "ready_for_pickup", "in_consolidation", "assigned_to_trip", "in_transit"] as any);
       if (error) return 0;
-      return (data || []).filter((r: any) => {
-        const fo = r.fulfillment_orders?.[0];
-        if (!fo) return true;
-        if (fo.trip_id) return false;
-        if (fo.status === "on_vehicle" || fo.status === "delivered" || fo.status === "at_hub") return false;
-        return true;
-      }).length;
+      return (data || []).length;
     },
   });
 
