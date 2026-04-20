@@ -325,6 +325,15 @@ export default function Usuarios() {
     },
   });
 
+  const { data: userEmails = [] } = useQuery({
+    queryKey: ["user_emails"],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_users_emails");
+      if (error) throw error;
+      return (data ?? []) as { user_id: string; email: string }[];
+    },
+  });
+
   /* --- Helpers --- */
   const getUserRole = useCallback(
     (userId: string): string | null => userRoles.find((ur) => ur.user_id === userId)?.role ?? null,
