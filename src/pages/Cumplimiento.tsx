@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,6 +8,8 @@ import { FULFILLMENT_STATUS_CONFIG, SHIPPING_METHOD_LABELS, REQUEST_TYPE_LABELS,
 import { Package, Truck, MapPin, Search, Clock, User } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useUserBranchFilter } from "@/hooks/use-user-access";
+import { usePaginatedQuery } from "@/hooks/use-paginated-query";
+import { PaginationBar } from "@/components/shared/PaginationBar";
 
 // MODULE 5: Priority order (visual only, no blocking)
 const PRIORITY_ORDER: Record<string, number> = {
@@ -47,46 +48,57 @@ export default function Cumplimiento() {
   const [search, setSearch] = useState("");
   const { isAllBranches, allowedBranchIds } = useUserBranchFilter();
 
-  const { data: fulfillments, isLoading } = useQuery({
-    queryKey: ["all-fulfillments-prioritized", isAllBranches, allowedBranchIds],
-    queryFn: async () => {
-      let query = supabase
+  // Debounce búsqueda server-side por # pedido o cliente
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const {
+    rows: fulfillments,
+    total,
+    page,
+    pageSize,
+    totalPages,
+    from,
+    to,
+    isLoading,
+    isFetching,
+    setPage,
+  } = usePaginatedQuery<any>({
+    queryKey: ["all-fulfillments-prioritized", debouncedSearch, isAllBranches, allowedBranchIds],
+    initialPageSize: 25,
+    buildQuery: () => {
+      let query: any = supabase
         .from("fulfillment_orders")
-        .select(`
-          *,
-          source_branch:branches!fulfillment_orders_source_branch_id_fkey(name, code),
-          destination_branch:branches!fulfillment_orders_destination_branch_id_fkey(name, code),
-          trip:trips(trip_number, status),
-          branch_request:branch_requests(request_number, request_type, delivery_target, client_name)
-        `)
+        .select(
+          `*,
+           source_branch:branches!fulfillment_orders_source_branch_id_fkey(name, code),
+           destination_branch:branches!fulfillment_orders_destination_branch_id_fkey(name, code),
+           trip:trips(trip_number, status),
+           branch_request:branch_requests(request_number, request_type, delivery_target, client_name)`,
+          { count: "exact" },
+        )
         .in("status", ["pending", "picking", "waiting_for_cut", "waiting_for_courier", "dispatched", "in_transit", "pending_physical_confirmation"] as any)
-        .order("created_at", { ascending: false })
-        .limit(100);
+        .order("created_at", { ascending: false });
 
       if (!isAllBranches && allowedBranchIds.length > 0) {
         query = query.or(`source_branch_id.in.(${allowedBranchIds.join(",")}),destination_branch_id.in.(${allowedBranchIds.join(",")})`);
       }
 
-      const { data, error } = await query;
-      if (error) throw error;
-      return data;
+      if (debouncedSearch) {
+        query = query.or(`destination_client_name.ilike.%${debouncedSearch}%,bims_invoice_number.ilike.%${debouncedSearch}%`);
+      }
+
+      return query;
     },
   });
 
-  const filtered = fulfillments?.filter((f: any) => {
-    if (!search) return true;
-    const term = search.toLowerCase();
-    const reqNum = (f.branch_request as any)?.request_number;
-    const client = f.destination_client_name || (f.branch_request as any)?.client_name || "";
-    return (
-      client.toLowerCase().includes(term) ||
-      f.source_branch?.code?.toLowerCase().includes(term) ||
-      f.destination_branch?.code?.toLowerCase().includes(term) ||
-      (reqNum && String(reqNum).includes(term))
-    );
-  });
+  // La búsqueda ya es server-side; aplicamos directamente el resultado paginado.
+  const filtered = fulfillments;
 
-  // Group by priority
+  // Group by priority (sobre la página visible)
   const grouped = new Map<number, any[]>();
   filtered?.forEach((f: any) => {
     const requestType = (f.branch_request as any)?.request_type || "reposition";
@@ -108,7 +120,7 @@ export default function Cumplimiento() {
         <Card className="glass-card">
           <CardContent className="p-4 flex items-center gap-3">
             <div className="bg-primary/10 p-2.5 rounded-xl"><Package className="h-5 w-5 text-primary" /></div>
-            <div><p className="text-xs text-muted-foreground uppercase">Total activas</p><p className="text-2xl font-display font-bold">{fulfillments?.length || 0}</p></div>
+            <div><p className="text-xs text-muted-foreground uppercase">Total activas</p><p className="text-2xl font-display font-bold">{total}</p></div>
           </CardContent>
         </Card>
         <Card className="glass-card">
@@ -206,6 +218,22 @@ export default function Cumplimiento() {
             );
           })}
         </div>
+      )}
+
+      {!isLoading && total > 0 && (
+        <Card className="glass-card">
+          <PaginationBar
+            page={page}
+            pageSize={pageSize}
+            total={total}
+            totalPages={totalPages}
+            from={from}
+            to={to}
+            onPageChange={setPage}
+            isFetching={isFetching}
+            itemLabel="fulfillments"
+          />
+        </Card>
       )}
     </motion.div>
   );

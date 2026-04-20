@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -17,6 +17,8 @@ import { SolicitudCreateForm } from "@/components/solicitudes/SolicitudCreateFor
 import { SolicitudDetail } from "@/components/solicitudes/SolicitudDetail";
 import { AdminReposicionForm } from "@/components/solicitudes/AdminReposicionForm";
 import { useUserBranchFilter } from "@/hooks/use-user-access";
+import { usePaginatedQuery } from "@/hooks/use-paginated-query";
+import { PaginationBar } from "@/components/shared/PaginationBar";
 
 // Status groups for visual grouping
 const STATUS_GROUPS: { key: string; label: string; statuses: string[] }[] = [
@@ -56,48 +58,72 @@ export default function Solicitudes() {
     }
   }, [detailParam, actionParam, fromConsultation]);
 
-  const { data: requests, isLoading, refetch } = useQuery({
-    queryKey: ["branch-requests", statusFilter, isAllBranches, allowedBranchIds],
-    queryFn: async () => {
-      let query = supabase
+  const queryClient = useQueryClient();
+
+  // Debounce búsqueda para evitar query por cada tecla
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const {
+    rows: requests,
+    total,
+    page,
+    pageSize,
+    totalPages,
+    from,
+    to,
+    isLoading,
+    isFetching,
+    setPage,
+    refetch,
+  } = usePaginatedQuery<any>({
+    queryKey: ["branch-requests", statusFilter, debouncedSearch, isAllBranches, allowedBranchIds],
+    initialPageSize: 25,
+    buildQuery: () => {
+      let query: any = supabase
         .from("branch_requests")
-        .select(`
-          *,
-          requesting_branch:branches!branch_requests_requesting_branch_id_fkey(name, code),
-          source_branch:branches!branch_requests_source_branch_id_fkey(name, code)
-        `)
-        .order("created_at", { ascending: false })
-        .limit(50);
+        .select(
+          `*,
+           requesting_branch:branches!branch_requests_requesting_branch_id_fkey(name, code),
+           source_branch:branches!branch_requests_source_branch_id_fkey(name, code)`,
+          { count: "exact" },
+        )
+        .order("created_at", { ascending: false });
 
       if (!isAllBranches && allowedBranchIds.length > 0) {
-        query = query.or(`requesting_branch_id.in.(${allowedBranchIds.join(",")}),source_branch_id.in.(${allowedBranchIds.join(",")})`);
+        query = query.or(
+          `requesting_branch_id.in.(${allowedBranchIds.join(",")}),source_branch_id.in.(${allowedBranchIds.join(",")})`,
+        );
       }
 
       if (statusFilter !== "all") {
-        // Check if it's a group key
-        const group = STATUS_GROUPS.find(g => g.key === statusFilter);
-        if (group) {
-          query = query.in("status", group.statuses as any);
-        } else {
-          query = query.eq("status", statusFilter as any);
-        }
+        const group = STATUS_GROUPS.find((g) => g.key === statusFilter);
+        if (group) query = query.in("status", group.statuses as any);
+        else query = query.eq("status", statusFilter as any);
       }
-      const { data, error } = await query;
-      if (error) throw error;
-      return data;
+
+      // Búsqueda server-side: por # exacto, cliente o factura BIMS.
+      // Nota: la búsqueda por nombre de sucursal NO es server-side (FK join);
+      // se mantiene como filtro de página visible si aplica abajo.
+      if (debouncedSearch) {
+        const term = debouncedSearch.replace(/^#/, "");
+        const numeric = /^\d+$/.test(term);
+        const ors: string[] = [
+          `client_name.ilike.%${term}%`,
+          `bims_invoice_number.ilike.%${term}%`,
+        ];
+        if (numeric) ors.unshift(`request_number.eq.${term}`);
+        query = query.or(ors.join(","));
+      }
+
+      return query;
     },
   });
 
-  const filtered = useMemo(() => {
-    return requests?.filter((r) => {
-      if (!search) return true;
-      const num = `#${r.request_number}`;
-      const src = (r as any).source_branch?.name || "";
-      const req = (r as any).requesting_branch?.name || "";
-      const term = search.toLowerCase();
-      return num.includes(term) || src.toLowerCase().includes(term) || req.toLowerCase().includes(term);
-    });
-  }, [requests, search]);
+  const filtered = requests;
 
   /** Build De:/Para: label based on user's branch context */
   const buildRouteCell = (r: any) => {
@@ -266,6 +292,19 @@ export default function Solicitudes() {
                 </tbody>
               </table>
             </div>
+          )}
+          {!isLoading && total > 0 && (
+            <PaginationBar
+              page={page}
+              pageSize={pageSize}
+              total={total}
+              totalPages={totalPages}
+              from={from}
+              to={to}
+              onPageChange={setPage}
+              isFetching={isFetching}
+              itemLabel="pedidos"
+            />
           )}
         </CardContent>
       </Card>

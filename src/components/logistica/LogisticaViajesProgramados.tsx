@@ -12,6 +12,8 @@ import { CrearViajeForm } from "./CrearViajeForm";
 import { LogisticaViajeDetalle } from "./LogisticaViajeDetalle";
 import { toast } from "sonner";
 import { useSearchParams } from "react-router-dom";
+import { usePaginatedQuery } from "@/hooks/use-paginated-query";
+import { PaginationBar } from "@/components/shared/PaginationBar";
 
 export function LogisticaViajesProgramados() {
   const queryClient = useQueryClient();
@@ -30,30 +32,46 @@ export function LogisticaViajesProgramados() {
     setSearchParams(nextParams, { replace: true });
   }, [searchParams, setSearchParams]);
 
-  const { data: trips, isLoading } = useQuery({
+  const {
+    rows: tripsBase,
+    total,
+    page,
+    pageSize,
+    totalPages,
+    from,
+    to,
+    isLoading,
+    isFetching,
+    setPage,
+  } = usePaginatedQuery<any>({
     queryKey: ["planned-trips"],
-    queryFn: async () => {
-      const { data, error } = await supabase
+    initialPageSize: 25,
+    buildQuery: () =>
+      supabase
         .from("trips")
         .select(`
           *,
           origin_branch:branches!trips_origin_branch_id_fkey(name, code),
           vehicle:vehicles(plate, brand, model),
           driver:drivers!trips_driver_id_fkey(id, user_id)
-        `)
+        `, { count: "exact" })
         .eq("status", "planned" as any)
-        .order("planned_departure", { ascending: true, nullsFirst: false });
-      if (error) throw error;
+        .order("planned_departure", { ascending: true, nullsFirst: false }),
+  });
 
-      // Resolver nombres de chofer aparte (drivers.user_id → auth.users, no FK directo a profiles)
-      const userIds = Array.from(new Set((data ?? []).map((t: any) => t.driver?.user_id).filter(Boolean)));
+  // Resolver nombres de chofer aparte (sólo para la página visible)
+  const { data: trips } = useQuery({
+    queryKey: ["planned-trips-driver-names", tripsBase.map((t: any) => t.driver?.user_id).filter(Boolean)],
+    enabled: tripsBase.length > 0,
+    queryFn: async () => {
+      const userIds = Array.from(new Set(tripsBase.map((t: any) => t.driver?.user_id).filter(Boolean)));
       let nameByUser: Record<string, string> = {};
       if (userIds.length) {
         const { data: profs } = await supabase
           .from("profiles").select("user_id, full_name").in("user_id", userIds);
         nameByUser = Object.fromEntries((profs ?? []).map((p: any) => [p.user_id, p.full_name]));
       }
-      return (data ?? []).map((t: any) => ({
+      return tripsBase.map((t: any) => ({
         ...t,
         driver_name: t.driver?.user_id ? nameByUser[t.driver.user_id] ?? "Sin chofer" : "Sin chofer",
       }));

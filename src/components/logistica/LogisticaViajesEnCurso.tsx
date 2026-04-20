@@ -9,26 +9,37 @@ import { TRIP_TYPE_LABELS } from "@/lib/constants";
 import { branchLabel } from "@/lib/branch-format";
 import { LogisticaViajeDetalle } from "./LogisticaViajeDetalle";
 import { Progress } from "@/components/ui/progress";
+import { usePaginatedQuery } from "@/hooks/use-paginated-query";
+import { PaginationBar } from "@/components/shared/PaginationBar";
 
 export function LogisticaViajesEnCurso() {
   const [detailTripId, setDetailTripId] = useState<string | null>(null);
 
-  const { data: trips, isLoading } = useQuery({
+  const {
+    rows: trips,
+    total,
+    page,
+    pageSize,
+    totalPages,
+    from,
+    to,
+    isLoading,
+    isFetching,
+    setPage,
+  } = usePaginatedQuery<any>({
     queryKey: ["in-progress-trips"],
-    queryFn: async () => {
-      const { data, error } = await supabase
+    initialPageSize: 25,
+    buildQuery: () =>
+      supabase
         .from("trips")
         .select(`
           *,
           origin_branch:branches!trips_origin_branch_id_fkey(name, code),
           vehicle:vehicles(plate_number, brand, model),
           driver:drivers!trips_driver_id_fkey(id, user_id, profiles:user_id(full_name))
-        `)
+        `, { count: "exact" })
         .eq("status", "in_progress" as any)
-        .order("actual_departure", { ascending: false });
-      if (error) throw error;
-      return data;
-    },
+        .order("actual_departure", { ascending: false }),
   });
 
   const { data: tripFulfillments } = useQuery({

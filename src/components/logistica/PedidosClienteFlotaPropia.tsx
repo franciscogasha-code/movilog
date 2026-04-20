@@ -12,6 +12,8 @@ import { toast } from "sonner";
 import { CrearViajeForm } from "./CrearViajeForm";
 import { motion, AnimatePresence } from "framer-motion";
 import { branchName, branchLabel } from "@/lib/branch-format";
+import { usePaginatedQuery } from "@/hooks/use-paginated-query";
+import { PaginationBar } from "@/components/shared/PaginationBar";
 
 const URGENCY_HOURS = 24; // pedidos cliente: SLA más corto
 function getUrgency(createdAt: string): "critical" | "warning" | "normal" {

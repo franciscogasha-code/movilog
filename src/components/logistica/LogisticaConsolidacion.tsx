@@ -13,6 +13,8 @@ import { branchName } from "@/lib/branch-format";
 import { toast } from "sonner";
 import { CrearViajeForm } from "./CrearViajeForm";
 import { motion, AnimatePresence } from "framer-motion";
+import { usePaginatedQuery } from "@/hooks/use-paginated-query";
+import { PaginationBar } from "@/components/shared/PaginationBar";
 
 const URGENCY_HOURS = 48;
 
@@ -43,10 +45,22 @@ export function LogisticaConsolidacion() {
   const [selectedTripId, setSelectedTripId] = useState<string>("");
   const [assigning, setAssigning] = useState(false);
 
-  const { data: requests, isLoading } = useQuery({
+  const {
+    rows: requestsRaw,
+    total,
+    page,
+    pageSize,
+    totalPages,
+    from,
+    to,
+    isLoading,
+    isFetching,
+    setPage,
+  } = usePaginatedQuery<any>({
     queryKey: ["consolidation-requests"],
-    queryFn: async () => {
-      const { data, error } = await supabase
+    initialPageSize: 25,
+    buildQuery: () =>
+      supabase
         .from("branch_requests")
         .select(`
           id, request_number, request_type, flow_type, created_at, priority, 
@@ -57,18 +71,20 @@ export function LogisticaConsolidacion() {
             id, trip_id, package_count, bims_transfer_number, bims_invoice_number, status,
             current_location_branch:branches!fulfillment_orders_current_location_branch_id_fkey(code, name)
           )
-        `)
+        `, { count: "exact" })
         .eq("status", "in_consolidation" as any)
-        .order("created_at", { ascending: true });
-      if (error) throw error;
-      // Incluye interurbanos + cualquier pedido cuyo fulfillment esté at_hub (urbanos dejados en acopio)
-      return (data || []).filter((r: any) => {
+        .order("created_at", { ascending: true }),
+  });
+  // Filtro de página: incluye interurbanos + at_hub
+  const requests = useMemo(
+    () =>
+      (requestsRaw || []).filter((r: any) => {
         if (r.flow_type === "interurban") return true;
         const fo = r.fulfillment_orders?.[0];
         return fo?.status === "at_hub";
-      });
-    },
-  });
+      }),
+    [requestsRaw],
+  );
 
   const { data: inconsistentRequests } = useQuery({
     queryKey: ["consolidation-inconsistent"],
@@ -395,6 +411,19 @@ export function LogisticaConsolidacion() {
             </div>
           )}
         </CardContent>
+        {!isLoading && total > 0 && (
+          <PaginationBar
+            page={page}
+            pageSize={pageSize}
+            total={total}
+            totalPages={totalPages}
+            from={from}
+            to={to}
+            onPageChange={setPage}
+            isFetching={isFetching}
+            itemLabel="cargas"
+          />
+        )}
       </Card>
 
       {/* Assign to existing trip dialog */}
