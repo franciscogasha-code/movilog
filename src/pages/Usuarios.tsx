@@ -848,6 +848,12 @@ export default function Usuarios() {
                             {profileIsOwner && <Crown className="h-3.5 w-3.5 text-amber-500 shrink-0" />}
                             {profile.full_name}
                           </p>
+                          {getUserEmail(profile.user_id) && (
+                            <p className="text-[11px] text-muted-foreground truncate flex items-center gap-1 mt-0.5">
+                              <Mail className="h-3 w-3 shrink-0" />
+                              {getUserEmail(profile.user_id)}
+                            </p>
+                          )}
                           <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                             {profileIsOwner ? (
                               <Badge className="text-[10px] px-1.5 py-0 bg-amber-500/15 text-amber-700 border-amber-300">
