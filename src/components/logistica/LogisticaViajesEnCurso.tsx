@@ -67,7 +67,7 @@ export function LogisticaViajesEnCurso() {
         <CardHeader className="pb-2">
           <CardTitle className="font-display text-base flex items-center gap-2">
             <Clock className="h-4 w-4 text-warning" /> Viajes en curso
-            {trips && <Badge variant="outline" className="ml-2">{trips.length}</Badge>}
+            <Badge variant="outline" className="ml-2">{total}</Badge>
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -139,6 +139,19 @@ export function LogisticaViajesEnCurso() {
             </div>
           )}
         </CardContent>
+        {!isLoading && total > 0 && (
+          <PaginationBar
+            page={page}
+            pageSize={pageSize}
+            total={total}
+            totalPages={totalPages}
+            from={from}
+            to={to}
+            onPageChange={setPage}
+            isFetching={isFetching}
+            itemLabel="viajes"
+          />
+        )}
       </Card>
 
       <Dialog open={!!detailTripId} onOpenChange={(o) => !o && setDetailTripId(null)}>

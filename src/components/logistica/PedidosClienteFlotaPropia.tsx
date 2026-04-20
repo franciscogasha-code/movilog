@@ -46,10 +46,22 @@ export function PedidosClienteFlotaPropia() {
   const [selectedTripId, setSelectedTripId] = useState<string>("");
   const [assigning, setAssigning] = useState(false);
 
-  const { data: requests, isLoading } = useQuery({
+  const {
+    rows: requests,
+    total,
+    page,
+    pageSize,
+    totalPages,
+    from,
+    to,
+    isLoading,
+    isFetching,
+    setPage,
+  } = usePaginatedQuery<any>({
     queryKey: ["client-own-fleet-pending"],
-    queryFn: async () => {
-      const { data, error } = await supabase
+    initialPageSize: 25,
+    buildQuery: () =>
+      supabase
         .from("branch_requests")
         .select(`
           id, request_number, request_type, shipping_method, delivery_target,
@@ -64,7 +76,7 @@ export function PedidosClienteFlotaPropia() {
             destination_client_name, destination_client_address,
             current_location_branch:branches!fulfillment_orders_current_location_branch_id_fkey(name, code)
           )
-        `)
+        `, { count: "exact" })
         .eq("request_type", "client" as any)
         .eq("shipping_method", "own_fleet" as any)
         .eq("delivery_target", "client" as any)
@@ -75,10 +87,7 @@ export function PedidosClienteFlotaPropia() {
           "assigned_to_trip",
           "in_transit",
         ] as any)
-        .order("created_at", { ascending: true });
-      if (error) throw error;
-      return data || [];
-    },
+        .order("created_at", { ascending: true }),
   });
 
   const { data: plannedTrips } = useQuery({
@@ -199,9 +208,7 @@ export function PedidosClienteFlotaPropia() {
               <User className="h-4 w-4 text-secondary" />
               Pedidos cliente pendientes
               <span className="text-xs font-normal text-muted-foreground">· Flota propia</span>
-              {sortedRequests.length > 0 && (
-                <Badge variant="outline" className="ml-1">{sortedRequests.length}</Badge>
-              )}
+              <Badge variant="outline" className="ml-1">{total}</Badge>
             </CardTitle>
             {sortedRequests.length > 0 && (
               <Button variant="ghost" size="sm" onClick={toggleAll} className="text-xs">
@@ -313,6 +320,19 @@ export function PedidosClienteFlotaPropia() {
             </AnimatePresence>
           )}
         </CardContent>
+        {!isLoading && total > 0 && (
+          <PaginationBar
+            page={page}
+            pageSize={pageSize}
+            total={total}
+            totalPages={totalPages}
+            from={from}
+            to={to}
+            onPageChange={setPage}
+            isFetching={isFetching}
+            itemLabel="pedidos"
+          />
+        )}
       </Card>
 
       {/* Existing trip dialog */}

@@ -73,18 +73,13 @@ export function LogisticaConsolidacion() {
           )
         `, { count: "exact" })
         .eq("status", "in_consolidation" as any)
+        .eq("flow_type", "interurban")
         .order("created_at", { ascending: true }),
   });
-  // Filtro de página: incluye interurbanos + at_hub
-  const requests = useMemo(
-    () =>
-      (requestsRaw || []).filter((r: any) => {
-        if (r.flow_type === "interurban") return true;
-        const fo = r.fulfillment_orders?.[0];
-        return fo?.status === "at_hub";
-      }),
-    [requestsRaw],
-  );
+  // Filtrado server-side por flow_type=interurban garantiza que `total` (count exact)
+  // y la página visible están alineados → no más páginas vacías ni cortes silenciosos.
+  // Los registros no-interurbanos en consolidación se muestran arriba como "inconsistentes".
+  const requests = requestsRaw;
 
   const { data: inconsistentRequests } = useQuery({
     queryKey: ["consolidation-inconsistent"],
@@ -297,7 +292,7 @@ export function LogisticaConsolidacion() {
           <div className="flex items-center justify-between">
             <CardTitle className="font-display text-base flex items-center gap-2">
               <Package className="h-4 w-4 text-primary" /> Cargas en consolidación
-              {sortedRequests.length > 0 && <Badge variant="outline" className="ml-2">{sortedRequests.length}</Badge>}
+              <Badge variant="outline" className="ml-2">{total}</Badge>
             </CardTitle>
             {sortedRequests.length > 0 && (
               <Button variant="ghost" size="sm" onClick={toggleAll} className="text-xs">
