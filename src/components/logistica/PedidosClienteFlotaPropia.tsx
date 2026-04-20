@@ -331,7 +331,7 @@ export function PedidosClienteFlotaPropia() {
               <SelectContent>
                 {(plannedTrips || []).map((t: any) => (
                   <SelectItem key={t.id} value={t.id}>
-                    Viaje #{t.trip_number} — {(t.origin_branch as any)?.code} {t.vehicle ? `· ${(t.vehicle as any).plate_number}` : ""}
+                    Viaje #{t.trip_number} — {branchName(t.origin_branch as any)} {t.vehicle ? `· ${(t.vehicle as any).plate}` : ""}
                   </SelectItem>
                 ))}
                 {plannedTrips && plannedTrips.length === 0 && (

@@ -411,7 +411,7 @@ export function LogisticaConsolidacion() {
               <SelectContent>
                 {plannedTrips?.map((t: any) => (
                   <SelectItem key={t.id} value={t.id}>
-                    Viaje #{t.trip_number} — {(t.origin_branch as any)?.code}
+                    Viaje #{t.trip_number} — {branchName(t.origin_branch as any)}
                     {(t.vehicle as any)?.plate_number ? ` (${(t.vehicle as any).plate_number})` : ""}
                   </SelectItem>
                 ))}

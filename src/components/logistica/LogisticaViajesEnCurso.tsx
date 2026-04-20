@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Truck, Package, Clock, User, ShoppingBag } from "lucide-react";
 import { TRIP_TYPE_LABELS } from "@/lib/constants";
+import { branchLabel } from "@/lib/branch-format";
 import { LogisticaViajeDetalle } from "./LogisticaViajeDetalle";
 import { Progress } from "@/components/ui/progress";
 
@@ -85,9 +86,12 @@ export function LogisticaViajesEnCurso() {
                       <div className="flex items-center gap-3">
                         <div className="w-2 h-2 rounded-full bg-accent animate-pulse" />
                         <span className="font-mono font-semibold text-sm">#{t.trip_number}</span>
-                        <span className="text-xs text-muted-foreground">{(t.origin_branch as any)?.code}</span>
+                        <span className="text-xs font-medium">{branchLabel(t.origin_branch as any)}</span>
                         {(t as any).destination_description && (
-                          <span className="text-xs text-muted-foreground">→ {(t as any).destination_description}</span>
+                          <>
+                            <span className="text-xs text-muted-foreground">→</span>
+                            <span className="text-xs font-medium">{(t as any).destination_description}</span>
+                          </>
                         )}
                       </div>
                       <div className="flex items-center gap-2">
