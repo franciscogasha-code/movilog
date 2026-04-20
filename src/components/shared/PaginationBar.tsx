@@ -46,7 +46,11 @@ export function PaginationBar({
   className,
   itemLabel = "registros",
 }: PaginationBarProps) {
-  // Caso vacío
+  const pages = useMemo(() => buildPageList(page, totalPages), [page, totalPages]);
+  const isLast = page >= totalPages;
+  const isFirst = page <= 1;
+
+  // Caso vacío (después de hooks, no antes)
   if (total === 0) {
     return (
       <div className={cn("flex items-center justify-center py-3 text-xs text-muted-foreground", className)}>
@@ -54,10 +58,6 @@ export function PaginationBar({
       </div>
     );
   }
-
-  const pages = useMemo(() => buildPageList(page, totalPages), [page, totalPages]);
-  const isLast = page >= totalPages;
-  const isFirst = page <= 1;
 
   return (
     <div

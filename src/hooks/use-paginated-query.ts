@@ -1,6 +1,14 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery, type QueryKey } from "@tanstack/react-query";
-import type { PostgrestFilterBuilder } from "@supabase/postgrest-js";
+
+/** Builder mínimo de Supabase que necesita el hook (evita dep externa). */
+type SupabaseRangeBuilder<TRow> = {
+  range: (from: number, to: number) => Promise<{
+    data: TRow[] | null;
+    error: any;
+    count: number | null;
+  }> & SupabaseRangeBuilder<TRow>;
+};
 
 /**
  * Hook estándar de paginación server-side para MoviLog.
@@ -22,7 +30,7 @@ export interface PaginatedQueryOptions<TRow, TMapped = TRow> {
    * SIN `.range()` ni `.limit()` aplicados (los aplica el hook).
    * Sí puede aplicar `.select(..., { count: 'exact' })` o lo agrega el hook.
    */
-  buildQuery: () => PostgrestFilterBuilder<any, any, TRow[]>;
+  buildQuery: () => SupabaseRangeBuilder<TRow> | any;
   /** Mapeo opcional de filas crudas al modelo final consumido por la UI. */
   mapRow?: (row: TRow) => TMapped;
   /** Tamaño de página inicial (default 25). */
