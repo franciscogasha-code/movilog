@@ -237,6 +237,31 @@ export function PedidosClienteFlotaPropia() {
                   const ucfg = urgencyConfig[urgency];
                   const originLabel = branchLabel(r.source_branch);
                   const clientName = fo?.destination_client_name || r.client_name || "Cliente sin nombre";
+
+                  // Estado logístico visual
+                  const hasTrip = !!fo?.trip_id;
+                  const inHub = fo?.current_location_type === "branch" && fo?.current_custody_type === "branch" && r.status === "in_consolidation";
+                  const withDriver = fo?.current_custody_type === "driver" || r.status === "in_transit";
+                  const onVehicle = fo?.status === "on_vehicle";
+                  const atHub = fo?.status === "at_hub";
+
+                  let stateBadge: { label: string; icon: any; cls: string } | null = null;
+                  if (atHub || inHub) {
+                    const hubLabel = branchLabel(fo?.current_location_branch);
+                    stateBadge = { label: `En acopio${hubLabel !== "—" ? ` · ${hubLabel}` : ""}`, icon: Warehouse, cls: "border-warning/40 text-warning" };
+                  } else if (onVehicle || withDriver) {
+                    stateBadge = { label: "En tránsito", icon: Truck, cls: "border-primary/40 text-primary" };
+                  } else if (hasTrip) {
+                    stateBadge = { label: "Asignado a viaje", icon: Truck, cls: "border-accent/40 text-accent" };
+                  } else if (r.status === "ready_for_pickup") {
+                    stateBadge = { label: "Listo p/ retiro", icon: Package, cls: "border-secondary/40 text-secondary" };
+                  } else if (r.status === "in_preparation") {
+                    stateBadge = { label: "En preparación", icon: Package, cls: "border-muted-foreground/40 text-muted-foreground" };
+                  }
+
+                  // Solo se puede asignar a viaje si todavía no fue retirado por un chofer ni asignado a viaje
+                  const canAssign = !hasTrip && !withDriver && !atHub && !onVehicle;
+
                   return (
                     <motion.div
                       key={r.id}
@@ -246,7 +271,12 @@ export function PedidosClienteFlotaPropia() {
                       transition={{ duration: 0.2 }}
                       className={`flex flex-wrap items-center gap-x-3 gap-y-1.5 p-2.5 rounded bg-background/50 text-sm border ${ucfg.border}`}
                     >
-                      <Checkbox checked={selected.has(r.id)} onCheckedChange={() => toggleSelect(r.id)} />
+                      <Checkbox
+                        checked={selected.has(r.id)}
+                        onCheckedChange={() => canAssign && toggleSelect(r.id)}
+                        disabled={!canAssign}
+                        title={canAssign ? "" : "Ya está en circulación logística"}
+                      />
                       <div className={`w-2 h-2 rounded-full shrink-0 ${ucfg.dot}`} />
 
                       {/* Ruta: origen → CLIENTE destacado */}
@@ -263,6 +293,13 @@ export function PedidosClienteFlotaPropia() {
                       <Badge variant="outline" className="text-[10px] shrink-0 border-secondary/30 text-secondary">
                         Pedido Cliente
                       </Badge>
+
+                      {stateBadge && (
+                        <Badge variant="outline" className={`text-[10px] shrink-0 gap-1 ${stateBadge.cls}`}>
+                          <stateBadge.icon className="h-3 w-3" />
+                          {stateBadge.label}
+                        </Badge>
+                      )}
 
                       <div className="flex items-center gap-3 ml-auto text-[11px] text-muted-foreground shrink-0">
                         <span className="font-mono opacity-70">#{r.request_number}</span>
