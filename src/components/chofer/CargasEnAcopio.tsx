@@ -77,7 +77,9 @@ export function CargasEnAcopio() {
                   <span className="text-sm text-muted-foreground">
                     {f.destination_branch?.code || f.destination_client_name || "—"}
                   </span>
-                  <Badge className="text-xs bg-info/10 text-info">En acopio</Badge>
+                  <Badge className="text-xs bg-info/10 text-info">
+                    En acopio{f.current_location_branch?.code ? ` · ${f.current_location_branch.code}` : ""}
+                  </Badge>
                 </div>
                 <div className="flex items-center gap-3 text-xs text-muted-foreground">
                   <span>Desde: {f.source_branch?.code}</span>
