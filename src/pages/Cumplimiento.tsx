@@ -96,20 +96,10 @@ export default function Cumplimiento() {
     },
   });
 
-  const filtered = fulfillments?.filter((f: any) => {
-    if (!search) return true;
-    const term = search.toLowerCase();
-    const reqNum = (f.branch_request as any)?.request_number;
-    const client = f.destination_client_name || (f.branch_request as any)?.client_name || "";
-    return (
-      client.toLowerCase().includes(term) ||
-      f.source_branch?.code?.toLowerCase().includes(term) ||
-      f.destination_branch?.code?.toLowerCase().includes(term) ||
-      (reqNum && String(reqNum).includes(term))
-    );
-  });
+  // La búsqueda ya es server-side; aplicamos directamente el resultado paginado.
+  const filtered = fulfillments;
 
-  // Group by priority
+  // Group by priority (sobre la página visible)
   const grouped = new Map<number, any[]>();
   filtered?.forEach((f: any) => {
     const requestType = (f.branch_request as any)?.request_type || "reposition";
@@ -131,7 +121,7 @@ export default function Cumplimiento() {
         <Card className="glass-card">
           <CardContent className="p-4 flex items-center gap-3">
             <div className="bg-primary/10 p-2.5 rounded-xl"><Package className="h-5 w-5 text-primary" /></div>
-            <div><p className="text-xs text-muted-foreground uppercase">Total activas</p><p className="text-2xl font-display font-bold">{fulfillments?.length || 0}</p></div>
+            <div><p className="text-xs text-muted-foreground uppercase">Total activas</p><p className="text-2xl font-display font-bold">{total}</p></div>
           </CardContent>
         </Card>
         <Card className="glass-card">
