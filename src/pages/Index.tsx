@@ -828,6 +828,15 @@ export default function Index() {
                                 )}
                               </>
                             )}
+                            {/* Cierre visual de lista */}
+                            {filteredItems.length > 0 && (
+                              <div className="flex items-center justify-center gap-2 pt-4 mt-2 border-t border-dashed border-border/60">
+                                <PackageCheck className="h-3.5 w-3.5 text-muted-foreground/60" />
+                                <p className="text-[11px] text-muted-foreground/70">
+                                  Fin de tareas · {filteredItems.length} {filteredItems.length === 1 ? "ítem" : "ítems"}
+                                </p>
+                              </div>
+                            )}
                           </>
                         );
                       })()}
