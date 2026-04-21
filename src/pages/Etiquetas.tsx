@@ -85,7 +85,7 @@ export default function Etiquetas() {
       <Card className="glass-card overflow-hidden">
         <CardContent className="p-0">
           {isLoading ? (
-            <div className="p-8 text-center text-muted-foreground text-sm">Cargando...</div>
+            <SkeletonList rows={6} />
           ) : !filtered?.length ? (
             <div className="empty-state p-10 text-center">
               <Tag className="h-10 w-10 mx-auto mb-3 opacity-40" />
