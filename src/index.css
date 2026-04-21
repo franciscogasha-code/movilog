@@ -99,18 +99,84 @@
     @apply border-border;
   }
 
+  html, body {
+    @apply overflow-x-hidden;
+  }
+
   body {
     @apply bg-background text-foreground font-sans antialiased;
     font-family: 'Inter', system-ui, sans-serif;
+    -webkit-tap-highlight-color: transparent;
   }
 
   h1, h2, h3, h4, h5, h6 {
     font-family: 'Space Grotesk', system-ui, sans-serif;
+    @apply tracking-tight;
+  }
+
+  /* Touch targets cómodos en mobile */
+  @media (max-width: 767px) {
+    button, a, [role="button"] {
+      min-height: 40px;
+    }
   }
 }
 
 @layer utilities {
   .glass-card {
     @apply bg-card/80 backdrop-blur-xl border border-border/50 shadow-lg;
+  }
+
+  /* Sombras premium suaves */
+  .shadow-premium {
+    box-shadow: 0 1px 2px 0 hsl(var(--foreground) / 0.04),
+                0 4px 12px -2px hsl(var(--foreground) / 0.06);
+  }
+  .shadow-premium-hover {
+    box-shadow: 0 2px 4px 0 hsl(var(--foreground) / 0.06),
+                0 8px 24px -4px hsl(var(--foreground) / 0.10);
+  }
+
+  /* Card operativa estándar mobile-first */
+  .op-card {
+    @apply rounded-xl border border-border bg-card p-3 sm:p-4 shadow-premium transition-shadow hover:shadow-premium-hover;
+  }
+
+  /* Chip / pill compacto */
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium;
+  }
+
+  /* Encabezado de página */
+  .page-title {
+    @apply text-xl sm:text-2xl font-display font-bold tracking-tight;
+  }
+  .page-subtitle {
+    @apply text-sm text-muted-foreground;
+  }
+
+  /* Sección con separación armónica */
+  .section-stack > * + * {
+    @apply mt-3 sm:mt-4;
+  }
+
+  /* Scroll horizontal opt-in (para tablas en desktop) */
+  .scroll-x {
+    @apply overflow-x-auto;
+  }
+
+  /* Wrapper que NUNCA permite desbordar horizontal */
+  .no-x-overflow {
+    @apply overflow-x-hidden max-w-full;
+  }
+
+  /* CTA sticky inferior en mobile */
+  .sticky-cta {
+    @apply sticky bottom-0 left-0 right-0 -mx-3 sm:-mx-4 md:mx-0 px-3 sm:px-4 md:px-0 py-3 bg-background/95 backdrop-blur-md border-t border-border md:static md:bg-transparent md:border-0 md:py-0;
+  }
+
+  /* Estado vacío premium */
+  .empty-state {
+    @apply flex flex-col items-center justify-center text-center py-10 px-4 rounded-xl border border-dashed border-border bg-muted/30;
   }
 }
