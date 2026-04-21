@@ -104,7 +104,7 @@ export function CargasDisponibles() {
       if (!effectiveBranchId) return [];
       const { data, error } = await supabase
         .from("fulfillment_orders")
-        .select(`*, source_branch:branches!fulfillment_orders_source_branch_id_fkey(name, code), destination_branch:branches!fulfillment_orders_destination_branch_id_fkey(name, code), branch_request:branch_requests(request_number, request_type, delivery_target, status)`)
+        .select(`*, source_branch:branches!fulfillment_orders_source_branch_id_fkey(name, code, is_central_warehouse), destination_branch:branches!fulfillment_orders_destination_branch_id_fkey(name, code), branch_request:branch_requests(request_number, request_type, delivery_target, status, flow_type)`)
         .eq("source_branch_id", effectiveBranchId)
         .is("trip_id", null)
         .in("status", ["pending", "waiting_for_cut", "waiting_for_courier", "picking"])
@@ -112,7 +112,15 @@ export function CargasDisponibles() {
         .limit(100);
       if (error) throw error;
       // Si status=pending, exigir branch_request.status = 'ready_for_pickup'
+      // y excluir el caso hub-aware interurbano, porque debe entrar directo a consolidación.
       return (data || []).filter((f: any) => {
+        const isHubOriginInterurbanReady =
+          f.status === "pending" &&
+          f.branch_request?.status === "ready_for_pickup" &&
+          f.branch_request?.flow_type === "interurban" &&
+          f.source_branch?.is_central_warehouse === true;
+
+        if (isHubOriginInterurbanReady) return false;
         if (f.status === "pending") return f.branch_request?.status === "ready_for_pickup";
         return true;
       });
