@@ -349,7 +349,7 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
   return (
     <div className="space-y-6">
       {/* Progress Bar */}
-      <RequestProgressBar currentStatus={r.status} events={progressEvents} flowType={r.flow_type} />
+      <RequestProgressBar currentStatus={r.status} events={progressEvents} flowType={effectiveFlowType} />
 
       {/* Warning panel */}
       {warnings.length > 0 && (
