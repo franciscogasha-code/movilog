@@ -139,47 +139,37 @@ export default function Rendicion() {
     depositLinks?.filter(l => l.deposit_id === depositId).reduce((s, l) => s + Number(l.amount), 0) || 0;
 
   return (
-    <motion.div className="space-y-6" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
+    <motion.div className="space-y-4 sm:space-y-5" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
       <div>
-        <h1 className="font-display text-2xl font-bold text-foreground">Rendición del Chofer</h1>
-        <p className="text-muted-foreground mt-1">Cobranzas, depósitos, combustible y viáticos por viaje</p>
+        <h1 className="font-display text-xl sm:text-2xl font-bold text-foreground">Rendición del Chofer</h1>
+        <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">Cobranzas, depósitos, combustible y viáticos</p>
       </div>
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
-        <Card className="glass-card">
-          <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground uppercase">Cobrado</p>
-            <p className="text-xl font-display font-bold text-primary">{formatGs(totalCollections)}</p>
-          </CardContent>
-        </Card>
-        <Card className="glass-card">
-          <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground uppercase">Depositado</p>
-            <p className="text-xl font-display font-bold text-accent">{formatGs(totalDeposits)}</p>
-          </CardContent>
-        </Card>
-        <Card className="glass-card">
-          <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground uppercase">Combustible</p>
-            <p className="text-xl font-display font-bold text-secondary">{formatGs(totalFuel)}</p>
-          </CardContent>
-        </Card>
-        <Card className="glass-card">
-          <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground uppercase">Viáticos</p>
-            <p className="text-xl font-display font-bold">{formatGs(totalPerDiem)}</p>
-          </CardContent>
-        </Card>
-        <Card className={`glass-card ${pendingBalance > 0 ? "border-secondary/30" : "border-accent/30"}`}>
-          <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground uppercase">Saldo pendiente</p>
-            <p className={`text-xl font-display font-bold ${pendingBalance > 0 ? "text-secondary" : "text-accent"}`}>
-              {formatGs(Math.abs(pendingBalance))}
-            </p>
-            <p className="text-[10px] text-muted-foreground">{pendingBalance > 0 ? "a depositar" : pendingBalance < 0 ? "a favor" : "cuadrado"}</p>
-          </CardContent>
-        </Card>
+      {/* KPIs compactos */}
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+        <div className="op-card p-2.5">
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Cobrado</p>
+          <p className="text-sm sm:text-base font-display font-bold text-primary truncate">{formatGs(totalCollections)}</p>
+        </div>
+        <div className="op-card p-2.5">
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Depositado</p>
+          <p className="text-sm sm:text-base font-display font-bold text-accent truncate">{formatGs(totalDeposits)}</p>
+        </div>
+        <div className="op-card p-2.5">
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Combustible</p>
+          <p className="text-sm sm:text-base font-display font-bold text-secondary truncate">{formatGs(totalFuel)}</p>
+        </div>
+        <div className="op-card p-2.5">
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Viáticos</p>
+          <p className="text-sm sm:text-base font-display font-bold truncate">{formatGs(totalPerDiem)}</p>
+        </div>
+        <div className={`op-card p-2.5 ${pendingBalance > 0 ? "border-secondary/40" : "border-accent/40"}`}>
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Saldo</p>
+          <p className={`text-sm sm:text-base font-display font-bold truncate ${pendingBalance > 0 ? "text-secondary" : "text-accent"}`}>
+            {formatGs(Math.abs(pendingBalance))}
+          </p>
+          <p className="text-[9px] text-muted-foreground">{pendingBalance > 0 ? "a depositar" : pendingBalance < 0 ? "a favor" : "cuadrado"}</p>
+        </div>
       </div>
 
       {/* Pending trips */}

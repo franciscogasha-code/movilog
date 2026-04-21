@@ -125,53 +125,34 @@ export default function Chofer() {
   };
 
   return (
-    <motion.div className="space-y-6" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
+    <motion.div className="space-y-4 sm:space-y-5" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
       <div>
-        <h1 className="font-display text-2xl font-bold text-foreground">Panel del Chofer</h1>
-        <p className="text-muted-foreground mt-1">Gestión de cargas, entregas y operación logística</p>
+        <h1 className="font-display text-xl sm:text-2xl font-bold text-foreground">Panel del Chofer</h1>
+        <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">Tus tareas activas y entregas</p>
       </div>
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="glass-card">
-          <CardContent className="p-5 flex items-center gap-4">
-            <div className="bg-primary/10 p-3 rounded-xl">
-              <Truck className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground uppercase">Bajo mi custodia</p>
-              <p className="text-lg font-display font-bold">{custodyCount ?? 0}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="glass-card">
-          <CardContent className="p-5 flex items-center gap-4">
-            <div className="bg-accent/10 p-3 rounded-xl">
-              <Clock className="h-5 w-5 text-accent" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground uppercase">Corte / Viaje activo</p>
-              <p className="text-lg font-display font-bold">
-                {activeCutoff
-                  ? `Corte #${activeCutoff.trip_number}`
-                  : activeTrip
-                  ? `Viaje #${activeTrip.trip_number}`
-                  : "Ninguno"}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="glass-card">
-          <CardContent className="p-5 flex items-center gap-4">
-            <div className="bg-info/10 p-3 rounded-xl">
-              <Warehouse className="h-5 w-5 text-info" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground uppercase">En acopio (mi sucursal)</p>
-              <p className="text-lg font-display font-bold">{hubCount ?? 0}</p>
-            </div>
-          </CardContent>
-        </Card>
+      {/* KPIs compactos tipo chip — tareas primero */}
+      <div className="grid grid-cols-3 gap-2">
+        <div className="op-card p-2.5 flex flex-col items-center text-center">
+          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+            <Truck className="h-3 w-3 text-primary" /> Custodia
+          </div>
+          <p className="text-lg font-display font-bold text-foreground">{custodyCount ?? 0}</p>
+        </div>
+        <div className="op-card p-2.5 flex flex-col items-center text-center">
+          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+            <Clock className="h-3 w-3 text-accent" /> Activo
+          </div>
+          <p className="text-sm font-display font-bold text-foreground truncate max-w-full">
+            {activeCutoff ? `#${activeCutoff.trip_number}` : activeTrip ? `#${activeTrip.trip_number}` : "—"}
+          </p>
+        </div>
+        <div className="op-card p-2.5 flex flex-col items-center text-center">
+          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+            <Warehouse className="h-3 w-3 text-info" /> Acopio
+          </div>
+          <p className="text-lg font-display font-bold text-foreground">{hubCount ?? 0}</p>
+        </div>
       </div>
 
       {/* Main tabs */}
