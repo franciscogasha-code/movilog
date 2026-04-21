@@ -70,12 +70,12 @@ export function LogisticaViajeDetalle({ tripId }: Props) {
       const { data, error } = await supabase
         .from("branch_requests")
         .select(`
-          id, request_number, request_type, client_name,
-          source_branch:branches!branch_requests_source_branch_id_fkey(code),
-          requesting_branch:branches!branch_requests_requesting_branch_id_fkey(code)
+          id, request_number, request_type, client_name, delivery_target, created_at,
+          requesting_branch:branches!branch_requests_requesting_branch_id_fkey(code, name)
         `)
         .eq("status", "in_consolidation" as any)
-        .eq("flow_type", "interurban");
+        .eq("flow_type", "interurban")
+        .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
     },
