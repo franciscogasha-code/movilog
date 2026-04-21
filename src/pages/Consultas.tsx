@@ -179,15 +179,15 @@ export default function Consultas() {
   };
 
   return (
-    <motion.div className="space-y-6" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-      <div className="flex items-center justify-between">
+    <motion.div className="space-y-4 sm:space-y-6" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
-          <h1 className="font-display text-2xl font-bold text-foreground">Consultas de Disponibilidad</h1>
-          <p className="text-muted-foreground mt-1">Historial de consultas de stock entre sucursales</p>
+          <h1 className="page-title">Consultas de Disponibilidad</h1>
+          <p className="page-subtitle mt-1">Historial de consultas de stock entre sucursales</p>
         </div>
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
           <DialogTrigger asChild>
-            <Button><Plus className="h-4 w-4 mr-2" /> Nueva Consulta</Button>
+            <Button className="w-full sm:w-auto"><Plus className="h-4 w-4 mr-2" /> Nueva Consulta</Button>
           </DialogTrigger>
           <DialogContent className="w-[calc(100vw-0.75rem)] max-w-xl max-h-[85vh] overflow-y-auto overflow-x-hidden p-3 sm:p-6">
             <DialogHeader><DialogTitle>Consultar Disponibilidad</DialogTitle></DialogHeader>
@@ -201,74 +201,124 @@ export default function Consultas() {
           {isLoading ? (
             <div className="p-8 text-center text-muted-foreground">Cargando consultas...</div>
           ) : !consultations?.length ? (
-            <div className="p-8 text-center text-muted-foreground">
-              <Search className="h-8 w-8 mx-auto mb-2 opacity-50" />
-              <p>No hay consultas registradas</p>
+            <div className="p-8">
+              <div className="empty-state">
+                <Search className="h-8 w-8 mb-2 opacity-50" />
+                <p className="font-medium">No hay consultas registradas</p>
+                <p className="text-xs text-muted-foreground mt-1">Creá una nueva consulta para preguntar disponibilidad a otras sucursales.</p>
+              </div>
             </div>
           ) : (
-            <div className="overflow-x-auto">
             <TooltipProvider>
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border bg-muted/30">
-                    <th className="text-left px-3 py-2 font-medium text-muted-foreground">Productos</th>
-                    <th className="text-left px-3 py-2 font-medium text-muted-foreground">Ruta</th>
-                    <th className="text-left px-3 py-2 font-medium text-muted-foreground">Estado</th>
-                    <th className="text-left px-3 py-2 font-medium text-muted-foreground">Respuestas</th>
-                    <th className="text-left px-3 py-2 font-medium text-muted-foreground">Pedidos</th>
-                    <th className="text-left px-3 py-2 font-medium text-muted-foreground">Fecha</th>
-                    <th className="text-left px-3 py-2 font-medium text-muted-foreground"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {consultations.map((c: any) => (
-                    <tr
+              {/* MOBILE: cards verticales */}
+              <div className="md:hidden divide-y divide-border/50">
+                {consultations.map((c: any) => {
+                  const prods = c.consultation_products?.filter((p: any) => p?.name) ?? [];
+                  const firstProd = prods[0]?.name;
+                  const moreProds = prods.length - 1;
+                  return (
+                    <button
                       key={c.id}
+                      onClick={() => setSelectedId(c.id)}
                       className={cn(
-                        "border-b border-border/50 hover:bg-muted/40 active:bg-muted/60 transition-all duration-150 cursor-pointer",
+                        "w-full text-left p-3 hover:bg-muted/40 active:bg-muted/60 transition-colors",
                         c.status === "open" && "bg-primary/[0.03]"
                       )}
-                      onClick={() => setSelectedId(c.id)}
                     >
-                      <td className="px-3 py-2 font-medium max-w-[200px]">
-                        <span className="line-clamp-1">
-                          {(() => {
-                            const prods = c.consultation_products?.filter((p: any) => p?.name) ?? [];
-                            if (!prods.length) return <span className="text-muted-foreground">Sin productos</span>;
-                            const first = prods[0].name;
-                            const rest = prods.length - 1;
-                            return rest > 0 ? <>{first} <span className="text-muted-foreground">+{rest} más</span></> : first;
-                          })()}
+                      <div className="flex items-center justify-between gap-2 mb-1.5">
+                        <span className="font-medium text-sm line-clamp-1 flex-1">
+                          {firstProd ? (
+                            <>{firstProd}{moreProds > 0 && <span className="text-muted-foreground"> +{moreProds} más</span>}</>
+                          ) : (
+                            <span className="text-muted-foreground">Sin productos</span>
+                          )}
                         </span>
-                      </td>
-                      <td className="px-3 py-2">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          {buildRouteLabel(c)}
-                        </div>
-                      </td>
-                      <td className="px-3 py-2"><StatusBadge status={c.status} config={STATUS_CONFIG} /></td>
-                      <td className="px-3 py-2">
-                        <Badge variant={c.responses?.responded > 0 ? "secondary" : "outline"} className="text-xs">
-                          {c.responses?.responded ?? 0}/{c.responses?.total ?? 0}
-                        </Badge>
-                      </td>
-                      <td className="px-3 py-2">
-                        {c.orders_count > 0
-                          ? <Badge variant="secondary" className="text-xs">{c.orders_count} pedido(s)</Badge>
-                          : <span className="text-muted-foreground text-xs">—</span>}
-                      </td>
-                      <td className="px-3 py-2 text-muted-foreground text-xs">
-                        {new Date(c.created_at).toLocaleDateString("es-PY", { day: "2-digit", month: "short" })}
-                      </td>
-                      <td className="px-3 py-2">
-                        <Button variant="ghost" size="sm" className="text-xs h-7">Ver consulta</Button>
-                      </td>
+                        <StatusBadge status={c.status} config={STATUS_CONFIG} className="shrink-0" />
+                      </div>
+                      <div className="text-xs text-foreground/80 mb-1 break-words">
+                        {buildRouteLabel(c)}
+                      </div>
+                      <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                        <span className="flex items-center gap-2">
+                          <Badge variant={c.responses?.responded > 0 ? "secondary" : "outline"} className="text-[10px] px-1.5 py-0">
+                            {c.responses?.responded ?? 0}/{c.responses?.total ?? 0} resp.
+                          </Badge>
+                          {c.orders_count > 0 && (
+                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{c.orders_count} pedido(s)</Badge>
+                          )}
+                        </span>
+                        <span className="shrink-0">
+                          {new Date(c.created_at).toLocaleDateString("es-PY", { day: "2-digit", month: "short" })}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* DESKTOP: tabla */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border bg-muted/30">
+                      <th className="text-left px-3 py-2 font-medium text-muted-foreground">Productos</th>
+                      <th className="text-left px-3 py-2 font-medium text-muted-foreground">Ruta</th>
+                      <th className="text-left px-3 py-2 font-medium text-muted-foreground">Estado</th>
+                      <th className="text-left px-3 py-2 font-medium text-muted-foreground">Respuestas</th>
+                      <th className="text-left px-3 py-2 font-medium text-muted-foreground">Pedidos</th>
+                      <th className="text-left px-3 py-2 font-medium text-muted-foreground">Fecha</th>
+                      <th className="text-left px-3 py-2 font-medium text-muted-foreground"></th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {consultations.map((c: any) => (
+                      <tr
+                        key={c.id}
+                        className={cn(
+                          "border-b border-border/50 hover:bg-muted/40 active:bg-muted/60 transition-all duration-150 cursor-pointer",
+                          c.status === "open" && "bg-primary/[0.03]"
+                        )}
+                        onClick={() => setSelectedId(c.id)}
+                      >
+                        <td className="px-3 py-2 font-medium max-w-[200px]">
+                          <span className="line-clamp-1">
+                            {(() => {
+                              const prods = c.consultation_products?.filter((p: any) => p?.name) ?? [];
+                              if (!prods.length) return <span className="text-muted-foreground">Sin productos</span>;
+                              const first = prods[0].name;
+                              const rest = prods.length - 1;
+                              return rest > 0 ? <>{first} <span className="text-muted-foreground">+{rest} más</span></> : first;
+                            })()}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            {buildRouteLabel(c)}
+                          </div>
+                        </td>
+                        <td className="px-3 py-2"><StatusBadge status={c.status} config={STATUS_CONFIG} /></td>
+                        <td className="px-3 py-2">
+                          <Badge variant={c.responses?.responded > 0 ? "secondary" : "outline"} className="text-xs">
+                            {c.responses?.responded ?? 0}/{c.responses?.total ?? 0}
+                          </Badge>
+                        </td>
+                        <td className="px-3 py-2">
+                          {c.orders_count > 0
+                            ? <Badge variant="secondary" className="text-xs">{c.orders_count} pedido(s)</Badge>
+                            : <span className="text-muted-foreground text-xs">—</span>}
+                        </td>
+                        <td className="px-3 py-2 text-muted-foreground text-xs">
+                          {new Date(c.created_at).toLocaleDateString("es-PY", { day: "2-digit", month: "short" })}
+                        </td>
+                        <td className="px-3 py-2">
+                          <Button variant="ghost" size="sm" className="text-xs h-7">Ver consulta</Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </TooltipProvider>
-            </div>
           )}
           {!isLoading && total > 0 && (
             <PaginationBar
@@ -287,7 +337,7 @@ export default function Consultas() {
       </Card>
 
       <Dialog open={!!selectedId} onOpenChange={(open) => !open && setSelectedId(null)}>
-        <DialogContent className="w-[calc(100vw-0.75rem)] max-w-2xl max-h-[90vh] overflow-y-auto p-3 sm:p-6">
+        <DialogContent className="w-[calc(100vw-0.75rem)] max-w-2xl max-h-[90vh] overflow-y-auto overflow-x-hidden p-3 sm:p-6">
           <DialogHeader><DialogTitle>Detalle de Consulta</DialogTitle></DialogHeader>
           {selectedId && <ConsultationDetail consultationId={selectedId} onOrderCreated={() => queryClient.invalidateQueries({ queryKey: ["availability-consultations"] })} />}
         </DialogContent>
