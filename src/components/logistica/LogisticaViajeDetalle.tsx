@@ -290,31 +290,9 @@ export function LogisticaViajeDetalle({ tripId }: Props) {
               <SelectValue placeholder="Seleccionar pedido en consolidación..." />
             </SelectTrigger>
             <SelectContent>
-              {availableRequests?.map((r: any) => {
+              {availableSorted.map((r: any) => {
                 const tipo = REQUEST_TYPE_LABELS[r.request_type] || r.request_type;
-                // Nombre corto y limpio de sucursal:
-                // - prioriza branches.name (legible)
-                // - quita prefijos administrativos: "SUC ", "SUCURSAL ", "STOCK "
-                // - descarta códigos puramente numéricos (IDs internos del ERP)
-                // - capitaliza (Title Case)
-                const cleanBranch = (b: any): string => {
-                  if (!b) return "—";
-                  let raw = (b.name && String(b.name).trim()) || "";
-                  if (!raw && b.code && !/^\d+$/.test(String(b.code).trim())) {
-                    raw = String(b.code).trim();
-                  }
-                  if (!raw) return "—";
-                  raw = raw.replace(/^\s*(suc(ursal)?|stock|deposito|depósito)\s+/i, "").trim();
-                  return raw
-                    .toLowerCase()
-                    .split(/\s+/)
-                    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
-                    .join(" ");
-                };
-                const destino =
-                  r.delivery_target === "client"
-                    ? (r.client_name?.trim() || cleanBranch(r.requesting_branch))
-                    : cleanBranch(r.requesting_branch);
+                const destino = r._destino;
                 const ageH = r.created_at
                   ? Math.floor((Date.now() - new Date(r.created_at).getTime()) / 3600000)
                   : null;
@@ -330,7 +308,7 @@ export function LogisticaViajeDetalle({ tripId }: Props) {
                   </SelectItem>
                 );
               })}
-              {(!availableRequests || availableRequests.length === 0) && (
+              {availableSorted.length === 0 && (
                 <SelectItem value="none" disabled>No hay cargas disponibles</SelectItem>
               )}
             </SelectContent>
