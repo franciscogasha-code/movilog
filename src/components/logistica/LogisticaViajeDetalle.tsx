@@ -253,12 +253,27 @@ export function LogisticaViajeDetalle({ tripId }: Props) {
               <SelectValue placeholder="Seleccionar pedido en consolidación..." />
             </SelectTrigger>
             <SelectContent>
-              {availableRequests?.map((r: any) => (
-                <SelectItem key={r.id} value={r.id}>
-                  #{r.request_number} — {branchName(r.source_branch as any)} → {branchName(r.requesting_branch as any)}
-                  {r.client_name ? ` (${r.client_name})` : ""}
-                </SelectItem>
-              ))}
+              {availableRequests?.map((r: any) => {
+                const tipo = REQUEST_TYPE_LABELS[r.request_type] || r.request_type;
+                const destino =
+                  r.delivery_target === "client"
+                    ? (r.client_name?.trim() || (r.requesting_branch as any)?.code || "—")
+                    : ((r.requesting_branch as any)?.code || (r.requesting_branch as any)?.name || "—");
+                const ageH = r.created_at
+                  ? Math.floor((Date.now() - new Date(r.created_at).getTime()) / 3600000)
+                  : null;
+                const ageLabel = ageH != null ? (ageH < 1 ? "<1h" : ageH < 24 ? `${ageH}h` : `${Math.floor(ageH / 24)}d`) : null;
+                return (
+                  <SelectItem key={r.id} value={r.id}>
+                    <span className="font-mono text-xs">#{r.request_number}</span>
+                    <span className="text-muted-foreground"> · </span>
+                    <span className="text-xs">{tipo}</span>
+                    <span className="text-muted-foreground"> · </span>
+                    <span className="text-xs font-semibold uppercase">{destino}</span>
+                    {ageLabel && <span className="text-[10px] text-muted-foreground ml-2">Hace {ageLabel}</span>}
+                  </SelectItem>
+                );
+              })}
               {(!availableRequests || availableRequests.length === 0) && (
                 <SelectItem value="none" disabled>No hay cargas disponibles</SelectItem>
               )}
