@@ -91,9 +91,11 @@ export function RequestProgressBar({ currentStatus, events = [], flowType }: Req
     );
   }
 
+  // Mobile: scroll horizontal interno; desktop: ancho completo
+  const minWidth = `${steps.length * 64}px`;
   return (
-    <div className="w-full">
-      <div className="flex items-center justify-between relative">
+    <div className="w-full overflow-x-auto -mx-1 px-1 pb-1">
+      <div className="flex items-center justify-between relative" style={{ minWidth }}>
         {/* Connecting line */}
         <div className="absolute top-5 left-5 right-5 h-0.5 bg-border z-0" />
         <div
