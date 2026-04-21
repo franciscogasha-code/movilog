@@ -173,26 +173,26 @@ export default function Solicitudes() {
   };
 
   return (
-    <motion.div className="space-y-6" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
+    <motion.div className="space-y-4 sm:space-y-6" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
-          <h1 className="font-display text-2xl font-bold text-foreground">Pedidos</h1>
-          <p className="text-muted-foreground mt-1">Gestión de pedidos entre sucursales, clientes y reposiciones</p>
+          <h1 className="page-title">Pedidos</h1>
+          <p className="page-subtitle mt-1">Gestión de pedidos entre sucursales, clientes y reposiciones</p>
         </div>
         {!isViewer && (
-          <div className="flex flex-col sm:flex-row gap-2">
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
             {(hasRole("admin") || isOwner) && (
-              <Button variant="outline" onClick={() => setAdminRepoOpen(true)}>
+              <Button variant="outline" onClick={() => setAdminRepoOpen(true)} className="w-full sm:w-auto">
                 <FileSpreadsheet className="h-4 w-4 mr-2" /> Reposición admin.
               </Button>
             )}
             <Dialog open={createOpen} onOpenChange={setCreateOpen}>
               <DialogTrigger asChild>
-                <Button>
+                <Button className="w-full sm:w-auto">
                   <Plus className="h-4 w-4 mr-2" /> Nuevo Pedido
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogContent className="w-[calc(100vw-0.75rem)] max-w-2xl max-h-[90vh] overflow-y-auto overflow-x-hidden p-3 sm:p-6">
                 <DialogHeader>
                   <DialogTitle>Crear Pedido</DialogTitle>
                 </DialogHeader>
@@ -206,15 +206,20 @@ export default function Solicitudes() {
         )}
       </div>
 
-      {/* Filters */}
-      <div className="flex gap-3 flex-wrap">
-        <div className="relative flex-1 min-w-[200px] max-w-sm">
+      {/* Filters — stack en mobile, fila en sm+ */}
+      <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+        <div className="relative flex-1 sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Buscar por # o sucursal..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+          <Input
+            placeholder="Buscar por #, cliente o factura..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9 h-11 sm:h-10"
+          />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[200px]">
-            <Filter className="h-4 w-4 mr-2" />
+          <SelectTrigger className="w-full sm:w-[220px] h-11 sm:h-10">
+            <Filter className="h-4 w-4 mr-2 shrink-0" />
             <SelectValue placeholder="Estado" />
           </SelectTrigger>
           <SelectContent>
@@ -230,68 +235,114 @@ export default function Solicitudes() {
         </Select>
       </div>
 
-      {/* Table */}
+      {/* Listado: cards en mobile, tabla en md+ */}
       <Card className="glass-card">
         <CardContent className="p-0">
           {isLoading ? (
             <div className="p-8 text-center text-muted-foreground">Cargando pedidos...</div>
           ) : !filtered?.length ? (
-            <div className="p-8 text-center text-muted-foreground">
-              <ArrowRightLeft className="h-8 w-8 mx-auto mb-2 opacity-50" />
-              <p>No hay pedidos {statusFilter !== "all" ? "con ese filtro" : ""}</p>
+            <div className="p-8">
+              <div className="empty-state">
+                <ArrowRightLeft className="h-8 w-8 mb-2 opacity-50" />
+                <p className="font-medium">No hay pedidos {statusFilter !== "all" ? "con ese filtro" : ""}</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {statusFilter !== "all" ? "Probá cambiar el filtro o crear uno nuevo." : "Creá tu primer pedido para empezar."}
+                </p>
+              </div>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border bg-muted/30">
-                    <th className="text-left p-3 font-medium text-muted-foreground">#</th>
-                    <th className="text-left p-3 font-medium text-muted-foreground">Tipo</th>
-                    <th className="text-left p-3 font-medium text-muted-foreground">Ruta</th>
-                    <th className="text-left p-3 font-medium text-muted-foreground">Entrega</th>
-                    <th className="text-left p-3 font-medium text-muted-foreground">Envío</th>
-                    <th className="text-left p-3 font-medium text-muted-foreground">Estado</th>
-                    <th className="text-left p-3 font-medium text-muted-foreground">Fecha</th>
-                    <th className="text-left p-3 font-medium text-muted-foreground"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map((r: any) => (
-                    <tr key={r.id} className="border-b border-border/50 hover:bg-muted/40 transition-all duration-150 cursor-pointer" onClick={() => setSelectedId(r.id)}>
-                      <td className="px-3 py-2 font-mono font-semibold">#{r.request_number}</td>
-                      <td className="px-3 py-2">
-                        <Badge variant="outline" className="text-xs capitalize">
-                          {REQUEST_TYPE_LABELS[r.request_type] || r.request_type}
-                        </Badge>
-                      </td>
-                      <td className="px-3 py-2">
-                        <div className="flex items-center gap-1.5">
-                          {buildRouteCell(r)}
-                          {r.source_branch_id === r.requesting_branch_id && (
-                            <span className="inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground border border-border shrink-0">
-                              Interno
-                            </span>
+            <>
+              {/* MOBILE: cards verticales */}
+              <div className="md:hidden divide-y divide-border/50">
+                {filtered.map((r: any) => {
+                  const isInternal = r.source_branch_id === r.requesting_branch_id;
+                  return (
+                    <button
+                      key={r.id}
+                      onClick={() => setSelectedId(r.id)}
+                      className="w-full text-left p-3 hover:bg-muted/40 active:bg-muted/60 transition-colors"
+                    >
+                      <div className="flex items-center justify-between gap-2 mb-1.5">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="font-mono font-semibold text-sm">#{r.request_number}</span>
+                          <Badge variant="outline" className="text-[10px] capitalize shrink-0">
+                            {REQUEST_TYPE_LABELS[r.request_type] || r.request_type}
+                          </Badge>
+                          {isInternal && (
+                            <span className="chip bg-muted text-muted-foreground border border-border">Interno</span>
                           )}
                         </div>
-                      </td>
-                      <td className="px-3 py-2 text-xs">{DELIVERY_TARGET_LABELS[r.delivery_target] || "A sucursal"}</td>
-                      <td className="px-3 py-2 text-muted-foreground text-xs">{SHIPPING_METHOD_LABELS[r.shipping_method] || r.shipping_method}</td>
-                      <td className="px-3 py-2">
-                        <StatusBadge status={r.status} config={REQUEST_STATUS_CONFIG} />
-                      </td>
-                      <td className="px-3 py-2 text-muted-foreground text-xs">
-                        {new Date(r.created_at).toLocaleDateString("es-PY", { day: "2-digit", month: "short" })}
-                      </td>
-                      <td className="px-3 py-2">
-                        <Button variant="ghost" size="sm" className="text-xs h-7">
-                          {isViewer ? "Ver pedido" : "Gestionar"}
-                        </Button>
-                      </td>
+                        <StatusBadge status={r.status} config={REQUEST_STATUS_CONFIG} className="shrink-0" />
+                      </div>
+                      <div className="text-xs text-foreground/80 mb-1 break-words">
+                        {buildRouteCell(r)}
+                      </div>
+                      <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                        <span className="truncate">
+                          {DELIVERY_TARGET_LABELS[r.delivery_target] || "A sucursal"} · {SHIPPING_METHOD_LABELS[r.shipping_method] || r.shipping_method}
+                        </span>
+                        <span className="shrink-0">
+                          {new Date(r.created_at).toLocaleDateString("es-PY", { day: "2-digit", month: "short" })}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* DESKTOP: tabla */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border bg-muted/30">
+                      <th className="text-left p-3 font-medium text-muted-foreground">#</th>
+                      <th className="text-left p-3 font-medium text-muted-foreground">Tipo</th>
+                      <th className="text-left p-3 font-medium text-muted-foreground">Ruta</th>
+                      <th className="text-left p-3 font-medium text-muted-foreground">Entrega</th>
+                      <th className="text-left p-3 font-medium text-muted-foreground">Envío</th>
+                      <th className="text-left p-3 font-medium text-muted-foreground">Estado</th>
+                      <th className="text-left p-3 font-medium text-muted-foreground">Fecha</th>
+                      <th className="text-left p-3 font-medium text-muted-foreground"></th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {filtered.map((r: any) => (
+                      <tr key={r.id} className="border-b border-border/50 hover:bg-muted/40 transition-all duration-150 cursor-pointer" onClick={() => setSelectedId(r.id)}>
+                        <td className="px-3 py-2 font-mono font-semibold">#{r.request_number}</td>
+                        <td className="px-3 py-2">
+                          <Badge variant="outline" className="text-xs capitalize">
+                            {REQUEST_TYPE_LABELS[r.request_type] || r.request_type}
+                          </Badge>
+                        </td>
+                        <td className="px-3 py-2">
+                          <div className="flex items-center gap-1.5">
+                            {buildRouteCell(r)}
+                            {r.source_branch_id === r.requesting_branch_id && (
+                              <span className="inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground border border-border shrink-0">
+                                Interno
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-3 py-2 text-xs">{DELIVERY_TARGET_LABELS[r.delivery_target] || "A sucursal"}</td>
+                        <td className="px-3 py-2 text-muted-foreground text-xs">{SHIPPING_METHOD_LABELS[r.shipping_method] || r.shipping_method}</td>
+                        <td className="px-3 py-2">
+                          <StatusBadge status={r.status} config={REQUEST_STATUS_CONFIG} />
+                        </td>
+                        <td className="px-3 py-2 text-muted-foreground text-xs">
+                          {new Date(r.created_at).toLocaleDateString("es-PY", { day: "2-digit", month: "short" })}
+                        </td>
+                        <td className="px-3 py-2">
+                          <Button variant="ghost" size="sm" className="text-xs h-7">
+                            {isViewer ? "Ver pedido" : "Gestionar"}
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
           {!isLoading && total > 0 && (
             <PaginationBar
@@ -311,7 +362,7 @@ export default function Solicitudes() {
 
       {/* Detail Dialog */}
       <Dialog open={!!selectedId} onOpenChange={(open) => !open && setSelectedId(null)}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[calc(100vw-0.75rem)] max-w-3xl max-h-[90vh] overflow-y-auto overflow-x-hidden p-3 sm:p-6">
           <DialogHeader>
             <DialogTitle>Detalle del Pedido</DialogTitle>
           </DialogHeader>
@@ -320,7 +371,7 @@ export default function Solicitudes() {
       </Dialog>
       {/* Admin Reposition Dialog */}
       <Dialog open={adminRepoOpen} onOpenChange={setAdminRepoOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[calc(100vw-0.75rem)] max-w-3xl max-h-[90vh] overflow-y-auto overflow-x-hidden p-3 sm:p-6">
           <DialogHeader>
             <DialogTitle>Reposición Administrativa</DialogTitle>
           </DialogHeader>
