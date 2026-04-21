@@ -288,7 +288,7 @@ export function LogisticaViajeDetalle({ tripId }: Props) {
                     <span className="text-muted-foreground"> · </span>
                     <span className="text-xs">{tipo}</span>
                     <span className="text-muted-foreground"> · </span>
-                    <span className="text-xs font-semibold uppercase">{destino}</span>
+                    <span className="text-xs font-semibold">{destino}</span>
                     {ageLabel && <span className="text-[10px] text-muted-foreground ml-2">Hace {ageLabel}</span>}
                   </SelectItem>
                 );
