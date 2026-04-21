@@ -147,8 +147,8 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
         .from("branch_requests")
         .select(`
           *,
-          requesting_branch:branches!branch_requests_requesting_branch_id_fkey(name, code),
-          source_branch:branches!branch_requests_source_branch_id_fkey(name, code)
+          requesting_branch:branches!branch_requests_requesting_branch_id_fkey(name, code, logistic_group),
+          source_branch:branches!branch_requests_source_branch_id_fkey(name, code, logistic_group, is_central_warehouse)
         `)
         .eq("id", requestId)
         .single();
