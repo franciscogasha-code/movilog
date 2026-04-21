@@ -318,8 +318,8 @@ export function LogisticaConsolidacion() {
                 const someGroupSelected = groupIds.some(id => selected.has(id));
                 return (
                   <div key={dest} className="p-3 rounded-lg bg-muted/20 border border-border/50">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
+                    <div className="flex items-center justify-between gap-2 flex-wrap mb-2">
+                      <div className="flex items-center gap-2 min-w-0 flex-wrap">
                         <Checkbox
                           checked={allGroupSelected}
                           className={someGroupSelected && !allGroupSelected ? "opacity-60" : ""}
