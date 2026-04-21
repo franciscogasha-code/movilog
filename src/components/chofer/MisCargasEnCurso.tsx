@@ -82,7 +82,7 @@ export function MisCargasEnCurso() {
         return (
           <Card key={f.id} className={`glass-card ${isFailed ? "border-destructive/30" : ""}`}>
             <CardContent className="p-4">
-              <div className="flex items-start justify-between gap-3">
+              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap mb-1">
                     <span className="font-semibold text-sm">
@@ -118,7 +118,7 @@ export function MisCargasEnCurso() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
+                <div className="flex items-center gap-1.5 flex-wrap md:shrink-0 md:justify-end -mx-1 md:mx-0">
                   {target === "branch" && (
                     <Button
                       size="sm"
