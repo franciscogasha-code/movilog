@@ -46,14 +46,15 @@ type ActionDef = {
 
 function getStatusActions(status: string, flowType?: string | null): ActionDef[] {
   // Common: pending actions for all flows
+  // "Aceptar" ejecuta atómicamente pending → accepted → in_preparation (una sola acción visible).
   if (status === "pending") {
     return [
-      { label: "Aceptar", newStatus: "accepted", variant: "default", icon: <Check className="h-4 w-4" />, actor: "origin" },
+      { label: "Aceptar", newStatus: "in_preparation", variant: "default", icon: <Check className="h-4 w-4" />, actor: "origin" },
       { label: "Rechazar", newStatus: "rejected", variant: "destructive", icon: <X className="h-4 w-4" />, actor: "origin", requiresReason: true },
     ];
   }
 
-  // Common: accepted → in_preparation for all flows (urban, interurban, client_delivery, legacy)
+  // Fallback: si por algún motivo quedó en accepted, permitir avanzar manualmente.
   if (status === "accepted") {
     return [
       { label: "Preparar", newStatus: "in_preparation", variant: "default", icon: <Package className="h-4 w-4" />, actor: "origin" },
@@ -265,6 +266,21 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
   const handleTransition = async (newStatus: string, reason?: string, reasonType?: string, tripId?: string) => {
     setTransitioning(true);
     try {
+      // Caso especial: "Aceptar" desde pending debe encadenar pending → accepted → in_preparation
+      // en una sola acción operativa visible. El estado intermedio 'accepted' queda en auditoría.
+      const isAcceptToPrep = r.status === "pending" && newStatus === "in_preparation";
+
+      if (isAcceptToPrep) {
+        const { error: e1 } = await supabase.rpc("fn_transition_request_status", {
+          p_request_id: requestId,
+          p_new_status: "accepted",
+          p_reason: reason || "Aceptación de pedido",
+          p_rejection_reason_type: null,
+          p_trip_id: null,
+        } as any);
+        if (e1) throw e1;
+      }
+
       const { data, error } = await supabase.rpc("fn_transition_request_status", {
         p_request_id: requestId,
         p_new_status: newStatus,
@@ -275,7 +291,7 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
       if (error) throw error;
 
       const result = data as any;
-      toast.success(`Pedido #${result.request_number}: ${result.old_status} → ${result.new_status}`);
+      toast.success(`Pedido #${result.request_number ?? ""}: ${isAcceptToPrep ? "pending" : result.old_status} → ${result.new_status}`);
 
       queryClient.invalidateQueries({ queryKey: ["branch-request-detail", requestId] });
       queryClient.invalidateQueries({ queryKey: ["request-fulfillments", requestId] });
@@ -288,6 +304,9 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
       setRejectionReason("");
       setRejectionReasonType("");
     } catch (err: any) {
+      // Si falló el segundo paso, refrescamos para que la UI muestre 'accepted' y el botón 'Preparar' aparezca como fallback.
+      queryClient.invalidateQueries({ queryKey: ["branch-request-detail", requestId] });
+      onUpdate();
       toast.error(err.message || "Error al cambiar estado");
     } finally {
       setTransitioning(false);
