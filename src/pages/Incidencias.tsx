@@ -131,57 +131,99 @@ export default function Incidencias() {
   };
 
   return (
-    <motion.div className="space-y-6" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="font-display text-2xl font-bold text-foreground">Incidencias Logísticas</h1>
-          <p className="text-muted-foreground mt-1">Averiados, faltantes, sobrantes y diferencias de stock</p>
+    <motion.div className="space-y-4 sm:space-y-5" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="font-display text-xl sm:text-2xl font-bold text-foreground truncate">Incidencias Logísticas</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">Averiados, faltantes y diferencias</p>
         </div>
-        <Button onClick={() => setCreateOpen(true)} className="gap-2">
-          <Plus className="h-4 w-4" /> Nueva incidencia
+        <Button onClick={() => setCreateOpen(true)} size="sm" className="gap-1.5 shrink-0">
+          <Plus className="h-4 w-4" /> <span className="hidden sm:inline">Nueva incidencia</span><span className="sm:hidden">Nueva</span>
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-        <Card className="glass-card">
-          <CardContent className="p-5 flex items-center gap-4">
-            <div className="bg-destructive/10 p-3 rounded-xl"><ShieldAlert className="h-5 w-5 text-destructive" /></div>
-            <div><p className="text-xs text-muted-foreground uppercase">Abiertas</p><p className="text-2xl font-display font-bold">{openCount}</p></div>
-          </CardContent>
-        </Card>
-        <Card className="glass-card">
-          <CardContent className="p-5 flex items-center gap-4">
-            <div className="bg-info/10 p-3 rounded-xl"><Gavel className="h-5 w-5 text-info" /></div>
-            <div><p className="text-xs text-muted-foreground uppercase">En decisión</p><p className="text-2xl font-display font-bold">{underReviewCount}</p></div>
-          </CardContent>
-        </Card>
-        <Card className="glass-card">
-          <CardContent className="p-5 flex items-center gap-4">
-            <div className="bg-warning/10 p-3 rounded-xl"><AlertTriangle className="h-5 w-5 text-warning" /></div>
-            <div><p className="text-xs text-muted-foreground uppercase">Pend. envío admin</p><p className="text-2xl font-display font-bold">{pendingAdminCount}</p></div>
-          </CardContent>
-        </Card>
-        <Card className="glass-card">
-          <CardContent className="p-5 flex items-center gap-4">
-            <div className="bg-secondary/10 p-3 rounded-xl"><Calendar className="h-5 w-5 text-secondary" /></div>
-            <div><p className="text-xs text-muted-foreground uppercase">Total registradas</p><p className="text-2xl font-display font-bold">{incidents?.length || 0}</p></div>
-          </CardContent>
-        </Card>
+      {/* KPIs compactos */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <div className="op-card p-2.5 border-l-4 border-l-destructive">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Abiertas</p>
+          <p className="text-xl font-display font-bold text-destructive">{openCount}</p>
+        </div>
+        <div className="op-card p-2.5 border-l-4 border-l-info">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">En decisión</p>
+          <p className="text-xl font-display font-bold text-info">{underReviewCount}</p>
+        </div>
+        <div className="op-card p-2.5 border-l-4 border-l-warning">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Pend. envío</p>
+          <p className="text-xl font-display font-bold text-warning">{pendingAdminCount}</p>
+        </div>
+        <div className="op-card p-2.5 border-l-4 border-l-secondary">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Total</p>
+          <p className="text-xl font-display font-bold">{incidents?.length || 0}</p>
+        </div>
       </div>
 
       <div className="relative max-w-sm">
         <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input placeholder="Buscar incidencia..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+        <Input placeholder="Buscar incidencia..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 h-11" />
       </div>
 
-      <Card className="glass-card">
+      <Card className="glass-card overflow-hidden">
         <CardContent className="p-0">
           {isLoading ? (
-            <div className="p-8 text-center text-muted-foreground">Cargando...</div>
+            <div className="p-8 text-center text-muted-foreground text-sm">Cargando...</div>
           ) : !filtered?.length ? (
-            <div className="p-8 text-center text-muted-foreground">No hay incidencias registradas</div>
+            <div className="empty-state p-8 text-center">
+              <ShieldAlert className="h-8 w-8 mx-auto mb-2 opacity-40" />
+              <p className="text-sm font-medium">Sin incidencias registradas</p>
+              <p className="text-xs text-muted-foreground mt-1">Las nuevas incidencias aparecerán acá</p>
+            </div>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+              {/* MOBILE: cards con gravedad */}
+              <div className="md:hidden divide-y divide-border/50">
+                {filtered.map((i: any) => {
+                  const sevBorder = i.status === "open" ? "border-l-destructive" : i.status === "under_review" ? "border-l-info" : "border-l-muted";
+                  return (
+                    <div key={i.id} className={`p-3 border-l-4 ${sevBorder} ${i.pending_shipment_to_admin ? "bg-warning/5" : ""}`}>
+                      <div className="flex items-start justify-between gap-2 mb-1">
+                        <p className="text-sm font-semibold text-foreground line-clamp-2 flex-1">{i.title}</p>
+                        <StatusBadge status={i.status} config={INCIDENT_STATUS_CONFIG} />
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
+                        <Badge variant="outline" className="text-[10px]">{INCIDENT_TYPE_LABELS[i.incident_type] || i.incident_type}</Badge>
+                        <span>·</span>
+                        <span>{branchName(i.branch)}</span>
+                        {i.product?.name && <><span>·</span><span className="truncate max-w-[120px]">{i.product.name}</span></>}
+                      </div>
+                      {i.admin_disposition && (
+                        <p className="text-[10px] text-muted-foreground mt-1.5">
+                          Decisión: {ADMIN_DISPOSITIONS[i.admin_disposition] || i.admin_disposition}
+                        </p>
+                      )}
+                      <div className="flex gap-1.5 mt-2.5">
+                        {["open", "under_review"].includes(i.status) && !i.admin_disposition && (
+                          <Button variant="outline" size="sm" className="h-9 flex-1 text-xs gap-1" onClick={() => setDecisionId(i.id)}>
+                            <Gavel className="h-3 w-3" /> Decidir
+                          </Button>
+                        )}
+                        {i.status === "under_review" && i.admin_disposition && (
+                          <Button variant="outline" size="sm" className="h-9 flex-1 text-xs" onClick={() => closeIncident(i.id)}>
+                            Cerrar
+                          </Button>
+                        )}
+                        {i.status === "resolved" && (
+                          <Button variant="ghost" size="sm" className="h-9 flex-1 text-xs" onClick={() => closeIncident(i.id)}>
+                            Archivar
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* DESKTOP: tabla */}
+              <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border bg-muted/30">
@@ -246,7 +288,8 @@ export default function Incidencias() {
                   ))}
                 </tbody>
               </table>
-            </div>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

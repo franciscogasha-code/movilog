@@ -71,28 +71,65 @@ export default function Etiquetas() {
   });
 
   return (
-    <motion.div className="space-y-6" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
+    <motion.div className="space-y-4 sm:space-y-5" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
       <div>
-        <h1 className="font-display text-2xl font-bold text-foreground">Etiquetas y Bultos</h1>
-        <p className="text-muted-foreground mt-1">Gestión de etiquetas para envíos a clientes y encomiendas</p>
+        <h1 className="font-display text-xl sm:text-2xl font-bold text-foreground">Etiquetas y Bultos</h1>
+        <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">Generá etiquetas para envíos a clientes y encomiendas</p>
       </div>
 
-      <div className="relative max-w-sm">
+      <div className="relative max-w-md">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input placeholder="Buscar por pedido o destino..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+        <Input placeholder="Buscar por pedido o destino..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 h-11" />
       </div>
 
-      <Card className="glass-card">
+      <Card className="glass-card overflow-hidden">
         <CardContent className="p-0">
           {isLoading ? (
-            <div className="p-8 text-center text-muted-foreground">Cargando...</div>
+            <div className="p-8 text-center text-muted-foreground text-sm">Cargando...</div>
           ) : !filtered?.length ? (
-            <div className="p-8 text-center text-muted-foreground">
-              <Tag className="h-8 w-8 mx-auto mb-2 opacity-50" />
-              <p>No hay envíos que requieran etiquetas</p>
+            <div className="empty-state p-10 text-center">
+              <Tag className="h-10 w-10 mx-auto mb-3 opacity-40" />
+              <p className="text-sm font-semibold text-foreground">No hay envíos pendientes de etiquetar</p>
+              <p className="text-xs text-muted-foreground mt-1 max-w-xs mx-auto">
+                Cuando un pedido a cliente o encomienda esté listo, podrás generar sus etiquetas acá.
+              </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+              {/* MOBILE: cards */}
+              <div className="md:hidden divide-y divide-border/50">
+                {filtered.map((f: any) => {
+                  const pkgs = packagesByFulfillment[f.id] || [];
+                  const printed = pkgs.filter((p: any) => p.label_printed).length;
+                  return (
+                    <div key={f.id} className="p-3">
+                      <div className="flex items-start justify-between gap-2 mb-1">
+                        <span className="font-mono font-semibold text-sm">#{f.branch_request?.request_number || "—"}</span>
+                        <Badge variant="secondary" className="text-[10px]">{f.package_count || 0} bultos</Badge>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground mb-1">
+                        {branchName(f.source_branch)} → {f.destination_client_name || f.branch_request?.client_name || branchName(f.destination_branch)}
+                      </p>
+                      {pkgs.length > 0 ? (
+                        <p className="text-[11px] flex items-center gap-1 text-accent">
+                          <CheckCircle2 className="h-3 w-3" /> {pkgs.length} creada{pkgs.length > 1 ? "s" : ""} · {printed} impresa{printed !== 1 ? "s" : ""}
+                        </p>
+                      ) : (
+                        <p className="text-[11px] text-muted-foreground">Sin etiquetas creadas</p>
+                      )}
+                      <div className="flex gap-1.5 mt-2.5">
+                        <Button variant="outline" size="sm" className="h-9 flex-1 text-xs gap-1" onClick={() => setCreateForId(f.id)}>
+                          <Plus className="h-3 w-3" /> {pkgs.length > 0 ? "Agregar" : "Generar etiqueta"}
+                        </Button>
+                        {pkgs.length > 0 && <PrintLabelsButton packages={pkgs} />}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* DESKTOP: tabla */}
+              <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border bg-muted/30">
@@ -152,7 +189,8 @@ export default function Etiquetas() {
                   })}
                 </tbody>
               </table>
-            </div>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
