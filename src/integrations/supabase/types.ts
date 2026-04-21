@@ -2826,6 +2826,14 @@ export type Database = {
         Returns: boolean
       }
       fn_close_expired_consultations: { Args: never; Returns: number }
+      fn_derive_flow_type: {
+        Args: {
+          p_delivery_target: string
+          p_requesting_branch_id: string
+          p_source_branch_id: string
+        }
+        Returns: string
+      }
       fn_driver_action: {
         Args: {
           p_action: string
