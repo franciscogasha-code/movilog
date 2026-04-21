@@ -170,13 +170,40 @@
     @apply overflow-x-hidden max-w-full;
   }
 
-  /* CTA sticky inferior en mobile */
+  /* CTA sticky inferior en mobile (desaparece en md+) */
   .sticky-cta {
-    @apply sticky bottom-0 left-0 right-0 -mx-3 sm:-mx-4 md:mx-0 px-3 sm:px-4 md:px-0 py-3 bg-background/95 backdrop-blur-md border-t border-border md:static md:bg-transparent md:border-0 md:py-0;
+    @apply sticky bottom-0 left-0 right-0 -mx-3 sm:-mx-4 md:mx-0 px-3 sm:px-4 md:px-0 py-3
+           bg-background/95 backdrop-blur-md border-t border-border z-20
+           md:static md:bg-transparent md:border-0 md:py-0 md:backdrop-blur-none;
+    padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+  }
+
+  /* CTA flotante (sobre el contenido) para tareas críticas tipo chofer */
+  .floating-cta {
+    @apply fixed bottom-3 left-3 right-3 z-30 md:hidden
+           rounded-xl bg-background/95 backdrop-blur-md border border-border
+           shadow-premium-hover p-3;
+    padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
   }
 
   /* Estado vacío premium */
   .empty-state {
     @apply flex flex-col items-center justify-center text-center py-10 px-4 rounded-xl border border-dashed border-border bg-muted/30;
+  }
+
+  /* Anti layout shift: reserva mínima para listas que cargan */
+  .min-list { min-height: 200px; }
+
+  /* Animación de entrada discreta */
+  @keyframes fade-in-up {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .anim-in { animation: fade-in-up 0.18s ease-out both; }
+
+  /* Respeta usuarios con reduce-motion */
+  @media (prefers-reduced-motion: reduce) {
+    .anim-in, .animate-pulse { animation: none !important; }
+    * { transition-duration: 0.01ms !important; }
   }
 }
