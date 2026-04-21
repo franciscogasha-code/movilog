@@ -489,26 +489,26 @@ export default function Index() {
   }, [queueItems, activeFilter]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header + Quick Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="font-display text-2xl font-bold text-foreground">
+          <h1 className="page-title">
             {isViewer ? "Panel de Seguimiento" : isLogisticsOp ? "Panel Logístico" : isDriver ? "Panel del Chofer" : "Mi Panel Operativo"}
           </h1>
-          <p className="text-muted-foreground text-sm mt-0.5">
+          <p className="page-subtitle mt-0.5">
             {firstName(profile?.full_name)} — {new Date().toLocaleDateString("es-PY", { weekday: "long", day: "numeric", month: "long" })}
           </p>
         </div>
         {!isDriver && !isViewer && (
-          <div className="flex gap-2">
-            <Button size="sm" onClick={() => navigate("/solicitudes?action=new")}>
+          <div className="flex gap-2 w-full sm:w-auto">
+            <Button size="sm" onClick={() => navigate("/solicitudes?action=new")} className="flex-1 sm:flex-none">
               <Plus className="h-4 w-4" />
-              Nuevo pedido
+              <span className="hidden xs:inline">Nuevo</span> pedido
             </Button>
-            <Button size="sm" variant="outline" onClick={() => navigate("/consultas?action=new")}>
+            <Button size="sm" variant="outline" onClick={() => navigate("/consultas?action=new")} className="flex-1 sm:flex-none">
               <Search className="h-4 w-4" />
-              Nueva consulta
+              <span className="hidden xs:inline">Nueva</span> consulta
             </Button>
           </div>
         )}
