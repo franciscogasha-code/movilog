@@ -97,81 +97,36 @@ export default function Ruteo() {
   });
 
   return (
-    <motion.div className="space-y-6" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
+    <motion.div className="space-y-4 sm:space-y-5" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
       <div>
-        <h1 className="font-display text-2xl font-bold text-foreground">Planificación Logística</h1>
-        <p className="text-muted-foreground mt-1">Consolidación de cargas, gestión de viajes y monitoreo</p>
+        <h1 className="font-display text-xl sm:text-2xl font-bold text-foreground">Planificación Logística</h1>
+        <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">Consolidación, viajes y monitoreo</p>
       </div>
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-        <Card
-          className={`glass-card cursor-pointer transition-all ${activeTab === "consolidacion" ? "ring-2 ring-primary/40" : ""}`}
-          onClick={() => setActiveTab("consolidacion")}
-        >
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="bg-primary/10 p-2.5 rounded-xl">
-              <Package className="h-4 w-4 text-primary" />
+      {/* KPIs compactos tipo chip */}
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+        {[
+          { key: "consolidacion", label: "Consol.", value: consolidationCount, icon: Package, color: "text-primary" },
+          { key: "cliente", label: "Cliente", value: clientFleetCount, icon: User, color: "text-secondary" },
+          { key: null, label: "Hoy", value: assignedTodayCount, icon: CheckCircle2, color: "text-accent" },
+          { key: "programados", label: "Programados", value: plannedCount, icon: Calendar, color: "text-secondary" },
+          { key: "en-curso", label: "En curso", value: inProgressCount, icon: Truck, color: "text-warning" },
+        ].map((kpi) => (
+          <button
+            key={kpi.label}
+            type="button"
+            onClick={() => kpi.key && setActiveTab(kpi.key)}
+            className={`op-card p-2.5 flex items-center gap-2 text-left transition-colors ${
+              kpi.key && activeTab === kpi.key ? "ring-2 ring-primary/40" : ""
+            } ${kpi.key ? "hover:bg-muted/40 active:bg-muted/60" : "cursor-default"}`}
+          >
+            <kpi.icon className={`h-4 w-4 shrink-0 ${kpi.color}`} />
+            <div className="min-w-0">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider truncate">{kpi.label}</p>
+              <p className="text-base font-display font-bold leading-tight">{kpi.value ?? 0}</p>
             </div>
-            <div>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Consolidación</p>
-              <p className="text-lg font-display font-bold">{consolidationCount ?? 0}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card
-          className={`glass-card cursor-pointer transition-all ${activeTab === "cliente" ? "ring-2 ring-secondary/40" : ""}`}
-          onClick={() => setActiveTab("cliente")}
-        >
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="bg-secondary/10 p-2.5 rounded-xl">
-              <User className="h-4 w-4 text-secondary" />
-            </div>
-            <div>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Pedidos cliente</p>
-              <p className="text-lg font-display font-bold">{clientFleetCount ?? 0}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="glass-card">
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="bg-accent/10 p-2.5 rounded-xl">
-              <CheckCircle2 className="h-4 w-4 text-accent" />
-            </div>
-            <div>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Asignados hoy</p>
-              <p className="text-lg font-display font-bold">{assignedTodayCount ?? 0}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card
-          className={`glass-card cursor-pointer transition-all ${activeTab === "programados" ? "ring-2 ring-primary/40" : ""}`}
-          onClick={() => setActiveTab("programados")}
-        >
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="bg-secondary/10 p-2.5 rounded-xl">
-              <Calendar className="h-4 w-4 text-secondary" />
-            </div>
-            <div>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Viajes programados</p>
-              <p className="text-lg font-display font-bold">{plannedCount ?? 0}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card
-          className={`glass-card cursor-pointer transition-all ${activeTab === "en-curso" ? "ring-2 ring-primary/40" : ""}`}
-          onClick={() => setActiveTab("en-curso")}
-        >
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="bg-warning/10 p-2.5 rounded-xl">
-              <Truck className="h-4 w-4 text-warning" />
-            </div>
-            <div>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Viajes en curso</p>
-              <p className="text-lg font-display font-bold">{inProgressCount ?? 0}</p>
-            </div>
-          </CardContent>
-        </Card>
+          </button>
+        ))}
       </div>
 
       {/* Tabs */}
