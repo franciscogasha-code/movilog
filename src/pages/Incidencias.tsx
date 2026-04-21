@@ -17,6 +17,7 @@ import { CrearIncidencia } from "@/components/incidencias/CrearIncidencia";
 import { toast } from "sonner";
 import { useUserBranchFilter } from "@/hooks/use-user-access";
 import { branchName } from "@/lib/branch-format";
+import { SkeletonList } from "@/components/ui/skeletons";
 
 const INCIDENT_TYPE_LABELS: Record<string, string> = {
   damaged: "Producto averiado",
@@ -170,7 +171,7 @@ export default function Incidencias() {
       <Card className="glass-card overflow-hidden">
         <CardContent className="p-0">
           {isLoading ? (
-            <div className="p-8 text-center text-muted-foreground text-sm">Cargando...</div>
+            <SkeletonList rows={6} />
           ) : !filtered?.length ? (
             <div className="empty-state p-8 text-center">
               <ShieldAlert className="h-8 w-8 mx-auto mb-2 opacity-40" />

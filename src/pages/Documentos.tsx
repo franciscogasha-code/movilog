@@ -6,6 +6,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { DOCUMENT_STATUS_CONFIG } from "@/lib/constants";
 import { FileText, Archive } from "lucide-react";
 import { branchName } from "@/lib/branch-format";
+import { SkeletonList } from "@/components/ui/skeletons";
 
 const DOC_TYPE_LABELS: Record<string, string> = {
   invoice: "Factura",
@@ -60,7 +61,7 @@ export default function Documentos() {
       <Card className="glass-card overflow-hidden">
         <CardContent className="p-0">
           {isLoading ? (
-            <div className="p-8 text-center text-muted-foreground text-sm">Cargando...</div>
+            <SkeletonList rows={6} />
           ) : !docs?.length ? (
             <div className="empty-state p-10 text-center">
               <FileText className="h-10 w-10 mx-auto mb-3 opacity-40" />
