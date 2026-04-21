@@ -147,8 +147,8 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
         .from("branch_requests")
         .select(`
           *,
-          requesting_branch:branches!branch_requests_requesting_branch_id_fkey(name, code),
-          source_branch:branches!branch_requests_source_branch_id_fkey(name, code)
+          requesting_branch:branches!branch_requests_requesting_branch_id_fkey(name, code, logistic_group),
+          source_branch:branches!branch_requests_source_branch_id_fkey(name, code, logistic_group, is_central_warehouse)
         `)
         .eq("id", requestId)
         .single();
@@ -244,12 +244,26 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
 
   const r = request as any;
 
+  // Derivar flow_type efectivo si el registro aún no lo tiene persistido
+  // (replica la lógica de fn_transition_request_status para evitar exponer
+  // transiciones que el backend rechazará).
+  const computeEffectiveFlow = (): string | null => {
+    if (r.flow_type) return r.flow_type;
+    if (r.delivery_target === "client") return "client_delivery";
+    if (r.source_branch_id === r.requesting_branch_id) return "urban";
+    const srcGroup = r.source_branch?.logistic_group ?? null;
+    const dstGroup = r.requesting_branch?.logistic_group ?? null;
+    if (srcGroup && dstGroup && srcGroup === dstGroup) return "urban";
+    return "interurban";
+  };
+  const effectiveFlowType = computeEffectiveFlow();
+
   // ─── Determine actor permissions ────────────────────────────────
   const isAdmin = hasRole("admin") || hasRole("supervisor") || isOwner;
   const isOrigin = hasBranch(r.source_branch_id);
   const isDestination = hasBranch(r.requesting_branch_id);
 
-  const availableActions = getStatusActions(r.status, r.flow_type).filter((action) => {
+  const availableActions = getStatusActions(r.status, effectiveFlowType).filter((action) => {
     if (isAdmin) return true;
     if (action.actor === "origin") return isOrigin;
     if (action.actor === "destination") return isDestination;
@@ -335,7 +349,7 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
   return (
     <div className="space-y-6">
       {/* Progress Bar */}
-      <RequestProgressBar currentStatus={r.status} events={progressEvents} flowType={r.flow_type} />
+      <RequestProgressBar currentStatus={r.status} events={progressEvents} flowType={effectiveFlowType} />
 
       {/* Warning panel */}
       {warnings.length > 0 && (
