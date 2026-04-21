@@ -17,6 +17,7 @@ import { CrearIncidencia } from "@/components/incidencias/CrearIncidencia";
 import { toast } from "sonner";
 import { useUserBranchFilter } from "@/hooks/use-user-access";
 import { branchName } from "@/lib/branch-format";
+import { SkeletonList } from "@/components/ui/skeletons";
 
 const INCIDENT_TYPE_LABELS: Record<string, string> = {
   damaged: "Producto averiado",

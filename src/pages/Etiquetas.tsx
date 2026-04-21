@@ -12,6 +12,7 @@ import { Printer, Tag, Plus, Search, CheckCircle2 } from "lucide-react";
 import { PrintLabelsButton } from "@/components/etiquetas/LabelPDF";
 import { toast } from "sonner";
 import { branchName } from "@/lib/branch-format";
+import { SkeletonList } from "@/components/ui/skeletons";
 
 export default function Etiquetas() {
   const [search, setSearch] = useState("");

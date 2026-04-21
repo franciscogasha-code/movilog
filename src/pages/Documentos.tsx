@@ -6,6 +6,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { DOCUMENT_STATUS_CONFIG } from "@/lib/constants";
 import { FileText, Archive } from "lucide-react";
 import { branchName } from "@/lib/branch-format";
+import { SkeletonList } from "@/components/ui/skeletons";
 
 const DOC_TYPE_LABELS: Record<string, string> = {
   invoice: "Factura",
