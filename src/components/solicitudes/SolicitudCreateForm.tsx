@@ -597,7 +597,7 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
       {/* STEP 1: Context */}
       <div className="space-y-4">
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">1. Contexto</h3>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
           <BranchSelector
             label="Sucursal solicitante"
             value={requestingBranchId}
@@ -796,7 +796,7 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
       {/* STEP 4: Logistics */}
       <div className="space-y-4">
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">4. Logística</h3>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
           <div className="space-y-2">
             <Label>Método de envío</Label>
             <select
@@ -854,7 +854,7 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
         )}
 
         {showClientFieldsFlag && (
-          <div className="grid grid-cols-2 gap-4 p-3 rounded-lg bg-muted/50 border border-border/50">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 p-3 rounded-lg bg-muted/50 border border-border/50">
             <div className="space-y-2">
               <Label>Cliente (nombre)</Label>
               <Input value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Nombre del cliente" />

@@ -524,7 +524,7 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
       )}
 
       {/* Route info */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
         <Card>
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground mb-1">Sucursal origen (abastecedora)</p>
@@ -539,7 +539,7 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
         </Card>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-sm">
         <div>
           <span className="text-muted-foreground">Destino:</span>{" "}
           <span className="font-medium">{DELIVERY_TARGET_LABELS[r.delivery_target] || "A sucursal"}</span>
