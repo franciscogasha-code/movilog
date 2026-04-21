@@ -603,19 +603,19 @@ export default function DashboardEjecutivo() {
   if (!canAccessExecutive) return <Navigate to="/" replace />;
 
   return (
-    <div className="space-y-5">
-      {/* Header + Filters */}
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+    <div className="space-y-4 sm:space-y-5">
+      {/* Header + Filters compactos */}
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-foreground tracking-tight flex items-center gap-2">
-            <Gauge className="h-6 w-6 text-primary" />
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground tracking-tight flex items-center gap-2">
+            <Gauge className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
             Torre de Control
           </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Vista ejecutiva en tiempo real</p>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">Vista ejecutiva en tiempo real</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
           <Select value={dateRange} onValueChange={(v) => setDateRange(v as DateRange)}>
-            <SelectTrigger className="w-44">
+            <SelectTrigger className="w-36 sm:w-44 h-9">
               <Clock className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
               <SelectValue />
             </SelectTrigger>
@@ -626,7 +626,7 @@ export default function DashboardEjecutivo() {
             </SelectContent>
           </Select>
           <Select value={branchId || "all"} onValueChange={setBranchId}>
-            <SelectTrigger className="w-48">
+            <SelectTrigger className="w-40 sm:w-48 h-9">
               <Building2 className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
               <SelectValue placeholder="Todas las sucursales" />
             </SelectTrigger>
