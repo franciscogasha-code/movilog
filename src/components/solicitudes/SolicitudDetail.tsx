@@ -48,8 +48,15 @@ function getStatusActions(status: string, flowType?: string | null): ActionDef[]
   // Common: pending actions for all flows
   if (status === "pending") {
     return [
-      { label: "Aceptar", newStatus: "in_preparation", variant: "default", icon: <Check className="h-4 w-4" />, actor: "origin" },
+      { label: "Aceptar", newStatus: "accepted", variant: "default", icon: <Check className="h-4 w-4" />, actor: "origin" },
       { label: "Rechazar", newStatus: "rejected", variant: "destructive", icon: <X className="h-4 w-4" />, actor: "origin", requiresReason: true },
+    ];
+  }
+
+  // Common: accepted → in_preparation for all flows (urban, interurban, client_delivery, legacy)
+  if (status === "accepted") {
+    return [
+      { label: "Preparar", newStatus: "in_preparation", variant: "default", icon: <Package className="h-4 w-4" />, actor: "origin" },
     ];
   }
 
