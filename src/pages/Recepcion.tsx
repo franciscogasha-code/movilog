@@ -10,6 +10,7 @@ import { FULFILLMENT_STATUS_CONFIG } from "@/lib/constants";
 import { StatusBadge } from "@/components/StatusBadge";
 import { PackageCheck, Clock, AlertTriangle, Search, CheckCircle2, Info } from "lucide-react";
 import { toast } from "sonner";
+import { branchName } from "@/lib/branch-format";
 
 export default function Recepcion() {
   const [search, setSearch] = useState("");
@@ -148,8 +149,8 @@ export default function Recepcion() {
     if (!search) return true;
     const term = search.toLowerCase();
     return f.branch_request?.request_number?.toString().includes(term) ||
-      f.source_branch?.code?.toLowerCase().includes(term) ||
-      f.destination_branch?.code?.toLowerCase().includes(term);
+      branchName(f.source_branch).toLowerCase().includes(term) ||
+      branchName(f.destination_branch).toLowerCase().includes(term);
   });
 
   // Separate by state
@@ -233,8 +234,8 @@ export default function Recepcion() {
                   {pendingPhysical.map((f: any) => (
                     <tr key={f.id} className="border-b border-border/50 hover:bg-muted/20 transition-colors bg-warning/5">
                       <td className="p-3 font-mono font-semibold">#{f.branch_request?.request_number || "—"}</td>
-                      <td className="p-3">{f.source_branch?.code}</td>
-                      <td className="p-3">{f.destination_branch?.code || f.destination_client_name || "—"}</td>
+                      <td className="p-3">{branchName(f.source_branch)}</td>
+                      <td className="p-3">{f.destination_client_name || branchName(f.destination_branch)}</td>
                       <td className="p-3 text-xs">
                         {f.bims_transfer_number && <span className="text-primary font-medium">T: {f.bims_transfer_number}</span>}
                         {f.bims_invoice_number && <span className="text-primary font-medium ml-1">F: {f.bims_invoice_number}</span>}
@@ -288,8 +289,8 @@ export default function Recepcion() {
                   {inTransitOrDelivered.map((f: any) => (
                     <tr key={f.id} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
                       <td className="p-3 font-mono font-semibold">#{f.branch_request?.request_number || "—"}</td>
-                      <td className="p-3">{f.source_branch?.code}</td>
-                      <td className="p-3">{f.destination_branch?.code || f.destination_client_name || "—"}</td>
+                      <td className="p-3">{branchName(f.source_branch)}</td>
+                      <td className="p-3">{f.destination_client_name || branchName(f.destination_branch)}</td>
                       <td className="p-3 text-xs">
                         {f.bims_transfer_number && <span className="text-primary font-medium">T: {f.bims_transfer_number}</span>}
                         {f.bims_invoice_number && <span className="text-primary font-medium ml-1">F: {f.bims_invoice_number}</span>}
@@ -341,7 +342,7 @@ export default function Recepcion() {
                     return (
                       <tr key={f.id} className={`border-b border-border/50 transition-colors ${countdown?.overdue && !f.bims_transfer_verified ? "bg-destructive/5" : "hover:bg-muted/20"}`}>
                         <td className="p-3 font-mono font-semibold">#{f.branch_request?.request_number || "—"}</td>
-                        <td className="p-3">{f.source_branch?.code}</td>
+                        <td className="p-3">{branchName(f.source_branch)}</td>
                         <td className="p-3 text-xs text-muted-foreground">
                           {f.received_at_branch ? new Date(f.received_at_branch).toLocaleString("es-PY", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—"}
                         </td>

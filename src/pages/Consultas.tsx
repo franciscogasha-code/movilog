@@ -18,6 +18,7 @@ import { ProductCard } from "@/components/shared/ProductCard";
 import { useLiveStock } from "@/hooks/use-live-stock";
 import { BranchSelector, useAutoDetectBranch } from "@/components/shared/BranchSelector";
 import { cn } from "@/lib/utils";
+import { branchLabel, branchName } from "@/lib/branch-format";
 import { DemandAlert } from "@/components/solicitudes/DemandAlert";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -884,7 +885,7 @@ function ConsultationDetail({ consultationId, onOrderCreated }: { consultationId
         <div>
           <h3 className="font-display text-lg font-bold">Consulta de disponibilidad</h3>
           <p className="text-sm text-muted-foreground">
-            Solicitante: <strong>{c.requesting_branch?.name}</strong> ({c.requesting_branch?.code})
+            Solicitante: <strong>{branchLabel(c.requesting_branch)}</strong>
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -928,8 +929,7 @@ function ConsultationDetail({ consultationId, onOrderCreated }: { consultationId
             return (
               <div key={t.id} className="rounded-lg border border-border/30 overflow-hidden">
                 <div className="flex items-center gap-3 p-3 bg-muted/30 text-sm">
-                  <span className="font-semibold min-w-[80px]">{t.branch?.name}</span>
-                  <span className="text-xs text-muted-foreground">({t.branch?.code})</span>
+                  <span className="font-semibold min-w-[80px]">{branchLabel(t.branch)}</span>
                   {t.responded_at ? (
                     <>
                       <CheckCircle2 className="h-4 w-4 text-accent" />
@@ -1011,7 +1011,7 @@ function ConsultationDetail({ consultationId, onOrderCreated }: { consultationId
               <div key={lr.id} className="flex items-center gap-2 p-2 rounded bg-accent/5 border border-accent/20 text-sm">
                 <ShoppingCart className="h-4 w-4 text-accent" />
                 <span className="font-semibold">Pedido #{lr.branch_request?.request_number}</span>
-                <span className="text-muted-foreground">desde {lr.branch_request?.source_branch?.name} ({lr.branch_request?.source_branch?.code})</span>
+                <span className="text-muted-foreground">desde {branchLabel(lr.branch_request?.source_branch)}</span>
                 <Badge variant="outline" className="text-xs ml-auto">{lr.branch_request?.status}</Badge>
               </div>
             ))}

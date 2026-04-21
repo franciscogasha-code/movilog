@@ -14,6 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DollarSign, Fuel, Receipt, Landmark, Plus, CheckCircle2, Link2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
+import { branchName } from "@/lib/branch-format";
 
 export default function Rendicion() {
   const [tab, setTab] = useState("cobranzas");
@@ -194,7 +195,7 @@ export default function Rendicion() {
               <div key={t.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/30 text-sm">
                 <div>
                   <span className="font-mono font-semibold">Viaje #{t.trip_number}</span>
-                  <span className="text-muted-foreground ml-2">{t.origin_branch?.code}</span>
+                  <span className="text-muted-foreground ml-2">{branchName(t.origin_branch)}</span>
                   {t.start_mileage && t.end_mileage && (
                     <span className="text-muted-foreground ml-2">{t.end_mileage - t.start_mileage} km</span>
                   )}
@@ -458,7 +459,7 @@ function CollectionForm({ trips, onSuccess }: { trips: any[]; onSuccess: () => v
           <SelectTrigger><SelectValue placeholder="Seleccionar viaje..." /></SelectTrigger>
           <SelectContent>
             {trips.map((t: any) => (
-              <SelectItem key={t.id} value={t.id}>Viaje #{t.trip_number} — {t.origin_branch?.code}</SelectItem>
+              <SelectItem key={t.id} value={t.id}>Viaje #{t.trip_number} — {branchName(t.origin_branch)}</SelectItem>
             ))}
           </SelectContent>
         </Select>

@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { CheckCircle2, XCircle, Package, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { runDriverAction } from "@/lib/driver-actions";
+import { branchName } from "@/lib/branch-format";
 
 const REJECTION_REASONS = [
   { value: "no_space", label: "No entra en el móvil" },
@@ -158,7 +159,7 @@ export function CorteDetalle({ tripId }: { tripId: string }) {
       <div className="flex items-center justify-between text-sm">
         <div>
           <span className="text-muted-foreground">Sucursal: </span>
-          <span className="font-semibold">{(trip as any).origin_branch?.code}</span>
+          <span className="font-semibold">{branchName((trip as any).origin_branch)}</span>
         </div>
         <div>
           <span className="text-muted-foreground">Inicio: </span>
@@ -186,7 +187,7 @@ export function CorteDetalle({ tripId }: { tripId: string }) {
                     <CheckCircle2 className="h-4 w-4 text-accent" />
                     <div className="flex items-center gap-2">
                       <span className="font-semibold">Pedido #{f.branch_request?.request_number || "—"}</span>
-                      <span className="text-muted-foreground">→ {f.destination_branch?.code || f.destination_client_name || "—"}</span>
+                      <span className="text-muted-foreground">→ {f.destination_client_name || branchName(f.destination_branch)}</span>
                       <Badge variant="outline" className={`text-xs ${typeBadge.className}`}>{typeBadge.label}</Badge>
                     </div>
                   </div>
@@ -223,7 +224,7 @@ export function CorteDetalle({ tripId }: { tripId: string }) {
                       <Package className="h-4 w-4 text-muted-foreground" />
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-semibold">Pedido #{f.branch_request?.request_number || "—"}</span>
-                        <span className="text-muted-foreground">→ {f.destination_branch?.code || f.destination_client_name || "—"}</span>
+                        <span className="text-muted-foreground">→ {f.destination_client_name || branchName(f.destination_branch)}</span>
                         <Badge variant="outline" className={`text-xs ${typeBadge.className}`}>{typeBadge.label}</Badge>
                         {missedCutoff && (
                           <Badge variant="destructive" className="text-xs gap-1">

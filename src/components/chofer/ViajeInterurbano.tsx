@@ -13,6 +13,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Play, Square, MapPin, Truck, Plus, Route, AlertTriangle, Calendar } from "lucide-react";
 import { CorteDetalle } from "./CorteDetalle";
 import { AgregarTareaViaje } from "./AgregarTareaViaje";
+import { branchName } from "@/lib/branch-format";
 import { CrearViajeForm } from "@/components/logistica/CrearViajeForm";
 import { TRIP_TYPE_LABELS } from "@/lib/constants";
 import { toast } from "sonner";
@@ -175,7 +176,7 @@ export function ViajeInterurbano({ trips, activeTrip, myDriverId }: Props) {
                 <div>
                   <span className="font-display font-semibold">Viaje #{activeTrip.trip_number} en curso</span>
                   <p className="text-xs text-muted-foreground">
-                    Desde {(activeTrip as any).origin_branch?.code} — Km inicio: {activeTrip.start_mileage || "—"}
+                    Desde {branchName((activeTrip as any).origin_branch)} — Km inicio: {activeTrip.start_mileage || "—"}
                   </p>
                 </div>
               </div>
@@ -250,7 +251,7 @@ export function ViajeInterurbano({ trips, activeTrip, myDriverId }: Props) {
                       <Calendar className="h-4 w-4 text-muted-foreground" />
                       <div>
                         <span className="font-mono font-semibold text-sm">Viaje #{t.trip_number}</span>
-                        <span className="text-xs text-muted-foreground ml-2">{t.origin_branch?.code}</span>
+                        <span className="text-xs text-muted-foreground ml-2">{branchName(t.origin_branch)}</span>
                         {(t as any).destination_description && (
                           <span className="text-xs text-muted-foreground ml-1">→ {(t as any).destination_description}</span>
                         )}
@@ -305,7 +306,7 @@ export function ViajeInterurbano({ trips, activeTrip, myDriverId }: Props) {
                     <Truck className="h-4 w-4 text-muted-foreground" />
                     <div>
                       <span className="font-mono font-semibold text-sm">#{t.trip_number}</span>
-                      <span className="text-muted-foreground text-xs ml-2">{t.origin_branch?.code}</span>
+                      <span className="text-muted-foreground text-xs ml-2">{branchName(t.origin_branch)}</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">

@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import { runDriverAction } from "@/lib/driver-actions";
+import { branchName } from "@/lib/branch-format";
 
 export function CargasEnAcopio() {
   const { user } = useAuth();
@@ -74,15 +75,15 @@ export function CargasEnAcopio() {
                     Pedido #{f.branch_request?.request_number || "—"}
                   </span>
                   <ArrowRight className="h-3 w-3 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">
-                    {f.destination_branch?.code || f.destination_client_name || "—"}
+                  <span className="text-sm text-muted-foreground font-medium">
+                    {f.destination_client_name || branchName(f.destination_branch)}
                   </span>
                   <Badge className="text-xs bg-info/10 text-info">
-                    En acopio{f.current_location_branch?.code ? ` · ${f.current_location_branch.code}` : ""}
+                    En acopio{f.current_location_branch ? ` · ${branchName(f.current_location_branch)}` : ""}
                   </Badge>
                 </div>
                 <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                  <span>Desde: {f.source_branch?.code}</span>
+                  <span>Desde: {branchName(f.source_branch)}</span>
                   <span className="flex items-center gap-1">
                     <Clock className="h-3 w-3" />
                     {formatDistanceToNow(new Date(f.updated_at), { addSuffix: true, locale: es })}

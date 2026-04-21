@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/StatusBadge";
 import { DOCUMENT_STATUS_CONFIG } from "@/lib/constants";
 import { FileText, Archive } from "lucide-react";
+import { branchName } from "@/lib/branch-format";
 
 const DOC_TYPE_LABELS: Record<string, string> = {
   invoice: "Factura",
@@ -86,7 +87,7 @@ export default function Documentos() {
                       <td className="p-3">
                         <span className="text-xs">{DOC_TYPE_LABELS[d.document_type] || d.document_type}</span>
                       </td>
-                      <td className="p-3">{d.location_branch?.code || "—"}</td>
+                      <td className="p-3">{branchName(d.location_branch)}</td>
                       <td className="p-3">
                         <StatusBadge status={d.status} config={DOCUMENT_STATUS_CONFIG} />
                       </td>
