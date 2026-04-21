@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Lock, Unlock, Clock, AlertTriangle } from "lucide-react";
+import { branchName } from "@/lib/branch-format";
 
 export default function StockComprometido() {
   const { data: reserves, isLoading } = useQuery({
@@ -95,7 +96,7 @@ export default function StockComprometido() {
                         <p className="font-medium">{r.product?.name}</p>
                         <p className="text-xs text-muted-foreground">{r.product?.sku}</p>
                       </td>
-                      <td className="p-3">{r.branch?.code}</td>
+                      <td className="p-3">{branchName(r.branch)}</td>
                       <td className="p-3 font-mono font-semibold">{Number(r.quantity)}</td>
                       <td className="p-3">
                         <Badge variant={r.reserve_type === "hard" ? "default" : "secondary"} className="text-xs">

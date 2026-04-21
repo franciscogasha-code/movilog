@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { useUserBranchFilter } from "@/hooks/use-user-access";
 import { usePaginatedQuery } from "@/hooks/use-paginated-query";
 import { PaginationBar } from "@/components/shared/PaginationBar";
+import { branchName } from "@/lib/branch-format";
 
 // MODULE 5: Priority order (visual only, no blocking)
 const PRIORITY_ORDER: Record<string, number> = {
@@ -207,7 +208,7 @@ export default function Cumplimiento() {
                                 )}
                               </div>
                               <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                                <span>{f.source_branch?.code} → {f.destination_branch?.code || "Cliente"}</span>
+                                <span>{branchName(f.source_branch)} → {f.destination_client_name || branchName(f.destination_branch, "Cliente")}</span>
                                 <span>{SHIPPING_METHOD_LABELS[f.shipping_method] || f.shipping_method}</span>
                                 <span className="flex items-center gap-1">
                                   <User className="h-3 w-3" /> {custody}

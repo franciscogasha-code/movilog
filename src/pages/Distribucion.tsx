@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import {
   MapPin, Truck, Package, ClipboardList, Calendar, CheckCircle2, Clock, AlertTriangle, Timer,
 } from "lucide-react";
+import { branchName } from "@/lib/branch-format";
 import { SHIPPING_METHOD_LABELS, FULFILLMENT_STATUS_CONFIG } from "@/lib/constants";
 import { toast } from "sonner";
 
@@ -203,7 +204,7 @@ export default function Distribucion() {
                     <div className={`w-2 h-2 rounded-full ${t.status === "in_progress" ? "bg-primary animate-pulse" : "bg-muted-foreground/30"}`} />
                     <div>
                       <span className="font-mono font-semibold">Viaje #{t.trip_number}</span>
-                      <span className="text-muted-foreground ml-2">{t.origin_branch?.code}</span>
+                      <span className="text-muted-foreground ml-2">{branchName(t.origin_branch)}</span>
                       {t.vehicle && <span className="text-muted-foreground ml-2">{(t.vehicle as any).plate_number}</span>}
                     </div>
                   </div>
@@ -289,7 +290,7 @@ export default function Distribucion() {
                               <p className="text-xs text-muted-foreground flex items-center gap-1"><MapPin className="h-3 w-3" /> {clientAddr}</p>
                             )}
                             <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                              <span>{f.source_branch?.code} → {f.destination_branch?.code || "Cliente"}</span>
+                              <span>{branchName(f.source_branch)} → {f.destination_client_name || branchName(f.destination_branch, "Cliente")}</span>
                               <span>{SHIPPING_METHOD_LABELS[f.shipping_method] || f.shipping_method}</span>
                               {f.package_count > 0 && <span>{f.package_count} bultos</span>}
                               {(f.trip as any)?.trip_number && <span className="font-mono">Viaje #{(f.trip as any).trip_number}</span>}

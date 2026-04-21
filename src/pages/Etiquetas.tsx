@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Printer, Tag, Plus, Search, CheckCircle2 } from "lucide-react";
 import { PrintLabelsButton } from "@/components/etiquetas/LabelPDF";
 import { toast } from "sonner";
+import { branchName } from "@/lib/branch-format";
 
 export default function Etiquetas() {
   const [search, setSearch] = useState("");
@@ -64,7 +65,7 @@ export default function Etiquetas() {
     const term = search.toLowerCase();
     const num = f.branch_request?.request_number?.toString() || "";
     return num.includes(term) ||
-      f.source_branch?.code?.toLowerCase().includes(term) ||
+      branchName(f.source_branch).toLowerCase().includes(term) ||
       f.destination_client_name?.toLowerCase().includes(term) ||
       f.branch_request?.client_name?.toLowerCase().includes(term);
   });
@@ -111,9 +112,9 @@ export default function Etiquetas() {
                     return (
                       <tr key={f.id} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
                         <td className="p-3 font-mono font-semibold">#{f.branch_request?.request_number || "—"}</td>
-                        <td className="p-3">{f.source_branch?.code}</td>
+                        <td className="p-3">{branchName(f.source_branch)}</td>
                         <td className="p-3">
-                          {f.destination_client_name || f.branch_request?.client_name || f.destination_branch?.code || "—"}
+                          {f.destination_client_name || f.branch_request?.client_name || branchName(f.destination_branch)}
                         </td>
                         <td className="p-3">
                           <Badge variant="secondary" className="text-xs">{f.package_count || 0}</Badge>
@@ -258,7 +259,7 @@ function LabelForm({ fulfillmentId, onSuccess }: { fulfillmentId: string; onSucc
         <Input value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} placeholder={f?.source_branch?.phone || ""} />
       </div>
       <div className="p-3 rounded-lg bg-muted/30 text-xs text-muted-foreground space-y-1">
-        <p><strong>Origen:</strong> {f?.source_branch?.code || "—"}</p>
+        <p><strong>Origen:</strong> {branchName(f?.source_branch)}</p>
         {f?.bims_transfer_number && <p><strong>Transferencia:</strong> {f.bims_transfer_number}</p>}
         {f?.bims_invoice_number && <p><strong>Factura:</strong> {f.bims_invoice_number}</p>}
       </div>

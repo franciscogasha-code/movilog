@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import {
   DollarSign, CheckCircle2, Clock, FileText, AlertTriangle, Users, Landmark, Receipt, Link2,
 } from "lucide-react";
+import { branchName } from "@/lib/branch-format";
 import { toast } from "sonner";
 
 const SETTLEMENT_STATUS_LABELS: Record<string, { label: string; color: string }> = {
@@ -231,7 +232,7 @@ export default function Cobranzas() {
               <div key={t.id} className="flex items-center justify-between p-2 rounded bg-destructive/5 text-sm">
                 <div>
                   <span className="font-mono font-semibold">Viaje #{t.trip_number}</span>
-                  <span className="text-muted-foreground ml-2">{(t as any).origin_branch?.code}</span>
+                  <span className="text-muted-foreground ml-2">{branchName((t as any).origin_branch)}</span>
                 </div>
                 <Badge variant="destructive" className="text-xs">Sin rendición</Badge>
               </div>
@@ -269,7 +270,7 @@ export default function Cobranzas() {
                             <Users className="h-4 w-4 text-muted-foreground" />
                             <div>
                               <span className="font-mono font-semibold text-sm">Viaje #{(s.trip as any)?.trip_number || "—"}</span>
-                              <span className="text-muted-foreground text-xs ml-2">{(s.trip as any)?.origin_branch?.code || ""}</span>
+                              <span className="text-muted-foreground text-xs ml-2">{branchName((s.trip as any)?.origin_branch)}</span>
                               {hasAdvance && (
                                 <Badge variant="outline" className="text-xs ml-2 gap-1">
                                   <Receipt className="h-3 w-3" /> Adelanto {formatGs(Number(s.advance_amount))}

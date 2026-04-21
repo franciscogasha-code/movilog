@@ -16,6 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { CrearIncidencia } from "@/components/incidencias/CrearIncidencia";
 import { toast } from "sonner";
 import { useUserBranchFilter } from "@/hooks/use-user-access";
+import { branchName } from "@/lib/branch-format";
 
 const INCIDENT_TYPE_LABELS: Record<string, string> = {
   damaged: "Producto averiado",
@@ -201,7 +202,7 @@ export default function Incidencias() {
                       <td className="p-3">
                         <Badge variant="outline" className="text-xs">{INCIDENT_TYPE_LABELS[i.incident_type] || i.incident_type}</Badge>
                       </td>
-                      <td className="p-3">{i.branch?.code}</td>
+                      <td className="p-3">{branchName(i.branch)}</td>
                       <td className="p-3 text-muted-foreground">{i.product?.name || "—"}</td>
                       <td className="p-3"><StatusBadge status={i.status} config={INCIDENT_STATUS_CONFIG} /></td>
                       <td className="p-3 text-xs text-muted-foreground">

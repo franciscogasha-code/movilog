@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { User, Truck } from "lucide-react";
 import { toast } from "sonner";
 import { runDriverAction } from "@/lib/driver-actions";
+import { branchName } from "@/lib/branch-format";
 
 interface Props {
   fulfillmentId: string;
@@ -101,7 +102,7 @@ export function TransferirCustodiaModal({ fulfillmentId, open, onClose, onSucces
                     </div>
                     <div className="flex-1">
                       <p className="font-semibold text-sm">{(d as any).profile?.full_name || "Chofer"}</p>
-                      <p className="text-xs text-muted-foreground">{(d as any).assigned_branch?.code || "—"}</p>
+                      <p className="text-xs text-muted-foreground">{branchName((d as any).assigned_branch)}</p>
                     </div>
                     {selectedDriverUserId === d.user_id && (
                       <Badge className="text-xs">Seleccionado</Badge>

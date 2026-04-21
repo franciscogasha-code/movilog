@@ -9,6 +9,7 @@ import { Package, MapPin, Truck, AlertTriangle, ArrowRight } from "lucide-react"
 import { EntregaModal } from "./EntregaModal";
 import { TransferirCustodiaModal } from "./TransferirCustodiaModal";
 import { FULFILLMENT_STATUS_CONFIG } from "@/lib/constants";
+import { branchName } from "@/lib/branch-format";
 
 export function MisCargasEnCurso() {
   const { user } = useAuth();
@@ -88,10 +89,10 @@ export function MisCargasEnCurso() {
                       Pedido #{f.branch_request?.request_number || "—"}
                     </span>
                     <ArrowRight className="h-3 w-3 text-muted-foreground" />
-                    <span className="text-sm text-muted-foreground">
+                    <span className="text-sm text-muted-foreground font-medium">
                       {target === "client"
                         ? f.branch_request?.client_name || f.destination_client_name || "Cliente"
-                        : f.destination_branch?.code || "—"}
+                        : branchName(f.destination_branch)}
                     </span>
                     {getStatusBadge(f.status)}
                     {target === "client" && (
@@ -101,13 +102,13 @@ export function MisCargasEnCurso() {
                   <div className="flex items-center gap-3 text-xs text-muted-foreground">
                     <span className="flex items-center gap-1">
                       <MapPin className="h-3 w-3" />
-                      Desde: {f.source_branch?.code}
+                      Desde: {branchName(f.source_branch)}
                     </span>
-                    {f.dispatched_at && (
-                      <span>
-                        Retirado: {new Date(f.dispatched_at).toLocaleTimeString("es-PY", { hour: "2-digit", minute: "2-digit" })}
-                      </span>
-                    )}
+                    <span>
+                      {f.dispatched_at
+                        ? `Retirado: ${new Date(f.dispatched_at).toLocaleTimeString("es-PY", { hour: "2-digit", minute: "2-digit" })}`
+                        : "Sin hora registrada"}
+                    </span>
                     {isFailed && f.delivery_failed_reason && (
                       <span className="text-destructive flex items-center gap-1">
                         <AlertTriangle className="h-3 w-3" />
