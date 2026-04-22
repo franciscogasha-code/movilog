@@ -541,12 +541,12 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
         <div className="space-y-2">
           <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Productos</h4>
           {items.map(item => (
-            <div key={item.product.id} className="flex items-center justify-between p-2 rounded bg-muted/30 border border-border/30 text-sm">
-              <div className="flex-1 min-w-0">
-                <span className="font-medium truncate">{item.product.name}</span>
-                <span className="text-muted-foreground ml-2">x{item.quantity}</span>
+            <div key={item.product.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-3 p-2.5 rounded bg-muted/30 border border-border/30 text-sm min-w-0">
+              <div className="min-w-0 flex-1 flex items-baseline gap-2">
+                <span className="font-medium break-words min-w-0 flex-1">{item.product.name}</span>
+                <span className="text-muted-foreground shrink-0 tabular-nums">x{item.quantity}</span>
               </div>
-              <span className="text-xs text-muted-foreground">
+              <span className="text-xs text-muted-foreground break-words sm:text-right sm:shrink-0 sm:max-w-[45%]">
                 {isMultiOrigin
                   ? `Origen: ${branches?.find(b => b.id === item.sourceBranchId)?.name || "—"}`
                   : `Origen: ${branches?.find(b => b.id === sourceBranchId)?.name || "—"}`
