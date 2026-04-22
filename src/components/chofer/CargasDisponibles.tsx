@@ -132,8 +132,65 @@ export function CargasDisponibles() {
   const isReadyForPickup = (f: any) =>
     hasBindingDocument(f) || f.branch_request?.status === "ready_for_pickup";
 
+  // ── B.2) Pedidos en 'ready_for_pickup' SIN fulfillment_order todavía ──
+  // Algunos pedidos llegan a ready_for_pickup sin FO creado (flujos urbanos
+  // desde depósitos centrales). El módulo Pedidos los muestra porque lee de
+  // branch_requests; aquí los traemos para que el chofer también los vea.
+  const { data: readyRequestsNoFo } = useQuery({
+    queryKey: ["ready-requests-no-fo", effectiveBranchId],
+    queryFn: async () => {
+      if (!effectiveBranchId) return [];
+      const { data, error } = await supabase
+        .from("branch_requests")
+        .select(`id, request_number, request_type, delivery_target, status, flow_type, client_name, client_address, source_branch_id, requesting_branch_id, created_at, source_branch:branches!branch_requests_source_branch_id_fkey(name, code, is_central_warehouse), destination_branch:branches!branch_requests_requesting_branch_id_fkey(name, code)`)
+        .eq("source_branch_id", effectiveBranchId)
+        .eq("status", "ready_for_pickup" as any)
+        .order("created_at", { ascending: true })
+        .limit(100);
+      if (error) throw error;
+      // Excluir los que ya tienen FO (vendrán por la query principal)
+      const ids = (data || []).map((r: any) => r.id);
+      if (ids.length === 0) return [];
+      const { data: existing } = await supabase
+        .from("fulfillment_orders")
+        .select("branch_request_id")
+        .in("branch_request_id", ids);
+      const withFo = new Set((existing || []).map((f: any) => f.branch_request_id));
+      return (data || []).filter((r: any) => !withFo.has(r.id));
+    },
+    enabled: !!effectiveBranchId,
+  });
+
+  // Adapta un branch_request al shape que espera FulfillmentRow
+  const adaptRequestToRow = (r: any) => ({
+    id: `req:${r.id}`,                       // prefijo para distinguir
+    __isRequestOnly: true,
+    __requestId: r.id,
+    status: "ready_for_pickup",
+    created_at: r.created_at,
+    source_branch: r.source_branch,
+    destination_branch: r.destination_branch,
+    destination_client_name: r.client_name,
+    destination_client_address: r.client_address,
+    bims_transfer_number: null,
+    bims_invoice_number: null,
+    package_count: 0,
+    shipping_method: null,
+    branch_request: {
+      request_number: r.request_number,
+      request_type: r.request_type,
+      delivery_target: r.delivery_target,
+      status: r.status,
+      flow_type: r.flow_type,
+    },
+  });
+
   // Split into ready vs pending-docs
-  const readyLoads = availableLoads?.filter(isReadyForPickup) || [];
+  const readyLoadsFromFo = availableLoads?.filter(isReadyForPickup) || [];
+  const readyLoads = [
+    ...readyLoadsFromFo,
+    ...((readyRequestsNoFo || []).map(adaptRequestToRow)),
+  ];
   const pendingDocsLoads = availableLoads?.filter((f: any) => !isReadyForPickup(f)) || [];
 
   // ── Rejection events ──
@@ -180,6 +237,7 @@ export function CargasDisponibles() {
   const invalidateAll = () => {
     queryClient.invalidateQueries({ queryKey: ["assigned-loads"] });
     queryClient.invalidateQueries({ queryKey: ["available-loads"] });
+    queryClient.invalidateQueries({ queryKey: ["ready-requests-no-fo"] });
     queryClient.invalidateQueries({ queryKey: ["out-of-cutoff-events"] });
     queryClient.invalidateQueries({ queryKey: ["rejection-events-recent"] });
     queryClient.invalidateQueries({ queryKey: ["my-custody-loads"] });
@@ -188,11 +246,27 @@ export function CargasDisponibles() {
     queryClient.invalidateQueries({ queryKey: ["hub-count"] });
   };
 
-  const pickupOutOfCutoff = async (fulfillmentId: string) => {
+  const pickupOutOfCutoff = async (rowId: string) => {
     try {
+      // Caso A: fila proviene de un branch_request sin FO. Se transiciona el
+      // pedido a in_transit (mismo flujo que el módulo Pedidos), lo cual crea
+      // automáticamente el fulfillment_order. No se llama fn_driver_action.
+      if (rowId.startsWith("req:")) {
+        const requestId = rowId.slice(4);
+        const { error } = await supabase.rpc("fn_transition_request_status", {
+          p_request_id: requestId,
+          p_new_status: "in_transit",
+        });
+        if (error) throw error;
+        toast.success("Retiro confirmado");
+        invalidateAll();
+        return;
+      }
+
+      // Caso B: fila proviene de fulfillment_orders (flujo original intacto).
       const { data, error } = await runDriverAction({
         action: "pickup",
-        fulfillmentId,
+        fulfillmentId: rowId,
       });
       if (error) throw error;
       const result = data as any;
@@ -287,13 +361,15 @@ export function CargasDisponibles() {
             <Badge variant="secondary" className="text-xs">{f.package_count} bultos</Badge>
           )}
           <Badge variant="outline" className="text-xs">
-            {f.status === "waiting_for_cut" ? "Esperando corte" : f.status === "waiting_for_courier" ? "Esperando transporte" : f.status === "dispatched" ? "Retirado" : f.status}
+            {f.status === "waiting_for_cut" ? "Esperando corte" : f.status === "waiting_for_courier" ? "Esperando transporte" : f.status === "dispatched" ? "Retirado" : f.status === "ready_for_pickup" ? "Listo para retiro" : f.status}
           </Badge>
           {showPickup && (
             <>
-              <Button size="sm" variant="outline" onClick={() => setRejectingId(f.id)} className="h-7 text-xs text-destructive">
-                <XCircle className="h-3 w-3 mr-1" /> Rechazar
-              </Button>
+              {!f.__isRequestOnly && (
+                <Button size="sm" variant="outline" onClick={() => setRejectingId(f.id)} className="h-7 text-xs text-destructive">
+                  <XCircle className="h-3 w-3 mr-1" /> Rechazar
+                </Button>
+              )}
               <Button size="sm" onClick={() => pickupOutOfCutoff(f.id)} className="h-7 text-xs gap-1">
                 <CheckCircle2 className="h-3 w-3" /> Retirar
               </Button>
