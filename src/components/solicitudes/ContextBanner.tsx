@@ -23,18 +23,18 @@ export function ContextBanner({ requestType, deliveryTarget }: ContextBannerProp
   const isMulti = mode === "multi";
 
   return (
-    <div className={`flex items-center gap-3 p-3 rounded-lg border text-sm ${
+    <div className={`flex items-start gap-3 p-3 rounded-lg border text-sm min-w-0 ${
       isMulti
         ? "bg-blue-500/5 border-blue-500/20 text-blue-900 dark:text-blue-200"
         : "bg-amber-500/5 border-amber-500/20 text-amber-900 dark:text-amber-200"
     }`}>
-      <Info className="h-4 w-4 shrink-0 opacity-70" />
-      <div className="flex items-center gap-2 flex-wrap">
-        <Badge variant="outline" className="text-xs">{TYPE_LABELS[requestType]}</Badge>
-        <ArrowRight className="h-3 w-3 opacity-50" />
-        <Badge variant="outline" className="text-xs">{TARGET_LABELS[deliveryTarget]}</Badge>
-        <ArrowRight className="h-3 w-3 opacity-50" />
-        <Badge variant={isMulti ? "default" : "secondary"} className="text-xs">
+      <Info className="h-4 w-4 shrink-0 opacity-70 mt-0.5" />
+      <div className="flex items-center gap-2 flex-wrap min-w-0">
+        <Badge variant="outline" className="text-xs whitespace-nowrap">{TYPE_LABELS[requestType]}</Badge>
+        <ArrowRight className="h-3 w-3 opacity-50 shrink-0" />
+        <Badge variant="outline" className="text-xs whitespace-nowrap">{TARGET_LABELS[deliveryTarget]}</Badge>
+        <ArrowRight className="h-3 w-3 opacity-50 shrink-0" />
+        <Badge variant={isMulti ? "default" : "secondary"} className="text-xs whitespace-nowrap">
           {getOriginModeLabel(mode)}
         </Badge>
       </div>
