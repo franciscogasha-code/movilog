@@ -30,6 +30,7 @@ export function CargasEnAcopio() {
           branch_request:branch_requests(request_number, request_type, delivery_target)
         `)
         .eq("status", "at_hub" as any)
+        .eq("cleared_for_pickup" as any, true)
         .order("updated_at", { ascending: false });
       if (error) throw error;
       return data;
