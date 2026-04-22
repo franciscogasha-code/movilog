@@ -361,13 +361,15 @@ export function CargasDisponibles() {
             <Badge variant="secondary" className="text-xs">{f.package_count} bultos</Badge>
           )}
           <Badge variant="outline" className="text-xs">
-            {f.status === "waiting_for_cut" ? "Esperando corte" : f.status === "waiting_for_courier" ? "Esperando transporte" : f.status === "dispatched" ? "Retirado" : f.status}
+            {f.status === "waiting_for_cut" ? "Esperando corte" : f.status === "waiting_for_courier" ? "Esperando transporte" : f.status === "dispatched" ? "Retirado" : f.status === "ready_for_pickup" ? "Listo para retiro" : f.status}
           </Badge>
           {showPickup && (
             <>
-              <Button size="sm" variant="outline" onClick={() => setRejectingId(f.id)} className="h-7 text-xs text-destructive">
-                <XCircle className="h-3 w-3 mr-1" /> Rechazar
-              </Button>
+              {!f.__isRequestOnly && (
+                <Button size="sm" variant="outline" onClick={() => setRejectingId(f.id)} className="h-7 text-xs text-destructive">
+                  <XCircle className="h-3 w-3 mr-1" /> Rechazar
+                </Button>
+              )}
               <Button size="sm" onClick={() => pickupOutOfCutoff(f.id)} className="h-7 text-xs gap-1">
                 <CheckCircle2 className="h-3 w-3" /> Retirar
               </Button>
