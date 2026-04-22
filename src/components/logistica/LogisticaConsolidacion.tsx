@@ -224,6 +224,31 @@ export function LogisticaConsolidacion() {
     assignToTrip(tripId);
   };
 
+  const handleClearForPickup = async () => {
+    const ids = Array.from(selected);
+    if (ids.length === 0) return;
+    setAssigning(true);
+    try {
+      const { data, error } = await supabase.rpc("fn_clear_for_pickup" as any, {
+        p_request_ids: ids,
+      });
+      if (error) throw error;
+      const updated = (data as any)?.updated ?? 0;
+      if (updated > 0) {
+        toast.success(`✓ ${updated} carga(s) habilitada(s) para corte`);
+      } else {
+        toast.info("No hay cargas elegibles (deben estar en acopio y no habilitadas)");
+      }
+      queryClient.invalidateQueries({ queryKey: ["consolidation-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["hub-loads"] });
+      setSelected(new Set());
+    } catch (err: any) {
+      toast.error(err.message || "Error al habilitar para corte");
+    } finally {
+      setAssigning(false);
+    }
+  };
+
   const timeAgo = (date: string) => {
     const h = Math.floor((Date.now() - new Date(date).getTime()) / 3_600_000);
     if (h < 1) return "Hace menos de 1h";
