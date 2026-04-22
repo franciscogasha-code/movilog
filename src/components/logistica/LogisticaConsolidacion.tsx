@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Package, MapPin, ArrowRight, Truck, Plus, AlertTriangle, Clock } from "lucide-react";
+import { Package, MapPin, ArrowRight, Truck, Plus, AlertTriangle, Clock, CheckCircle2 } from "lucide-react";
 import { REQUEST_TYPE_LABELS } from "@/lib/constants";
 import { branchName } from "@/lib/branch-format";
 import { toast } from "sonner";
