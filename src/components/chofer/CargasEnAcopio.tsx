@@ -20,7 +20,7 @@ export function CargasEnAcopio() {
     queryFn: async () => {
       if (!user?.id) return [];
       // RLS ya filtra por sucursales accesibles al usuario
-      const { data, error } = await supabase
+      const query: any = supabase
         .from("fulfillment_orders")
         .select(`
           *,
@@ -29,8 +29,10 @@ export function CargasEnAcopio() {
           current_location_branch:branches!fulfillment_orders_current_location_branch_id_fkey(name, code),
           branch_request:branch_requests(request_number, request_type, delivery_target)
         `)
-        .eq("status", "at_hub" as any)
+        .eq("status", "at_hub")
+        .eq("cleared_for_pickup", true)
         .order("updated_at", { ascending: false });
+      const { data, error } = await query;
       if (error) throw error;
       return data;
     },

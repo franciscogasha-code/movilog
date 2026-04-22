@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Package, MapPin, ArrowRight, Truck, Plus, AlertTriangle, Clock } from "lucide-react";
+import { Package, MapPin, ArrowRight, Truck, Plus, AlertTriangle, Clock, CheckCircle2 } from "lucide-react";
 import { REQUEST_TYPE_LABELS } from "@/lib/constants";
 import { branchName } from "@/lib/branch-format";
 import { toast } from "sonner";
@@ -224,6 +224,31 @@ export function LogisticaConsolidacion() {
     assignToTrip(tripId);
   };
 
+  const handleClearForPickup = async () => {
+    const ids = Array.from(selected);
+    if (ids.length === 0) return;
+    setAssigning(true);
+    try {
+      const { data, error } = await supabase.rpc("fn_clear_for_pickup" as any, {
+        p_request_ids: ids,
+      });
+      if (error) throw error;
+      const updated = (data as any)?.updated ?? 0;
+      if (updated > 0) {
+        toast.success(`✓ ${updated} carga(s) habilitada(s) para corte`);
+      } else {
+        toast.info("No hay cargas elegibles (deben estar en acopio y no habilitadas)");
+      }
+      queryClient.invalidateQueries({ queryKey: ["consolidation-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["hub-loads"] });
+      setSelected(new Set());
+    } catch (err: any) {
+      toast.error(err.message || "Error al habilitar para corte");
+    } finally {
+      setAssigning(false);
+    }
+  };
+
   const timeAgo = (date: string) => {
     const h = Math.floor((Date.now() - new Date(date).getTime()) / 3_600_000);
     if (h < 1) return "Hace menos de 1h";
@@ -270,9 +295,12 @@ export function LogisticaConsolidacion() {
             exit={{ opacity: 0, y: -8 }}
           >
             <Card className="glass-card border-primary/30 sticky top-0 z-10">
-              <CardContent className="p-3 flex items-center justify-between">
+              <CardContent className="p-3 flex items-center justify-between flex-wrap gap-2">
                 <span className="text-sm font-medium">{selected.size} carga(s) seleccionada(s)</span>
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
+                  <Button size="sm" variant="outline" onClick={handleClearForPickup} disabled={assigning} className="gap-1">
+                    <CheckCircle2 className="h-3.5 w-3.5" /> Habilitar para corte
+                  </Button>
                   <Button size="sm" variant="outline" onClick={() => setAssignMode("existing")} className="gap-1">
                     <Truck className="h-3.5 w-3.5" /> Asignar a viaje
                   </Button>
