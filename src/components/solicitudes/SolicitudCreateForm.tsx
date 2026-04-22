@@ -571,11 +571,16 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
           </div>
         )}
 
-        <div className="flex gap-2">
-          <Button variant="outline" className="flex-1" onClick={() => setShowConfirmation(false)}>
+        <div className="
+          sticky bottom-0 -mx-4 sm:-mx-6 px-4 sm:px-6 pt-3
+          pb-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:pb-3
+          bg-background/95 backdrop-blur-sm border-t sm:border-0 sm:bg-transparent sm:backdrop-blur-none
+          flex flex-col-reverse sm:flex-row gap-2 z-10
+        ">
+          <Button variant="outline" className="w-full sm:flex-1 h-11" onClick={() => setShowConfirmation(false)}>
             Volver a editar
           </Button>
-          <Button className="flex-1" onClick={onSubmit} disabled={submitting}>
+          <Button className="w-full sm:flex-1 h-11 font-semibold" onClick={onSubmit} disabled={submitting}>
             {revalidating ? (
               <><Loader2 className="h-4 w-4 animate-spin mr-2" />Verificando stock...</>
             ) : submitting ? (
@@ -644,42 +649,57 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
           <div className="space-y-2">
             {items.map((item) => (
               <div key={item.product.id} className="border border-border rounded-lg overflow-hidden">
-                <div className="flex items-center gap-3 p-3 bg-muted/30">
-                  <Package className="h-4 w-4 text-muted-foreground shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{item.product.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {item.product.sku && `SKU: ${item.product.sku}`}
-                      {item.product.bims_code && ` • Cód: ${item.product.bims_code}`}
+                <div className="p-3 bg-muted/30 space-y-2">
+                  {/* Fila 1: producto */}
+                  <div className="flex items-start gap-2 min-w-0">
+                    <Package className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium break-words">{item.product.name}</p>
+                      <p className="text-xs text-muted-foreground break-words">
+                        {item.product.sku && <span>SKU: {item.product.sku}</span>}
+                        {item.product.bims_code && <span> • Cód: {item.product.bims_code}</span>}
+                      </p>
                       {isMultiOrigin && item.sourceBranchId && (
-                        <span className="ml-1 text-primary">
-                          • Origen: {branches?.find(b => b.id === item.sourceBranchId)?.name || "—"}
-                        </span>
+                        <p className="text-xs text-primary mt-0.5 break-words">
+                          Origen: {branches?.find(b => b.id === item.sourceBranchId)?.name || "—"}
+                        </p>
                       )}
                       {isMultiOrigin && !item.sourceBranchId && (
-                        <span className="ml-1 text-amber-500">• Sin origen asignado</span>
+                        <p className="text-xs text-amber-600 mt-0.5">Sin origen asignado</p>
                       )}
-                    </p>
-                    {stockErrors[item.product.id] && (
-                      <p className="text-xs text-destructive flex items-center gap-1 mt-0.5">
-                        <XCircle className="h-3 w-3" /> {stockErrors[item.product.id]}
-                      </p>
-                    )}
+                      {stockErrors[item.product.id] && (
+                        <p className="text-xs text-destructive flex items-start gap-1 mt-1">
+                          <XCircle className="h-3 w-3 mt-0.5 shrink-0" />
+                          <span className="break-words">{stockErrors[item.product.id]}</span>
+                        </p>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Label className="text-xs shrink-0">Cant:</Label>
-                    <Input
-                      type="number" min={1} value={item.quantity}
-                      onChange={(e) => updateQuantity(item.product.id, parseInt(e.target.value) || 1)}
-                      className="w-20 h-8 text-sm"
-                    />
-                    <Button type="button" variant="ghost" size="sm"
-                      onClick={() => setExpandedProduct(expandedProduct === item.product.id ? null : item.product.id)}>
-                      {expandedProduct === item.product.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                    </Button>
-                    <Button type="button" variant="ghost" size="sm" onClick={() => removeProduct(item.product.id)}>
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
+                  {/* Fila 2: controles */}
+                  <div className="flex items-center justify-between gap-2 pt-1 border-t border-border/40">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Label className="text-xs shrink-0">Cant:</Label>
+                      <Input
+                        type="number" min={1} value={item.quantity}
+                        onChange={(e) => updateQuantity(item.product.id, parseInt(e.target.value) || 1)}
+                        className="w-20 h-9 text-sm"
+                        inputMode="numeric"
+                      />
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Button type="button" variant="ghost" size="sm"
+                        onClick={() => setExpandedProduct(expandedProduct === item.product.id ? null : item.product.id)}
+                        className="h-9 px-2"
+                        aria-label={expandedProduct === item.product.id ? "Contraer" : "Expandir"}>
+                        {expandedProduct === item.product.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                      </Button>
+                      <Button type="button" variant="ghost" size="sm"
+                        onClick={() => removeProduct(item.product.id)}
+                        className="h-9 px-2"
+                        aria-label="Quitar producto">
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
 
@@ -891,20 +911,32 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
       </div>
 
       {hasStockErrors && (
-        <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-sm text-destructive">
-          <XCircle className="h-4 w-4 shrink-0" />
-          <span>Hay productos con stock insuficiente. Corregí las cantidades o cambiá el origen antes de continuar.</span>
+        <div className="flex items-start gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-sm text-destructive">
+          <XCircle className="h-4 w-4 shrink-0 mt-0.5" />
+          <span className="break-words">Hay productos con stock insuficiente. Corregí las cantidades o cambiá el origen antes de continuar.</span>
         </div>
       )}
 
-      <Button type="submit" className="w-full" disabled={submitting || !canSubmit}>
-        {submitting
-          ? "Creando..."
-          : isMultiOrigin
-            ? `Revisar y crear ${Object.keys(originSummary || {}).length || 0} transferencia(s)`
-            : `Revisar y crear pedido (${items.length} producto${items.length !== 1 ? "s" : ""})`
-        }
-      </Button>
+      {/* Sticky CTA bottom mobile / inline desktop */}
+      <div className="
+        sticky bottom-0 -mx-4 sm:-mx-6 px-4 sm:px-6 pt-3
+        pb-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:pb-3
+        bg-background/95 backdrop-blur-sm border-t sm:border-0 sm:bg-transparent sm:backdrop-blur-none
+        z-10
+      ">
+        <Button
+          type="submit"
+          className="w-full h-12 text-sm sm:text-base font-semibold"
+          disabled={submitting || !canSubmit}
+        >
+          {submitting
+            ? "Creando..."
+            : isMultiOrigin
+              ? `Revisar y crear (${Object.keys(originSummary || {}).length || 0} transferencias)`
+              : `Revisar y crear pedido (${items.length} ${items.length === 1 ? "producto" : "productos"})`
+          }
+        </Button>
+      </div>
     </form>
   );
 }
