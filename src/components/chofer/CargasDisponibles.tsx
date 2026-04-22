@@ -256,6 +256,9 @@ export function CargasDisponibles() {
         const { error } = await supabase.rpc("fn_transition_request_status", {
           p_request_id: requestId,
           p_new_status: "in_transit",
+          p_reason: "Retiro realizado por chofer",
+          p_rejection_reason_type: null,
+          p_trip_id: myActiveTrip?.id ?? null,
         });
         if (error) throw error;
         toast.success("Retiro confirmado");
