@@ -237,6 +237,7 @@ export function CargasDisponibles() {
   const invalidateAll = () => {
     queryClient.invalidateQueries({ queryKey: ["assigned-loads"] });
     queryClient.invalidateQueries({ queryKey: ["available-loads"] });
+    queryClient.invalidateQueries({ queryKey: ["ready-requests-no-fo"] });
     queryClient.invalidateQueries({ queryKey: ["out-of-cutoff-events"] });
     queryClient.invalidateQueries({ queryKey: ["rejection-events-recent"] });
     queryClient.invalidateQueries({ queryKey: ["my-custody-loads"] });
@@ -245,11 +246,27 @@ export function CargasDisponibles() {
     queryClient.invalidateQueries({ queryKey: ["hub-count"] });
   };
 
-  const pickupOutOfCutoff = async (fulfillmentId: string) => {
+  const pickupOutOfCutoff = async (rowId: string) => {
     try {
+      // Caso A: fila proviene de un branch_request sin FO. Se transiciona el
+      // pedido a in_transit (mismo flujo que el módulo Pedidos), lo cual crea
+      // automáticamente el fulfillment_order. No se llama fn_driver_action.
+      if (rowId.startsWith("req:")) {
+        const requestId = rowId.slice(4);
+        const { error } = await supabase.rpc("fn_transition_request_status", {
+          p_request_id: requestId,
+          p_new_status: "in_transit",
+        });
+        if (error) throw error;
+        toast.success("Retiro confirmado");
+        invalidateAll();
+        return;
+      }
+
+      // Caso B: fila proviene de fulfillment_orders (flujo original intacto).
       const { data, error } = await runDriverAction({
         action: "pickup",
-        fulfillmentId,
+        fulfillmentId: rowId,
       });
       if (error) throw error;
       const result = data as any;
