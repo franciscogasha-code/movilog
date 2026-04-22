@@ -571,11 +571,16 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
           </div>
         )}
 
-        <div className="flex gap-2">
-          <Button variant="outline" className="flex-1" onClick={() => setShowConfirmation(false)}>
+        <div className="
+          sticky bottom-0 -mx-4 sm:-mx-6 px-4 sm:px-6 pt-3
+          pb-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:pb-3
+          bg-background/95 backdrop-blur-sm border-t sm:border-0 sm:bg-transparent sm:backdrop-blur-none
+          flex flex-col-reverse sm:flex-row gap-2 z-10
+        ">
+          <Button variant="outline" className="w-full sm:flex-1 h-11" onClick={() => setShowConfirmation(false)}>
             Volver a editar
           </Button>
-          <Button className="flex-1" onClick={onSubmit} disabled={submitting}>
+          <Button className="w-full sm:flex-1 h-11 font-semibold" onClick={onSubmit} disabled={submitting}>
             {revalidating ? (
               <><Loader2 className="h-4 w-4 animate-spin mr-2" />Verificando stock...</>
             ) : submitting ? (
