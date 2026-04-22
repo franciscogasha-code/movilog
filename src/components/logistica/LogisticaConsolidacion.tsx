@@ -295,9 +295,12 @@ export function LogisticaConsolidacion() {
             exit={{ opacity: 0, y: -8 }}
           >
             <Card className="glass-card border-primary/30 sticky top-0 z-10">
-              <CardContent className="p-3 flex items-center justify-between">
+              <CardContent className="p-3 flex items-center justify-between flex-wrap gap-2">
                 <span className="text-sm font-medium">{selected.size} carga(s) seleccionada(s)</span>
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
+                  <Button size="sm" variant="outline" onClick={handleClearForPickup} disabled={assigning} className="gap-1">
+                    <CheckCircle2 className="h-3.5 w-3.5" /> Habilitar para corte
+                  </Button>
                   <Button size="sm" variant="outline" onClick={() => setAssignMode("existing")} className="gap-1">
                     <Truck className="h-3.5 w-3.5" /> Asignar a viaje
                   </Button>
