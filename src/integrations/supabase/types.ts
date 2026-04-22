@@ -1346,6 +1346,9 @@ export type Database = {
           bims_transfer_number: string | null
           bims_transfer_verified: boolean | null
           branch_request_id: string | null
+          cleared_for_pickup: boolean
+          cleared_for_pickup_at: string | null
+          cleared_for_pickup_by: string | null
           commercial_exception_at: string | null
           commercial_exception_status: string | null
           commercial_resolution_notes: string | null
@@ -1385,6 +1388,9 @@ export type Database = {
           bims_transfer_number?: string | null
           bims_transfer_verified?: boolean | null
           branch_request_id?: string | null
+          cleared_for_pickup?: boolean
+          cleared_for_pickup_at?: string | null
+          cleared_for_pickup_by?: string | null
           commercial_exception_at?: string | null
           commercial_exception_status?: string | null
           commercial_resolution_notes?: string | null
@@ -1424,6 +1430,9 @@ export type Database = {
           bims_transfer_number?: string | null
           bims_transfer_verified?: boolean | null
           branch_request_id?: string | null
+          cleared_for_pickup?: boolean
+          cleared_for_pickup_at?: string | null
+          cleared_for_pickup_by?: string | null
           commercial_exception_at?: string | null
           commercial_exception_status?: string | null
           commercial_resolution_notes?: string | null
@@ -2825,6 +2834,7 @@ export type Database = {
         Args: { _consultation_id: string; _user_id: string }
         Returns: boolean
       }
+      fn_clear_for_pickup: { Args: { p_request_ids: string[] }; Returns: Json }
       fn_close_expired_consultations: { Args: never; Returns: number }
       fn_derive_flow_type: {
         Args: {
