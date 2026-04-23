@@ -323,7 +323,15 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
     return grouped;
   }, [items, isMultiOrigin, branches]);
 
-  const itemsWithoutSource = items.filter(i => !i.sourceBranchId);
+  // Un item está "resuelto" si: tiene splits válidos, o sourceBranchId asignado, o estamos en mono y hay sourceBranchId global.
+  const isItemResolved = (item: SelectedItem): boolean => {
+    if (itemHasValidSplits(item)) return true;
+    if (item.sourceBranchId && item.sourceBranchId !== requestingBranchId) return true;
+    if (!isMultiOrigin && sourceBranchId && sourceBranchId !== requestingBranchId) return true;
+    return false;
+  };
+
+  const itemsWithoutSource = items.filter(i => !isItemResolved(i));
 
   // Same-branch validation (mono-origin only; multi-origin children have different sources)
   // Exception: online + client allows same branch (direct sale from own stock)
@@ -334,11 +342,11 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
   const canSubmit = useMemo(() => {
     if (!requestingBranchId || !items.length) return false;
     if (hasStockErrors || shippingError) return false;
-    if (isMultiOrigin) {
-      return items.every(i => !!i.sourceBranchId && i.sourceBranchId !== requestingBranchId);
-    }
-    if (!sourceBranchId || isSameBranch) return false;
+    // Cada item debe estar resuelto (splits válidos, origen propio, o origen global mono)
+    if (!items.every(isItemResolved)) return false;
+    if (isSameBranch) return false;
     return true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requestingBranchId, items, isMultiOrigin, sourceBranchId, hasStockErrors, shippingError, isSameBranch]);
 
   // Re-validate stock from BIMS live right before confirmation
