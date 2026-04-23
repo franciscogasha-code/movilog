@@ -682,13 +682,13 @@ export default function Solicitudes() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-border bg-muted/30">
-                        <th className="text-left p-3 font-medium text-muted-foreground">#</th>
-                        <th className="text-left p-3 font-medium text-muted-foreground">Tipo</th>
-                        <th className="text-left p-3 font-medium text-muted-foreground">Ruta</th>
-                        <th className="text-left p-3 font-medium text-muted-foreground">Entrega</th>
-                        <th className="text-left p-3 font-medium text-muted-foreground">Estado</th>
-                        <th className="text-left p-3 font-medium text-muted-foreground">Antigüedad</th>
-                        <th className="text-left p-3 font-medium text-muted-foreground"></th>
+                        <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs uppercase tracking-wide">#</th>
+                        <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs uppercase tracking-wide">Tipo</th>
+                        <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs uppercase tracking-wide">Ruta</th>
+                        <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs uppercase tracking-wide">Entrega</th>
+                        <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs uppercase tracking-wide">Estado</th>
+                        <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs uppercase tracking-wide">Antig.</th>
+                        <th className="text-left px-3 py-2.5"></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -699,15 +699,16 @@ export default function Solicitudes() {
                           <tr
                             key={r.id}
                             className={cn(
-                              "border-b border-border/50 transition-all duration-150 cursor-pointer",
+                              "border-b border-border/40 transition-colors duration-150 cursor-pointer",
                               isParent
                                 ? "bg-accent/5 hover:bg-accent/10 border-l-2 border-l-accent"
                                 : "hover:bg-muted/40",
                             )}
                             onClick={() => setSelectedId(r.id)}
                           >
-                            <td className="px-3 py-2 font-mono font-semibold whitespace-nowrap">
-                              <div className="flex items-center gap-1.5">
+                            <td className="px-3 py-2.5 font-mono font-semibold whitespace-nowrap">
+                              <div className="flex items-center gap-2">
+                                {!isParent && renderDirectionIcon(dir)}
                                 <span>#{r.request_number}</span>
                                 {isParent && (
                                   <Tooltip>
@@ -721,34 +722,27 @@ export default function Solicitudes() {
                                 )}
                               </div>
                             </td>
-                            <td className="px-3 py-2">
-                              <Badge variant="outline" className="text-xs capitalize">
+                            <td className="px-3 py-2.5">
+                              <Badge variant="outline" className="text-xs capitalize font-normal">
                                 {REQUEST_TYPE_LABELS[r.request_type] || r.request_type}
                               </Badge>
                             </td>
-                            <td className="px-3 py-2 max-w-[280px]">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="truncate">{buildRouteCell(r)}</span>
-                                {dir && !isParent && (
-                                  <span className={cn("inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium border shrink-0", dir.cls)}>
-                                    {dir.label}
-                                  </span>
-                                )}
-                              </div>
+                            <td className="px-3 py-2.5 max-w-[280px]">
+                              <div className="truncate">{buildRouteCell(r)}</div>
                               {r.client_name && (
                                 <div className="text-[11px] text-muted-foreground truncate mt-0.5">
                                   {r.client_name}
                                 </div>
                               )}
                             </td>
-                            <td className="px-3 py-2 text-xs whitespace-nowrap">
+                            <td className="px-3 py-2.5 text-xs whitespace-nowrap">
                               <div>{DELIVERY_TARGET_LABELS[r.delivery_target] || "A sucursal"}</div>
                               <div className="text-muted-foreground text-[11px]">{SHIPPING_METHOD_LABELS[r.shipping_method] || r.shipping_method}</div>
                             </td>
-                            <td className="px-3 py-2">
+                            <td className="px-3 py-2.5">
                               <StatusBadge status={r.status} config={REQUEST_STATUS_CONFIG} />
                             </td>
-                            <td className="px-3 py-2 text-xs whitespace-nowrap">
+                            <td className="px-3 py-2.5 text-xs whitespace-nowrap">
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <span className={getAgeClass(r)}>{formatAge(r.created_at)}</span>
@@ -756,8 +750,8 @@ export default function Solicitudes() {
                                 <TooltipContent side="top">{formatFullDate(r.created_at)}</TooltipContent>
                               </Tooltip>
                             </td>
-                            <td className="px-3 py-2">
-                              <Button variant="outline" size="sm" className="h-7 text-xs">
+                            <td className="px-3 py-2.5 text-right">
+                              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={(e) => { e.stopPropagation(); setSelectedId(r.id); }}>
                                 Abrir
                               </Button>
                             </td>
