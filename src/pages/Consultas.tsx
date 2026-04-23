@@ -204,9 +204,12 @@ export default function Consultas() {
           ) : !consultations?.length ? (
             <div className="p-8">
               <div className="empty-state">
-                <Search className="h-8 w-8 mb-2 opacity-50" />
-                <p className="font-medium">No hay consultas registradas</p>
+                <MessageCircle className="h-8 w-8 mb-2 opacity-50" />
+                <p className="font-medium">No tenés consultas activas actualmente</p>
                 <p className="text-xs text-muted-foreground mt-1">Creá una nueva consulta para preguntar disponibilidad a otras sucursales.</p>
+                <Button className="mt-4" size="sm" onClick={() => setCreateOpen(true)}>
+                  <Plus className="h-4 w-4 mr-2" /> Nueva Consulta
+                </Button>
               </div>
             </div>
           ) : (
