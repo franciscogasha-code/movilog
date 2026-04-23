@@ -340,45 +340,20 @@ export default function Solicitudes() {
     },
   });
 
-  /** Etiqueta De/Para contextual */
+  /**
+   * Etiqueta De/Para contextual según pestaña activa.
+   * - mios   → solo "De: <origen>" (el destino es mi sucursal, sobreentendido).
+   * - otros  → solo "Para: <destino>" (el origen es mi sucursal, sobreentendido).
+   * - activos/cerrados → formato completo "De: X → Para: Y".
+   * Caso especial: pedido interno (origen = destino) siempre muestra formato completo
+   * para no perder contexto visual.
+   */
   const buildRouteCell = (r: any) => {
     const srcName = r.source_branch?.name ?? "?";
     const reqName = r.requesting_branch?.name ?? "?";
+    const isInternal = r.source_branch_id === r.requesting_branch_id;
 
-    if (isAllBranches || branchFilter === "all") {
-      return (
-        <>
-          <span className="text-muted-foreground text-xs">De:</span>{" "}
-          <span className="font-medium">{srcName}</span>
-          <span className="text-muted-foreground mx-1">→</span>
-          <span className="text-muted-foreground text-xs">Para:</span>{" "}
-          <span className="font-medium">{reqName}</span>
-        </>
-      );
-    }
-
-    const contextIds =
-      branchFilter !== "all" ? [branchFilter] : allowedBranchIds;
-    const isSource = contextIds.includes(r.source_branch_id);
-    const isDest = contextIds.includes(r.requesting_branch_id);
-
-    if (isSource && !isDest) {
-      return (
-        <>
-          <span className="text-muted-foreground text-xs">Para:</span>{" "}
-          <span className="font-medium">{reqName}</span>
-        </>
-      );
-    }
-    if (isDest && !isSource) {
-      return (
-        <>
-          <span className="text-muted-foreground text-xs">De:</span>{" "}
-          <span className="font-medium">{srcName}</span>
-        </>
-      );
-    }
-    return (
+    const full = (
       <>
         <span className="text-muted-foreground text-xs">De:</span>{" "}
         <span className="font-medium">{srcName}</span>
@@ -387,6 +362,26 @@ export default function Solicitudes() {
         <span className="font-medium">{reqName}</span>
       </>
     );
+
+    if (isInternal) return full;
+
+    if (tab === "mios") {
+      return (
+        <>
+          <span className="text-muted-foreground text-xs">De:</span>{" "}
+          <span className="font-medium">{srcName}</span>
+        </>
+      );
+    }
+    if (tab === "otros") {
+      return (
+        <>
+          <span className="text-muted-foreground text-xs">Para:</span>{" "}
+          <span className="font-medium">{reqName}</span>
+        </>
+      );
+    }
+    return full;
   };
 
   /**
