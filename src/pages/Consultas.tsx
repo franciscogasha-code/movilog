@@ -220,13 +220,40 @@ export default function Consultas() {
         </Dialog>
       </div>
 
-      {totalActive > 0 && (
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="muted" className="text-[11px] font-normal">Abiertas: {activeCounts?.open ?? 0}</Badge>
-          <Badge variant="muted" className="text-[11px] font-normal">Respondidas: {activeCounts?.responded ?? 0}</Badge>
-          <Badge variant="muted" className="text-[11px] font-normal">Total activas: {totalActive}</Badge>
-        </div>
-      )}
+      <div className="flex flex-wrap items-center gap-1.5" role="tablist" aria-label="Filtro de consultas">
+        {([
+          { key: "all" as const, label: "Activas", count: totalActive },
+          { key: "pending" as const, label: "Pendientes", count: activeCounts?.open ?? 0 },
+          { key: "responded" as const, label: "Respondidas", count: activeCounts?.responded ?? 0 },
+        ]).map((f) => {
+          const isActive = activeFilter === f.key;
+          return (
+            <button
+              key={f.key}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              onClick={() => setActiveFilter(f.key)}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                isActive
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground"
+              )}
+            >
+              <span>{f.label}</span>
+              <span
+                className={cn(
+                  "rounded-full px-1.5 text-[10px] tabular-nums",
+                  isActive ? "bg-primary-foreground/20" : "bg-background/60"
+                )}
+              >
+                {f.count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
 
       <Card className="glass-card">
         <CardContent className="p-0">
