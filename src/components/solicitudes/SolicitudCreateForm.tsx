@@ -11,11 +11,12 @@ import { ProductCard } from "@/components/shared/ProductCard";
 import { BranchSelector, useAutoDetectBranch } from "@/components/shared/BranchSelector";
 import { useBranches } from "@/hooks/use-branches";
 import { useLiveStock, revalidateLiveStock } from "@/hooks/use-live-stock";
-import { Plus, Trash2, Package, ChevronDown, ChevronUp, AlertTriangle, XCircle, Loader2 } from "lucide-react";
+import { Plus, Trash2, Package, ChevronDown, ChevronUp, AlertTriangle, XCircle, Loader2, Split } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
-import { ContextBanner } from "./ContextBanner";
+import { ContextBanner, type EffectiveOriginMode } from "./ContextBanner";
 import { DemandAlert } from "./DemandAlert";
+import { SplitOriginPanel, type OriginSplit } from "./SplitOriginPanel";
 import {
   type RequestType,
   type DeliveryTarget,
