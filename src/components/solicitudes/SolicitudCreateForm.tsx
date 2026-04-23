@@ -33,6 +33,8 @@ interface SelectedItem {
   product: ProductResult;
   quantity: number;
   sourceBranchId?: string;
+  /** Distribución manual del usuario entre múltiples sucursales (opcional). Si está presente y suma == quantity, se usa como verdad. */
+  splits?: OriginSplit[];
 }
 
 export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSuccess: () => void; fromConsultationId?: string | null }) {
