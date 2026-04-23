@@ -465,12 +465,11 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
           .single();
         if (parentErr) throw parentErr;
 
-        // Group by source branch
-        const bySource: Record<string, SelectedItem[]> = {};
-        items.forEach(item => {
-          const bid = item.sourceBranchId!;
-          if (!bySource[bid]) bySource[bid] = [];
-          bySource[bid].push(item);
+        // Group leaf items by source branch (cada leaf ya tiene un único origen real)
+        const bySource: Record<string, LeafItem[]> = {};
+        leafItems.forEach(leaf => {
+          if (!bySource[leaf.sourceBranchId]) bySource[leaf.sourceBranchId] = [];
+          bySource[leaf.sourceBranchId].push(leaf);
         });
 
         const createdNumbers: number[] = [];
