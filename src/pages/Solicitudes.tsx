@@ -419,10 +419,13 @@ export default function Solicitudes() {
     if (contextIds.length === 0) return null;
     const isDest = contextIds.includes(r.requesting_branch_id);
     const isSource = contextIds.includes(r.source_branch_id);
+    // Lectura administrativa del PEDIDO (no movimiento físico):
+    //  - Soy quien SOLICITÓ (requesting_branch) → la solicitud SALIÓ de mí → Salida (ámbar).
+    //  - Soy quien RECIBE la solicitud (source_branch, otro me pidió) → ENTRÓ hacia mí → Entrada (azul).
     if (isDest)
-      return { kind: "entrada", label: "Entrada", cls: "bg-info/10 text-info border-info/20" };
+      return { kind: "salida", label: "Salida — pedido creado por mi sucursal", cls: "bg-warning/10 text-warning border-warning/20" };
     if (isSource)
-      return { kind: "salida", label: "Salida", cls: "bg-warning/10 text-warning border-warning/20" };
+      return { kind: "entrada", label: "Entrada — solicitud recibida de otra sucursal", cls: "bg-info/10 text-info border-info/20" };
     return null;
   };
 
@@ -484,7 +487,9 @@ export default function Solicitudes() {
     return branches.filter((b: any) => allowedBranchIds.includes(b.id));
   }, [branches, isAllBranches, allowedBranchIds]);
 
-  const showBranchFilter = branchOptions.length > 1;
+  // Filtro de sucursal: siempre visible cuando hay sucursales disponibles.
+  // Útil para todos los roles (incl. operadores) para acotar bandeja por sucursal del pedido.
+  const showBranchFilter = branchOptions.length > 0;
 
   return (
     <TooltipProvider delayDuration={200}>
