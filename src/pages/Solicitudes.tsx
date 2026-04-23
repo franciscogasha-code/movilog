@@ -316,15 +316,19 @@ export default function Solicitudes() {
         );
       };
 
+      // Para mios/otros necesitamos un contexto de sucursal; si isAllBranches
+      // y no hay sucursal específica seleccionada, usamos null → conteo 0.
+      const hasMineContext = !!ids && ids.length > 0 && (!isAllBranches || branchFilter !== "all");
+
       const [activos, cerrados, mios, otros] = await Promise.all([
         applyBranch(buildBase().in("status", ACTIVE_STATUSES as any), "any"),
         applyBranch(buildBase().in("status", CLOSED_STATUSES as any), "any"),
-        isAllBranches
-          ? Promise.resolve({ count: 0 })
-          : applyBranch(buildBase().in("status", ACTIVE_STATUSES as any), "mios"),
-        isAllBranches
-          ? Promise.resolve({ count: 0 })
-          : applyBranch(buildBase().in("status", ACTIVE_STATUSES as any), "otros"),
+        hasMineContext
+          ? applyBranch(buildBase().in("status", ACTIVE_STATUSES as any), "mios")
+          : Promise.resolve({ count: 0 }),
+        hasMineContext
+          ? applyBranch(buildBase().in("status", ACTIVE_STATUSES as any), "otros")
+          : Promise.resolve({ count: 0 }),
       ]);
 
       return {
