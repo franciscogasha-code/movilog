@@ -122,9 +122,18 @@ function formatFullDate(dateStr: string): string {
   });
 }
 
-/** Detecta pedido padre multi-origen por la convención de notas. */
+/**
+ * Detecta pedido padre multi-origen.
+ * Compatible con la convención legacy (string en notas) — la detección formal
+ * por existencia de hijos se hace server-side via fn_is_parent_request.
+ */
 function isParentMultiOrigin(r: any): boolean {
-  return typeof r?.notes === "string" && r.notes.startsWith("[Pedido padre multi-origen]");
+  return typeof r?.notes === "string" && r.notes.includes("[Pedido padre multi-origen]");
+}
+
+/** Detecta padres legacy de un solo hijo (saneamiento marca con esta tag). */
+function isLegacySingleChildParent(r: any): boolean {
+  return typeof r?.notes === "string" && r.notes.includes("[LEGACY 1-hijo]");
 }
 
 export default function Solicitudes() {
@@ -251,6 +260,11 @@ export default function Solicitudes() {
         )
         .order("created_at", { ascending: false });
 
+      // Ocultar padres y registros legacy 1-hijo de bandejas operativas.
+      // Los padres son contenedores de trazabilidad (accesibles por deep-link),
+      // no tareas. Los hijos siguen siendo plenamente visibles.
+      query = query.not("notes", "ilike", "%[Pedido padre multi-origen]%");
+
       // Tab: estados
       if (tab === "activos" || tab === "mios" || tab === "otros") {
         query = query.in("status", ACTIVE_STATUSES as any);
@@ -327,7 +341,10 @@ export default function Solicitudes() {
         isAllBranches && specificBranch ? [specificBranch] : myIds;
 
       const buildBase = () =>
-        supabase.from("branch_requests").select("id", { count: "exact", head: true });
+        supabase
+          .from("branch_requests")
+          .select("id", { count: "exact", head: true })
+          .not("notes", "ilike", "%[Pedido padre multi-origen]%");
 
       const applyAny = (q: any) => {
         if (!ids || ids.length === 0) return q;

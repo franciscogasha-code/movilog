@@ -16,6 +16,8 @@ import {
 import { Package, AlertTriangle, Check, X, Loader2, Truck, ClipboardList, FileSpreadsheet, Download, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { ParentRequestSummary } from "@/components/solicitudes/ParentRequestSummary";
+import { useNavigate } from "react-router-dom";
 
 // Small helper to resolve operational responsible name
 function OperationalResponsibleName({ userId }: { userId: string }) {
@@ -133,12 +135,26 @@ function getStatusActions(status: string, flowType?: string | null): ActionDef[]
 export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; onUpdate: () => void }) {
   const { hasBranch, hasRole, isOwner } = useAuth();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [transitioning, setTransitioning] = useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
   const [rejectionReasonType, setRejectionReasonType] = useState("");
   const [showRejectForm, setShowRejectForm] = useState(false);
   const [showTripSelector, setShowTripSelector] = useState(false);
   const [selectedTripId, setSelectedTripId] = useState("");
+
+  // Detección formal de padre: tiene hijos apuntándolo (parent_request_id).
+  // Si es padre, no se exponen acciones operativas (defensa frontend; backend ya bloquea via RPC).
+  const { data: childCount = 0 } = useQuery({
+    queryKey: ["request-child-count", requestId],
+    queryFn: async () => {
+      const { count } = await supabase
+        .from("branch_requests")
+        .select("id", { count: "exact", head: true })
+        .eq("parent_request_id", requestId);
+      return count ?? 0;
+    },
+  });
 
   const { data: request, isLoading } = useQuery({
     queryKey: ["branch-request-detail", requestId],
@@ -243,6 +259,17 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
   if (!request) return <div className="p-4 text-muted-foreground">No encontrada</div>;
 
   const r = request as any;
+
+  // Si es pedido padre (tiene hijos), mostrar vista resumen sin acciones operativas.
+  const isParentRequest = childCount > 0;
+  if (isParentRequest) {
+    return (
+      <ParentRequestSummary
+        parent={r}
+        onOpenChild={(childId) => navigate(`/solicitudes?detail=${childId}`)}
+      />
+    );
+  }
 
   // Derivar flow_type efectivo si el registro aún no lo tiene persistido
   // (replica la lógica de fn_transition_request_status para evitar exponer
