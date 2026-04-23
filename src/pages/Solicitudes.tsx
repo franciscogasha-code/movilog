@@ -482,9 +482,12 @@ export default function Solicitudes() {
     }
   }, [tab, debouncedSearch]);
 
+  // El filtro de sucursal es una herramienta operativa de segmentación, NO un control de permisos.
+  // Debe listar todas las sucursales activas para cualquier rol (incluido operador), permitiendo
+  // analizar la bandeja según la sucursal vinculada al pedido. Los permisos reales siguen aplicados
+  // por RLS en backend y por la lógica de tabs (Mis pedidos / Otros pedidos).
   const branchOptions = useMemo(() => {
-    if (isAllBranches) return branches;
-    return branches.filter((b: any) => allowedBranchIds.includes(b.id));
+    return branches;
   }, [branches, isAllBranches, allowedBranchIds]);
 
   // Filtro de sucursal: siempre visible cuando hay sucursales disponibles.
