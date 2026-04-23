@@ -152,17 +152,17 @@ export default function Solicitudes() {
   const [statusFilter, setStatusFilter] = useState<string>(initial.status ?? "all");
   const [search, setSearch] = useState("");
 
-  // Si el usuario tiene branchFilter persistido pero perdió acceso → reset
+  // Si el filtro persistido apunta a una sucursal que ya no existe/está inactiva → reset.
+  // Importante: NO se debe resetear por permisos del usuario, porque el selector es
+  // una herramienta operativa independiente sobre la sucursal solicitante del pedido.
   useEffect(() => {
-    if (
-      branchFilter !== "all" &&
-      !isAllBranches &&
-      allowedBranchIds.length > 0 &&
-      !allowedBranchIds.includes(branchFilter)
-    ) {
+    if (branchFilter === "all" || branches.length === 0) return;
+
+    const branchStillExists = branches.some((branch: any) => branch.id === branchFilter);
+    if (!branchStillExists) {
       setBranchFilter(defaultBranch);
     }
-  }, [branchFilter, isAllBranches, allowedBranchIds, defaultBranch]);
+  }, [branchFilter, branches, defaultBranch]);
 
   // Persistencia
   useEffect(() => {
