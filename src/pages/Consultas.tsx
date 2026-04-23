@@ -129,6 +129,20 @@ export default function Consultas() {
 
   const isLoading = isLoadingBase || (baseRows.length > 0 && isLoadingEnrich);
 
+  // Resumen de conteos (independiente de la paginación)
+  const { data: activeCounts } = useQuery({
+    queryKey: ["availability-consultations-counts"],
+    queryFn: async () => {
+      const [openRes, respRes] = await Promise.all([
+        supabase.from("availability_consultations").select("id", { count: "exact", head: true }).eq("status", "open"),
+        supabase.from("availability_consultations").select("id", { count: "exact", head: true }).eq("status", "responded"),
+      ]);
+      return { open: openRes.count ?? 0, responded: respRes.count ?? 0 };
+    },
+    staleTime: 30_000,
+  });
+  const totalActive = (activeCounts?.open ?? 0) + (activeCounts?.responded ?? 0);
+
   /** Build contextual route label */
   const buildRouteLabel = (c: any) => {
     const reqName = c.requesting_branch?.name ?? "?";
@@ -183,19 +197,27 @@ export default function Consultas() {
     <motion.div className="space-y-4 sm:space-y-6" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
-          <h1 className="page-title">Consultas de Disponibilidad</h1>
-          <p className="page-subtitle mt-1">Historial de consultas de stock entre sucursales</p>
+          <h1 className="page-title">Consultas</h1>
+          <p className="page-subtitle mt-1">Disponibilidad entre sucursales</p>
         </div>
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
           <DialogTrigger asChild>
             <Button className="w-full sm:w-auto"><Plus className="h-4 w-4 mr-2" /> Nueva Consulta</Button>
           </DialogTrigger>
           <DialogContent className="w-[calc(100vw-0.75rem)] max-w-xl max-h-[85vh] overflow-y-auto overflow-x-hidden p-3 sm:p-6">
-            <DialogHeader><DialogTitle>Consultar Disponibilidad</DialogTitle></DialogHeader>
+            <DialogHeader><DialogTitle>Nueva consulta</DialogTitle></DialogHeader>
             <ConsultationForm onSuccess={() => { setCreateOpen(false); queryClient.invalidateQueries({ queryKey: ["availability-consultations"] }); }} />
           </DialogContent>
         </Dialog>
       </div>
+
+      {totalActive > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="muted" className="text-[11px] font-normal">Abiertas: {activeCounts?.open ?? 0}</Badge>
+          <Badge variant="muted" className="text-[11px] font-normal">Respondidas: {activeCounts?.responded ?? 0}</Badge>
+          <Badge variant="muted" className="text-[11px] font-normal">Total activas: {totalActive}</Badge>
+        </div>
+      )}
 
       <Card className="glass-card">
         <CardContent className="p-0">
@@ -248,7 +270,7 @@ export default function Consultas() {
                             {c.responses?.responded ?? 0}/{c.responses?.total ?? 0} resp.
                           </Badge>
                           {c.orders_count > 0 && (
-                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{c.orders_count} pedido(s)</Badge>
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0">{c.orders_count} {c.orders_count === 1 ? "pedido" : "pedidos"}</Badge>
                           )}
                         </span>
                         <span className="shrink-0">
@@ -284,7 +306,7 @@ export default function Consultas() {
                         )}
                         onClick={() => setSelectedId(c.id)}
                       >
-                        <td className="px-3 py-2 font-medium max-w-[200px]">
+                        <td className="px-3 py-2 font-medium max-w-[260px]">
                           <span className="line-clamp-1">
                             {(() => {
                               const prods = c.consultation_products?.filter((p: any) => p?.name) ?? [];
@@ -296,7 +318,7 @@ export default function Consultas() {
                           </span>
                         </td>
                         <td className="px-3 py-2">
-                          <div className="flex items-center gap-1.5 min-w-0">
+                          <div className="flex items-center gap-1.5 min-w-0 whitespace-nowrap truncate">
                             {buildRouteLabel(c)}
                           </div>
                         </td>
@@ -308,14 +330,14 @@ export default function Consultas() {
                         </td>
                         <td className="px-3 py-2">
                           {c.orders_count > 0
-                            ? <Badge variant="secondary" className="text-xs">{c.orders_count} pedido(s)</Badge>
+                            ? <Badge variant="outline" className="text-xs">{c.orders_count} {c.orders_count === 1 ? "pedido" : "pedidos"}</Badge>
                             : <span className="text-muted-foreground text-xs">—</span>}
                         </td>
-                        <td className="px-3 py-2 text-muted-foreground text-xs">
+                        <td className="px-3 py-2 text-muted-foreground text-xs whitespace-nowrap">
                           {new Date(c.created_at).toLocaleDateString("es-PY", { day: "2-digit", month: "short" })}
                         </td>
                         <td className="px-3 py-2">
-                          <Button variant="ghost" size="sm" className="text-xs h-7">Ver consulta</Button>
+                          <Button variant="ghost" size="sm" className="text-xs h-7">Abrir</Button>
                         </td>
                       </tr>
                     ))}
