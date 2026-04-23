@@ -640,6 +640,7 @@ export default function Solicitudes() {
                         <div className="flex items-center justify-between gap-2 mb-1.5">
                           <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
                             <span className="font-mono font-semibold text-sm">#{r.request_number}</span>
+                            {!isParent && renderDirectionIcon(dir)}
                             {isParent ? (
                               <Badge variant="outline" className="text-[10px] shrink-0 border-accent text-accent gap-1">
                                 <Layers className="h-3 w-3" /> Padre
@@ -648,11 +649,6 @@ export default function Solicitudes() {
                               <Badge variant="outline" className="text-[10px] capitalize shrink-0">
                                 {REQUEST_TYPE_LABELS[r.request_type] || r.request_type}
                               </Badge>
-                            )}
-                            {dir && !isParent && (
-                              <span className={cn("inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium border", dir.cls)}>
-                                {dir.label}
-                              </span>
                             )}
                           </div>
                           <StatusBadge status={r.status} config={REQUEST_STATUS_CONFIG} className="shrink-0" />
