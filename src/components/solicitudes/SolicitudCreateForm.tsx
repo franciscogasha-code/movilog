@@ -239,6 +239,42 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
     setItems(prev => prev.map(i => i.product.id === productId ? { ...i, sourceBranchId: branchId } : i));
   };
 
+  const setItemSplits = (productId: string, splits: OriginSplit[]) => {
+    setItems(prev => prev.map(i => i.product.id === productId ? { ...i, splits } : i));
+  };
+
+  // Stock por código de sucursal (live > local) para un producto.
+  const getStockByCode = (product: ProductResult): Record<string, number> | null => {
+    const live = getEffectiveStock(product);
+    const sbw = (live?.stock_by_warehouse ?? product.stock_by_warehouse) as Record<string, number> | null | undefined;
+    return sbw ?? null;
+  };
+
+  // ¿El item tiene splits válidos (>=2 sucursales con cantidad y suma == quantity)?
+  const itemHasValidSplits = (item: SelectedItem): boolean => {
+    if (!item.splits || item.splits.length < 2) return false;
+    const cleaned = item.splits.filter(s => s.branchId && s.quantity > 0);
+    if (cleaned.length < 2) return false;
+    const sum = cleaned.reduce((a, b) => a + b.quantity, 0);
+    return sum === item.quantity;
+  };
+
+  // Modo de origen efectivo basado en estado real, NO en la matriz fija.
+  const effectiveOriginMode: EffectiveOriginMode = useMemo(() => {
+    if (!items.length) return "undefined";
+    // Si algún item tiene splits válidos -> multi
+    if (items.some(itemHasValidSplits)) return "multi";
+    // Recolectar orígenes asignados (de sourceBranchId individual o global)
+    const sources = new Set<string>();
+    for (const it of items) {
+      if (it.sourceBranchId) sources.add(it.sourceBranchId);
+    }
+    if (sourceBranchId) sources.add(sourceBranchId);
+    if (sources.size === 0) return "undefined";
+    if (sources.size === 1) return "single";
+    return "multi";
+  }, [items, sourceBranchId]);
+
   // Stock validation errors (uses live stock if available, otherwise local)
   const stockErrors = useMemo(() => {
     const errors: Record<string, string> = {};
