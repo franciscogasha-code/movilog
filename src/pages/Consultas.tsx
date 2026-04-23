@@ -78,7 +78,7 @@ export default function Consultas() {
           `*, requesting_branch:branches!availability_consultations_requesting_branch_id_fkey(name, code)`,
           { count: "exact" },
         )
-        .neq("status", "expired")
+        .in("status", ["open", "responded"])
         .order("created_at", { ascending: false }),
   });
 
