@@ -487,7 +487,9 @@ export default function Solicitudes() {
     return branches.filter((b: any) => allowedBranchIds.includes(b.id));
   }, [branches, isAllBranches, allowedBranchIds]);
 
-  const showBranchFilter = branchOptions.length > 1;
+  // Filtro de sucursal: siempre visible cuando hay sucursales disponibles.
+  // Útil para todos los roles (incl. operadores) para acotar bandeja por sucursal del pedido.
+  const showBranchFilter = branchOptions.length > 0;
 
   return (
     <TooltipProvider delayDuration={200}>
