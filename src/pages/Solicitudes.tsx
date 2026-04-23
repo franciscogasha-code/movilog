@@ -259,13 +259,30 @@ export default function Solicitudes() {
       }
 
       // Tab: pertenencia de sucursal
-      if (tab === "mios" && effectiveBranchIds && effectiveBranchIds.length > 0) {
-        query = query.in("requesting_branch_id", effectiveBranchIds);
-      } else if (tab === "otros" && effectiveBranchIds && effectiveBranchIds.length > 0) {
-        // Soy origen pero NO el solicitante
-        query = query
-          .in("source_branch_id", effectiveBranchIds)
-          .not("requesting_branch_id", "in", `(${effectiveBranchIds.join(",")})`);
+      // mios/otros se anclan SIEMPRE a "mi(s) sucursal(es)" (allowedBranchIds).
+      // El branchFilter (si apunta a una sucursal distinta a las mías) actúa
+      // como filtro de la CONTRAPARTE, no como anclaje.
+      const myIds = allowedBranchIds && allowedBranchIds.length > 0 ? allowedBranchIds : null;
+      const specificBranch = branchFilter !== "all" ? branchFilter : null;
+      const counterpartyId =
+        specificBranch && (!myIds || !myIds.includes(specificBranch)) ? specificBranch : null;
+
+      if (tab === "mios") {
+        // Anclaje: yo solicité
+        const anchor = isAllBranches && specificBranch ? [specificBranch] : myIds;
+        if (anchor && anchor.length > 0) {
+          query = query.in("requesting_branch_id", anchor);
+          if (counterpartyId) query = query.eq("source_branch_id", counterpartyId);
+        }
+      } else if (tab === "otros") {
+        // Anclaje: me solicitaron (yo soy origen, no solicitante)
+        const anchor = isAllBranches && specificBranch ? [specificBranch] : myIds;
+        if (anchor && anchor.length > 0) {
+          query = query
+            .in("source_branch_id", anchor)
+            .not("requesting_branch_id", "in", `(${anchor.join(",")})`);
+          if (counterpartyId) query = query.eq("requesting_branch_id", counterpartyId);
+        }
       } else if (effectiveBranchIds && effectiveBranchIds.length > 0) {
         // Activos/Cerrados: visibilidad amplia (origen o destino)
         query = query.or(
