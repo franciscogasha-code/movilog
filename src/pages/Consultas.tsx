@@ -35,10 +35,19 @@ const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secon
   expired: { label: "Expirada", variant: "outline" },
 };
 
+type ActiveFilter = "all" | "pending" | "responded";
+
+const FILTER_TO_STATUSES: Record<ActiveFilter, ("open" | "responded")[]> = {
+  all: ["open", "responded"],
+  pending: ["open"],
+  responded: ["responded"],
+};
+
 export default function Consultas() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [createOpen, setCreateOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [activeFilter, setActiveFilter] = useState<ActiveFilter>("all");
   const queryClient = useQueryClient();
 
   useEffect(() => {
