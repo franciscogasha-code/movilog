@@ -460,7 +460,9 @@ export default function Solicitudes() {
     return "text-muted-foreground";
   };
 
-  const showMineOtros = !isAllBranches && allowedBranchIds.length > 0;
+  // Las 4 tabs se muestran siempre. Para mios/otros sin contexto de sucursal
+  // (isAllBranches + "Todas"), el conteo será 0 y el listado vacío con hint claro.
+  const showMineOtros = true;
 
   // Empty state contextual
   const emptyMessage = useMemo(() => {
