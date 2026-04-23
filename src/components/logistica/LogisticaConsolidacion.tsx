@@ -96,9 +96,10 @@ export function LogisticaConsolidacion() {
         .or("flow_type.is.null,flow_type.neq.interurban")
         .order("created_at", { ascending: true });
       if (error) throw error;
-      // Inconsistente = no interurbano y NO está en acopio (esos sí los mostramos en lista normal)
+      // Inconsistente = no interurbano, NO urbano (urban es flujo válido propio) y NO está en acopio
       return (data || []).filter((r: any) => {
         if (r.flow_type === "interurban") return false;
+        if (r.flow_type === "urban") return false; // urbano no pertenece a cola de viajes
         const fo = r.fulfillment_orders?.[0];
         return fo?.status !== "at_hub";
       });
