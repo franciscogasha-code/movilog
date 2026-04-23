@@ -543,12 +543,9 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
         }
       } else {
         // Mono-origin: single request.
-        // Si era "multi-origen lógico" pero terminó con 1 solo origen real, lo
-        // tratamos como mono — sin pedido padre — usando ese origen real.
-        const effectiveSourceId =
-          isMultiOrigin && uniqueSourceIds.length === 1
-            ? uniqueSourceIds[0]
-            : sourceBranchId;
+        // Origen efectivo: el único origen real que aparece en leafItems.
+        // (Si el usuario divide pero todo terminó en 1 sucursal, también cae aquí.)
+        const effectiveSourceId = uniqueSourceIds[0] || sourceBranchId;
         const { data: request, error } = await supabase
           .from("branch_requests")
           .insert({
