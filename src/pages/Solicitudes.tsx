@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Plus, Search, Building2, ArrowRightLeft, FileSpreadsheet, Layers } from "lucide-react";
+import { Plus, Search, Building2, ArrowRightLeft, FileSpreadsheet, Layers, ArrowDownLeft, ArrowUpRight, Repeat } from "lucide-react";
 import { REQUEST_STATUS_CONFIG, SHIPPING_METHOD_LABELS, DELIVERY_TARGET_LABELS, REQUEST_TYPE_LABELS } from "@/lib/constants";
 import { StatusBadge } from "@/components/StatusBadge";
 import { SolicitudCreateForm } from "@/components/solicitudes/SolicitudCreateForm";
@@ -169,12 +169,8 @@ export default function Solicitudes() {
     saveFilters(user?.id ?? null, { tab, branch: branchFilter, status: statusFilter });
   }, [user?.id, tab, branchFilter, statusFilter]);
 
-  // Si es isAllBranches y la tab actual es mios/otros → forzar a activos
-  useEffect(() => {
-    if (isAllBranches && (tab === "mios" || tab === "otros")) {
-      setTab("activos");
-    }
-  }, [isAllBranches, tab]);
+  // (Las 4 tabs se muestran siempre; mios/otros funcionan también con isAllBranches
+  //  usando el branchFilter explícito como contexto de "mi sucursal".)
 
   const [createOpen, setCreateOpen] = useState(false);
   const [adminRepoOpen, setAdminRepoOpen] = useState(false);
@@ -320,15 +316,19 @@ export default function Solicitudes() {
         );
       };
 
+      // Para mios/otros necesitamos un contexto de sucursal; si isAllBranches
+      // y no hay sucursal específica seleccionada, usamos null → conteo 0.
+      const hasMineContext = !!ids && ids.length > 0 && (!isAllBranches || branchFilter !== "all");
+
       const [activos, cerrados, mios, otros] = await Promise.all([
         applyBranch(buildBase().in("status", ACTIVE_STATUSES as any), "any"),
         applyBranch(buildBase().in("status", CLOSED_STATUSES as any), "any"),
-        isAllBranches
-          ? Promise.resolve({ count: 0 })
-          : applyBranch(buildBase().in("status", ACTIVE_STATUSES as any), "mios"),
-        isAllBranches
-          ? Promise.resolve({ count: 0 })
-          : applyBranch(buildBase().in("status", ACTIVE_STATUSES as any), "otros"),
+        hasMineContext
+          ? applyBranch(buildBase().in("status", ACTIVE_STATUSES as any), "mios")
+          : Promise.resolve({ count: 0 }),
+        hasMineContext
+          ? applyBranch(buildBase().in("status", ACTIVE_STATUSES as any), "otros")
+          : Promise.resolve({ count: 0 }),
       ]);
 
       return {
@@ -390,32 +390,64 @@ export default function Solicitudes() {
   };
 
   /**
-   * Microetiqueta de dirección operativa (chip discreto).
-   * Etiquetas inequívocas: Interno / Entrada / Salida.
-   *  - Interno: origen = destino (misma sucursal).
-   *  - Entrada: el destino es mi sucursal (entra mercadería).
-   *  - Salida:  el origen es mi sucursal (sale mercadería) y no es interno.
+   * Indicador de dirección operativa como ÍCONO compacto + tooltip.
+   *  - Interno: origen = destino (gris neutro).
+   *  - Entrada: el destino es mi sucursal — entra mercadería (azul).
+   *  - Salida:  el origen es mi sucursal — sale mercadería (ámbar).
+   * Colores neutros respecto a estados (no rojo, no verde fuerte).
    */
-  const getDirectionChip = (r: any): { label: string; cls: string } | null => {
-    if (isAllBranches && branchFilter === "all") {
-      // Sin contexto de sucursal personal: solo marcamos interno.
-      if (r.source_branch_id === r.requesting_branch_id) {
-        return { label: "Interno", cls: "bg-muted text-muted-foreground border-border" };
+  const getDirectionChip = (
+    r: any,
+  ): { kind: "entrada" | "salida" | "interno"; label: string; cls: string } | null => {
+    // Contexto: si hay sucursal específica seleccionada, esa es "mi sucursal".
+    // Si no, usamos las allowedBranchIds del usuario.
+    const contextIds: string[] =
+      branchFilter !== "all"
+        ? [branchFilter]
+        : isAllBranches
+        ? []
+        : allowedBranchIds;
+
+    const isInternal = r.source_branch_id === r.requesting_branch_id;
+    if (isInternal) {
+      // Interno solo si pertenece al contexto (o no hay contexto y es interno absoluto)
+      if (contextIds.length === 0 || contextIds.includes(r.source_branch_id)) {
+        return { kind: "interno", label: "Interno", cls: "bg-muted text-muted-foreground border-border" };
       }
       return null;
     }
-    const contextIds =
-      branchFilter !== "all" ? [branchFilter] : allowedBranchIds;
-
-    const isInternal = r.source_branch_id === r.requesting_branch_id;
-    if (isInternal && contextIds.includes(r.source_branch_id)) {
-      return { label: "Interno", cls: "bg-muted text-muted-foreground border-border" };
-    }
+    if (contextIds.length === 0) return null;
     const isDest = contextIds.includes(r.requesting_branch_id);
     const isSource = contextIds.includes(r.source_branch_id);
-    if (isDest) return { label: "Entrada", cls: "bg-primary/10 text-primary border-primary/20" };
-    if (isSource) return { label: "Salida", cls: "bg-secondary/10 text-secondary-foreground border-border" };
+    if (isDest)
+      return { kind: "entrada", label: "Entrada", cls: "bg-info/10 text-info border-info/20" };
+    if (isSource)
+      return { kind: "salida", label: "Salida", cls: "bg-warning/10 text-warning border-warning/20" };
     return null;
+  };
+
+  /** Renderiza el chip de dirección como ícono compacto con tooltip. */
+  const renderDirectionIcon = (
+    dir: { kind: "entrada" | "salida" | "interno"; label: string; cls: string } | null,
+  ) => {
+    if (!dir) return null;
+    const Icon = dir.kind === "entrada" ? ArrowDownLeft : dir.kind === "salida" ? ArrowUpRight : Repeat;
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span
+            className={cn(
+              "inline-flex items-center justify-center rounded-md border h-5 w-5 shrink-0",
+              dir.cls,
+            )}
+            aria-label={dir.label}
+          >
+            <Icon className="h-3 w-3" />
+          </span>
+        </TooltipTrigger>
+        <TooltipContent side="top">{dir.label}</TooltipContent>
+      </Tooltip>
+    );
   };
 
   /** Color de antigüedad para pedidos activos. */
@@ -428,7 +460,9 @@ export default function Solicitudes() {
     return "text-muted-foreground";
   };
 
-  const showMineOtros = !isAllBranches && allowedBranchIds.length > 0;
+  // Las 4 tabs se muestran siempre. Para mios/otros sin contexto de sucursal
+  // (isAllBranches + "Todas"), el conteo será 0 y el listado vacío con hint claro.
+  const showMineOtros = true;
 
   // Empty state contextual
   const emptyMessage = useMemo(() => {
@@ -606,6 +640,7 @@ export default function Solicitudes() {
                         <div className="flex items-center justify-between gap-2 mb-1.5">
                           <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
                             <span className="font-mono font-semibold text-sm">#{r.request_number}</span>
+                            {!isParent && renderDirectionIcon(dir)}
                             {isParent ? (
                               <Badge variant="outline" className="text-[10px] shrink-0 border-accent text-accent gap-1">
                                 <Layers className="h-3 w-3" /> Padre
@@ -614,11 +649,6 @@ export default function Solicitudes() {
                               <Badge variant="outline" className="text-[10px] capitalize shrink-0">
                                 {REQUEST_TYPE_LABELS[r.request_type] || r.request_type}
                               </Badge>
-                            )}
-                            {dir && !isParent && (
-                              <span className={cn("inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium border", dir.cls)}>
-                                {dir.label}
-                              </span>
                             )}
                           </div>
                           <StatusBadge status={r.status} config={REQUEST_STATUS_CONFIG} className="shrink-0" />
@@ -652,13 +682,13 @@ export default function Solicitudes() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-border bg-muted/30">
-                        <th className="text-left p-3 font-medium text-muted-foreground">#</th>
-                        <th className="text-left p-3 font-medium text-muted-foreground">Tipo</th>
-                        <th className="text-left p-3 font-medium text-muted-foreground">Ruta</th>
-                        <th className="text-left p-3 font-medium text-muted-foreground">Entrega</th>
-                        <th className="text-left p-3 font-medium text-muted-foreground">Estado</th>
-                        <th className="text-left p-3 font-medium text-muted-foreground">Antigüedad</th>
-                        <th className="text-left p-3 font-medium text-muted-foreground"></th>
+                        <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs uppercase tracking-wide">#</th>
+                        <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs uppercase tracking-wide">Tipo</th>
+                        <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs uppercase tracking-wide">Ruta</th>
+                        <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs uppercase tracking-wide">Entrega</th>
+                        <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs uppercase tracking-wide">Estado</th>
+                        <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs uppercase tracking-wide">Antig.</th>
+                        <th className="text-left px-3 py-2.5"></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -669,15 +699,16 @@ export default function Solicitudes() {
                           <tr
                             key={r.id}
                             className={cn(
-                              "border-b border-border/50 transition-all duration-150 cursor-pointer",
+                              "border-b border-border/40 transition-colors duration-150 cursor-pointer",
                               isParent
                                 ? "bg-accent/5 hover:bg-accent/10 border-l-2 border-l-accent"
                                 : "hover:bg-muted/40",
                             )}
                             onClick={() => setSelectedId(r.id)}
                           >
-                            <td className="px-3 py-2 font-mono font-semibold whitespace-nowrap">
-                              <div className="flex items-center gap-1.5">
+                            <td className="px-3 py-2.5 font-mono font-semibold whitespace-nowrap">
+                              <div className="flex items-center gap-2">
+                                {!isParent && renderDirectionIcon(dir)}
                                 <span>#{r.request_number}</span>
                                 {isParent && (
                                   <Tooltip>
@@ -691,34 +722,27 @@ export default function Solicitudes() {
                                 )}
                               </div>
                             </td>
-                            <td className="px-3 py-2">
-                              <Badge variant="outline" className="text-xs capitalize">
+                            <td className="px-3 py-2.5">
+                              <Badge variant="outline" className="text-xs capitalize font-normal">
                                 {REQUEST_TYPE_LABELS[r.request_type] || r.request_type}
                               </Badge>
                             </td>
-                            <td className="px-3 py-2 max-w-[280px]">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="truncate">{buildRouteCell(r)}</span>
-                                {dir && !isParent && (
-                                  <span className={cn("inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium border shrink-0", dir.cls)}>
-                                    {dir.label}
-                                  </span>
-                                )}
-                              </div>
+                            <td className="px-3 py-2.5 max-w-[280px]">
+                              <div className="truncate">{buildRouteCell(r)}</div>
                               {r.client_name && (
                                 <div className="text-[11px] text-muted-foreground truncate mt-0.5">
                                   {r.client_name}
                                 </div>
                               )}
                             </td>
-                            <td className="px-3 py-2 text-xs whitespace-nowrap">
+                            <td className="px-3 py-2.5 text-xs whitespace-nowrap">
                               <div>{DELIVERY_TARGET_LABELS[r.delivery_target] || "A sucursal"}</div>
                               <div className="text-muted-foreground text-[11px]">{SHIPPING_METHOD_LABELS[r.shipping_method] || r.shipping_method}</div>
                             </td>
-                            <td className="px-3 py-2">
+                            <td className="px-3 py-2.5">
                               <StatusBadge status={r.status} config={REQUEST_STATUS_CONFIG} />
                             </td>
-                            <td className="px-3 py-2 text-xs whitespace-nowrap">
+                            <td className="px-3 py-2.5 text-xs whitespace-nowrap">
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <span className={getAgeClass(r)}>{formatAge(r.created_at)}</span>
@@ -726,8 +750,8 @@ export default function Solicitudes() {
                                 <TooltipContent side="top">{formatFullDate(r.created_at)}</TooltipContent>
                               </Tooltip>
                             </td>
-                            <td className="px-3 py-2">
-                              <Button variant="outline" size="sm" className="h-7 text-xs">
+                            <td className="px-3 py-2.5 text-right">
+                              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={(e) => { e.stopPropagation(); setSelectedId(r.id); }}>
                                 Abrir
                               </Button>
                             </td>
