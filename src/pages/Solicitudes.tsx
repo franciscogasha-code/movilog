@@ -386,32 +386,64 @@ export default function Solicitudes() {
   };
 
   /**
-   * Microetiqueta de dirección operativa (chip discreto).
-   * Etiquetas inequívocas: Interno / Entrada / Salida.
-   *  - Interno: origen = destino (misma sucursal).
-   *  - Entrada: el destino es mi sucursal (entra mercadería).
-   *  - Salida:  el origen es mi sucursal (sale mercadería) y no es interno.
+   * Indicador de dirección operativa como ÍCONO compacto + tooltip.
+   *  - Interno: origen = destino (gris neutro).
+   *  - Entrada: el destino es mi sucursal — entra mercadería (azul).
+   *  - Salida:  el origen es mi sucursal — sale mercadería (ámbar).
+   * Colores neutros respecto a estados (no rojo, no verde fuerte).
    */
-  const getDirectionChip = (r: any): { label: string; cls: string } | null => {
-    if (isAllBranches && branchFilter === "all") {
-      // Sin contexto de sucursal personal: solo marcamos interno.
-      if (r.source_branch_id === r.requesting_branch_id) {
-        return { label: "Interno", cls: "bg-muted text-muted-foreground border-border" };
+  const getDirectionChip = (
+    r: any,
+  ): { kind: "entrada" | "salida" | "interno"; label: string; cls: string } | null => {
+    // Contexto: si hay sucursal específica seleccionada, esa es "mi sucursal".
+    // Si no, usamos las allowedBranchIds del usuario.
+    const contextIds: string[] =
+      branchFilter !== "all"
+        ? [branchFilter]
+        : isAllBranches
+        ? []
+        : allowedBranchIds;
+
+    const isInternal = r.source_branch_id === r.requesting_branch_id;
+    if (isInternal) {
+      // Interno solo si pertenece al contexto (o no hay contexto y es interno absoluto)
+      if (contextIds.length === 0 || contextIds.includes(r.source_branch_id)) {
+        return { kind: "interno", label: "Interno", cls: "bg-muted text-muted-foreground border-border" };
       }
       return null;
     }
-    const contextIds =
-      branchFilter !== "all" ? [branchFilter] : allowedBranchIds;
-
-    const isInternal = r.source_branch_id === r.requesting_branch_id;
-    if (isInternal && contextIds.includes(r.source_branch_id)) {
-      return { label: "Interno", cls: "bg-muted text-muted-foreground border-border" };
-    }
+    if (contextIds.length === 0) return null;
     const isDest = contextIds.includes(r.requesting_branch_id);
     const isSource = contextIds.includes(r.source_branch_id);
-    if (isDest) return { label: "Entrada", cls: "bg-primary/10 text-primary border-primary/20" };
-    if (isSource) return { label: "Salida", cls: "bg-secondary/10 text-secondary-foreground border-border" };
+    if (isDest)
+      return { kind: "entrada", label: "Entrada", cls: "bg-info/10 text-info border-info/20" };
+    if (isSource)
+      return { kind: "salida", label: "Salida", cls: "bg-warning/10 text-warning border-warning/20" };
     return null;
+  };
+
+  /** Renderiza el chip de dirección como ícono compacto con tooltip. */
+  const renderDirectionIcon = (
+    dir: { kind: "entrada" | "salida" | "interno"; label: string; cls: string } | null,
+  ) => {
+    if (!dir) return null;
+    const Icon = dir.kind === "entrada" ? ArrowDownLeft : dir.kind === "salida" ? ArrowUpRight : Repeat;
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span
+            className={cn(
+              "inline-flex items-center justify-center rounded-md border h-5 w-5 shrink-0",
+              dir.cls,
+            )}
+            aria-label={dir.label}
+          >
+            <Icon className="h-3 w-3" />
+          </span>
+        </TooltipTrigger>
+        <TooltipContent side="top">{dir.label}</TooltipContent>
+      </Tooltip>
+    );
   };
 
   /** Color de antigüedad para pedidos activos. */
