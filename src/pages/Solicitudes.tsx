@@ -169,12 +169,8 @@ export default function Solicitudes() {
     saveFilters(user?.id ?? null, { tab, branch: branchFilter, status: statusFilter });
   }, [user?.id, tab, branchFilter, statusFilter]);
 
-  // Si es isAllBranches y la tab actual es mios/otros → forzar a activos
-  useEffect(() => {
-    if (isAllBranches && (tab === "mios" || tab === "otros")) {
-      setTab("activos");
-    }
-  }, [isAllBranches, tab]);
+  // (Las 4 tabs se muestran siempre; mios/otros funcionan también con isAllBranches
+  //  usando el branchFilter explícito como contexto de "mi sucursal".)
 
   const [createOpen, setCreateOpen] = useState(false);
   const [adminRepoOpen, setAdminRepoOpen] = useState(false);
