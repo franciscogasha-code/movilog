@@ -129,6 +129,20 @@ export default function Consultas() {
 
   const isLoading = isLoadingBase || (baseRows.length > 0 && isLoadingEnrich);
 
+  // Resumen de conteos (independiente de la paginación)
+  const { data: activeCounts } = useQuery({
+    queryKey: ["availability-consultations-counts"],
+    queryFn: async () => {
+      const [openRes, respRes] = await Promise.all([
+        supabase.from("availability_consultations").select("id", { count: "exact", head: true }).eq("status", "open"),
+        supabase.from("availability_consultations").select("id", { count: "exact", head: true }).eq("status", "responded"),
+      ]);
+      return { open: openRes.count ?? 0, responded: respRes.count ?? 0 };
+    },
+    staleTime: 30_000,
+  });
+  const totalActive = (activeCounts?.open ?? 0) + (activeCounts?.responded ?? 0);
+
   /** Build contextual route label */
   const buildRouteLabel = (c: any) => {
     const reqName = c.requesting_branch?.name ?? "?";
