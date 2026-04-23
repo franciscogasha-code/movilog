@@ -417,12 +417,29 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
 
       if (!user) { toast.error("Debés iniciar sesión"); setSubmitting(false); return; }
 
-      // Determinar orígenes únicos REALES desde los items.
-      // Si hay 1 solo origen efectivo, NO crear padre — registrar como mono-origen.
-      const uniqueSourceIds = isMultiOrigin
-        ? Array.from(new Set(items.map((i) => i.sourceBranchId).filter(Boolean) as string[]))
-        : [];
-      const shouldCreateParent = isMultiOrigin && uniqueSourceIds.length >= 2;
+      // ─── Aplanar items con splits ─────────────────────────────────
+      // Si un item tiene splits válidos, lo expandimos en N "leaf items" (uno por sucursal).
+      // Los items sin splits conservan su sourceBranchId (multi) o el global (mono).
+      // El resultado: un array uniforme donde cada entrada tiene un único origen real.
+      type LeafItem = { product: ProductResult; quantity: number; sourceBranchId: string };
+      const leafItems: LeafItem[] = [];
+      for (const it of items) {
+        if (itemHasValidSplits(it)) {
+          for (const sp of it.splits!) {
+            if (sp.branchId && sp.quantity > 0) {
+              leafItems.push({ product: it.product, quantity: sp.quantity, sourceBranchId: sp.branchId });
+            }
+          }
+        } else {
+          const src = it.sourceBranchId || sourceBranchId;
+          if (!src) continue; // ya validado por canSubmit
+          leafItems.push({ product: it.product, quantity: it.quantity, sourceBranchId: src });
+        }
+      }
+
+      // Determinar orígenes únicos REALES desde los leaf items.
+      const uniqueSourceIds = Array.from(new Set(leafItems.map((i) => i.sourceBranchId)));
+      const shouldCreateParent = uniqueSourceIds.length >= 2;
 
       if (shouldCreateParent) {
         // Create parent request first
