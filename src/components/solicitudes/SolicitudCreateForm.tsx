@@ -741,6 +741,19 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
                       <Button type="button" variant="ghost" size="sm"
+                        onClick={() => setSplitPanelOpen(splitPanelOpen === item.product.id ? null : item.product.id)}
+                        className="h-9 px-2 text-xs gap-1"
+                        aria-label="Dividir entre sucursales"
+                        title="Dividir entre sucursales">
+                        <Split className="h-4 w-4" />
+                        <span className="hidden sm:inline">Dividir</span>
+                        {itemHasValidSplits(item) && (
+                          <Badge variant="secondary" className="ml-1 h-4 px-1 text-[10px]">
+                            {item.splits!.filter(s => s.branchId && s.quantity > 0).length}
+                          </Badge>
+                        )}
+                      </Button>
+                      <Button type="button" variant="ghost" size="sm"
                         onClick={() => setExpandedProduct(expandedProduct === item.product.id ? null : item.product.id)}
                         className="h-9 px-2"
                         aria-label={expandedProduct === item.product.id ? "Contraer" : "Expandir"}>
@@ -754,7 +767,36 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
                       </Button>
                     </div>
                   </div>
+
+                  {/* Resumen visual de splits si están aplicados */}
+                  {itemHasValidSplits(item) && splitPanelOpen !== item.product.id && (
+                    <div className="flex flex-wrap gap-1 pt-1">
+                      {item.splits!.filter(s => s.branchId && s.quantity > 0).map((s, i) => {
+                        const b = branches?.find(x => x.id === s.branchId);
+                        return (
+                          <Badge key={i} variant="outline" className="text-[11px] gap-1">
+                            <span>{b?.name || "—"}</span>
+                            <span className="tabular-nums opacity-70">·{s.quantity}</span>
+                          </Badge>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
+
+                {/* Panel de división entre sucursales */}
+                {splitPanelOpen === item.product.id && (
+                  <div className="border-t border-border/50 p-3">
+                    <SplitOriginPanel
+                      totalQuantity={item.quantity}
+                      splits={item.splits || []}
+                      onChange={(splits) => setItemSplits(item.product.id, splits)}
+                      stockByWarehouseCode={getStockByCode(item.product)}
+                      requestingBranchId={requestingBranchId}
+                      onClose={() => setSplitPanelOpen(null)}
+                    />
+                  </div>
+                )}
 
                 {expandedProduct === item.product.id && (
                   <div className="p-3 border-t border-border/50 space-y-2">
