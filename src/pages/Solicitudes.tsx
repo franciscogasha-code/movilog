@@ -259,13 +259,30 @@ export default function Solicitudes() {
       }
 
       // Tab: pertenencia de sucursal
-      if (tab === "mios" && effectiveBranchIds && effectiveBranchIds.length > 0) {
-        query = query.in("requesting_branch_id", effectiveBranchIds);
-      } else if (tab === "otros" && effectiveBranchIds && effectiveBranchIds.length > 0) {
-        // Soy origen pero NO el solicitante
-        query = query
-          .in("source_branch_id", effectiveBranchIds)
-          .not("requesting_branch_id", "in", `(${effectiveBranchIds.join(",")})`);
+      // mios/otros se anclan SIEMPRE a "mi(s) sucursal(es)" (allowedBranchIds).
+      // El branchFilter (si apunta a una sucursal distinta a las mías) actúa
+      // como filtro de la CONTRAPARTE, no como anclaje.
+      const myIds = allowedBranchIds && allowedBranchIds.length > 0 ? allowedBranchIds : null;
+      const specificBranch = branchFilter !== "all" ? branchFilter : null;
+      const counterpartyId =
+        specificBranch && (!myIds || !myIds.includes(specificBranch)) ? specificBranch : null;
+
+      if (tab === "mios") {
+        // Anclaje: yo solicité
+        const anchor = isAllBranches && specificBranch ? [specificBranch] : myIds;
+        if (anchor && anchor.length > 0) {
+          query = query.in("requesting_branch_id", anchor);
+          if (counterpartyId) query = query.eq("source_branch_id", counterpartyId);
+        }
+      } else if (tab === "otros") {
+        // Anclaje: me solicitaron (yo soy origen, no solicitante)
+        const anchor = isAllBranches && specificBranch ? [specificBranch] : myIds;
+        if (anchor && anchor.length > 0) {
+          query = query
+            .in("source_branch_id", anchor)
+            .not("requesting_branch_id", "in", `(${anchor.join(",")})`);
+          if (counterpartyId) query = query.eq("requesting_branch_id", counterpartyId);
+        }
       } else if (effectiveBranchIds && effectiveBranchIds.length > 0) {
         // Activos/Cerrados: visibilidad amplia (origen o destino)
         query = query.or(
@@ -301,34 +318,48 @@ export default function Solicitudes() {
     staleTime: 30_000,
     queryFn: async () => {
       const ids = effectiveBranchIds;
+      const myIds = allowedBranchIds && allowedBranchIds.length > 0 ? allowedBranchIds : null;
+      const specificBranch = branchFilter !== "all" ? branchFilter : null;
+      const counterpartyId =
+        specificBranch && (!myIds || !myIds.includes(specificBranch)) ? specificBranch : null;
+      // Anclaje para mios/otros: mis sucursales; si soy isAllBranches y elegí una, esa.
+      const anchor: string[] | null =
+        isAllBranches && specificBranch ? [specificBranch] : myIds;
+
       const buildBase = () =>
         supabase.from("branch_requests").select("id", { count: "exact", head: true });
 
-      const applyBranch = (q: any, mode: "any" | "mios" | "otros") => {
+      const applyAny = (q: any) => {
         if (!ids || ids.length === 0) return q;
-        if (mode === "mios") return q.in("requesting_branch_id", ids);
-        if (mode === "otros")
-          return q
-            .in("source_branch_id", ids)
-            .not("requesting_branch_id", "in", `(${ids.join(",")})`);
         return q.or(
           `requesting_branch_id.in.(${ids.join(",")}),source_branch_id.in.(${ids.join(",")})`,
         );
       };
 
-      // Para mios/otros necesitamos un contexto de sucursal; si isAllBranches
-      // y no hay sucursal específica seleccionada, usamos null → conteo 0.
-      const hasMineContext = !!ids && ids.length > 0 && (!isAllBranches || branchFilter !== "all");
+      const applyMios = (q: any) => {
+        if (!anchor || anchor.length === 0) return null;
+        let r = q.in("requesting_branch_id", anchor);
+        if (counterpartyId) r = r.eq("source_branch_id", counterpartyId);
+        return r;
+      };
+
+      const applyOtros = (q: any) => {
+        if (!anchor || anchor.length === 0) return null;
+        let r = q
+          .in("source_branch_id", anchor)
+          .not("requesting_branch_id", "in", `(${anchor.join(",")})`);
+        if (counterpartyId) r = r.eq("requesting_branch_id", counterpartyId);
+        return r;
+      };
+
+      const miosQ = applyMios(buildBase().in("status", ACTIVE_STATUSES as any));
+      const otrosQ = applyOtros(buildBase().in("status", ACTIVE_STATUSES as any));
 
       const [activos, cerrados, mios, otros] = await Promise.all([
-        applyBranch(buildBase().in("status", ACTIVE_STATUSES as any), "any"),
-        applyBranch(buildBase().in("status", CLOSED_STATUSES as any), "any"),
-        hasMineContext
-          ? applyBranch(buildBase().in("status", ACTIVE_STATUSES as any), "mios")
-          : Promise.resolve({ count: 0 }),
-        hasMineContext
-          ? applyBranch(buildBase().in("status", ACTIVE_STATUSES as any), "otros")
-          : Promise.resolve({ count: 0 }),
+        applyAny(buildBase().in("status", ACTIVE_STATUSES as any)),
+        applyAny(buildBase().in("status", CLOSED_STATUSES as any)),
+        miosQ ?? Promise.resolve({ count: 0 }),
+        otrosQ ?? Promise.resolve({ count: 0 }),
       ]);
 
       return {
