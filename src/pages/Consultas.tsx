@@ -35,10 +35,19 @@ const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secon
   expired: { label: "Expirada", variant: "outline" },
 };
 
+type ActiveFilter = "all" | "pending" | "responded";
+
+const FILTER_TO_STATUSES: Record<ActiveFilter, ("open" | "responded")[]> = {
+  all: ["open", "responded"],
+  pending: ["open"],
+  responded: ["responded"],
+};
+
 export default function Consultas() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [createOpen, setCreateOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [activeFilter, setActiveFilter] = useState<ActiveFilter>("all");
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -69,7 +78,7 @@ export default function Consultas() {
     isFetching,
     setPage,
   } = usePaginatedQuery<any>({
-    queryKey: ["availability-consultations-base"],
+    queryKey: ["availability-consultations-base", activeFilter],
     initialPageSize: 25,
     buildQuery: () =>
       supabase
@@ -78,7 +87,7 @@ export default function Consultas() {
           `*, requesting_branch:branches!availability_consultations_requesting_branch_id_fkey(name, code)`,
           { count: "exact" },
         )
-        .in("status", ["open", "responded"])
+        .in("status", FILTER_TO_STATUSES[activeFilter])
         .order("created_at", { ascending: false }),
   });
 
@@ -211,13 +220,40 @@ export default function Consultas() {
         </Dialog>
       </div>
 
-      {totalActive > 0 && (
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="muted" className="text-[11px] font-normal">Abiertas: {activeCounts?.open ?? 0}</Badge>
-          <Badge variant="muted" className="text-[11px] font-normal">Respondidas: {activeCounts?.responded ?? 0}</Badge>
-          <Badge variant="muted" className="text-[11px] font-normal">Total activas: {totalActive}</Badge>
-        </div>
-      )}
+      <div className="flex flex-wrap items-center gap-1.5" role="tablist" aria-label="Filtro de consultas">
+        {([
+          { key: "all" as const, label: "Activas", count: totalActive },
+          { key: "pending" as const, label: "Pendientes", count: activeCounts?.open ?? 0 },
+          { key: "responded" as const, label: "Respondidas", count: activeCounts?.responded ?? 0 },
+        ]).map((f) => {
+          const isActive = activeFilter === f.key;
+          return (
+            <button
+              key={f.key}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              onClick={() => setActiveFilter(f.key)}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                isActive
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground"
+              )}
+            >
+              <span>{f.label}</span>
+              <span
+                className={cn(
+                  "rounded-full px-1.5 text-[10px] tabular-nums",
+                  isActive ? "bg-primary-foreground/20" : "bg-background/60"
+                )}
+              >
+                {f.count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
 
       <Card className="glass-card">
         <CardContent className="p-0">
@@ -227,7 +263,13 @@ export default function Consultas() {
             <div className="p-8">
               <div className="empty-state">
                 <MessageCircle className="h-8 w-8 mb-2 opacity-50" />
-                <p className="font-medium">No tenés consultas activas actualmente</p>
+                <p className="font-medium">
+                  {activeFilter === "pending"
+                    ? "No tenés consultas pendientes actualmente"
+                    : activeFilter === "responded"
+                    ? "No tenés consultas respondidas actualmente"
+                    : "No tenés consultas activas actualmente"}
+                </p>
                 <p className="text-xs text-muted-foreground mt-1">Creá una nueva consulta para preguntar disponibilidad a otras sucursales.</p>
                 <Button className="mt-4" size="sm" onClick={() => setCreateOpen(true)}>
                   <Plus className="h-4 w-4 mr-2" /> Nueva Consulta
