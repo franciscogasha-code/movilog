@@ -263,7 +263,13 @@ export default function Consultas() {
             <div className="p-8">
               <div className="empty-state">
                 <MessageCircle className="h-8 w-8 mb-2 opacity-50" />
-                <p className="font-medium">No tenés consultas activas actualmente</p>
+                <p className="font-medium">
+                  {activeFilter === "pending"
+                    ? "No tenés consultas pendientes actualmente"
+                    : activeFilter === "responded"
+                    ? "No tenés consultas respondidas actualmente"
+                    : "No tenés consultas activas actualmente"}
+                </p>
                 <p className="text-xs text-muted-foreground mt-1">Creá una nueva consulta para preguntar disponibilidad a otras sucursales.</p>
                 <Button className="mt-4" size="sm" onClick={() => setCreateOpen(true)}>
                   <Plus className="h-4 w-4 mr-2" /> Nueva Consulta
