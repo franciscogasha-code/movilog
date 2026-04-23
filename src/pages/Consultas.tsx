@@ -78,7 +78,7 @@ export default function Consultas() {
     isFetching,
     setPage,
   } = usePaginatedQuery<any>({
-    queryKey: ["availability-consultations-base"],
+    queryKey: ["availability-consultations-base", activeFilter],
     initialPageSize: 25,
     buildQuery: () =>
       supabase
@@ -87,7 +87,7 @@ export default function Consultas() {
           `*, requesting_branch:branches!availability_consultations_requesting_branch_id_fkey(name, code)`,
           { count: "exact" },
         )
-        .in("status", ["open", "responded"])
+        .in("status", FILTER_TO_STATUSES[activeFilter])
         .order("created_at", { ascending: false }),
   });
 
