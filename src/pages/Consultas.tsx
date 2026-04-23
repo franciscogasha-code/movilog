@@ -197,19 +197,27 @@ export default function Consultas() {
     <motion.div className="space-y-4 sm:space-y-6" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
-          <h1 className="page-title">Consultas de Disponibilidad</h1>
-          <p className="page-subtitle mt-1">Historial de consultas de stock entre sucursales</p>
+          <h1 className="page-title">Consultas</h1>
+          <p className="page-subtitle mt-1">Disponibilidad entre sucursales</p>
         </div>
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
           <DialogTrigger asChild>
             <Button className="w-full sm:w-auto"><Plus className="h-4 w-4 mr-2" /> Nueva Consulta</Button>
           </DialogTrigger>
           <DialogContent className="w-[calc(100vw-0.75rem)] max-w-xl max-h-[85vh] overflow-y-auto overflow-x-hidden p-3 sm:p-6">
-            <DialogHeader><DialogTitle>Consultar Disponibilidad</DialogTitle></DialogHeader>
+            <DialogHeader><DialogTitle>Nueva consulta</DialogTitle></DialogHeader>
             <ConsultationForm onSuccess={() => { setCreateOpen(false); queryClient.invalidateQueries({ queryKey: ["availability-consultations"] }); }} />
           </DialogContent>
         </Dialog>
       </div>
+
+      {totalActive > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="muted" className="text-[11px] font-normal">Abiertas: {activeCounts?.open ?? 0}</Badge>
+          <Badge variant="muted" className="text-[11px] font-normal">Respondidas: {activeCounts?.responded ?? 0}</Badge>
+          <Badge variant="muted" className="text-[11px] font-normal">Total activas: {totalActive}</Badge>
+        </div>
+      )}
 
       <Card className="glass-card">
         <CardContent className="p-0">
