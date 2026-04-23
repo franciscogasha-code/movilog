@@ -369,7 +369,14 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
 
       if (!user) { toast.error("Debés iniciar sesión"); setSubmitting(false); return; }
 
-      if (isMultiOrigin) {
+      // Determinar orígenes únicos REALES desde los items.
+      // Si hay 1 solo origen efectivo, NO crear padre — registrar como mono-origen.
+      const uniqueSourceIds = isMultiOrigin
+        ? Array.from(new Set(items.map((i) => i.sourceBranchId).filter(Boolean) as string[]))
+        : [];
+      const shouldCreateParent = isMultiOrigin && uniqueSourceIds.length >= 2;
+
+      if (shouldCreateParent) {
         // Create parent request first
         const { data: parentRequest, error: parentErr } = await supabase
           .from("branch_requests")
@@ -471,12 +478,18 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
             .eq("id", fromConsultationId);
         }
       } else {
-        // Mono-origin: single request
+        // Mono-origin: single request.
+        // Si era "multi-origen lógico" pero terminó con 1 solo origen real, lo
+        // tratamos como mono — sin pedido padre — usando ese origen real.
+        const effectiveSourceId =
+          isMultiOrigin && uniqueSourceIds.length === 1
+            ? uniqueSourceIds[0]
+            : sourceBranchId;
         const { data: request, error } = await supabase
           .from("branch_requests")
           .insert({
             requesting_branch_id: requestingBranchId,
-            source_branch_id: sourceBranchId,
+            source_branch_id: effectiveSourceId,
             request_type: requestType as any,
             delivery_target: deliveryTarget as any,
             shipping_method: shippingMethod as any,

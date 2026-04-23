@@ -122,9 +122,18 @@ function formatFullDate(dateStr: string): string {
   });
 }
 
-/** Detecta pedido padre multi-origen por la convención de notas. */
+/**
+ * Detecta pedido padre multi-origen.
+ * Compatible con la convención legacy (string en notas) — la detección formal
+ * por existencia de hijos se hace server-side via fn_is_parent_request.
+ */
 function isParentMultiOrigin(r: any): boolean {
-  return typeof r?.notes === "string" && r.notes.startsWith("[Pedido padre multi-origen]");
+  return typeof r?.notes === "string" && r.notes.includes("[Pedido padre multi-origen]");
+}
+
+/** Detecta padres legacy de un solo hijo (saneamiento marca con esta tag). */
+function isLegacySingleChildParent(r: any): boolean {
+  return typeof r?.notes === "string" && r.notes.includes("[LEGACY 1-hijo]");
 }
 
 export default function Solicitudes() {
