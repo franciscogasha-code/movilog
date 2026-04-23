@@ -270,7 +270,7 @@ export default function Consultas() {
                             {c.responses?.responded ?? 0}/{c.responses?.total ?? 0} resp.
                           </Badge>
                           {c.orders_count > 0 && (
-                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{c.orders_count} pedido(s)</Badge>
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0">{c.orders_count} {c.orders_count === 1 ? "pedido" : "pedidos"}</Badge>
                           )}
                         </span>
                         <span className="shrink-0">
