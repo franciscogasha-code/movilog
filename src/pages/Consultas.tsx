@@ -306,7 +306,7 @@ export default function Consultas() {
                         )}
                         onClick={() => setSelectedId(c.id)}
                       >
-                        <td className="px-3 py-2 font-medium max-w-[200px]">
+                        <td className="px-3 py-2 font-medium max-w-[260px]">
                           <span className="line-clamp-1">
                             {(() => {
                               const prods = c.consultation_products?.filter((p: any) => p?.name) ?? [];
@@ -318,7 +318,7 @@ export default function Consultas() {
                           </span>
                         </td>
                         <td className="px-3 py-2">
-                          <div className="flex items-center gap-1.5 min-w-0">
+                          <div className="flex items-center gap-1.5 min-w-0 whitespace-nowrap truncate">
                             {buildRouteLabel(c)}
                           </div>
                         </td>
@@ -330,14 +330,14 @@ export default function Consultas() {
                         </td>
                         <td className="px-3 py-2">
                           {c.orders_count > 0
-                            ? <Badge variant="secondary" className="text-xs">{c.orders_count} pedido(s)</Badge>
+                            ? <Badge variant="outline" className="text-xs">{c.orders_count} {c.orders_count === 1 ? "pedido" : "pedidos"}</Badge>
                             : <span className="text-muted-foreground text-xs">—</span>}
                         </td>
-                        <td className="px-3 py-2 text-muted-foreground text-xs">
+                        <td className="px-3 py-2 text-muted-foreground text-xs whitespace-nowrap">
                           {new Date(c.created_at).toLocaleDateString("es-PY", { day: "2-digit", month: "short" })}
                         </td>
                         <td className="px-3 py-2">
-                          <Button variant="ghost" size="sm" className="text-xs h-7">Ver consulta</Button>
+                          <Button variant="ghost" size="sm" className="text-xs h-7">Abrir</Button>
                         </td>
                       </tr>
                     ))}
