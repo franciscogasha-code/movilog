@@ -11,11 +11,12 @@ import { ProductCard } from "@/components/shared/ProductCard";
 import { BranchSelector, useAutoDetectBranch } from "@/components/shared/BranchSelector";
 import { useBranches } from "@/hooks/use-branches";
 import { useLiveStock, revalidateLiveStock } from "@/hooks/use-live-stock";
-import { Plus, Trash2, Package, ChevronDown, ChevronUp, AlertTriangle, XCircle, Loader2 } from "lucide-react";
+import { Plus, Trash2, Package, ChevronDown, ChevronUp, AlertTriangle, XCircle, Loader2, Split } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
-import { ContextBanner } from "./ContextBanner";
+import { ContextBanner, type EffectiveOriginMode } from "./ContextBanner";
 import { DemandAlert } from "./DemandAlert";
+import { SplitOriginPanel, type OriginSplit } from "./SplitOriginPanel";
 import {
   type RequestType,
   type DeliveryTarget,
@@ -32,6 +33,8 @@ interface SelectedItem {
   product: ProductResult;
   quantity: number;
   sourceBranchId?: string;
+  /** Distribución manual del usuario entre múltiples sucursales (opcional). Si está presente y suma == quantity, se usa como verdad. */
+  splits?: OriginSplit[];
 }
 
 export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSuccess: () => void; fromConsultationId?: string | null }) {
@@ -47,6 +50,7 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
   // Step 2: Products
   const [items, setItems] = useState<SelectedItem[]>([]);
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
+  const [splitPanelOpen, setSplitPanelOpen] = useState<string | null>(null);
 
   // Step 3: Origin — single source (mono-origin mode only)
   const [sourceBranchId, setSourceBranchId] = useState("");
@@ -235,6 +239,42 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
     setItems(prev => prev.map(i => i.product.id === productId ? { ...i, sourceBranchId: branchId } : i));
   };
 
+  const setItemSplits = (productId: string, splits: OriginSplit[]) => {
+    setItems(prev => prev.map(i => i.product.id === productId ? { ...i, splits } : i));
+  };
+
+  // Stock por código de sucursal (live > local) para un producto.
+  const getStockByCode = (product: ProductResult): Record<string, number> | null => {
+    const live = getEffectiveStock(product);
+    const sbw = (live?.stock_by_warehouse ?? product.stock_by_warehouse) as Record<string, number> | null | undefined;
+    return sbw ?? null;
+  };
+
+  // ¿El item tiene splits válidos (>=2 sucursales con cantidad y suma == quantity)?
+  const itemHasValidSplits = (item: SelectedItem): boolean => {
+    if (!item.splits || item.splits.length < 2) return false;
+    const cleaned = item.splits.filter(s => s.branchId && s.quantity > 0);
+    if (cleaned.length < 2) return false;
+    const sum = cleaned.reduce((a, b) => a + b.quantity, 0);
+    return sum === item.quantity;
+  };
+
+  // Modo de origen efectivo basado en estado real, NO en la matriz fija.
+  const effectiveOriginMode: EffectiveOriginMode = useMemo(() => {
+    if (!items.length) return "undefined";
+    // Si algún item tiene splits válidos -> multi
+    if (items.some(itemHasValidSplits)) return "multi";
+    // Recolectar orígenes asignados (de sourceBranchId individual o global)
+    const sources = new Set<string>();
+    for (const it of items) {
+      if (it.sourceBranchId) sources.add(it.sourceBranchId);
+    }
+    if (sourceBranchId) sources.add(sourceBranchId);
+    if (sources.size === 0) return "undefined";
+    if (sources.size === 1) return "single";
+    return "multi";
+  }, [items, sourceBranchId]);
+
   // Stock validation errors (uses live stock if available, otherwise local)
   const stockErrors = useMemo(() => {
     const errors: Record<string, string> = {};
@@ -283,7 +323,15 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
     return grouped;
   }, [items, isMultiOrigin, branches]);
 
-  const itemsWithoutSource = items.filter(i => !i.sourceBranchId);
+  // Un item está "resuelto" si: tiene splits válidos, o sourceBranchId asignado, o estamos en mono y hay sourceBranchId global.
+  const isItemResolved = (item: SelectedItem): boolean => {
+    if (itemHasValidSplits(item)) return true;
+    if (item.sourceBranchId && item.sourceBranchId !== requestingBranchId) return true;
+    if (!isMultiOrigin && sourceBranchId && sourceBranchId !== requestingBranchId) return true;
+    return false;
+  };
+
+  const itemsWithoutSource = items.filter(i => !isItemResolved(i));
 
   // Same-branch validation (mono-origin only; multi-origin children have different sources)
   // Exception: online + client allows same branch (direct sale from own stock)
@@ -294,11 +342,11 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
   const canSubmit = useMemo(() => {
     if (!requestingBranchId || !items.length) return false;
     if (hasStockErrors || shippingError) return false;
-    if (isMultiOrigin) {
-      return items.every(i => !!i.sourceBranchId && i.sourceBranchId !== requestingBranchId);
-    }
-    if (!sourceBranchId || isSameBranch) return false;
+    // Cada item debe estar resuelto (splits válidos, origen propio, o origen global mono)
+    if (!items.every(isItemResolved)) return false;
+    if (isSameBranch) return false;
     return true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requestingBranchId, items, isMultiOrigin, sourceBranchId, hasStockErrors, shippingError, isSameBranch]);
 
   // Re-validate stock from BIMS live right before confirmation
@@ -369,12 +417,29 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
 
       if (!user) { toast.error("Debés iniciar sesión"); setSubmitting(false); return; }
 
-      // Determinar orígenes únicos REALES desde los items.
-      // Si hay 1 solo origen efectivo, NO crear padre — registrar como mono-origen.
-      const uniqueSourceIds = isMultiOrigin
-        ? Array.from(new Set(items.map((i) => i.sourceBranchId).filter(Boolean) as string[]))
-        : [];
-      const shouldCreateParent = isMultiOrigin && uniqueSourceIds.length >= 2;
+      // ─── Aplanar items con splits ─────────────────────────────────
+      // Si un item tiene splits válidos, lo expandimos en N "leaf items" (uno por sucursal).
+      // Los items sin splits conservan su sourceBranchId (multi) o el global (mono).
+      // El resultado: un array uniforme donde cada entrada tiene un único origen real.
+      type LeafItem = { product: ProductResult; quantity: number; sourceBranchId: string };
+      const leafItems: LeafItem[] = [];
+      for (const it of items) {
+        if (itemHasValidSplits(it)) {
+          for (const sp of it.splits!) {
+            if (sp.branchId && sp.quantity > 0) {
+              leafItems.push({ product: it.product, quantity: sp.quantity, sourceBranchId: sp.branchId });
+            }
+          }
+        } else {
+          const src = it.sourceBranchId || sourceBranchId;
+          if (!src) continue; // ya validado por canSubmit
+          leafItems.push({ product: it.product, quantity: it.quantity, sourceBranchId: src });
+        }
+      }
+
+      // Determinar orígenes únicos REALES desde los leaf items.
+      const uniqueSourceIds = Array.from(new Set(leafItems.map((i) => i.sourceBranchId)));
+      const shouldCreateParent = uniqueSourceIds.length >= 2;
 
       if (shouldCreateParent) {
         // Create parent request first
@@ -400,12 +465,11 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
           .single();
         if (parentErr) throw parentErr;
 
-        // Group by source branch
-        const bySource: Record<string, SelectedItem[]> = {};
-        items.forEach(item => {
-          const bid = item.sourceBranchId!;
-          if (!bySource[bid]) bySource[bid] = [];
-          bySource[bid].push(item);
+        // Group leaf items by source branch (cada leaf ya tiene un único origen real)
+        const bySource: Record<string, LeafItem[]> = {};
+        leafItems.forEach(leaf => {
+          if (!bySource[leaf.sourceBranchId]) bySource[leaf.sourceBranchId] = [];
+          bySource[leaf.sourceBranchId].push(leaf);
         });
 
         const createdNumbers: number[] = [];
@@ -479,12 +543,9 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
         }
       } else {
         // Mono-origin: single request.
-        // Si era "multi-origen lógico" pero terminó con 1 solo origen real, lo
-        // tratamos como mono — sin pedido padre — usando ese origen real.
-        const effectiveSourceId =
-          isMultiOrigin && uniqueSourceIds.length === 1
-            ? uniqueSourceIds[0]
-            : sourceBranchId;
+        // Origen efectivo: el único origen real que aparece en leafItems.
+        // (Si el usuario divide pero todo terminó en 1 sucursal, también cae aquí.)
+        const effectiveSourceId = uniqueSourceIds[0] || sourceBranchId;
         const { data: request, error } = await supabase
           .from("branch_requests")
           .insert({
@@ -549,7 +610,7 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
     return (
       <div className="space-y-4">
         <h3 className="text-sm font-semibold text-foreground">Confirmar pedido</h3>
-        <ContextBanner requestType={requestType} deliveryTarget={deliveryTarget} />
+        <ContextBanner requestType={requestType} deliveryTarget={deliveryTarget} effectiveOriginMode={effectiveOriginMode} />
 
         <div className="space-y-2">
           <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Productos</h4>
@@ -610,7 +671,7 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
   return (
     <form onSubmit={onSubmit} className="space-y-6">
       {/* Context Banner */}
-      <ContextBanner requestType={requestType} deliveryTarget={deliveryTarget} />
+      <ContextBanner requestType={requestType} deliveryTarget={deliveryTarget} effectiveOriginMode={effectiveOriginMode} />
 
       {/* STEP 1: Context */}
       <div className="space-y-4">
@@ -701,6 +762,19 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
                       <Button type="button" variant="ghost" size="sm"
+                        onClick={() => setSplitPanelOpen(splitPanelOpen === item.product.id ? null : item.product.id)}
+                        className="h-9 px-2 text-xs gap-1"
+                        aria-label="Dividir entre sucursales"
+                        title="Dividir entre sucursales">
+                        <Split className="h-4 w-4" />
+                        <span className="hidden sm:inline">Dividir</span>
+                        {itemHasValidSplits(item) && (
+                          <Badge variant="secondary" className="ml-1 h-4 px-1 text-[10px]">
+                            {item.splits!.filter(s => s.branchId && s.quantity > 0).length}
+                          </Badge>
+                        )}
+                      </Button>
+                      <Button type="button" variant="ghost" size="sm"
                         onClick={() => setExpandedProduct(expandedProduct === item.product.id ? null : item.product.id)}
                         className="h-9 px-2"
                         aria-label={expandedProduct === item.product.id ? "Contraer" : "Expandir"}>
@@ -714,7 +788,36 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
                       </Button>
                     </div>
                   </div>
+
+                  {/* Resumen visual de splits si están aplicados */}
+                  {itemHasValidSplits(item) && splitPanelOpen !== item.product.id && (
+                    <div className="flex flex-wrap gap-1 pt-1">
+                      {item.splits!.filter(s => s.branchId && s.quantity > 0).map((s, i) => {
+                        const b = branches?.find(x => x.id === s.branchId);
+                        return (
+                          <Badge key={i} variant="outline" className="text-[11px] gap-1">
+                            <span>{b?.name || "—"}</span>
+                            <span className="tabular-nums opacity-70">·{s.quantity}</span>
+                          </Badge>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
+
+                {/* Panel de división entre sucursales */}
+                {splitPanelOpen === item.product.id && (
+                  <div className="border-t border-border/50 p-3">
+                    <SplitOriginPanel
+                      totalQuantity={item.quantity}
+                      splits={item.splits || []}
+                      onChange={(splits) => setItemSplits(item.product.id, splits)}
+                      stockByWarehouseCode={getStockByCode(item.product)}
+                      requestingBranchId={requestingBranchId}
+                      onClose={() => setSplitPanelOpen(null)}
+                    />
+                  </div>
+                )}
 
                 {expandedProduct === item.product.id && (
                   <div className="p-3 border-t border-border/50 space-y-2">
