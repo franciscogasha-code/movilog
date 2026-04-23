@@ -260,6 +260,11 @@ export default function Solicitudes() {
         )
         .order("created_at", { ascending: false });
 
+      // Ocultar padres y registros legacy 1-hijo de bandejas operativas.
+      // Los padres son contenedores de trazabilidad (accesibles por deep-link),
+      // no tareas. Los hijos siguen siendo plenamente visibles.
+      query = query.not("notes", "ilike", "%[Pedido padre multi-origen]%");
+
       // Tab: estados
       if (tab === "activos" || tab === "mios" || tab === "otros") {
         query = query.in("status", ACTIVE_STATUSES as any);
@@ -336,7 +341,10 @@ export default function Solicitudes() {
         isAllBranches && specificBranch ? [specificBranch] : myIds;
 
       const buildBase = () =>
-        supabase.from("branch_requests").select("id", { count: "exact", head: true });
+        supabase
+          .from("branch_requests")
+          .select("id", { count: "exact", head: true })
+          .not("notes", "ilike", "%[Pedido padre multi-origen]%");
 
       const applyAny = (q: any) => {
         if (!ids || ids.length === 0) return q;
