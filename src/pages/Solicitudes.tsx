@@ -306,7 +306,7 @@ export default function Solicitudes() {
           `*,
            requesting_branch:branches!branch_requests_requesting_branch_id_fkey(name, code),
            source_branch:branches!branch_requests_source_branch_id_fkey(name, code),
-           parent:branch_requests!branch_requests_parent_request_id_fkey(id, request_number)`,
+           parent:parent_request_id(id, request_number)`,
           { count: "exact" },
         )
         .order("created_at", { ascending: false });
