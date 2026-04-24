@@ -301,6 +301,8 @@ export default function Index() {
       const { data } = await query;
       return data || [];
     },
+    refetchInterval: DASHBOARD_REFETCH_MS,
+    refetchOnWindowFocus: true,
   });
 
   const { data: activeConsultations, isLoading: loadingConsultations } = useQuery({
