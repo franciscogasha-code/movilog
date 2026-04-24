@@ -947,9 +947,12 @@ export default function Index() {
                             {/* Regular queue - hidden when client filter active */}
                             {clientFilter !== "client_only" && (
                               <>
-                                {restItems.length > 0 ? (
-                                  renderSections(buildSections(restItems), buildSections(restItems).length > 1 && activeFilter === "all")
-                                ) : clientItems.length === 0 ? null : (
+                                {restItems.length > 0 ? (() => {
+                                  const restSections = buildSections(restItems);
+                                  // Mostramos headers cuando: hay >1 sección, o existe la sección crítica/atrasados (siempre debe verse).
+                                  const showHeaders = activeFilter === "all" && (restSections.length > 1 || restSections.some(s => s.key === "immediate"));
+                                  return renderSections(restSections, showHeaders);
+                                })() : clientItems.length === 0 ? null : (
                                   <p className="text-xs text-muted-foreground text-center py-4">Sin reposiciones internas pendientes</p>
                                 )}
                               </>
