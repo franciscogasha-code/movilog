@@ -936,9 +936,10 @@ export default function Index() {
                                   {isClientFilterActive && allClientItems.length > 0 && (
                                     renderSections(buildSections(allClientItems), true)
                                   )}
-                                  {/* When NOT active, show inline preview */}
+                                  {/* When NOT active, show inline preview WITHOUT priority headers
+                                      to evitar repetir el banner rojo (el header morado del bloque ya identifica la sección) */}
                                   {!isClientFilterActive && clientItems.length > 0 && (
-                                    renderSections(buildSections(clientItems), true)
+                                    renderSections(buildSections(clientItems), false)
                                   )}
                                 </div>
                               );
