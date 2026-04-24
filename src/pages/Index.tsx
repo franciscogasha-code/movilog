@@ -759,7 +759,7 @@ export default function Index() {
                           return (
                             <div
                               key={`${qi.itemType}-${qi.id}`}
-                              className={`flex flex-col lg:flex-row lg:items-center gap-2 lg:gap-3 py-2 px-3 rounded-lg cursor-pointer hover:bg-muted/40 active:bg-muted/60 transition-all duration-150 ${rowClass}`}
+                              className={`flex flex-col lg:flex-row lg:items-center gap-2 lg:gap-3 py-2.5 pl-3 pr-2 rounded-lg cursor-pointer hover:bg-muted/40 active:bg-muted/60 transition-all duration-150 ${rowClass}`}
                               onClick={handleAction}
                             >
                               {/* Línea 1: tipo + modo + #número + ruta */}
