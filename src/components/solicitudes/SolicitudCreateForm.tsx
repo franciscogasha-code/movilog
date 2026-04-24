@@ -922,61 +922,74 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
       <div className="space-y-3">
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">3. Origen del stock</h3>
 
-        {isMultiOrigin ? (
-          <div className="space-y-3">
-            <p className="text-xs text-muted-foreground">
-              Seleccioná la sucursal origen desde la ficha de cada producto. Se creará una transferencia por cada sucursal origen.
+        {/* Aviso: cantidad cambió y los splits quedaron inconsistentes */}
+        {items.some(itemHasDirtySplits) && (
+          <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-sm text-foreground">
+            <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 mt-0.5" />
+            <div className="space-y-0.5">
+              <p className="font-medium">La cantidad cambió. Revisá la distribución entre sucursales.</p>
+              <p className="text-xs text-muted-foreground">
+                {items.filter(itemHasDirtySplits).map(i => i.product.name).join(", ")}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {effectiveOriginMode === "undefined" && (
+          <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-sm text-foreground">
+            <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
+            <span>Seleccioná la sucursal origen desde el bloque de stock de cualquier producto, o usá "Dividir entre sucursales".</span>
+          </div>
+        )}
+
+        {effectiveOriginMode === "single" && sourceBranchId && (
+          <div className="p-3 rounded-lg bg-muted/50 border border-border/50">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Origen único</p>
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-sm">{branches?.find(b => b.id === sourceBranchId)?.name || "—"}</span>
+              <Button type="button" variant="ghost" size="sm" onClick={() => setSourceBranchId("")} className="text-xs text-muted-foreground h-7">
+                Cambiar
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Todo el pedido sale de esta sucursal.
             </p>
-
-            {itemsWithoutSource.length > 0 && (
-              <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-sm text-foreground">
-                <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
-                <span>{itemsWithoutSource.length} producto(s) sin origen asignado</span>
-              </div>
-            )}
-
-            {originSummary && Object.keys(originSummary).length > 0 && (
-              <div className="p-3 rounded-lg bg-muted/50 border border-border/50 space-y-2">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Resumen de abastecimiento</p>
-                {Object.entries(originSummary).map(([bid, info]) => (
-                  <div key={bid} className="flex items-center justify-between text-sm">
-                    <span className="font-medium">{info.branchName}</span>
-                    <Badge variant="outline" className="text-xs">{info.count} producto(s)</Badge>
-                  </div>
-                ))}
-                <p className="text-xs text-muted-foreground mt-1 pt-2 border-t border-border/30">
-                  Se crearán {Object.keys(originSummary).length} transferencia(s) internas asociadas a esta solicitud.
-                </p>
+            {isSameBranch && (
+              <div className="flex items-center gap-2 mt-2 p-2 rounded-lg bg-destructive/10 border border-destructive/20 text-sm text-destructive">
+                <XCircle className="h-4 w-4 shrink-0" />
+                <span>La sucursal origen no puede ser igual a la sucursal solicitante.</span>
               </div>
             )}
           </div>
-        ) : (
-          <div>
-            {sourceBranchId ? (
-              <div className="p-3 rounded-lg bg-muted/50 border border-border/50">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Origen seleccionado</p>
-                <div className="flex items-center justify-between">
-                  <span className="font-semibold text-sm">{branches?.find(b => b.id === sourceBranchId)?.name || "—"}</span>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => setSourceBranchId("")} className="text-xs text-muted-foreground h-7">
-                    Cambiar
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Seleccionado desde la ficha de producto. Todo el pedido sale de esta sucursal.
-                </p>
-                {isSameBranch && (
-                  <div className="flex items-center gap-2 mt-2 p-2 rounded-lg bg-destructive/10 border border-destructive/20 text-sm text-destructive">
-                    <XCircle className="h-4 w-4 shrink-0" />
-                    <span>La sucursal origen no puede ser igual a la sucursal solicitante.</span>
-                  </div>
-                )}
+        )}
+
+        {/* Resumen siempre que haya 1+ origen detectado (single o multi) */}
+        {Object.keys(originSummary).length > 0 && (
+          <div className="p-3 rounded-lg bg-muted/50 border border-border/50 space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Resumen de abastecimiento</p>
+              {effectiveOriginMode === "multi" && (
+                <Badge variant="secondary" className="text-[10px]">Multi-origen</Badge>
+              )}
+            </div>
+            {Object.entries(originSummary).map(([bid, info]) => (
+              <div key={bid} className="flex items-center justify-between text-sm">
+                <span className="font-medium">{info.branchName}</span>
+                <Badge variant="outline" className="text-xs tabular-nums">{info.totalQty} unidad(es)</Badge>
               </div>
-            ) : (
-              <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-sm text-foreground">
-                <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
-                <span>Seleccioná la sucursal origen desde el bloque de stock de cualquier producto (paso 2).</span>
-              </div>
+            ))}
+            {effectiveOriginMode === "multi" && (
+              <p className="text-xs text-muted-foreground mt-1 pt-2 border-t border-border/30">
+                Se crearán {Object.keys(originSummary).length} transferencia(s) internas + 1 pedido padre.
+              </p>
             )}
+          </div>
+        )}
+
+        {itemsWithoutSource.length > 0 && effectiveOriginMode !== "undefined" && (
+          <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-sm text-foreground">
+            <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
+            <span>{itemsWithoutSource.length} producto(s) sin origen resuelto</span>
           </div>
         )}
       </div>
