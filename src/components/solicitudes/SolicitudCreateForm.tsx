@@ -1098,11 +1098,13 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
         </div>
       )}
 
-      {/* Sticky CTA bottom mobile / inline desktop */}
+      {/* CTA: sticky SOLO en mobile (evita tapar contenido en desktop) */}
       <div className="
-        sticky bottom-0 -mx-4 sm:-mx-6 px-4 sm:px-6 pt-3
-        pb-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:pb-3
-        bg-background/95 backdrop-blur-sm border-t sm:border-0 sm:bg-transparent sm:backdrop-blur-none
+        sticky bottom-0 -mx-4 px-4 pt-3
+        pb-[calc(env(safe-area-inset-bottom)+0.75rem)]
+        bg-background/95 backdrop-blur-sm border-t
+        sm:static sm:mx-0 sm:px-0 sm:pt-2 sm:pb-2
+        sm:bg-transparent sm:backdrop-blur-none sm:border-0
         z-10
       ">
         <Button
@@ -1112,8 +1114,8 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
         >
           {submitting
             ? "Creando..."
-            : isMultiOrigin
-              ? `Revisar y crear (${Object.keys(originSummary || {}).length || 0} transferencias)`
+            : effectiveOriginMode === "multi"
+              ? `Revisar y crear (${Object.keys(originSummary).length} transferencias)`
               : `Revisar y crear pedido (${items.length} ${items.length === 1 ? "producto" : "productos"})`
           }
         </Button>
