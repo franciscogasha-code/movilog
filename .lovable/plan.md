@@ -1,139 +1,143 @@
 
+# Plan quirúrgico — Visibilidad y UX en Pedidos (etapa 1)
 
-# Plan integral — Módulo Consultas (UX/UI + orden operativo)
-
-Una sola implementación, conservadora, sin tocar lógica de negocio, RLS, RPCs ni queries de detalle/chat/conversión.
-
-## Alcance único: `src/pages/Consultas.tsx`
-
-No se tocan: `ConsultationDetail`, `ConsultationForm`, RLS, `fn_close_expired_consultations`, cron, conversión a pedido, deep-link (`?detail=UUID` ya implementado), invalidaciones existentes.
+**Alcance estricto**: solo `src/pages/Solicitudes.tsx` y `src/components/solicitudes/SolicitudDetail.tsx`. **Sin** tocar RLS, RPC, triggers, queries de creación, choferes, transporte, consultas, dashboard ni schema. Sin migraciones SQL.
 
 ---
 
-## Cambios a aplicar
+## Diagnóstico confirmado (consulta a DB)
 
-### 1. Bandeja activa — blindaje
-- Conservar `usePaginatedQuery` con whitelist server-side `.in("status", ["open", "responded"])` (ya implementado, solo confirmar).
-- Mantener `count: "exact"`, orden por `created_at desc`, paginación 25.
-- Sin cambios de queryKey (`availability-consultations-base`) → invalidaciones siguen funcionando.
+| # | Rol | parent_id | requesting | source | Estado | Notes |
+|---|---|---|---|---|---|---|
+| 256 | Padre legacy | — | San Roque | San Roque | pending | `[Pedido padre multi-origen] [LEGACY 1-hijo]` |
+| 257 | Hijo de 256 | 256 | San Roque | Caballero | ready_for_pickup | — |
+| 260 | Padre legacy | — | San Roque | San Roque | pending | `[Pedido padre multi-origen] [LEGACY 1-hijo]` |
+| 261 | Hijo de 260 | 260 | San Roque | Caballero | pending | — |
+| 264 | Padre real | — | Caballero | Caballero | accepted | `[Pedido padre multi-origen] enviar con el corte.` |
+| 268 | Hijo de 264 | 264 | Caballero | San Roque | rejected | `enviar con el corte.` |
 
-### 2. Resumen de conteos (cabecera del listado)
-Agregar **una sola query liviana** independiente, en paralelo, que **no interfiere con paginación**:
+**Conclusiones**:
+1. Datos correctos. **No hay inversión** en #268 (Caballero pide, San Roque abastece).
+2. #256/#260/#264 hoy están filtrados out por `notes ilike '%[Pedido padre multi-origen]%'`. Por eso "no aparecen" al buscar `#256`.
+3. #257/#261 sí aparecen al buscar por su número, pero no muestran su vínculo con el padre.
+4. La confusión percibida es de **microcopy** ("origen" vs "solicitante") + **falta de vínculo visual** padre↔hijo.
+
+---
+
+## Cambio 1 — Búsqueda inteligente padre↔hijo (Solicitudes.tsx)
+
+**Archivo**: `src/pages/Solicitudes.tsx`, en `buildQuery` (líneas ~252-325).
+
+**Comportamiento nuevo cuando el término de búsqueda es numérico**:
+
+1. Pre-fetch ligero: `select id, parent_request_id from branch_requests where request_number = <n>`.
+2. Construir set de IDs relacionados:
+   - El propio registro encontrado.
+   - Su `parent_request_id` (si existe).
+   - Todos los hermanos con el mismo `parent_request_id`.
+   - Todos los hijos cuyo `parent_request_id = <id encontrado>` (caso buscar padre).
+3. **Bypass del filtro `notes ilike '%[Pedido padre multi-origen]%'`** únicamente en este modo de búsqueda numérica, para que el padre aparezca en el listado.
+4. **Bypass de filtros de tab/estado/sucursal** durante búsqueda numérica explícita (cuando el usuario tipea un `#N`, el resultado debe encontrarse siempre que tenga permisos RLS — no debe quedar oculto por la pestaña activa).
+5. Construir `query.in("id", [...idsRelacionados])` sustituyendo el `or(request_number.eq.<n>, ...)` actual.
+
+Pseudocódigo dentro de `buildQuery`:
 
 ```ts
-useQuery({
-  queryKey: ["availability-consultations-counts"],
-  queryFn: async () => {
-    const [openRes, respRes] = await Promise.all([
-      supabase.from("availability_consultations")
-        .select("id", { count: "exact", head: true }).eq("status", "open"),
-      supabase.from("availability_consultations")
-        .select("id", { count: "exact", head: true }).eq("status", "responded"),
-    ]);
-    return { open: openRes.count ?? 0, responded: respRes.count ?? 0 };
-  },
-  staleTime: 30_000,
-});
+if (debouncedSearch) {
+  const term = debouncedSearch.replace(/^#/, "");
+  const numeric = /^\d+$/.test(term);
+
+  if (numeric) {
+    // (resuelto vía hook auxiliar useRelatedIds o fetch awaitable previo)
+    // ids = [match.id, match.parent_request_id, ...siblings, ...children].filter(Boolean)
+    query = query.in("id", ids);
+    // NO aplicar filtro de notes para padre, NO restringir por tab/status/branch
+  } else {
+    // texto: comportamiento actual (client_name, bims_invoice)
+    query = query.or(`client_name.ilike.%${term}%,bims_invoice_number.ilike.%${term}%`);
+  }
+}
 ```
 
-Render discreto sobre la tabla:
+Como `usePaginatedQuery.buildQuery` es síncrono, el resolver de IDs relacionados se hace en una `useQuery` previa (`["request-related-ids", debouncedSearch]`) y los `ids` se inyectan en el `queryKey` para refrescar correctamente. Si la búsqueda numérica no arroja match, se cae al comportamiento actual (`request_number.eq.<n>` directo) para no romper.
 
-```text
-[ Abiertas: 3 ]  [ Respondidas: 1 ]  [ Total activas: 4 ]
-```
-
-Estilo: chips muted pequeños, sin recargar visual. Ocultos si total = 0 (el empty state ya cubre).
-
-### 3. Header compacto
-- Título: `Consultas` (más corto, semánticamente claro en contexto del módulo).
-- Subtítulo: `Disponibilidad entre sucursales`.
-
-### 4. Empty state — mantener y pulir
-Ya implementado correctamente. Solo verificar spacing y que el CTA "Nueva Consulta" funcione (ok).
-
-### 5. Toggle / filtro
-**Decisión conservadora: NO agregar.** Justificación: la decisión operativa ya excluye expired/converted; agregar toggle "Todas" reabre el ruido que se acaba de eliminar. Se documenta como decisión deliberada.
-
-### 6. Tabla — ajustes conservadores de layout
-- Columna **Productos**: subir `max-w` de `[200px]` a `[260px]` para reducir truncado agresivo.
-- Columna **Ruta**: agregar `whitespace-nowrap` al wrapper de `buildRouteLabel` y `truncate` para evitar quiebres a múltiples líneas; tooltip ya existe para multi-destino.
-- Columna **Pedidos**: chip más sobrio → `Badge variant="outline"` con texto `text-[11px]` en lugar de `secondary` (deja de "gritar" más que el estado).
-- Columna **Respuestas**: mantener (ya es discreta).
-- Columna **Fecha**: `whitespace-nowrap`.
-- Columna **acción**: cambiar texto `Ver consulta` → `Abrir`. Mantener variante ghost.
-- Tabla: mantener `overflow-x-auto` (defensivo en pantallas <1024px).
-
-### 7. Microcopy
-| Antes | Después |
-|---|---|
-| "Consultas de Disponibilidad" | "Consultas" |
-| "Historial de consultas de stock entre sucursales" | "Disponibilidad entre sucursales" |
-| "Ver consulta" | "Abrir" |
-| Diálogo crear: "Consultar Disponibilidad" | "Nueva consulta" |
-
-### 8. Singular/plural pedidos
-Reemplazar `{c.orders_count} pedido(s)` por:
-```ts
-{c.orders_count} {c.orders_count === 1 ? "pedido" : "pedidos"}
-```
-Aplicar en mobile (línea 251) y desktop (línea 311).
-
-### 9. Post-conversión
-Sin cambios de código. La invalidación actual (`["availability-consultations"]`) en `onOrderCreated` cubre. La query base usa key `["availability-consultations-base", ...]` — al invalidar el prefijo `availability-consultations` ambas se refrescan. **Validar manualmente** tras conversión: la consulta convertida sale del listado.
-
-### 10. Deep-link / detalle
-Sin cambios. El `useEffect` que lee `?detail=UUID` y abre el modal sigue intacto y funciona aunque la consulta no esté en la página actual del listado (carga por id desde `ConsultationDetail`).
-
-### 11. Jerarquía de badges
-Aplicada en punto 6 (Pedidos baja a outline). Estado mantiene su `StatusBadge` (jerarquía visual primaria).
-
-### 12. Mobile/desktop
-- Mobile (cards): aplicar mismo plural fix y mismo cambio "pedido(s)"→"pedido/pedidos".
-- Header: ya es `flex-col sm:flex-row`, sin cambios.
-- Resumen de conteos: en mobile se renderiza en una sola fila con `flex-wrap`.
-
-### 13. Semántica "Cerrar consulta" (converted sin pedido)
-**No se toca en esta tanda.** Documentado: el botón sigue marcando `converted`; revisar en una iteración futura dedicada a semántica de estados (decisión de negocio explícita pendiente).
+**RLS intacto**: Supabase sigue aplicando las políticas; solo le mostramos los IDs relacionados que el usuario pueda ver según su rol.
 
 ---
 
-## Diseño visual del resumen (texto)
+## Cambio 2 — Badge "Parte de #N" en filas hijas (Solicitudes.tsx)
 
-```text
-┌──────────────────────────────────────────────────────────────┐
-│  [Abiertas: 3]  [Respondidas: 1]  [Total activas: 4]         │
-├──────────────────────────────────────────────────────────────┤
-│  Productos     │ Ruta          │ Estado │ Resp │ Pedidos │ … │
-│  ────────────────────────────────────────────────────────    │
-│  Tornillo …    │ De: X → Para: │ Abierta│ 1/3  │ 1 pedido│ Abrir │
-└──────────────────────────────────────────────────────────────┘
+En el mapeo de filas (mobile + desktop, líneas ~676-810), cuando `r.parent_request_id != null`:
+
+- Agregar un `Badge variant="outline"` pequeño junto al `#request_number`:
+  - Texto: `Parte de #<parentNumber>`
+  - Estilo: `text-[10px] border-accent/50 text-accent`
+  - Tooltip: "Pertenece a un pedido padre multi-origen. Click para abrir el padre."
+  - **Click independiente** (con `e.stopPropagation()`) que setea `setSelectedId(parentId)`.
+
+Para resolver el `request_number` del padre sin un join pesado, se agrega al `select()` actual:
+```
+parent:branch_requests!branch_requests_parent_request_id_fkey(id, request_number)
+```
+Si la FK nombrada no existe en el cliente, se usa `parent:parent_request_id(request_number)` o un mapa pre-fetcheado de IDs únicos visibles. Validaré antes de tocar.
+
+**Sin cambios** en el filtro general: los padres siguen ocultos en navegación normal (solo accesibles por búsqueda numérica o deep-link), preservando la decisión actual de no saturar bandejas.
+
+---
+
+## Cambio 3 — Microcopy Solicitante / Abastecedora (SolicitudDetail.tsx)
+
+**Archivo**: `src/components/solicitudes/SolicitudDetail.tsx`, líneas 553-567.
+
+Reemplazar las dos cards "Sucursal origen (abastecedora)" y "Sucursal solicitante (destino)" por versiones con tooltip y aclaración explícita:
+
+```
+┌─ Sucursal solicitante ─────────────┐  ┌─ Sucursal abastecedora ────────────┐
+│ <reqName>                          │  │ <srcName>                          │
+│ Quien necesita el stock            │  │ Quien provee el stock              │
+└────────────────────────────────────┘  └────────────────────────────────────┘
 ```
 
----
+- **Orden invertido**: primero "Solicitante" (lectura natural: quién pide → quién provee).
+- Subtítulo `text-[11px] text-muted-foreground` con la definición.
+- Tooltip en el ícono `?` opcional (`HelpCircle`) con texto extendido.
+- Mantener todos los campos existentes debajo (delivery_target, shipping_method, etc.) sin cambios.
 
-## Checklist de no regresión (a validar tras implementar)
-
-- [ ] Crear consulta funciona (form + insert + invalidación).
-- [ ] Responder consulta funciona (RPC sin cambios).
-- [ ] Convertir a pedido funciona y la consulta desaparece del listado tras invalidación.
-- [ ] Paginación server-side: page/pageSize/total/PaginationBar funcionando.
-- [ ] Conteos del nuevo resumen consistentes con el listado (open + responded).
-- [ ] RLS intacto (no se tocan policies ni funciones SQL).
-- [ ] Deep-link `?detail=UUID` abre detalle aunque la consulta esté fuera de la página visible.
-- [ ] Empty state visible cuando no hay activas; CTA Nueva Consulta funcional.
-- [ ] Plural correcto: "1 pedido" / "2 pedidos".
-- [ ] Sin errores TypeScript ni en consola.
-- [ ] Mobile: cards legibles, sin overflow horizontal del header.
+Cero cambios de lógica, solo presentación.
 
 ---
 
-## Lo que NO se toca (decisión explícita)
+## Lo que NO se toca (garantía de no regresión)
 
-- Lógica del botón "Cerrar consulta" (semántica `converted` sin pedido) — requiere decisión de negocio.
-- Toggle "Activas / Todas" — se evita reintroducir ruido de expired/converted.
-- `STATUS_CONFIG` keys — siguen alineadas al enum BD.
-- `ConsultationDetail`, `ConsultationForm`, chat, RPCs.
-- `usePaginatedQuery`, `PaginationBar`, `useUserBranchFilter`.
+- ❌ Creación mono-origen ni multi-origen (`SolicitudCreateForm.tsx`).
+- ❌ RLS, RPCs (`fn_transition_request_status`, etc.), triggers, schema.
+- ❌ Filtros de tab `mios`/`otros`/`activos`/`cerrados` en navegación normal.
+- ❌ Conteos de tabs (`tabCounts`).
+- ❌ Dashboard (`Index.tsx`), Chofer, Transporte, Consultas, Recepción.
+- ❌ Limpieza/cierre de padres legacy (queda para etapa siguiente).
+- ❌ `ParentRequestSummary.tsx` (ya muestra hijos cuando se abre el padre por deep-link).
 
-**Archivo único modificado:** `src/pages/Consultas.tsx`.
+---
 
+## Pruebas a ejecutar en preview (con evidencia)
+
+| Caso | Acción | Resultado esperado |
+|---|---|---|
+| A | Buscar `#257` | Aparecen #257 (hijo) y #256 (padre legacy). Fila #257 muestra badge "Parte de #256". |
+| B | Buscar `#256` | Aparecen #256 (padre) y #257 (hijo). |
+| C | Buscar `#261` | Aparecen #261 + #260. |
+| D | Buscar `#268` | Aparecen #268 + #264 (padre real, accepted). |
+| E | Buscar `#264` | Aparecen #264 + #268. |
+| F | Abrir #268 | Detalle muestra: "Sucursal solicitante: Caballero — Quien necesita el stock" / "Sucursal abastecedora: San Roque — Quien provee el stock". |
+| G | Listado normal sin búsqueda | #256/#260/#264 siguen ocultos (sin regresión de bandejas). |
+| H | Crear pedido nuevo mono-origen | Funciona idéntico. |
+| I | Dashboard / Chofer / Consultas | Sin cambios visuales ni de comportamiento. |
+
+---
+
+## Entregables
+
+1. Archivos modificados (solo dos).
+2. Capturas de los casos A, D, F (desktop) + A en mobile (390px).
+3. Confirmación explícita de que las pruebas G/H/I pasan sin cambios.
+4. Nota: limpieza de padres legacy y opción de "ocultar/mostrar contenedores" quedan documentadas para una segunda etapa.
