@@ -322,7 +322,30 @@ export default function Index() {
       const { data } = await query;
       return data || [];
     },
+    refetchInterval: DASHBOARD_REFETCH_MS,
+    refetchOnWindowFocus: true,
   });
+
+  // Indicador de "actualizado hace X" + reloj que tickea cada 15s
+  const isFetchingDashboard = useIsFetching({ predicate: (q) =>
+    Array.isArray(q.queryKey) && typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("dashboard-")
+  });
+  useEffect(() => {
+    if (isFetchingDashboard === 0) setLastRefreshAt(new Date());
+  }, [isFetchingDashboard]);
+  useEffect(() => {
+    const t = setInterval(() => setNowTick(Date.now()), 15_000);
+    return () => clearInterval(t);
+  }, []);
+  const refreshSecondsAgo = Math.max(0, Math.floor((nowTick - lastRefreshAt.getTime()) / 1000));
+  const refreshLabel = refreshSecondsAgo < 60
+    ? `hace ${refreshSecondsAgo}s`
+    : `hace ${Math.floor(refreshSecondsAgo / 60)}m`;
+  const handleManualRefresh = () => {
+    queryClient.invalidateQueries({ predicate: (q) =>
+      Array.isArray(q.queryKey) && typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("dashboard-")
+    });
+  };
 
 
   // ── Build unified queue ────────────────────────────────
