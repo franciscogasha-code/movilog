@@ -2823,7 +2823,16 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      v_pedidos_integridad: {
+        Row: {
+          created_at: string | null
+          current_status: string | null
+          issue_ref: string | null
+          issue_type: string | null
+          request_number: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       can_access_branch: {
@@ -2836,6 +2845,10 @@ export type Database = {
       }
       fn_clear_for_pickup: { Args: { p_request_ids: string[] }; Returns: Json }
       fn_close_expired_consultations: { Args: never; Returns: number }
+      fn_close_parent_if_complete: {
+        Args: { p_parent_id: string }
+        Returns: undefined
+      }
       fn_derive_flow_type: {
         Args: {
           p_delivery_target: string
