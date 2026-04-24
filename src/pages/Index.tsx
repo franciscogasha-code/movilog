@@ -820,22 +820,85 @@ export default function Index() {
                           return sections;
                         };
 
-                        const renderSections = (sections: ReturnType<typeof buildSections>, showHeaders: boolean) =>
-                          sections.map((section, sIdx) => (
-                            <div key={section.key} className={sIdx > 0 ? "mt-4" : ""}>
-                              {showHeaders && (
-                                <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md ${
-                                  section.key === "immediate" ? "text-destructive bg-destructive/5" : section.key === "today" ? "text-orange-600" : "text-muted-foreground"
-                                }`}>
-                                  {section.key === "immediate" && <AlertTriangle className="h-3.5 w-3.5 shrink-0" />}
-                                  <p className="text-[11px] font-semibold uppercase tracking-wider">
-                                    {section.title}
-                                  </p>
-                                </div>
-                              )}
-                              {section.items.map(renderQueueRow)}
+                        // Sub-agrupación por acción operativa dentro de cada sección.
+                        // Mejora lectura sin alterar el orden de prioridad ya calculado.
+                        const ACTION_GROUP_ORDER = ["preparar", "despachar", "gestionar", "consulta"] as const;
+                        type ActionGroupKey = typeof ACTION_GROUP_ORDER[number];
+                        const ACTION_GROUP_LABEL: Record<ActionGroupKey, string> = {
+                          preparar: "Preparar",
+                          despachar: "Despachar / Entregar",
+                          gestionar: "Gestionar",
+                          consulta: "Consultas",
+                        };
+                        const getActionGroup = (qi: QueueItem): ActionGroupKey => {
+                          if (qi.itemType === "consulta") return "consulta";
+                          if (qi.itemType === "tarea" && qi.taskKind) {
+                            if (qi.taskKind === "preparar") return "preparar";
+                            if (qi.taskKind === "despachar" || qi.taskKind === "entregar" || qi.taskKind === "retirar" || qi.taskKind === "en_transito") return "despachar";
+                            return "gestionar";
+                          }
+                          if (qi.itemType === "pedido") {
+                            if (qi.status === "pending" || qi.status === "picking" || qi.status === "in_preparation") return "preparar";
+                            if (qi.status === "ready_for_pickup" || qi.status === "ready_for_delivery") return "despachar";
+                            return "gestionar";
+                          }
+                          return "gestionar";
+                        };
+
+                        const renderItemsGrouped = (items: QueueItem[], showSubgroups: boolean) => {
+                          if (!showSubgroups) return items.map(renderQueueRow);
+                          const buckets = new Map<ActionGroupKey, QueueItem[]>();
+                          items.forEach(it => {
+                            const key = getActionGroup(it);
+                            if (!buckets.has(key)) buckets.set(key, []);
+                            buckets.get(key)!.push(it);
+                          });
+                          return ACTION_GROUP_ORDER.filter(k => buckets.has(k)).map((key, idx) => (
+                            <div key={key} className={idx > 0 ? "mt-2" : ""}>
+                              <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70 px-3 pt-1 pb-1">
+                                {ACTION_GROUP_LABEL[key]}
+                                <span className="ml-1 text-muted-foreground/50">· {buckets.get(key)!.length}</span>
+                              </p>
+                              <div className="space-y-0.5">
+                                {buckets.get(key)!.map(renderQueueRow)}
+                              </div>
                             </div>
                           ));
+                        };
+
+                        // Sub-agrupar solo para operador de sucursal y operador logístico,
+                        // y solo cuando la sección tiene suficientes ítems para justificarla.
+                        const useSubgroups = (!isAdmin && !isViewer && !isDriver);
+
+                        const renderSections = (sections: ReturnType<typeof buildSections>, showHeaders: boolean) =>
+                          sections.map((section, sIdx) => {
+                            const isImmediate = section.key === "immediate";
+                            const showSub = useSubgroups && section.items.length >= 3;
+                            return (
+                              <div key={section.key} className={sIdx > 0 ? "mt-5" : ""}>
+                                {showHeaders && (
+                                  <div className={`flex items-center gap-1.5 px-3 py-1.5 mb-1 rounded-md ${
+                                    isImmediate
+                                      ? "bg-destructive/10 text-destructive border border-destructive/20"
+                                      : section.key === "today"
+                                      ? "text-orange-600"
+                                      : "text-muted-foreground"
+                                  }`}>
+                                    {isImmediate && <AlertTriangle className="h-3.5 w-3.5 shrink-0" />}
+                                    <p className="text-[11px] font-semibold uppercase tracking-wider">
+                                      {section.title}
+                                    </p>
+                                    <span className={`ml-auto text-[10px] font-semibold ${isImmediate ? "text-destructive" : "text-muted-foreground/70"}`}>
+                                      {section.items.length}
+                                    </span>
+                                  </div>
+                                )}
+                                <div className="space-y-0.5">
+                                  {renderItemsGrouped(section.items, showSub)}
+                                </div>
+                              </div>
+                            );
+                          });
 
                         return (
                           <>
