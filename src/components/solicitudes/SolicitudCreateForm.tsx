@@ -289,18 +289,6 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
   }, [items, sourceBranchId]);
 
   // Stock validation errors (uses live stock if available, otherwise local)
-  const stockErrors = useMemo(() => {
-    const errors: Record<string, string> = {};
-    for (const item of items) {
-      const live = getEffectiveStock(item.product);
-      const sbw = live?.stock_by_warehouse ?? item.product.stock_by_warehouse;
-      if (!sbw) continue;
-
-      if (isMultiOrigin && item.sourceBranchId) {
-        const branchCode = branches?.find(b => b.id === item.sourceBranchId)?.code;
-        if (branchCode) {
-          const available = sbw[branchCode] ?? 0;
-  // Stock validation errors (uses live stock if available, otherwise local)
   // Si el item tiene splits VÁLIDOS, validamos cada tramo del split (no el sourceBranchId viejo).
   const stockErrors = useMemo(() => {
     const errors: Record<string, string> = {};
