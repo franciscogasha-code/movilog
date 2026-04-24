@@ -757,10 +757,11 @@ export default function Index() {
                           return (
                             <div
                               key={`${qi.itemType}-${qi.id}`}
-                              className={`flex flex-wrap md:flex-nowrap items-center gap-2 md:gap-3 py-2 px-3 rounded-lg cursor-pointer hover:bg-muted/40 active:bg-muted/60 transition-all duration-150 ${rowClass}`}
+                              className={`flex flex-col lg:flex-row lg:items-center gap-2 lg:gap-3 py-2 px-3 rounded-lg cursor-pointer hover:bg-muted/40 active:bg-muted/60 transition-all duration-150 ${rowClass}`}
                               onClick={handleAction}
                             >
-                              <div className="flex items-center gap-2 min-w-0 flex-1">
+                              {/* Línea 1: tipo + modo + #número + ruta */}
+                              <div className="flex items-center gap-2 min-w-0 flex-1 flex-wrap lg:flex-nowrap">
                                 {renderTypeBadge()}
                                 {renderModeBadge()}
                                 {qi.number && (
@@ -780,24 +781,27 @@ export default function Index() {
                                   ) : null;
                                 })()}
                               </div>
-                              <div className="flex items-center gap-2 shrink-0">
-                                {renderStatusBadge()}
-                                <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium shrink-0 ${badge.className}`}>
-                                  {badge.label}
-                                </span>
-                                <span className="text-[11px] text-muted-foreground shrink-0 hidden sm:inline">
-                                  {timeAgo(qi.createdAt)}
-                                </span>
+                              {/* Línea 2: estado + prioridad + tiempo + CTA */}
+                              <div className="flex items-center gap-2 lg:shrink-0 w-full lg:w-auto justify-between lg:justify-end">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  {renderStatusBadge()}
+                                  <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium shrink-0 ${badge.className}`}>
+                                    {badge.label}
+                                  </span>
+                                  <span className="text-[11px] text-muted-foreground shrink-0">
+                                    {timeAgo(qi.createdAt)}
+                                  </span>
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 px-3 text-xs shrink-0"
+                                  onClick={(e) => { e.stopPropagation(); handleAction(); }}
+                                >
+                                  {actionLabel}
+                                  {actionIcon}
+                                </Button>
                               </div>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-7 px-3 text-xs shrink-0 ml-auto"
-                                onClick={(e) => { e.stopPropagation(); handleAction(); }}
-                              >
-                                {actionLabel}
-                                {actionIcon}
-                              </Button>
                             </div>
                           );
                         };
