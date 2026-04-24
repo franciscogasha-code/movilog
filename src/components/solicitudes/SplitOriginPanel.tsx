@@ -38,7 +38,8 @@ export function SplitOriginPanel({
   const remaining = totalQuantity - assigned;
   const isComplete = remaining === 0 && splits.length > 0;
 
-  // Sucursales seleccionables: con stock > 0 (si conocemos stock) y distintas de la solicitante.
+  // Sucursales seleccionables: con stock > 0 y distintas de la solicitante.
+  // Si no conocemos stock (stockByWarehouseCode === null), permitimos todas.
   const candidateBranches = useMemo(() => {
     if (!branches) return [];
     return branches
@@ -47,7 +48,8 @@ export function SplitOriginPanel({
       .map((b) => {
         const stock = stockByWarehouseCode?.[b.code] ?? 0;
         return { ...b, stock };
-      });
+      })
+      .filter((b) => (stockByWarehouseCode ? b.stock > 0 : true));
   }, [branches, requestingBranchId, stockByWarehouseCode]);
 
   const usedBranchIds = new Set(splits.map((s) => s.branchId).filter(Boolean));

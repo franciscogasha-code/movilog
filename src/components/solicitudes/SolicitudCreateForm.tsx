@@ -232,7 +232,14 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
   };
 
   const updateQuantity = (productId: string, qty: number) => {
-    setItems(prev => prev.map(i => i.product.id === productId ? { ...i, quantity: Math.max(1, qty) } : i));
+    setItems(prev => prev.map(i => {
+      if (i.product.id !== productId) return i;
+      const newQty = Math.max(1, qty);
+      // Si tenía splits y la cantidad cambia, los splits quedan inconsistentes:
+      // los preservamos pero su suma ya no coincidirá → itemHasValidSplits() retornará false
+      // y el CTA quedará bloqueado. La UI mostrará un aviso para revisar.
+      return { ...i, quantity: newQty };
+    }));
   };
 
   const setItemSourceBranch = (productId: string, branchId: string) => {
@@ -241,6 +248,12 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
 
   const setItemSplits = (productId: string, splits: OriginSplit[]) => {
     setItems(prev => prev.map(i => i.product.id === productId ? { ...i, splits } : i));
+  };
+
+  // ¿El item tiene splits "tocados" (al menos 1 entrada) pero inválidos / incompletos?
+  const itemHasDirtySplits = (item: SelectedItem): boolean => {
+    if (!item.splits || item.splits.length === 0) return false;
+    return !itemHasValidSplits(item);
   };
 
   // Stock por código de sucursal (live > local) para un producto.
@@ -276,6 +289,7 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
   }, [items, sourceBranchId]);
 
   // Stock validation errors (uses live stock if available, otherwise local)
+  // Si el item tiene splits VÁLIDOS, validamos cada tramo del split (no el sourceBranchId viejo).
   const stockErrors = useMemo(() => {
     const errors: Record<string, string> = {};
     for (const item of items) {
@@ -283,22 +297,29 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
       const sbw = live?.stock_by_warehouse ?? item.product.stock_by_warehouse;
       if (!sbw) continue;
 
-      if (isMultiOrigin && item.sourceBranchId) {
-        const branchCode = branches?.find(b => b.id === item.sourceBranchId)?.code;
-        if (branchCode) {
+      // Caso A: splits válidos → validar cada tramo
+      if (itemHasValidSplits(item)) {
+        for (const sp of item.splits!) {
+          const branchCode = branches?.find(b => b.id === sp.branchId)?.code;
+          if (!branchCode) continue;
           const available = sbw[branchCode] ?? 0;
-          if (available < item.quantity) {
-            errors[item.product.id] = `Stock insuficiente en origen (disponible: ${Math.floor(available)}, solicitado: ${item.quantity})`;
+          if (available < sp.quantity) {
+            const bName = branches?.find(b => b.id === sp.branchId)?.name || branchCode;
+            errors[item.product.id] = `Stock insuficiente en ${bName} (disp: ${Math.floor(available)}, asignado: ${sp.quantity})`;
+            break;
           }
         }
-      } else if (!isMultiOrigin && sourceBranchId) {
-        const branchCode = branches?.find(b => b.id === sourceBranchId)?.code;
-        if (branchCode) {
-          const available = sbw[branchCode] ?? 0;
-          if (available < item.quantity) {
-            errors[item.product.id] = `Stock insuficiente (disponible: ${Math.floor(available)}, solicitado: ${item.quantity})`;
-          }
-        }
+        continue;
+      }
+
+      // Caso B: sin splits → validar contra origen único (multi por item, o global mono)
+      const srcId = isMultiOrigin ? item.sourceBranchId : sourceBranchId;
+      if (!srcId) continue;
+      const branchCode = branches?.find(b => b.id === srcId)?.code;
+      if (!branchCode) continue;
+      const available = sbw[branchCode] ?? 0;
+      if (available < item.quantity) {
+        errors[item.product.id] = `Stock insuficiente en origen (disponible: ${Math.floor(available)}, solicitado: ${item.quantity})`;
       }
     }
     return errors;
@@ -306,22 +327,30 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
 
   const hasStockErrors = Object.keys(stockErrors).length > 0;
 
-  // Multi-origin summary
+  // Resumen de abastecimiento — lee splits reales y agrupa por sucursal con cantidades.
+  // Se calcula SIEMPRE (no solo en multi fijo), porque el modo efectivo depende del estado real.
   const originSummary = useMemo(() => {
-    if (!isMultiOrigin) return null;
-    const grouped: Record<string, { branchName: string; count: number; products: string[] }> = {};
-    items.forEach(item => {
-      const bid = item.sourceBranchId;
-      if (!bid) return;
+    const grouped: Record<string, { branchName: string; totalQty: number; products: { name: string; qty: number }[] }> = {};
+    const addEntry = (bid: string, productName: string, qty: number) => {
       if (!grouped[bid]) {
         const branch = branches?.find(b => b.id === bid);
-        grouped[bid] = { branchName: branch?.name || bid, count: 0, products: [] };
+        grouped[bid] = { branchName: branch?.name || bid, totalQty: 0, products: [] };
       }
-      grouped[bid].count++;
-      grouped[bid].products.push(item.product.name);
+      grouped[bid].totalQty += qty;
+      grouped[bid].products.push({ name: productName, qty });
+    };
+    items.forEach(item => {
+      if (itemHasValidSplits(item)) {
+        for (const sp of item.splits!) {
+          if (sp.branchId && sp.quantity > 0) addEntry(sp.branchId, item.product.name, sp.quantity);
+        }
+      } else {
+        const bid = item.sourceBranchId || sourceBranchId;
+        if (bid) addEntry(bid, item.product.name, item.quantity);
+      }
     });
     return grouped;
-  }, [items, isMultiOrigin, branches]);
+  }, [items, sourceBranchId, branches]);
 
   // Un item está "resuelto" si: tiene splits válidos, o sourceBranchId asignado, o estamos en mono y hay sourceBranchId global.
   const isItemResolved = (item: SelectedItem): boolean => {
@@ -349,7 +378,8 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requestingBranchId, items, isMultiOrigin, sourceBranchId, hasStockErrors, shippingError, isSameBranch]);
 
-  // Re-validate stock from BIMS live right before confirmation
+  // Re-validate stock from BIMS live right before confirmation.
+  // Respeta splits válidos (valida cada tramo) y cae a origen único cuando no hay splits.
   const revalidateStock = async (): Promise<Record<string, string>> => {
     const codes = items.map(i => i.product.bims_code).filter(Boolean) as string[];
     const freshData = await revalidateLiveStock(codes);
@@ -362,9 +392,22 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
         : (item.product.stock_by_warehouse as Record<string, number> | null);
       if (!sbw) continue;
 
-      const srcBid = isMultiOrigin ? item.sourceBranchId : sourceBranchId;
-      if (!srcBid) continue;
+      if (itemHasValidSplits(item)) {
+        for (const sp of item.splits!) {
+          const branchCode = branches?.find(b => b.id === sp.branchId)?.code;
+          if (!branchCode) continue;
+          const available = sbw[branchCode] ?? 0;
+          if (available < sp.quantity) {
+            const bName = branches?.find(b => b.id === sp.branchId)?.name || branchCode;
+            errors[item.product.id] = `Stock cambió en ${bName}: disponible ${Math.floor(available)}, asignado ${sp.quantity}`;
+            break;
+          }
+        }
+        continue;
+      }
 
+      const srcBid = item.sourceBranchId || sourceBranchId;
+      if (!srcBid) continue;
       const branchCode = branches?.find(b => b.id === srcBid)?.code;
       if (branchCode) {
         const available = sbw[branchCode] ?? 0;
@@ -614,29 +657,38 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
 
         <div className="space-y-2">
           <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Productos</h4>
-          {items.map(item => (
-            <div key={item.product.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-3 p-2.5 rounded bg-muted/30 border border-border/30 text-sm min-w-0">
-              <div className="min-w-0 flex-1 flex items-baseline gap-2">
-                <span className="font-medium break-words min-w-0 flex-1">{item.product.name}</span>
-                <span className="text-muted-foreground shrink-0 tabular-nums">x{item.quantity}</span>
+          {items.map(item => {
+            const splitsApplied = itemHasValidSplits(item);
+            const originLabel = splitsApplied
+              ? item.splits!
+                  .filter(s => s.branchId && s.quantity > 0)
+                  .map(s => `${branches?.find(b => b.id === s.branchId)?.name || "—"} ·${s.quantity}`)
+                  .join(" / ")
+              : (() => {
+                  const bid = item.sourceBranchId || sourceBranchId;
+                  return `Origen: ${branches?.find(b => b.id === bid)?.name || "—"}`;
+                })();
+            return (
+              <div key={item.product.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-3 p-2.5 rounded bg-muted/30 border border-border/30 text-sm min-w-0">
+                <div className="min-w-0 flex-1 flex items-baseline gap-2">
+                  <span className="font-medium break-words min-w-0 flex-1">{item.product.name}</span>
+                  <span className="text-muted-foreground shrink-0 tabular-nums">x{item.quantity}</span>
+                </div>
+                <span className="text-xs text-muted-foreground break-words sm:text-right sm:shrink-0 sm:max-w-[55%]">
+                  {originLabel}
+                </span>
               </div>
-              <span className="text-xs text-muted-foreground break-words sm:text-right sm:shrink-0 sm:max-w-[45%]">
-                {isMultiOrigin
-                  ? `Origen: ${branches?.find(b => b.id === item.sourceBranchId)?.name || "—"}`
-                  : `Origen: ${branches?.find(b => b.id === sourceBranchId)?.name || "—"}`
-                }
-              </span>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
-        {isMultiOrigin && originSummary && Object.keys(originSummary).length > 0 && (
+        {effectiveOriginMode === "multi" && Object.keys(originSummary).length > 0 && (
           <div className="p-3 rounded-lg bg-muted/50 border border-border/50 space-y-2">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Resumen de abastecimiento</p>
             {Object.entries(originSummary).map(([bid, info]) => (
               <div key={bid} className="flex items-center justify-between text-sm">
                 <span className="font-medium">{info.branchName}</span>
-                <Badge variant="outline" className="text-xs">{info.count} producto(s)</Badge>
+                <Badge variant="outline" className="text-xs tabular-nums">{info.totalQty} unidad(es)</Badge>
               </div>
             ))}
             <p className="text-xs text-muted-foreground mt-1 pt-2 border-t border-border/30">
@@ -870,61 +922,74 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
       <div className="space-y-3">
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">3. Origen del stock</h3>
 
-        {isMultiOrigin ? (
-          <div className="space-y-3">
-            <p className="text-xs text-muted-foreground">
-              Seleccioná la sucursal origen desde la ficha de cada producto. Se creará una transferencia por cada sucursal origen.
+        {/* Aviso: cantidad cambió y los splits quedaron inconsistentes */}
+        {items.some(itemHasDirtySplits) && (
+          <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-sm text-foreground">
+            <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 mt-0.5" />
+            <div className="space-y-0.5">
+              <p className="font-medium">La cantidad cambió. Revisá la distribución entre sucursales.</p>
+              <p className="text-xs text-muted-foreground">
+                {items.filter(itemHasDirtySplits).map(i => i.product.name).join(", ")}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {effectiveOriginMode === "undefined" && (
+          <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-sm text-foreground">
+            <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
+            <span>Seleccioná la sucursal origen desde el bloque de stock de cualquier producto, o usá "Dividir entre sucursales".</span>
+          </div>
+        )}
+
+        {effectiveOriginMode === "single" && sourceBranchId && (
+          <div className="p-3 rounded-lg bg-muted/50 border border-border/50">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Origen único</p>
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-sm">{branches?.find(b => b.id === sourceBranchId)?.name || "—"}</span>
+              <Button type="button" variant="ghost" size="sm" onClick={() => setSourceBranchId("")} className="text-xs text-muted-foreground h-7">
+                Cambiar
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Todo el pedido sale de esta sucursal.
             </p>
-
-            {itemsWithoutSource.length > 0 && (
-              <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-sm text-foreground">
-                <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
-                <span>{itemsWithoutSource.length} producto(s) sin origen asignado</span>
-              </div>
-            )}
-
-            {originSummary && Object.keys(originSummary).length > 0 && (
-              <div className="p-3 rounded-lg bg-muted/50 border border-border/50 space-y-2">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Resumen de abastecimiento</p>
-                {Object.entries(originSummary).map(([bid, info]) => (
-                  <div key={bid} className="flex items-center justify-between text-sm">
-                    <span className="font-medium">{info.branchName}</span>
-                    <Badge variant="outline" className="text-xs">{info.count} producto(s)</Badge>
-                  </div>
-                ))}
-                <p className="text-xs text-muted-foreground mt-1 pt-2 border-t border-border/30">
-                  Se crearán {Object.keys(originSummary).length} transferencia(s) internas asociadas a esta solicitud.
-                </p>
+            {isSameBranch && (
+              <div className="flex items-center gap-2 mt-2 p-2 rounded-lg bg-destructive/10 border border-destructive/20 text-sm text-destructive">
+                <XCircle className="h-4 w-4 shrink-0" />
+                <span>La sucursal origen no puede ser igual a la sucursal solicitante.</span>
               </div>
             )}
           </div>
-        ) : (
-          <div>
-            {sourceBranchId ? (
-              <div className="p-3 rounded-lg bg-muted/50 border border-border/50">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Origen seleccionado</p>
-                <div className="flex items-center justify-between">
-                  <span className="font-semibold text-sm">{branches?.find(b => b.id === sourceBranchId)?.name || "—"}</span>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => setSourceBranchId("")} className="text-xs text-muted-foreground h-7">
-                    Cambiar
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Seleccionado desde la ficha de producto. Todo el pedido sale de esta sucursal.
-                </p>
-                {isSameBranch && (
-                  <div className="flex items-center gap-2 mt-2 p-2 rounded-lg bg-destructive/10 border border-destructive/20 text-sm text-destructive">
-                    <XCircle className="h-4 w-4 shrink-0" />
-                    <span>La sucursal origen no puede ser igual a la sucursal solicitante.</span>
-                  </div>
-                )}
+        )}
+
+        {/* Resumen siempre que haya 1+ origen detectado (single o multi) */}
+        {Object.keys(originSummary).length > 0 && (
+          <div className="p-3 rounded-lg bg-muted/50 border border-border/50 space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Resumen de abastecimiento</p>
+              {effectiveOriginMode === "multi" && (
+                <Badge variant="secondary" className="text-[10px]">Multi-origen</Badge>
+              )}
+            </div>
+            {Object.entries(originSummary).map(([bid, info]) => (
+              <div key={bid} className="flex items-center justify-between text-sm">
+                <span className="font-medium">{info.branchName}</span>
+                <Badge variant="outline" className="text-xs tabular-nums">{info.totalQty} unidad(es)</Badge>
               </div>
-            ) : (
-              <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-sm text-foreground">
-                <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
-                <span>Seleccioná la sucursal origen desde el bloque de stock de cualquier producto (paso 2).</span>
-              </div>
+            ))}
+            {effectiveOriginMode === "multi" && (
+              <p className="text-xs text-muted-foreground mt-1 pt-2 border-t border-border/30">
+                Se crearán {Object.keys(originSummary).length} transferencia(s) internas + 1 pedido padre.
+              </p>
             )}
+          </div>
+        )}
+
+        {itemsWithoutSource.length > 0 && effectiveOriginMode !== "undefined" && (
+          <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-sm text-foreground">
+            <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
+            <span>{itemsWithoutSource.length} producto(s) sin origen resuelto</span>
           </div>
         )}
       </div>
@@ -1033,11 +1098,13 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
         </div>
       )}
 
-      {/* Sticky CTA bottom mobile / inline desktop */}
+      {/* CTA: sticky SOLO en mobile (evita tapar contenido en desktop) */}
       <div className="
-        sticky bottom-0 -mx-4 sm:-mx-6 px-4 sm:px-6 pt-3
-        pb-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:pb-3
-        bg-background/95 backdrop-blur-sm border-t sm:border-0 sm:bg-transparent sm:backdrop-blur-none
+        sticky bottom-0 -mx-4 px-4 pt-3
+        pb-[calc(env(safe-area-inset-bottom)+0.75rem)]
+        bg-background/95 backdrop-blur-sm border-t
+        sm:static sm:mx-0 sm:px-0 sm:pt-2 sm:pb-2
+        sm:bg-transparent sm:backdrop-blur-none sm:border-0
         z-10
       ">
         <Button
@@ -1047,8 +1114,8 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
         >
           {submitting
             ? "Creando..."
-            : isMultiOrigin
-              ? `Revisar y crear (${Object.keys(originSummary || {}).length || 0} transferencias)`
+            : effectiveOriginMode === "multi"
+              ? `Revisar y crear (${Object.keys(originSummary).length} transferencias)`
               : `Revisar y crear pedido (${items.length} ${items.length === 1 ? "producto" : "productos"})`
           }
         </Button>
