@@ -762,6 +762,20 @@ export default function Solicitudes() {
                                 {REQUEST_TYPE_LABELS[r.request_type] || r.request_type}
                               </Badge>
                             )}
+                            {!isParent && r.parent?.request_number && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Badge
+                                    variant="outline"
+                                    className="text-[10px] shrink-0 border-accent/50 text-accent gap-1 cursor-pointer hover:bg-accent/10"
+                                    onClick={(e) => { e.stopPropagation(); setSelectedId(r.parent.id); }}
+                                  >
+                                    <Layers className="h-3 w-3" /> Parte de #{r.parent.request_number}
+                                  </Badge>
+                                </TooltipTrigger>
+                                <TooltipContent side="top">Pertenece a un pedido padre multi-origen. Tocar para abrir el padre.</TooltipContent>
+                              </Tooltip>
+                            )}
                           </div>
                           <StatusBadge status={r.status} config={REQUEST_STATUS_CONFIG} className="shrink-0" />
                         </div>
