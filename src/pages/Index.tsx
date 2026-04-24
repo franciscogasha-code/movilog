@@ -220,14 +220,19 @@ export default function Index() {
   const { user, profile, hasRole, isOwner } = useAuth();
   const { isAllBranches, allowedBranchIds, defaultBranchId } = useUserBranchFilter();
   const navigate = useNavigate();
-  const isDriver = hasRole("driver") || hasRole("warehouse_operator");
-  const isLogisticsOp = hasRole("warehouse_operator");
-  const isAdmin = isAllBranches || isOwner || hasRole("admin") || hasRole("supervisor");
+  const queryClient = useQueryClient();
+
+  const isDriver = hasRole("driver");
+  const isLogisticsOp = hasRole("warehouse_operator") || hasRole("jefe_logistica");
+  // jefe_logistica tiene visión global a nivel RLS; lo tratamos como admin para que el dashboard no lo limite
+  const isAdmin = isAllBranches || isOwner || hasRole("admin") || hasRole("supervisor") || hasRole("jefe_logistica");
   const isViewer = hasRole("viewer") || hasRole("auditor");
 
   const [activeFilter, setActiveFilter] = useState<KpiFilter>("all");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [clientFilter, setClientFilter] = useState<ClientFilter>("all");
+  const [lastRefreshAt, setLastRefreshAt] = useState<Date>(new Date());
+  const [nowTick, setNowTick] = useState<number>(Date.now());
 
   const canAccessBranch = (branchId: string | null) => {
     if (!branchId) return false;
