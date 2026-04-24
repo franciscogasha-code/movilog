@@ -294,6 +294,9 @@ export default function Solicitudes() {
       isAllBranches,
       branchFilter,
       allowedBranchIds.join(","),
+      // Incluimos los ids relacionados para refrescar correctamente cuando
+      // se completa el pre-fetch de búsqueda numérica.
+      numericSearchTerm ? (relatedSearchIds?.join(",") ?? "pending") : "",
     ],
     initialPageSize: 25,
     buildQuery: () => {
@@ -302,14 +305,35 @@ export default function Solicitudes() {
         .select(
           `*,
            requesting_branch:branches!branch_requests_requesting_branch_id_fkey(name, code),
-           source_branch:branches!branch_requests_source_branch_id_fkey(name, code)`,
+           source_branch:branches!branch_requests_source_branch_id_fkey(name, code),
+           parent:branch_requests!branch_requests_parent_request_id_fkey(id, request_number)`,
           { count: "exact" },
         )
         .order("created_at", { ascending: false });
 
+      // ─── MODO BÚSQUEDA NUMÉRICA INTELIGENTE ──────────────────────
+      // Si el usuario tipea #N, devolvemos el set padre↔hijos relacionados
+      // ignorando filtros de tab/estado/sucursal y bypass del filtro de
+      // padres ocultos. RLS sigue aplicando.
+      if (numericSearchTerm) {
+        if (relatedSearchIds === undefined) {
+          // Aún cargando: forzamos resultado vacío seguro
+          query = query.eq("id", "00000000-0000-0000-0000-000000000000");
+          return query;
+        }
+        if (relatedSearchIds && relatedSearchIds.length > 0) {
+          query = query.in("id", relatedSearchIds);
+        } else {
+          // Sin match: fallback al comportamiento estricto por número
+          query = query.eq("request_number", Number(numericSearchTerm));
+        }
+        return query;
+      }
+
+      // ─── MODO NORMAL (sin búsqueda numérica) ─────────────────────
       // Ocultar padres y registros legacy 1-hijo de bandejas operativas.
-      // Los padres son contenedores de trazabilidad (accesibles por deep-link),
-      // no tareas. Los hijos siguen siendo plenamente visibles.
+      // Los padres son contenedores de trazabilidad (accesibles por deep-link
+      // o búsqueda numérica), no tareas. Los hijos siguen siendo plenamente visibles.
       query = query.not("notes", "ilike", "%[Pedido padre multi-origen]%");
 
       // Tab: estados
@@ -320,23 +344,18 @@ export default function Solicitudes() {
       }
 
       // Tab: pertenencia de sucursal
-      // mios/otros se anclan SIEMPRE a "mi(s) sucursal(es)" (allowedBranchIds).
-      // El branchFilter (si apunta a una sucursal distinta a las mías) actúa
-      // como filtro de la CONTRAPARTE, no como anclaje.
       const myIds = allowedBranchIds && allowedBranchIds.length > 0 ? allowedBranchIds : null;
       const specificBranch = branchFilter !== "all" ? branchFilter : null;
       const counterpartyId =
         specificBranch && (!myIds || !myIds.includes(specificBranch)) ? specificBranch : null;
 
       if (tab === "mios") {
-        // Anclaje: yo solicité
         const anchor = isAllBranches && specificBranch ? [specificBranch] : myIds;
         if (anchor && anchor.length > 0) {
           query = query.in("requesting_branch_id", anchor);
           if (counterpartyId) query = query.eq("source_branch_id", counterpartyId);
         }
       } else if (tab === "otros") {
-        // Anclaje: me solicitaron (yo soy origen, no solicitante)
         const anchor = isAllBranches && specificBranch ? [specificBranch] : myIds;
         if (anchor && anchor.length > 0) {
           query = query
@@ -345,7 +364,6 @@ export default function Solicitudes() {
           if (counterpartyId) query = query.eq("requesting_branch_id", counterpartyId);
         }
       } else if (effectiveBranchIds && effectiveBranchIds.length > 0) {
-        // Activos/Cerrados: visibilidad amplia (origen o destino)
         query = query.or(
           `requesting_branch_id.in.(${effectiveBranchIds.join(",")}),source_branch_id.in.(${effectiveBranchIds.join(",")})`,
         );
@@ -356,16 +374,12 @@ export default function Solicitudes() {
         query = query.eq("status", statusFilter as any);
       }
 
-      // Búsqueda server-side
+      // Búsqueda de texto libre (no numérica)
       if (debouncedSearch) {
         const term = debouncedSearch.replace(/^#/, "");
-        const numeric = /^\d+$/.test(term);
-        const ors: string[] = [
-          `client_name.ilike.%${term}%`,
-          `bims_invoice_number.ilike.%${term}%`,
-        ];
-        if (numeric) ors.unshift(`request_number.eq.${term}`);
-        query = query.or(ors.join(","));
+        query = query.or(
+          `client_name.ilike.%${term}%,bims_invoice_number.ilike.%${term}%`,
+        );
       }
 
       return query;
