@@ -378,7 +378,8 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requestingBranchId, items, isMultiOrigin, sourceBranchId, hasStockErrors, shippingError, isSameBranch]);
 
-  // Re-validate stock from BIMS live right before confirmation
+  // Re-validate stock from BIMS live right before confirmation.
+  // Respeta splits válidos (valida cada tramo) y cae a origen único cuando no hay splits.
   const revalidateStock = async (): Promise<Record<string, string>> => {
     const codes = items.map(i => i.product.bims_code).filter(Boolean) as string[];
     const freshData = await revalidateLiveStock(codes);
@@ -391,9 +392,22 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
         : (item.product.stock_by_warehouse as Record<string, number> | null);
       if (!sbw) continue;
 
-      const srcBid = isMultiOrigin ? item.sourceBranchId : sourceBranchId;
-      if (!srcBid) continue;
+      if (itemHasValidSplits(item)) {
+        for (const sp of item.splits!) {
+          const branchCode = branches?.find(b => b.id === sp.branchId)?.code;
+          if (!branchCode) continue;
+          const available = sbw[branchCode] ?? 0;
+          if (available < sp.quantity) {
+            const bName = branches?.find(b => b.id === sp.branchId)?.name || branchCode;
+            errors[item.product.id] = `Stock cambió en ${bName}: disponible ${Math.floor(available)}, asignado ${sp.quantity}`;
+            break;
+          }
+        }
+        continue;
+      }
 
+      const srcBid = item.sourceBranchId || sourceBranchId;
+      if (!srcBid) continue;
       const branchCode = branches?.find(b => b.id === srcBid)?.code;
       if (branchCode) {
         const available = sbw[branchCode] ?? 0;
