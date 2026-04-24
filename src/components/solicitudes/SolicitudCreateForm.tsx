@@ -232,7 +232,14 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
   };
 
   const updateQuantity = (productId: string, qty: number) => {
-    setItems(prev => prev.map(i => i.product.id === productId ? { ...i, quantity: Math.max(1, qty) } : i));
+    setItems(prev => prev.map(i => {
+      if (i.product.id !== productId) return i;
+      const newQty = Math.max(1, qty);
+      // Si tenía splits y la cantidad cambia, los splits quedan inconsistentes:
+      // los preservamos pero su suma ya no coincidirá → itemHasValidSplits() retornará false
+      // y el CTA quedará bloqueado. La UI mostrará un aviso para revisar.
+      return { ...i, quantity: newQty };
+    }));
   };
 
   const setItemSourceBranch = (productId: string, branchId: string) => {
@@ -241,6 +248,12 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
 
   const setItemSplits = (productId: string, splits: OriginSplit[]) => {
     setItems(prev => prev.map(i => i.product.id === productId ? { ...i, splits } : i));
+  };
+
+  // ¿El item tiene splits "tocados" (al menos 1 entrada) pero inválidos / incompletos?
+  const itemHasDirtySplits = (item: SelectedItem): boolean => {
+    if (!item.splits || item.splits.length === 0) return false;
+    return !itemHasValidSplits(item);
   };
 
   // Stock por código de sucursal (live > local) para un producto.
