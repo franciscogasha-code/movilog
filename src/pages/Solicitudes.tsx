@@ -212,6 +212,53 @@ export default function Solicitudes() {
     return () => clearTimeout(t);
   }, [search]);
 
+  /**
+   * Búsqueda inteligente padre↔hijo:
+   * Cuando el término es numérico (#N), pre-resolvemos el conjunto de IDs
+   * relacionados (el propio + padre + hermanos + hijos). Esto permite que
+   * buscar un padre traiga sus hijos, y buscar un hijo traiga al padre,
+   * incluso si el padre normalmente está oculto en la bandeja operativa.
+   * RLS sigue aplicando en la query principal.
+   */
+  const numericSearchTerm = useMemo(() => {
+    if (!debouncedSearch) return null;
+    const t = debouncedSearch.replace(/^#/, "");
+    return /^\d+$/.test(t) ? t : null;
+  }, [debouncedSearch]);
+
+  const { data: relatedSearchIds } = useQuery<string[] | null>({
+    queryKey: ["request-related-ids", numericSearchTerm],
+    enabled: !!numericSearchTerm,
+    staleTime: 30_000,
+    queryFn: async () => {
+      if (!numericSearchTerm) return null;
+      // 1) Match exacto por número
+      const { data: match } = await supabase
+        .from("branch_requests")
+        .select("id, parent_request_id")
+        .eq("request_number", Number(numericSearchTerm))
+        .maybeSingle();
+      if (!match) return [];
+      const ids = new Set<string>([match.id]);
+      // 2) Si tiene padre, traerlo + hermanos
+      if (match.parent_request_id) {
+        ids.add(match.parent_request_id);
+        const { data: siblings } = await supabase
+          .from("branch_requests")
+          .select("id")
+          .eq("parent_request_id", match.parent_request_id);
+        (siblings ?? []).forEach((s: any) => ids.add(s.id));
+      }
+      // 3) Si es padre, traer hijos
+      const { data: children } = await supabase
+        .from("branch_requests")
+        .select("id")
+        .eq("parent_request_id", match.id);
+      (children ?? []).forEach((c: any) => ids.add(c.id));
+      return Array.from(ids);
+    },
+  });
+
   // Branch IDs efectivos para filtrado server-side
   const effectiveBranchIds: string[] | null = useMemo(() => {
     if (isAllBranches && branchFilter === "all") return null; // sin filtro
