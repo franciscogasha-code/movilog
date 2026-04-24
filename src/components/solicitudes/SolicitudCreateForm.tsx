@@ -643,29 +643,38 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
 
         <div className="space-y-2">
           <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Productos</h4>
-          {items.map(item => (
-            <div key={item.product.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-3 p-2.5 rounded bg-muted/30 border border-border/30 text-sm min-w-0">
-              <div className="min-w-0 flex-1 flex items-baseline gap-2">
-                <span className="font-medium break-words min-w-0 flex-1">{item.product.name}</span>
-                <span className="text-muted-foreground shrink-0 tabular-nums">x{item.quantity}</span>
+          {items.map(item => {
+            const splitsApplied = itemHasValidSplits(item);
+            const originLabel = splitsApplied
+              ? item.splits!
+                  .filter(s => s.branchId && s.quantity > 0)
+                  .map(s => `${branches?.find(b => b.id === s.branchId)?.name || "—"} ·${s.quantity}`)
+                  .join(" / ")
+              : (() => {
+                  const bid = item.sourceBranchId || sourceBranchId;
+                  return `Origen: ${branches?.find(b => b.id === bid)?.name || "—"}`;
+                })();
+            return (
+              <div key={item.product.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-3 p-2.5 rounded bg-muted/30 border border-border/30 text-sm min-w-0">
+                <div className="min-w-0 flex-1 flex items-baseline gap-2">
+                  <span className="font-medium break-words min-w-0 flex-1">{item.product.name}</span>
+                  <span className="text-muted-foreground shrink-0 tabular-nums">x{item.quantity}</span>
+                </div>
+                <span className="text-xs text-muted-foreground break-words sm:text-right sm:shrink-0 sm:max-w-[55%]">
+                  {originLabel}
+                </span>
               </div>
-              <span className="text-xs text-muted-foreground break-words sm:text-right sm:shrink-0 sm:max-w-[45%]">
-                {isMultiOrigin
-                  ? `Origen: ${branches?.find(b => b.id === item.sourceBranchId)?.name || "—"}`
-                  : `Origen: ${branches?.find(b => b.id === sourceBranchId)?.name || "—"}`
-                }
-              </span>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
-        {isMultiOrigin && originSummary && Object.keys(originSummary).length > 0 && (
+        {effectiveOriginMode === "multi" && Object.keys(originSummary).length > 0 && (
           <div className="p-3 rounded-lg bg-muted/50 border border-border/50 space-y-2">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Resumen de abastecimiento</p>
             {Object.entries(originSummary).map(([bid, info]) => (
               <div key={bid} className="flex items-center justify-between text-sm">
                 <span className="font-medium">{info.branchName}</span>
-                <Badge variant="outline" className="text-xs">{info.count} producto(s)</Badge>
+                <Badge variant="outline" className="text-xs tabular-nums">{info.totalQty} unidad(es)</Badge>
               </div>
             ))}
             <p className="text-xs text-muted-foreground mt-1 pt-2 border-t border-border/30">
