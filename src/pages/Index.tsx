@@ -788,7 +788,7 @@ export default function Index() {
                                   <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium shrink-0 ${badge.className}`}>
                                     {badge.label}
                                   </span>
-                                  <span className="text-[11px] text-muted-foreground shrink-0">
+                                  <span className="text-[11px] text-muted-foreground shrink-0 hidden xs:inline">
                                     {timeAgo(qi.createdAt)}
                                   </span>
                                 </div>
