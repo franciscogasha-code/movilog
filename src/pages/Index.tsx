@@ -52,11 +52,13 @@ const PRIORITY_BADGE: Record<Priority, { label: string; className: string }> = {
   normal: { label: "Normal", className: "bg-muted text-muted-foreground border-border" },
 };
 
+// Acento sutil a la izquierda — sin fondo de color para evitar "alerta repetida".
+// El header de sección ya comunica la urgencia; cada fila solo lleva una marca discreta.
 const PRIORITY_ROW_CLASS: Record<Priority, string> = {
-  overdue_critical: "border-l-2 border-l-destructive bg-destructive/5",
-  overdue: "border-l-2 border-l-orange-500 bg-orange-500/5",
-  today: "border-l-2 border-l-warning bg-warning/5",
-  normal: "",
+  overdue_critical: "border-l-2 border-l-destructive/70",
+  overdue: "border-l-2 border-l-orange-500/70",
+  today: "border-l-2 border-l-warning/70",
+  normal: "border-l-2 border-l-transparent",
 };
 
 // ── Order mode classification ──────────────────────────────
