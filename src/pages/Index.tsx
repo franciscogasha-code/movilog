@@ -64,11 +64,19 @@ const PRIORITY_ROW_CLASS: Record<Priority, string> = {
 // ── Order mode classification ──────────────────────────────
 type OrderMode = "pickup" | "delivery" | "encomienda" | "reposicion";
 
-function classifyOrderMode(shippingMethod?: string, deliveryTarget?: string, requestType?: string): OrderMode {
+function classifyOrderMode(shippingMethod?: string, deliveryTarget?: string, _requestType?: string): OrderMode {
+  // PRIORIDAD 1: Si el destino es sucursal, NUNCA es delivery/pickup al cliente.
+  // Esto vale aunque shipping_method legacy diga "delivery" o "pickup".
+  if (deliveryTarget === "branch") {
+    if (shippingMethod === "courier") return "encomienda";
+    return "reposicion"; // own_fleet, delivery legacy, pickup legacy, o cualquier otro → transferencia interna
+  }
+  // PRIORIDAD 2: Destino cliente → respetar shipping_method real
   if (shippingMethod === "pickup") return "pickup";
-  if (shippingMethod === "delivery") return "delivery";
   if (shippingMethod === "courier") return "encomienda";
-  if (deliveryTarget === "client" || requestType === "client" || requestType === "online") return "delivery";
+  if (shippingMethod === "delivery") return "delivery";
+  // Destino cliente sin método claro → delivery por defecto
+  if (deliveryTarget === "client") return "delivery";
   return "reposicion";
 }
 
