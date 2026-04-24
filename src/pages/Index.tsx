@@ -1,9 +1,10 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   AlertTriangle, ClipboardList, PackageCheck,
   Loader2, Plus, Search, ArrowRight, Clock,
   MessageSquare, Package, Truck, ArrowUpFromLine, MapPin,
+  RefreshCw,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,9 +13,11 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { REQUEST_STATUS_CONFIG } from "@/lib/constants";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserBranchFilter } from "@/hooks/use-user-access";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useIsFetching, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
+
+const DASHBOARD_REFETCH_MS = 60_000;
 
 // ── Priority helpers ───────────────────────────────────────
 const SLA_HOURS = 24;
