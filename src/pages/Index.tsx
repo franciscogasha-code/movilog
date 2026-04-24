@@ -1,9 +1,10 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   AlertTriangle, ClipboardList, PackageCheck,
   Loader2, Plus, Search, ArrowRight, Clock,
   MessageSquare, Package, Truck, ArrowUpFromLine, MapPin,
+  RefreshCw,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,9 +13,11 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { REQUEST_STATUS_CONFIG } from "@/lib/constants";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserBranchFilter } from "@/hooks/use-user-access";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useIsFetching, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
+
+const DASHBOARD_REFETCH_MS = 60_000;
 
 // ── Priority helpers ───────────────────────────────────────
 const SLA_HOURS = 24;
@@ -217,14 +220,19 @@ export default function Index() {
   const { user, profile, hasRole, isOwner } = useAuth();
   const { isAllBranches, allowedBranchIds, defaultBranchId } = useUserBranchFilter();
   const navigate = useNavigate();
-  const isDriver = hasRole("driver") || hasRole("warehouse_operator");
-  const isLogisticsOp = hasRole("warehouse_operator");
-  const isAdmin = isAllBranches || isOwner || hasRole("admin") || hasRole("supervisor");
+  const queryClient = useQueryClient();
+
+  const isDriver = hasRole("driver");
+  const isLogisticsOp = hasRole("warehouse_operator") || hasRole("jefe_logistica");
+  // jefe_logistica tiene visión global a nivel RLS; lo tratamos como admin para que el dashboard no lo limite
+  const isAdmin = isAllBranches || isOwner || hasRole("admin") || hasRole("supervisor") || hasRole("jefe_logistica");
   const isViewer = hasRole("viewer") || hasRole("auditor");
 
   const [activeFilter, setActiveFilter] = useState<KpiFilter>("all");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [clientFilter, setClientFilter] = useState<ClientFilter>("all");
+  const [lastRefreshAt, setLastRefreshAt] = useState<Date>(new Date());
+  const [nowTick, setNowTick] = useState<number>(Date.now());
 
   const canAccessBranch = (branchId: string | null) => {
     if (!branchId) return false;
@@ -260,6 +268,8 @@ export default function Index() {
       const { data } = await query;
       return data || [];
     },
+    refetchInterval: DASHBOARD_REFETCH_MS,
+    refetchOnWindowFocus: true,
   });
 
   const { data: activeFulfillments, isLoading: loadingFulfillments } = useQuery({
@@ -291,6 +301,8 @@ export default function Index() {
       const { data } = await query;
       return data || [];
     },
+    refetchInterval: DASHBOARD_REFETCH_MS,
+    refetchOnWindowFocus: true,
   });
 
   const { data: activeConsultations, isLoading: loadingConsultations } = useQuery({
@@ -310,7 +322,30 @@ export default function Index() {
       const { data } = await query;
       return data || [];
     },
+    refetchInterval: DASHBOARD_REFETCH_MS,
+    refetchOnWindowFocus: true,
   });
+
+  // Indicador de "actualizado hace X" + reloj que tickea cada 15s
+  const isFetchingDashboard = useIsFetching({ predicate: (q) =>
+    Array.isArray(q.queryKey) && typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("dashboard-")
+  });
+  useEffect(() => {
+    if (isFetchingDashboard === 0) setLastRefreshAt(new Date());
+  }, [isFetchingDashboard]);
+  useEffect(() => {
+    const t = setInterval(() => setNowTick(Date.now()), 15_000);
+    return () => clearInterval(t);
+  }, []);
+  const refreshSecondsAgo = Math.max(0, Math.floor((nowTick - lastRefreshAt.getTime()) / 1000));
+  const refreshLabel = refreshSecondsAgo < 60
+    ? `hace ${refreshSecondsAgo}s`
+    : `hace ${Math.floor(refreshSecondsAgo / 60)}m`;
+  const handleManualRefresh = () => {
+    queryClient.invalidateQueries({ predicate: (q) =>
+      Array.isArray(q.queryKey) && typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("dashboard-")
+    });
+  };
 
 
   // ── Build unified queue ────────────────────────────────
@@ -491,17 +526,38 @@ export default function Index() {
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* Header + Quick Actions */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+        <div className="min-w-0">
           <h1 className="page-title">
             {isViewer ? "Panel de Seguimiento" : isLogisticsOp ? "Panel Logístico" : isDriver ? "Panel del Chofer" : "Mi Panel Operativo"}
           </h1>
           <p className="page-subtitle mt-0.5">
             {firstName(profile?.full_name)} — {new Date().toLocaleDateString("es-PY", { weekday: "long", day: "numeric", month: "long" })}
           </p>
+          <div className="flex items-center gap-2 mt-1.5 text-[11px] text-muted-foreground">
+            <span className="inline-flex items-center gap-1">
+              <span className={`h-1.5 w-1.5 rounded-full ${isFetchingDashboard > 0 ? "bg-primary animate-pulse" : "bg-success"}`} />
+              Actualizado {refreshLabel}
+            </span>
+            <button
+              type="button"
+              onClick={handleManualRefresh}
+              className="inline-flex items-center gap-1 hover:text-foreground transition-colors"
+              aria-label="Actualizar ahora"
+            >
+              <RefreshCw className={`h-3 w-3 ${isFetchingDashboard > 0 ? "animate-spin" : ""}`} />
+              Actualizar
+            </button>
+          </div>
         </div>
         {!isDriver && !isViewer && (
-          <div className="flex gap-2 w-full sm:w-auto">
+          <div className="flex gap-2 w-full sm:w-auto flex-wrap sm:flex-nowrap">
+            {isLogisticsOp && (
+              <Button size="sm" variant="secondary" onClick={() => navigate("/chofer")} className="flex-1 sm:flex-none">
+                <Truck className="h-4 w-4" />
+                <span className="hidden xs:inline">Ir a</span> Transporte
+              </Button>
+            )}
             <Button size="sm" onClick={() => navigate("/solicitudes?action=new")} className="flex-1 sm:flex-none">
               <Plus className="h-4 w-4" />
               <span className="hidden xs:inline">Nuevo</span> pedido
@@ -701,10 +757,11 @@ export default function Index() {
                           return (
                             <div
                               key={`${qi.itemType}-${qi.id}`}
-                              className={`flex flex-wrap md:flex-nowrap items-center gap-2 md:gap-3 py-2 px-3 rounded-lg cursor-pointer hover:bg-muted/40 active:bg-muted/60 transition-all duration-150 ${rowClass}`}
+                              className={`flex flex-col lg:flex-row lg:items-center gap-2 lg:gap-3 py-2 px-3 rounded-lg cursor-pointer hover:bg-muted/40 active:bg-muted/60 transition-all duration-150 ${rowClass}`}
                               onClick={handleAction}
                             >
-                              <div className="flex items-center gap-2 min-w-0 flex-1">
+                              {/* Línea 1: tipo + modo + #número + ruta */}
+                              <div className="flex items-center gap-2 min-w-0 flex-1 flex-wrap lg:flex-nowrap">
                                 {renderTypeBadge()}
                                 {renderModeBadge()}
                                 {qi.number && (
@@ -724,24 +781,27 @@ export default function Index() {
                                   ) : null;
                                 })()}
                               </div>
-                              <div className="flex items-center gap-2 shrink-0">
-                                {renderStatusBadge()}
-                                <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium shrink-0 ${badge.className}`}>
-                                  {badge.label}
-                                </span>
-                                <span className="text-[11px] text-muted-foreground shrink-0 hidden sm:inline">
-                                  {timeAgo(qi.createdAt)}
-                                </span>
+                              {/* Línea 2: estado + prioridad + tiempo + CTA */}
+                              <div className="flex items-center gap-2 lg:shrink-0 w-full lg:w-auto justify-between lg:justify-end">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  {renderStatusBadge()}
+                                  <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium shrink-0 ${badge.className}`}>
+                                    {badge.label}
+                                  </span>
+                                  <span className="text-[11px] text-muted-foreground shrink-0 hidden xs:inline">
+                                    {timeAgo(qi.createdAt)}
+                                  </span>
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 px-3 text-xs shrink-0"
+                                  onClick={(e) => { e.stopPropagation(); handleAction(); }}
+                                >
+                                  {actionLabel}
+                                  {actionIcon}
+                                </Button>
                               </div>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-7 px-3 text-xs shrink-0 ml-auto"
-                                onClick={(e) => { e.stopPropagation(); handleAction(); }}
-                              >
-                                {actionLabel}
-                                {actionIcon}
-                              </Button>
                             </div>
                           );
                         };
