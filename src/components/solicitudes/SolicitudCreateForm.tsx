@@ -300,18 +300,38 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
         const branchCode = branches?.find(b => b.id === item.sourceBranchId)?.code;
         if (branchCode) {
           const available = sbw[branchCode] ?? 0;
-          if (available < item.quantity) {
-            errors[item.product.id] = `Stock insuficiente en origen (disponible: ${Math.floor(available)}, solicitado: ${item.quantity})`;
-          }
-        }
-      } else if (!isMultiOrigin && sourceBranchId) {
-        const branchCode = branches?.find(b => b.id === sourceBranchId)?.code;
-        if (branchCode) {
+  // Stock validation errors (uses live stock if available, otherwise local)
+  // Si el item tiene splits VÁLIDOS, validamos cada tramo del split (no el sourceBranchId viejo).
+  const stockErrors = useMemo(() => {
+    const errors: Record<string, string> = {};
+    for (const item of items) {
+      const live = getEffectiveStock(item.product);
+      const sbw = live?.stock_by_warehouse ?? item.product.stock_by_warehouse;
+      if (!sbw) continue;
+
+      // Caso A: splits válidos → validar cada tramo
+      if (itemHasValidSplits(item)) {
+        for (const sp of item.splits!) {
+          const branchCode = branches?.find(b => b.id === sp.branchId)?.code;
+          if (!branchCode) continue;
           const available = sbw[branchCode] ?? 0;
-          if (available < item.quantity) {
-            errors[item.product.id] = `Stock insuficiente (disponible: ${Math.floor(available)}, solicitado: ${item.quantity})`;
+          if (available < sp.quantity) {
+            const bName = branches?.find(b => b.id === sp.branchId)?.name || branchCode;
+            errors[item.product.id] = `Stock insuficiente en ${bName} (disp: ${Math.floor(available)}, asignado: ${sp.quantity})`;
+            break;
           }
         }
+        continue;
+      }
+
+      // Caso B: sin splits → validar contra origen único (multi por item, o global mono)
+      const srcId = isMultiOrigin ? item.sourceBranchId : sourceBranchId;
+      if (!srcId) continue;
+      const branchCode = branches?.find(b => b.id === srcId)?.code;
+      if (!branchCode) continue;
+      const available = sbw[branchCode] ?? 0;
+      if (available < item.quantity) {
+        errors[item.product.id] = `Stock insuficiente en origen (disponible: ${Math.floor(available)}, solicitado: ${item.quantity})`;
       }
     }
     return errors;
@@ -319,22 +339,30 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
 
   const hasStockErrors = Object.keys(stockErrors).length > 0;
 
-  // Multi-origin summary
+  // Resumen de abastecimiento — lee splits reales y agrupa por sucursal con cantidades.
+  // Se calcula SIEMPRE (no solo en multi fijo), porque el modo efectivo depende del estado real.
   const originSummary = useMemo(() => {
-    if (!isMultiOrigin) return null;
-    const grouped: Record<string, { branchName: string; count: number; products: string[] }> = {};
-    items.forEach(item => {
-      const bid = item.sourceBranchId;
-      if (!bid) return;
+    const grouped: Record<string, { branchName: string; totalQty: number; products: { name: string; qty: number }[] }> = {};
+    const addEntry = (bid: string, productName: string, qty: number) => {
       if (!grouped[bid]) {
         const branch = branches?.find(b => b.id === bid);
-        grouped[bid] = { branchName: branch?.name || bid, count: 0, products: [] };
+        grouped[bid] = { branchName: branch?.name || bid, totalQty: 0, products: [] };
       }
-      grouped[bid].count++;
-      grouped[bid].products.push(item.product.name);
+      grouped[bid].totalQty += qty;
+      grouped[bid].products.push({ name: productName, qty });
+    };
+    items.forEach(item => {
+      if (itemHasValidSplits(item)) {
+        for (const sp of item.splits!) {
+          if (sp.branchId && sp.quantity > 0) addEntry(sp.branchId, item.product.name, sp.quantity);
+        }
+      } else {
+        const bid = item.sourceBranchId || sourceBranchId;
+        if (bid) addEntry(bid, item.product.name, item.quantity);
+      }
     });
     return grouped;
-  }, [items, isMultiOrigin, branches]);
+  }, [items, sourceBranchId, branches]);
 
   // Un item está "resuelto" si: tiene splits válidos, o sourceBranchId asignado, o estamos en mono y hay sourceBranchId global.
   const isItemResolved = (item: SelectedItem): boolean => {
