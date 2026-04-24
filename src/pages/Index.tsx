@@ -526,17 +526,38 @@ export default function Index() {
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* Header + Quick Actions */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+        <div className="min-w-0">
           <h1 className="page-title">
             {isViewer ? "Panel de Seguimiento" : isLogisticsOp ? "Panel Logístico" : isDriver ? "Panel del Chofer" : "Mi Panel Operativo"}
           </h1>
           <p className="page-subtitle mt-0.5">
             {firstName(profile?.full_name)} — {new Date().toLocaleDateString("es-PY", { weekday: "long", day: "numeric", month: "long" })}
           </p>
+          <div className="flex items-center gap-2 mt-1.5 text-[11px] text-muted-foreground">
+            <span className="inline-flex items-center gap-1">
+              <span className={`h-1.5 w-1.5 rounded-full ${isFetchingDashboard > 0 ? "bg-primary animate-pulse" : "bg-success"}`} />
+              Actualizado {refreshLabel}
+            </span>
+            <button
+              type="button"
+              onClick={handleManualRefresh}
+              className="inline-flex items-center gap-1 hover:text-foreground transition-colors"
+              aria-label="Actualizar ahora"
+            >
+              <RefreshCw className={`h-3 w-3 ${isFetchingDashboard > 0 ? "animate-spin" : ""}`} />
+              Actualizar
+            </button>
+          </div>
         </div>
         {!isDriver && !isViewer && (
-          <div className="flex gap-2 w-full sm:w-auto">
+          <div className="flex gap-2 w-full sm:w-auto flex-wrap sm:flex-nowrap">
+            {isLogisticsOp && (
+              <Button size="sm" variant="secondary" onClick={() => navigate("/chofer")} className="flex-1 sm:flex-none">
+                <Truck className="h-4 w-4" />
+                <span className="hidden xs:inline">Ir a</span> Transporte
+              </Button>
+            )}
             <Button size="sm" onClick={() => navigate("/solicitudes?action=new")} className="flex-1 sm:flex-none">
               <Plus className="h-4 w-4" />
               <span className="hidden xs:inline">Nuevo</span> pedido
