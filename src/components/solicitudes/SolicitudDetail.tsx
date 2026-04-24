@@ -550,18 +550,20 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
         </Card>
       )}
 
-      {/* Route info */}
+      {/* Route info — Solicitante (necesita stock) → Abastecedora (provee stock) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
         <Card>
           <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground mb-1">Sucursal origen (abastecedora)</p>
-            <p className="font-semibold">{r.source_branch?.name}</p>
+            <p className="text-xs text-muted-foreground mb-1">Sucursal solicitante</p>
+            <p className="font-semibold">{r.requesting_branch?.name}</p>
+            <p className="text-[11px] text-muted-foreground mt-1">Quien necesita el stock</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground mb-1">Sucursal solicitante (destino)</p>
-            <p className="font-semibold">{r.requesting_branch?.name}</p>
+            <p className="text-xs text-muted-foreground mb-1">Sucursal abastecedora</p>
+            <p className="font-semibold">{r.source_branch?.name}</p>
+            <p className="text-[11px] text-muted-foreground mt-1">Quien provee el stock</p>
           </CardContent>
         </Card>
       </div>
