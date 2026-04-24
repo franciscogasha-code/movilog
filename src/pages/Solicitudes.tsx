@@ -846,6 +846,20 @@ export default function Solicitudes() {
                                     <TooltipContent>Pedido padre multi-origen (contenedor)</TooltipContent>
                                   </Tooltip>
                                 )}
+                                {!isParent && r.parent?.request_number && (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Badge
+                                        variant="outline"
+                                        className="text-[10px] border-accent/50 text-accent gap-1 cursor-pointer hover:bg-accent/10"
+                                        onClick={(e) => { e.stopPropagation(); setSelectedId(r.parent.id); }}
+                                      >
+                                        <Layers className="h-3 w-3" /> Parte de #{r.parent.request_number}
+                                      </Badge>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Pertenece a un pedido padre multi-origen. Click para abrir el padre.</TooltipContent>
+                                  </Tooltip>
+                                )}
                               </div>
                             </td>
                             <td className="px-3 py-2.5">
