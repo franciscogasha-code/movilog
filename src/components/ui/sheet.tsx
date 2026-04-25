@@ -4,8 +4,41 @@ import { X } from "lucide-react";
 import * as React from "react";
 
 import { cn } from "@/lib/utils";
+import { useBackToClose } from "@/hooks/use-back-to-close";
 
-const Sheet = SheetPrimitive.Root;
+/**
+ * Wrapper de Sheet.Root que integra el back nativo del navegador/Android
+ * para cerrar drawers laterales/inferiores sin abandonar la pantalla.
+ */
+const Sheet = ({
+  open,
+  defaultOpen,
+  onOpenChange,
+  ...props
+}: React.ComponentProps<typeof SheetPrimitive.Root>) => {
+  const isControlled = open !== undefined;
+  const [internalOpen, setInternalOpen] = React.useState(!!defaultOpen);
+  const currentOpen = isControlled ? !!open : internalOpen;
+
+  const handleOpenChange = React.useCallback(
+    (next: boolean) => {
+      if (!isControlled) setInternalOpen(next);
+      onOpenChange?.(next);
+    },
+    [isControlled, onOpenChange],
+  );
+
+  useBackToClose(currentOpen, () => handleOpenChange(false));
+
+  return (
+    <SheetPrimitive.Root
+      {...props}
+      open={isControlled ? open : internalOpen}
+      defaultOpen={isControlled ? undefined : defaultOpen}
+      onOpenChange={handleOpenChange}
+    />
+  );
+};
 
 const SheetTrigger = SheetPrimitive.Trigger;
 
