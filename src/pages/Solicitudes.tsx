@@ -581,20 +581,70 @@ export default function Solicitudes() {
   // (isAllBranches + "Todas"), el conteo será 0 y el listado vacío con hint claro.
   const showMineOtros = true;
 
-  // Empty state contextual
+  // ── Filtros activos (observabilidad UX) ──────────────────────────
+  // Considera "filtros activos" a cualquier desviación del estado por defecto
+  // que pudiera estar ocultando pedidos al usuario.
+  const activeFilterChips = useMemo(() => {
+    const chips: { key: string; label: string; clear: () => void }[] = [];
+    if (statusFilter !== "all") {
+      chips.push({
+        key: "status",
+        label: `Estado: ${REQUEST_STATUS_CONFIG[statusFilter as any]?.label ?? statusFilter}`,
+        clear: () => setStatusFilter("all"),
+      });
+    }
+    if (branchFilter !== defaultBranch) {
+      const b = branches.find((x: any) => x.id === branchFilter);
+      const label = branchFilter === "all" ? "Todas las sucursales" : (b?.name ?? "Sucursal");
+      chips.push({ key: "branch", label: `Sucursal: ${label}`, clear: () => setBranchFilter(defaultBranch) });
+    }
+    if (debouncedSearch) {
+      chips.push({ key: "search", label: `Búsqueda: "${debouncedSearch}"`, clear: () => setSearch("") });
+    }
+    return chips;
+  }, [statusFilter, branchFilter, defaultBranch, branches, debouncedSearch]);
+
+  const hasActiveFilters = activeFilterChips.length > 0;
+
+  const clearAllFilters = useCallback(() => {
+    setStatusFilter("all");
+    setBranchFilter(defaultBranch);
+    setSearch("");
+    setPage(1);
+  }, [defaultBranch, setPage]);
+
+  // Empty state contextual e inteligente: distingue
+  //  - sin pedidos en absoluto (tab vacía sin filtros)
+  //  - filtros ocultando resultados (hay datos en la tab pero el filtro los esconde)
+  //  - búsqueda sin resultados
+  const totalInTabBeforeFilters = useMemo(() => {
+    if (!tabCounts) return null;
+    return (tabCounts as any)[tab] ?? 0;
+  }, [tabCounts, tab]);
+
   const emptyMessage = useMemo(() => {
-    if (debouncedSearch) return { title: "Sin resultados", hint: "Probá otra búsqueda o limpiá el filtro." };
+    // Si hay filtros y el tab tiene pedidos en bruto, son los filtros los que ocultan.
+    if (hasActiveFilters && (totalInTabBeforeFilters ?? 0) > 0) {
+      return {
+        title: "Hay pedidos en esta bandeja, pero los filtros los están ocultando.",
+        hint: "Limpiá los filtros para ver todos los pedidos disponibles.",
+        kind: "filtered" as const,
+      };
+    }
+    if (debouncedSearch) {
+      return { title: "Sin resultados", hint: "Probá otra búsqueda o limpiá el filtro.", kind: "search" as const };
+    }
     switch (tab) {
       case "activos":
-        return { title: "No tenés pedidos activos.", hint: "Cuando haya pedidos en curso, van a aparecer acá." };
+        return { title: "No tenés pedidos activos.", hint: "Cuando haya pedidos en curso, van a aparecer acá.", kind: "empty" as const };
       case "mios":
-        return { title: "No tenés pedidos creados desde tu sucursal.", hint: "Creá un pedido nuevo para empezar." };
+        return { title: "No tenés pedidos creados desde tu sucursal.", hint: "Creá un pedido nuevo para empezar.", kind: "empty" as const };
       case "otros":
-        return { title: "No tenés pedidos entrantes desde otras sucursales.", hint: "Acá vas a ver pedidos donde tu sucursal es origen." };
+        return { title: "No tenés pedidos entrantes desde otras sucursales.", hint: "Acá vas a ver pedidos donde tu sucursal es origen.", kind: "empty" as const };
       case "cerrados":
-        return { title: "Sin pedidos cerrados.", hint: "Los pedidos finalizados van a aparecer en este historial." };
+        return { title: "Sin pedidos cerrados.", hint: "Los pedidos finalizados van a aparecer en este historial.", kind: "empty" as const };
     }
-  }, [tab, debouncedSearch]);
+  }, [tab, debouncedSearch, hasActiveFilters, totalInTabBeforeFilters]);
 
   // El filtro de sucursal es una herramienta operativa de segmentación, NO un control de permisos.
   // Debe listar todas las sucursales activas para cualquier rol (incluido operador), permitiendo
