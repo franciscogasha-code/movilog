@@ -3,8 +3,43 @@ import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { useBackToClose } from "@/hooks/use-back-to-close";
 
-const Dialog = DialogPrimitive.Root;
+/**
+ * Wrapper de Dialog.Root que integra el back nativo del navegador/Android
+ * para cerrar el modal sin abandonar la pantalla actual.
+ * Funciona tanto en modo controlado (open + onOpenChange) como no controlado
+ * (defaultOpen). En no controlado, sincroniza un estado interno espejo.
+ */
+const Dialog = ({
+  open,
+  defaultOpen,
+  onOpenChange,
+  ...props
+}: React.ComponentProps<typeof DialogPrimitive.Root>) => {
+  const isControlled = open !== undefined;
+  const [internalOpen, setInternalOpen] = React.useState(!!defaultOpen);
+  const currentOpen = isControlled ? !!open : internalOpen;
+
+  const handleOpenChange = React.useCallback(
+    (next: boolean) => {
+      if (!isControlled) setInternalOpen(next);
+      onOpenChange?.(next);
+    },
+    [isControlled, onOpenChange],
+  );
+
+  useBackToClose(currentOpen, () => handleOpenChange(false));
+
+  return (
+    <DialogPrimitive.Root
+      {...props}
+      open={isControlled ? open : internalOpen}
+      defaultOpen={isControlled ? undefined : defaultOpen}
+      onOpenChange={handleOpenChange}
+    />
+  );
+};
 
 const DialogTrigger = DialogPrimitive.Trigger;
 
