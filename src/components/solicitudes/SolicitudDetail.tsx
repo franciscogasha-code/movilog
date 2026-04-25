@@ -660,33 +660,59 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
         <h4 className="font-display font-semibold mb-3">Ítems ({items?.length || 0})</h4>
         <div className="space-y-2">
           {items?.map((item: any) => (
-            <div key={item.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 border border-border/30 text-sm">
-              <Package className="h-4 w-4 text-muted-foreground shrink-0" />
-              <div className="flex-1">
-                <p className="font-medium">{item.product?.name}</p>
-                <p className="text-xs text-muted-foreground">{item.product?.sku || item.product?.bims_code}</p>
+            <div key={item.id} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 p-3 rounded-lg bg-muted/30 border border-border/30 text-sm">
+              {/* Encabezado del item: icono + nombre/código + cantidad destacada */}
+              <div className="flex items-start gap-2 sm:gap-3 sm:flex-1 min-w-0">
+                <Package className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium break-words">{item.product?.name}</p>
+                  <p className="text-xs text-muted-foreground break-all">{item.product?.sku || item.product?.bims_code}</p>
+                </div>
+                {/* Cantidad solicitada SIEMPRE visible (junto al nombre en mobile) */}
+                <div className="text-right shrink-0 sm:hidden">
+                  <span className="font-mono font-bold text-base text-foreground">{item.quantity_requested}</span>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide">solicitado</p>
+                </div>
               </div>
-              <Badge variant="outline" className="text-xs">
-                {ITEM_PURPOSE_LABELS[item.item_purpose] || item.item_purpose}
-              </Badge>
-              <div className="text-right min-w-[120px]">
-                <span className="font-mono font-semibold">{item.quantity_requested}</span>
-                {item.quantity_shipped != null && item.quantity_shipped > 0 && item.quantity_shipped !== item.quantity_requested && (
-                  <span className="text-xs ml-1 text-destructive font-semibold">
-                    / {item.quantity_shipped} enviados
-                  </span>
-                )}
-                {item.quantity_accepted != null && item.quantity_accepted > 0 && (
-                  <span className={`text-xs ml-1 ${item.quantity_accepted !== item.quantity_requested ? "text-destructive font-semibold" : "text-muted-foreground"}`}>
-                    / {item.quantity_accepted} aceptados
-                  </span>
-                )}
-              </div>
-              {item.rejection_reason_type && (
-                <Badge variant="destructive" className="text-xs">
-                  {REJECTION_REASONS[item.rejection_reason_type] || item.rejection_reason_type}
+
+              {/* Metadatos: badges + cantidades enviadas/aceptadas */}
+              <div className="flex flex-wrap items-center gap-2 sm:justify-end sm:shrink-0 pl-6 sm:pl-0">
+                <Badge variant="outline" className="text-xs">
+                  {ITEM_PURPOSE_LABELS[item.item_purpose] || item.item_purpose}
                 </Badge>
-              )}
+                {item.rejection_reason_type && (
+                  <Badge variant="destructive" className="text-xs">
+                    {REJECTION_REASONS[item.rejection_reason_type] || item.rejection_reason_type}
+                  </Badge>
+                )}
+                {/* Cantidad solicitada en sm+ (oculta en mobile porque ya se mostró arriba) */}
+                <div className="hidden sm:block text-right sm:min-w-[120px]">
+                  <span className="font-mono font-semibold">{item.quantity_requested}</span>
+                  {item.quantity_shipped != null && item.quantity_shipped > 0 && item.quantity_shipped !== item.quantity_requested && (
+                    <span className="text-xs ml-1 text-destructive font-semibold">
+                      / {item.quantity_shipped} enviados
+                    </span>
+                  )}
+                  {item.quantity_accepted != null && item.quantity_accepted > 0 && (
+                    <span className={`text-xs ml-1 ${item.quantity_accepted !== item.quantity_requested ? "text-destructive font-semibold" : "text-muted-foreground"}`}>
+                      / {item.quantity_accepted} aceptados
+                    </span>
+                  )}
+                </div>
+                {/* En mobile, mostrar enviados/aceptados como chips si difieren */}
+                <div className="sm:hidden flex flex-wrap gap-1.5 text-[11px]">
+                  {item.quantity_shipped != null && item.quantity_shipped > 0 && item.quantity_shipped !== item.quantity_requested && (
+                    <span className="font-mono px-1.5 py-0.5 rounded bg-destructive/10 text-destructive font-semibold">
+                      {item.quantity_shipped} enviados
+                    </span>
+                  )}
+                  {item.quantity_accepted != null && item.quantity_accepted > 0 && (
+                    <span className={`font-mono px-1.5 py-0.5 rounded ${item.quantity_accepted !== item.quantity_requested ? "bg-destructive/10 text-destructive font-semibold" : "bg-muted text-muted-foreground"}`}>
+                      {item.quantity_accepted} aceptados
+                    </span>
+                  )}
+                </div>
+              </div>
             </div>
           ))}
         </div>
