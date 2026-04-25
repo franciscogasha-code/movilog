@@ -11,7 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Plus, Search, Building2, ArrowRightLeft, FileSpreadsheet, Layers, ArrowDownLeft, ArrowUpRight, Repeat } from "lucide-react";
+import { Plus, Search, Building2, ArrowRightLeft, FileSpreadsheet, Layers, ArrowDownLeft, ArrowUpRight, Repeat, Filter, X, AlertTriangle } from "lucide-react";
+import { useSolicitudesIntegrityCheck } from "@/hooks/use-solicitudes-integrity";
 import { REQUEST_STATUS_CONFIG, SHIPPING_METHOD_LABELS, DELIVERY_TARGET_LABELS, REQUEST_TYPE_LABELS } from "@/lib/constants";
 import {
   ACTIVE_REQUEST_STATUSES as ACTIVE_STATUSES,
@@ -139,6 +140,9 @@ export default function Solicitudes() {
   const { data: branches = [] } = useBranches();
   const { data: parentIdsList = [] } = useParentRequestIds();
   const parentIdsSet = useMemo(() => new Set(parentIdsList), [parentIdsList]);
+
+  // Observabilidad preventiva (no afecta UI/queries operativas; warnings en consola).
+  useSolicitudesIntegrityCheck({ allowedBranchIds, isAllBranches });
 
   // Default tab por rol
   const defaultTab: TabKey = "activos";
@@ -577,20 +581,70 @@ export default function Solicitudes() {
   // (isAllBranches + "Todas"), el conteo será 0 y el listado vacío con hint claro.
   const showMineOtros = true;
 
-  // Empty state contextual
+  // ── Filtros activos (observabilidad UX) ──────────────────────────
+  // Considera "filtros activos" a cualquier desviación del estado por defecto
+  // que pudiera estar ocultando pedidos al usuario.
+  const activeFilterChips = useMemo(() => {
+    const chips: { key: string; label: string; clear: () => void }[] = [];
+    if (statusFilter !== "all") {
+      chips.push({
+        key: "status",
+        label: `Estado: ${REQUEST_STATUS_CONFIG[statusFilter as any]?.label ?? statusFilter}`,
+        clear: () => setStatusFilter("all"),
+      });
+    }
+    if (branchFilter !== defaultBranch) {
+      const b = branches.find((x: any) => x.id === branchFilter);
+      const label = branchFilter === "all" ? "Todas las sucursales" : (b?.name ?? "Sucursal");
+      chips.push({ key: "branch", label: `Sucursal: ${label}`, clear: () => setBranchFilter(defaultBranch) });
+    }
+    if (debouncedSearch) {
+      chips.push({ key: "search", label: `Búsqueda: "${debouncedSearch}"`, clear: () => setSearch("") });
+    }
+    return chips;
+  }, [statusFilter, branchFilter, defaultBranch, branches, debouncedSearch]);
+
+  const hasActiveFilters = activeFilterChips.length > 0;
+
+  const clearAllFilters = useCallback(() => {
+    setStatusFilter("all");
+    setBranchFilter(defaultBranch);
+    setSearch("");
+    setPage(1);
+  }, [defaultBranch, setPage]);
+
+  // Empty state contextual e inteligente: distingue
+  //  - sin pedidos en absoluto (tab vacía sin filtros)
+  //  - filtros ocultando resultados (hay datos en la tab pero el filtro los esconde)
+  //  - búsqueda sin resultados
+  const totalInTabBeforeFilters = useMemo(() => {
+    if (!tabCounts) return null;
+    return (tabCounts as any)[tab] ?? 0;
+  }, [tabCounts, tab]);
+
   const emptyMessage = useMemo(() => {
-    if (debouncedSearch) return { title: "Sin resultados", hint: "Probá otra búsqueda o limpiá el filtro." };
+    // Si hay filtros y el tab tiene pedidos en bruto, son los filtros los que ocultan.
+    if (hasActiveFilters && (totalInTabBeforeFilters ?? 0) > 0) {
+      return {
+        title: "Hay pedidos en esta bandeja, pero los filtros los están ocultando.",
+        hint: "Limpiá los filtros para ver todos los pedidos disponibles.",
+        kind: "filtered" as const,
+      };
+    }
+    if (debouncedSearch) {
+      return { title: "Sin resultados", hint: "Probá otra búsqueda o limpiá el filtro.", kind: "search" as const };
+    }
     switch (tab) {
       case "activos":
-        return { title: "No tenés pedidos activos.", hint: "Cuando haya pedidos en curso, van a aparecer acá." };
+        return { title: "No tenés pedidos activos.", hint: "Cuando haya pedidos en curso, van a aparecer acá.", kind: "empty" as const };
       case "mios":
-        return { title: "No tenés pedidos creados desde tu sucursal.", hint: "Creá un pedido nuevo para empezar." };
+        return { title: "No tenés pedidos creados desde tu sucursal.", hint: "Creá un pedido nuevo para empezar.", kind: "empty" as const };
       case "otros":
-        return { title: "No tenés pedidos entrantes desde otras sucursales.", hint: "Acá vas a ver pedidos donde tu sucursal es origen." };
+        return { title: "No tenés pedidos entrantes desde otras sucursales.", hint: "Acá vas a ver pedidos donde tu sucursal es origen.", kind: "empty" as const };
       case "cerrados":
-        return { title: "Sin pedidos cerrados.", hint: "Los pedidos finalizados van a aparecer en este historial." };
+        return { title: "Sin pedidos cerrados.", hint: "Los pedidos finalizados van a aparecer en este historial.", kind: "empty" as const };
     }
-  }, [tab, debouncedSearch]);
+  }, [tab, debouncedSearch, hasActiveFilters, totalInTabBeforeFilters]);
 
   // El filtro de sucursal es una herramienta operativa de segmentación, NO un control de permisos.
   // Debe listar todas las sucursales activas para cualquier rol (incluido operador), permitiendo
@@ -689,7 +743,40 @@ export default function Solicitudes() {
           </Select>
         </div>
 
-        {/* Tabs operativos */}
+        {/* Aviso de filtros activos (observabilidad UX preventiva) */}
+        {hasActiveFilters && (
+          <div className="flex flex-wrap items-center gap-2 rounded-md border border-warning/30 bg-warning/5 px-3 py-2 text-xs">
+            <Filter className="h-3.5 w-3.5 text-warning shrink-0" />
+            <span className="font-medium text-warning">Hay filtros activos</span>
+            <div className="flex flex-wrap gap-1.5">
+              {activeFilterChips.map((c) => (
+                <Badge
+                  key={c.key}
+                  variant="outline"
+                  className="text-[10px] gap-1 border-warning/40 text-foreground/80"
+                >
+                  {c.label}
+                  <button
+                    type="button"
+                    onClick={c.clear}
+                    aria-label={`Quitar filtro ${c.label}`}
+                    className="ml-0.5 rounded hover:bg-warning/20 p-0.5"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </Badge>
+              ))}
+            </div>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-6 px-2 text-xs ml-auto"
+              onClick={clearAllFilters}
+            >
+              Limpiar filtros
+            </Button>
+          </div>
+        )}
         <div className="flex gap-1 overflow-x-auto -mx-1 px-1 pb-1">
           {(showMineOtros
             ? (["activos", "mios", "otros", "cerrados"] as TabKey[])
@@ -732,9 +819,23 @@ export default function Solicitudes() {
             ) : !requests?.length ? (
               <div className="p-8">
                 <div className="empty-state">
-                  <ArrowRightLeft className="h-8 w-8 mb-2 opacity-50" />
+                  {emptyMessage.kind === "filtered" ? (
+                    <AlertTriangle className="h-8 w-8 mb-2 text-warning" />
+                  ) : (
+                    <ArrowRightLeft className="h-8 w-8 mb-2 opacity-50" />
+                  )}
                   <p className="font-medium">{emptyMessage.title}</p>
                   <p className="text-xs text-muted-foreground mt-1">{emptyMessage.hint}</p>
+                  {emptyMessage.kind === "filtered" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="mt-3"
+                      onClick={clearAllFilters}
+                    >
+                      <X className="h-3.5 w-3.5 mr-1" /> Limpiar filtros
+                    </Button>
+                  )}
                 </div>
               </div>
             ) : (
