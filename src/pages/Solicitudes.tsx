@@ -819,9 +819,23 @@ export default function Solicitudes() {
             ) : !requests?.length ? (
               <div className="p-8">
                 <div className="empty-state">
-                  <ArrowRightLeft className="h-8 w-8 mb-2 opacity-50" />
+                  {emptyMessage.kind === "filtered" ? (
+                    <AlertTriangle className="h-8 w-8 mb-2 text-warning" />
+                  ) : (
+                    <ArrowRightLeft className="h-8 w-8 mb-2 opacity-50" />
+                  )}
                   <p className="font-medium">{emptyMessage.title}</p>
                   <p className="text-xs text-muted-foreground mt-1">{emptyMessage.hint}</p>
+                  {emptyMessage.kind === "filtered" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="mt-3"
+                      onClick={clearAllFilters}
+                    >
+                      <X className="h-3.5 w-3.5 mr-1" /> Limpiar filtros
+                    </Button>
+                  )}
                 </div>
               </div>
             ) : (
