@@ -777,7 +777,11 @@ export default function Solicitudes() {
             </Button>
           </div>
         )}
-        <div className="flex gap-1 overflow-x-auto -mx-1 px-1 pb-1">
+        <div
+          className="flex gap-1.5 overflow-x-auto scrollbar-hide -mx-3 sm:-mx-1 px-3 sm:px-1 pb-1"
+          role="tablist"
+          aria-label="Bandejas de pedidos"
+        >
           {(showMineOtros
             ? (["activos", "mios", "otros", "cerrados"] as TabKey[])
             : (["activos", "cerrados"] as TabKey[])
@@ -787,9 +791,17 @@ export default function Solicitudes() {
             return (
               <button
                 key={k}
+                role="tab"
+                aria-selected={active}
+                ref={(el) => {
+                  // Asegura que la tab activa quede visible al cargar (scroll horizontal)
+                  if (active && el) {
+                    el.scrollIntoView({ block: "nearest", inline: "center", behavior: "auto" });
+                  }
+                }}
                 onClick={() => { setTab(k); setStatusFilter("all"); setPage(1); }}
                 className={cn(
-                  "shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors border",
+                  "shrink-0 inline-flex items-center gap-1.5 px-3.5 py-2.5 sm:py-1.5 rounded-md text-sm font-medium transition-colors border whitespace-nowrap min-h-[44px] sm:min-h-0",
                   active
                     ? "bg-primary text-primary-foreground border-primary"
                     : "bg-background text-foreground/80 border-border hover:bg-muted",
