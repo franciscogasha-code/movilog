@@ -743,7 +743,40 @@ export default function Solicitudes() {
           </Select>
         </div>
 
-        {/* Tabs operativos */}
+        {/* Aviso de filtros activos (observabilidad UX preventiva) */}
+        {hasActiveFilters && (
+          <div className="flex flex-wrap items-center gap-2 rounded-md border border-warning/30 bg-warning/5 px-3 py-2 text-xs">
+            <Filter className="h-3.5 w-3.5 text-warning shrink-0" />
+            <span className="font-medium text-warning">Hay filtros activos</span>
+            <div className="flex flex-wrap gap-1.5">
+              {activeFilterChips.map((c) => (
+                <Badge
+                  key={c.key}
+                  variant="outline"
+                  className="text-[10px] gap-1 border-warning/40 text-foreground/80"
+                >
+                  {c.label}
+                  <button
+                    type="button"
+                    onClick={c.clear}
+                    aria-label={`Quitar filtro ${c.label}`}
+                    className="ml-0.5 rounded hover:bg-warning/20 p-0.5"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </Badge>
+              ))}
+            </div>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-6 px-2 text-xs ml-auto"
+              onClick={clearAllFilters}
+            >
+              Limpiar filtros
+            </Button>
+          </div>
+        )}
         <div className="flex gap-1 overflow-x-auto -mx-1 px-1 pb-1">
           {(showMineOtros
             ? (["activos", "mios", "otros", "cerrados"] as TabKey[])
