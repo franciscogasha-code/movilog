@@ -473,7 +473,7 @@ export default function Index() {
       return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
     });
     return items;
-  }, [pendingRequests, activeConsultations, activeFulfillments, defaultBranchId, user?.id, isAdmin, isAllBranches, allowedBranchIds, isLogisticsOp]);
+  }, [pendingRequests, activeConsultations, activeFulfillments, defaultBranchId, user?.id, isAdmin, isAllBranches, allowedBranchIds, isLogisticsOp, parentIdsSet]);
 
   // ── Counts ─────────────────────────────────────────────
   const isOverdue = (p: Priority) => p === "overdue" || p === "overdue_critical";
