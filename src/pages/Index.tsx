@@ -270,7 +270,7 @@ export default function Index() {
           requesting_branch:branches!branch_requests_requesting_branch_id_fkey(name),
           source_branch:branches!branch_requests_source_branch_id_fkey(name)
         `)
-        .in("status", ["pending", "accepted", "picking", "in_preparation", "ready_for_pickup", "ready_for_delivery"] as any)
+        .in("status", DASHBOARD_PENDING_REQUEST_STATUSES as any)
         .order("created_at", { ascending: false })
         .limit(50);
 
@@ -303,7 +303,7 @@ export default function Index() {
           source_branch:branches!fulfillment_orders_source_branch_id_fkey(name),
           destination_branch:branches!fulfillment_orders_destination_branch_id_fkey(name)
         `)
-        .not("status", "in", '("completed","cancelled","received","logistic_closed")');
+        .not("status", "in", `(${FULFILLMENT_TERMINAL_STATUSES.map((s) => `"${s}"`).join(",")})`);
 
       if (!isAllBranches && allowedBranchIds.length > 0) {
         const branchFilter = `source_branch_id.in.(${allowedBranchIds.join(",")}),destination_branch_id.in.(${allowedBranchIds.join(",")})`;
@@ -370,6 +370,9 @@ export default function Index() {
     const items: QueueItem[] = [];
 
     pendingRequests?.forEach((r: any) => {
+      // FIX ESTRUCTURAL: detección de pedido padre por FK (parentIdsSet) en lugar de
+      // substring en `notes`. Mantiene compatibilidad legacy como fallback defensivo.
+      if (parentIdsSet.has(r.id)) return;
       if (r.notes && r.notes.includes("[Pedido padre multi-origen]")) return;
       const routeLabel = buildRouteLabel(
         r.source_branch?.name ?? "?", r.requesting_branch?.name ?? "?",
