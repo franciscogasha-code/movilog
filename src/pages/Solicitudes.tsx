@@ -331,10 +331,10 @@ export default function Solicitudes() {
       }
 
       // ─── MODO NORMAL (sin búsqueda numérica) ─────────────────────
-      // Ocultar padres y registros legacy 1-hijo de bandejas operativas.
-      // Los padres son contenedores de trazabilidad (accesibles por deep-link
-      // o búsqueda numérica), no tareas. Los hijos siguen siendo plenamente visibles.
-      query = query.not("notes", "ilike", "%[Pedido padre multi-origen]%");
+      // Ocultar padres multi-origen (contenedores de trazabilidad) de las bandejas operativas.
+      // IMPORTANTE: usamos OR con `notes.is.null` porque en SQL `NULL NOT ILIKE '...'` evalúa a NULL,
+      // lo que excluiría incorrectamente todos los pedidos sin notas (regresión #306/#307).
+      query = query.or("notes.is.null,notes.not.ilike.%[Pedido padre multi-origen]%");
 
       // Tab: estados
       if (tab === "activos" || tab === "mios" || tab === "otros") {
