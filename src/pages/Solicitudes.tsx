@@ -734,7 +734,7 @@ export default function Solicitudes() {
             ) : (
               <>
                 {/* MOBILE */}
-                <div className="md:hidden divide-y divide-border/50">
+                <div className="lg:hidden divide-y divide-border/50">
                   {requests.map((r: any) => {
                     const dir = getDirectionChip(r);
                     const isParent = isParentMultiOrigin(r);
@@ -804,7 +804,7 @@ export default function Solicitudes() {
                 </div>
 
                 {/* DESKTOP */}
-                <div className="hidden md:block overflow-x-auto">
+                <div className="hidden lg:block overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-border bg-muted/30">

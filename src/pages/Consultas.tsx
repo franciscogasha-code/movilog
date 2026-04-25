@@ -279,7 +279,7 @@ export default function Consultas() {
           ) : (
             <TooltipProvider>
               {/* MOBILE: cards verticales */}
-              <div className="md:hidden divide-y divide-border/50">
+              <div className="lg:hidden divide-y divide-border/50">
                 {consultations.map((c: any) => {
                   const prods = c.consultation_products?.filter((p: any) => p?.name) ?? [];
                   const firstProd = prods[0]?.name;
@@ -325,7 +325,7 @@ export default function Consultas() {
               </div>
 
               {/* DESKTOP: tabla */}
-              <div className="hidden md:block overflow-x-auto">
+              <div className="hidden lg:block overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-border bg-muted/30">
