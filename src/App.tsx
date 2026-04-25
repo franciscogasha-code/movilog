@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { AppLayout } from "@/components/AppLayout";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Login from "./pages/Login";
 import CambiarContrasena from "./pages/CambiarContrasena";
 import Index from "./pages/Index";
@@ -130,13 +131,22 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <AuthProvider>
-          <Routes>
-            <Route path="/login" element={<LoginRoute />} />
-            <Route path="/cambiar-contrasena" element={<ChangePasswordRoute />} />
-            <Route path="/*" element={<ProtectedRoutes />} />
-          </Routes>
-        </AuthProvider>
+        <ErrorBoundary>
+          <AuthProvider>
+            <Routes>
+              <Route path="/login" element={<LoginRoute />} />
+              <Route path="/cambiar-contrasena" element={<ChangePasswordRoute />} />
+              <Route
+                path="/*"
+                element={
+                  <ErrorBoundary>
+                    <ProtectedRoutes />
+                  </ErrorBoundary>
+                }
+              />
+            </Routes>
+          </AuthProvider>
+        </ErrorBoundary>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
