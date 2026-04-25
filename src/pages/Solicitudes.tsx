@@ -137,6 +137,8 @@ export default function Solicitudes() {
   const isViewer = hasRole("viewer") || hasRole("auditor");
   const { isAllBranches, allowedBranchIds } = useUserBranchFilter();
   const { data: branches = [] } = useBranches();
+  const { data: parentIdsList = [] } = useParentRequestIds();
+  const parentIdsSet = useMemo(() => new Set(parentIdsList), [parentIdsList]);
 
   // Default tab por rol
   const defaultTab: TabKey = "activos";
