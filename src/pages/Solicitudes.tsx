@@ -388,7 +388,7 @@ export default function Solicitudes() {
   });
 
   // Conteos de tabs (queries livianas paralelas, head:true)
-  const countsKey = ["branch-requests-counts", isAllBranches, branchFilter, allowedBranchIds.join(",")];
+  const countsKey = ["branch-requests-counts", isAllBranches, branchFilter, allowedBranchIds.join(","), parentIdsList.length];
   const { data: tabCounts } = useQuery({
     queryKey: countsKey,
     staleTime: 30_000,
@@ -402,11 +402,16 @@ export default function Solicitudes() {
       const anchor: string[] | null =
         isAllBranches && specificBranch ? [specificBranch] : myIds;
 
-      const buildBase = () =>
-        supabase
+      // Excluye padres multi-origen vía FK (parent_request_id de los hijos).
+      const buildBase = () => {
+        let q = supabase
           .from("branch_requests")
-          .select("id", { count: "exact", head: true })
-          .or("notes.is.null,notes.not.ilike.%[Pedido padre multi-origen]%");
+          .select("id", { count: "exact", head: true });
+        if (parentIdsList.length > 0) {
+          q = q.not("id", "in", `(${parentIdsList.join(",")})`);
+        }
+        return q;
+      };
 
       const applyAny = (q: any) => {
         if (!ids || ids.length === 0) return q;
