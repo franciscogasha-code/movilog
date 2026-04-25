@@ -13,6 +13,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Plus, Search, Building2, ArrowRightLeft, FileSpreadsheet, Layers, ArrowDownLeft, ArrowUpRight, Repeat } from "lucide-react";
 import { REQUEST_STATUS_CONFIG, SHIPPING_METHOD_LABELS, DELIVERY_TARGET_LABELS, REQUEST_TYPE_LABELS } from "@/lib/constants";
+import {
+  ACTIVE_REQUEST_STATUSES as ACTIVE_STATUSES,
+  CLOSED_REQUEST_STATUSES as CLOSED_STATUSES,
+} from "@/lib/request-status";
+import { useParentRequestIds } from "@/hooks/use-parent-request-ids";
 import { StatusBadge } from "@/components/StatusBadge";
 import { SolicitudCreateForm } from "@/components/solicitudes/SolicitudCreateForm";
 import { SolicitudDetail } from "@/components/solicitudes/SolicitudDetail";
