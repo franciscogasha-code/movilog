@@ -234,6 +234,8 @@ function firstName(fullName?: string | null): string {
 export default function Index() {
   const { user, profile, hasRole, isOwner } = useAuth();
   const { isAllBranches, allowedBranchIds, defaultBranchId } = useUserBranchFilter();
+  const { data: parentIdsList = [] } = useParentRequestIds();
+  const parentIdsSet = useMemo(() => new Set(parentIdsList), [parentIdsList]);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
