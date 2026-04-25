@@ -1026,13 +1026,23 @@ export default function Solicitudes() {
           </CardContent>
         </Card>
 
-        {/* Detail Dialog */}
+        {/* Detail Dialog — fullscreen mobile, modal centrado desktop */}
         <Dialog open={!!selectedId} onOpenChange={(open) => !open && setSelectedId(null)}>
-          <DialogContent className="w-[calc(100vw-0.75rem)] max-w-3xl max-h-[90vh] overflow-y-auto overflow-x-hidden p-3 sm:p-6">
-            <DialogHeader>
-              <DialogTitle>Detalle del Pedido</DialogTitle>
+          <DialogContent
+            className="
+              p-0 gap-0 overflow-hidden
+              w-screen h-[100dvh] max-h-[100dvh] max-w-none rounded-none border-0
+              sm:w-[calc(100vw-2rem)] sm:max-w-3xl sm:h-auto sm:max-h-[90vh]
+              sm:rounded-lg sm:border
+              flex flex-col
+            "
+          >
+            <DialogHeader className="px-4 py-3 sm:px-6 sm:py-4 border-b bg-background sticky top-0 z-20 shrink-0 pr-12 pt-[calc(env(safe-area-inset-top)+0.75rem)] sm:pt-4">
+              <DialogTitle className="text-base sm:text-lg">Detalle del Pedido</DialogTitle>
             </DialogHeader>
-            {selectedId && <SolicitudDetail requestId={selectedId} onUpdate={refetch} />}
+            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-3 py-3 sm:px-6 sm:py-5 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
+              {selectedId && <SolicitudDetail requestId={selectedId} onUpdate={refetch} />}
+            </div>
           </DialogContent>
         </Dialog>
 
