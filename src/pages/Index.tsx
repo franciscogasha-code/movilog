@@ -11,6 +11,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/StatusBadge";
 import { REQUEST_STATUS_CONFIG } from "@/lib/constants";
+import {
+  DASHBOARD_PENDING_REQUEST_STATUSES,
+  FULFILLMENT_TERMINAL_STATUSES,
+} from "@/lib/request-status";
+import { useParentRequestIds } from "@/hooks/use-parent-request-ids";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserBranchFilter } from "@/hooks/use-user-access";
 import { useQuery, useIsFetching, useQueryClient } from "@tanstack/react-query";
@@ -229,6 +234,8 @@ function firstName(fullName?: string | null): string {
 export default function Index() {
   const { user, profile, hasRole, isOwner } = useAuth();
   const { isAllBranches, allowedBranchIds, defaultBranchId } = useUserBranchFilter();
+  const { data: parentIdsList = [] } = useParentRequestIds();
+  const parentIdsSet = useMemo(() => new Set(parentIdsList), [parentIdsList]);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -263,7 +270,7 @@ export default function Index() {
           requesting_branch:branches!branch_requests_requesting_branch_id_fkey(name),
           source_branch:branches!branch_requests_source_branch_id_fkey(name)
         `)
-        .in("status", ["pending", "accepted", "picking", "in_preparation", "ready_for_pickup", "ready_for_delivery"] as any)
+        .in("status", DASHBOARD_PENDING_REQUEST_STATUSES as any)
         .order("created_at", { ascending: false })
         .limit(50);
 
@@ -296,7 +303,7 @@ export default function Index() {
           source_branch:branches!fulfillment_orders_source_branch_id_fkey(name),
           destination_branch:branches!fulfillment_orders_destination_branch_id_fkey(name)
         `)
-        .not("status", "in", '("completed","cancelled","received","logistic_closed")');
+        .not("status", "in", `(${FULFILLMENT_TERMINAL_STATUSES.map((s) => `"${s}"`).join(",")})`);
 
       if (!isAllBranches && allowedBranchIds.length > 0) {
         const branchFilter = `source_branch_id.in.(${allowedBranchIds.join(",")}),destination_branch_id.in.(${allowedBranchIds.join(",")})`;
@@ -363,6 +370,9 @@ export default function Index() {
     const items: QueueItem[] = [];
 
     pendingRequests?.forEach((r: any) => {
+      // FIX ESTRUCTURAL: detección de pedido padre por FK (parentIdsSet) en lugar de
+      // substring en `notes`. Mantiene compatibilidad legacy como fallback defensivo.
+      if (parentIdsSet.has(r.id)) return;
       if (r.notes && r.notes.includes("[Pedido padre multi-origen]")) return;
       const routeLabel = buildRouteLabel(
         r.source_branch?.name ?? "?", r.requesting_branch?.name ?? "?",
@@ -463,7 +473,7 @@ export default function Index() {
       return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
     });
     return items;
-  }, [pendingRequests, activeConsultations, activeFulfillments, defaultBranchId, user?.id, isAdmin, isAllBranches, allowedBranchIds, isLogisticsOp]);
+  }, [pendingRequests, activeConsultations, activeFulfillments, defaultBranchId, user?.id, isAdmin, isAllBranches, allowedBranchIds, isLogisticsOp, parentIdsSet]);
 
   // ── Counts ─────────────────────────────────────────────
   const isOverdue = (p: Priority) => p === "overdue" || p === "overdue_critical";

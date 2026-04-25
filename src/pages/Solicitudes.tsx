@@ -13,6 +13,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Plus, Search, Building2, ArrowRightLeft, FileSpreadsheet, Layers, ArrowDownLeft, ArrowUpRight, Repeat } from "lucide-react";
 import { REQUEST_STATUS_CONFIG, SHIPPING_METHOD_LABELS, DELIVERY_TARGET_LABELS, REQUEST_TYPE_LABELS } from "@/lib/constants";
+import {
+  ACTIVE_REQUEST_STATUSES as ACTIVE_STATUSES,
+  CLOSED_REQUEST_STATUSES as CLOSED_STATUSES,
+} from "@/lib/request-status";
+import { useParentRequestIds } from "@/hooks/use-parent-request-ids";
 import { StatusBadge } from "@/components/StatusBadge";
 import { SolicitudCreateForm } from "@/components/solicitudes/SolicitudCreateForm";
 import { SolicitudDetail } from "@/components/solicitudes/SolicitudDetail";
@@ -42,24 +47,8 @@ import { cn } from "@/lib/utils";
  *    AdminReposicionForm, lógica flow_type, integración choferes, deep-links.
  */
 
-// Estados activos (requieren acción / seguimiento)
-const ACTIVE_STATUSES = [
-  "pending",
-  "accepted",
-  "in_preparation",
-  "ready_for_pickup",
-  "ready_for_delivery",
-  "in_consolidation",
-  "assigned_to_trip",
-  "in_transit",
-  "delivered",
-  "delivered_to_third_party",
-  "picking",
-  "dispatched",
-];
-
-// Estados cerrados / históricos
-const CLOSED_STATUSES = ["received", "logistic_closed", "closed", "rejected"];
+// Estados activos / cerrados: importados desde @/lib/request-status (single source of truth).
+// NO redefinir localmente — la divergencia entre módulos causó la regresión #306/#307.
 
 type TabKey = "activos" | "mios" | "otros" | "cerrados";
 
@@ -123,11 +112,16 @@ function formatFullDate(dateStr: string): string {
 }
 
 /**
+/**
  * Detecta pedido padre multi-origen.
- * Compatible con la convención legacy (string en notas) — la detección formal
- * por existencia de hijos se hace server-side via fn_is_parent_request.
+ * Detección estructural: el pedido es padre si su id aparece en el set
+ * de `parent_request_id` (existe al menos un hijo apuntándolo).
+ *
+ * Se conserva la detección por substring únicamente como fallback defensivo
+ * para datos en tránsito de migración. La fuente de verdad es la FK.
  */
-function isParentMultiOrigin(r: any): boolean {
+function isParentMultiOrigin(r: any, parentIds?: Set<string>): boolean {
+  if (parentIds && r?.id && parentIds.has(r.id)) return true;
   return typeof r?.notes === "string" && r.notes.includes("[Pedido padre multi-origen]");
 }
 
@@ -143,6 +137,8 @@ export default function Solicitudes() {
   const isViewer = hasRole("viewer") || hasRole("auditor");
   const { isAllBranches, allowedBranchIds } = useUserBranchFilter();
   const { data: branches = [] } = useBranches();
+  const { data: parentIdsList = [] } = useParentRequestIds();
+  const parentIdsSet = useMemo(() => new Set(parentIdsList), [parentIdsList]);
 
   // Default tab por rol
   const defaultTab: TabKey = "activos";
@@ -297,6 +293,8 @@ export default function Solicitudes() {
       // Incluimos los ids relacionados para refrescar correctamente cuando
       // se completa el pre-fetch de búsqueda numérica.
       numericSearchTerm ? (relatedSearchIds?.join(",") ?? "pending") : "",
+      // Refrescar cuando cambia el set de padres (nuevo pedido multi-origen creado).
+      parentIdsList.length,
     ],
     initialPageSize: 25,
     buildQuery: () => {
@@ -332,9 +330,12 @@ export default function Solicitudes() {
 
       // ─── MODO NORMAL (sin búsqueda numérica) ─────────────────────
       // Ocultar padres multi-origen (contenedores de trazabilidad) de las bandejas operativas.
-      // IMPORTANTE: usamos OR con `notes.is.null` porque en SQL `NULL NOT ILIKE '...'` evalúa a NULL,
-      // lo que excluiría incorrectamente todos los pedidos sin notas (regresión #306/#307).
-      query = query.or("notes.is.null,notes.not.ilike.%[Pedido padre multi-origen]%");
+      // FIX ESTRUCTURAL: detección por FK (parent_request_id de los hijos) en lugar de
+      // substring en `notes`. La regla anterior `NOT ILIKE` evaluaba NULL → NULL y
+      // excluía pedidos sin notas (regresión #306/#307).
+      if (parentIdsList.length > 0) {
+        query = query.not("id", "in", `(${parentIdsList.join(",")})`);
+      }
 
       // Tab: estados
       if (tab === "activos" || tab === "mios" || tab === "otros") {
@@ -387,7 +388,7 @@ export default function Solicitudes() {
   });
 
   // Conteos de tabs (queries livianas paralelas, head:true)
-  const countsKey = ["branch-requests-counts", isAllBranches, branchFilter, allowedBranchIds.join(",")];
+  const countsKey = ["branch-requests-counts", isAllBranches, branchFilter, allowedBranchIds.join(","), parentIdsList.length];
   const { data: tabCounts } = useQuery({
     queryKey: countsKey,
     staleTime: 30_000,
@@ -401,11 +402,16 @@ export default function Solicitudes() {
       const anchor: string[] | null =
         isAllBranches && specificBranch ? [specificBranch] : myIds;
 
-      const buildBase = () =>
-        supabase
+      // Excluye padres multi-origen vía FK (parent_request_id de los hijos).
+      const buildBase = () => {
+        let q = supabase
           .from("branch_requests")
-          .select("id", { count: "exact", head: true })
-          .or("notes.is.null,notes.not.ilike.%[Pedido padre multi-origen]%");
+          .select("id", { count: "exact", head: true });
+        if (parentIdsList.length > 0) {
+          q = q.not("id", "in", `(${parentIdsList.join(",")})`);
+        }
+        return q;
+      };
 
       const applyAny = (q: any) => {
         if (!ids || ids.length === 0) return q;
@@ -737,7 +743,7 @@ export default function Solicitudes() {
                 <div className="lg:hidden divide-y divide-border/50">
                   {requests.map((r: any) => {
                     const dir = getDirectionChip(r);
-                    const isParent = isParentMultiOrigin(r);
+                    const isParent = isParentMultiOrigin(r, parentIdsSet);
                     return (
                       <button
                         key={r.id}
@@ -820,7 +826,7 @@ export default function Solicitudes() {
                     <tbody>
                       {requests.map((r: any) => {
                         const dir = getDirectionChip(r);
-                        const isParent = isParentMultiOrigin(r);
+                        const isParent = isParentMultiOrigin(r, parentIdsSet);
                         return (
                           <tr
                             key={r.id}
