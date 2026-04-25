@@ -91,11 +91,15 @@ export function RequestProgressBar({ currentStatus, events = [], flowType }: Req
     );
   }
 
-  // Mobile: scroll horizontal interno; desktop: ancho completo
-  const minWidth = `${steps.length * 64}px`;
+  // Mobile: scroll horizontal con snap; desktop: ancho completo
+  // minWidth garantiza que cada nodo tenga ~72px y el último nunca quede cortado.
+  const minWidth = `${Math.max(steps.length * 72, 320)}px`;
   return (
-    <div className="w-full overflow-x-auto -mx-1 px-1 pb-1">
-      <div className="flex items-center justify-between relative" style={{ minWidth }}>
+    <div className="w-full overflow-x-auto scrollbar-hide -mx-1 px-1 pb-2 snap-x snap-mandatory">
+      <div
+        className="flex items-start justify-between relative pr-2"
+        style={{ minWidth }}
+      >
         {/* Connecting line */}
         <div className="absolute top-5 left-5 right-5 h-0.5 bg-border z-0" />
         <div
@@ -114,10 +118,14 @@ export function RequestProgressBar({ currentStatus, events = [], flowType }: Req
           const Icon = step.icon;
 
           return (
-            <div key={step.status} className="flex flex-col items-center z-10 relative" style={{ flex: 1 }}>
+            <div
+              key={step.status}
+              className="flex flex-col items-center z-10 relative snap-center px-1"
+              style={{ flex: "1 0 auto", minWidth: 64 }}
+            >
               <div
                 className={cn(
-                  "flex items-center justify-center w-10 h-10 rounded-full border-2 transition-all",
+                  "flex items-center justify-center w-10 h-10 rounded-full border-2 transition-all shrink-0",
                   isCompleted && "bg-primary border-primary text-primary-foreground",
                   isCurrent && "bg-primary/10 border-primary text-primary ring-4 ring-primary/20",
                   isFuture && "bg-background border-muted-foreground/30 text-muted-foreground/50"
@@ -131,7 +139,7 @@ export function RequestProgressBar({ currentStatus, events = [], flowType }: Req
               </div>
               <span
                 className={cn(
-                  "text-[10px] mt-1.5 text-center leading-tight font-medium max-w-[70px]",
+                  "text-[10px] mt-1.5 text-center leading-tight font-medium max-w-[72px] break-words",
                   isCompleted && "text-primary",
                   isCurrent && "text-primary font-semibold",
                   isFuture && "text-muted-foreground/50"

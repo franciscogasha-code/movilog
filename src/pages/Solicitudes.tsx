@@ -777,7 +777,11 @@ export default function Solicitudes() {
             </Button>
           </div>
         )}
-        <div className="flex gap-1 overflow-x-auto -mx-1 px-1 pb-1">
+        <div
+          className="flex gap-1.5 overflow-x-auto scrollbar-hide -mx-3 sm:-mx-1 px-3 sm:px-1 pb-1"
+          role="tablist"
+          aria-label="Bandejas de pedidos"
+        >
           {(showMineOtros
             ? (["activos", "mios", "otros", "cerrados"] as TabKey[])
             : (["activos", "cerrados"] as TabKey[])
@@ -787,9 +791,17 @@ export default function Solicitudes() {
             return (
               <button
                 key={k}
+                role="tab"
+                aria-selected={active}
+                ref={(el) => {
+                  // Asegura que la tab activa quede visible al cargar (scroll horizontal)
+                  if (active && el) {
+                    el.scrollIntoView({ block: "nearest", inline: "center", behavior: "auto" });
+                  }
+                }}
                 onClick={() => { setTab(k); setStatusFilter("all"); setPage(1); }}
                 className={cn(
-                  "shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors border",
+                  "shrink-0 inline-flex items-center gap-1.5 px-3.5 py-2.5 sm:py-1.5 rounded-md text-sm font-medium transition-colors border whitespace-nowrap min-h-[44px] sm:min-h-0",
                   active
                     ? "bg-primary text-primary-foreground border-primary"
                     : "bg-background text-foreground/80 border-border hover:bg-muted",
@@ -886,16 +898,16 @@ export default function Solicitudes() {
                           </div>
                           <StatusBadge status={r.status} config={REQUEST_STATUS_CONFIG} className="shrink-0" />
                         </div>
-                        <div className="text-xs text-foreground/80 mb-1 break-words">
+                        <div className="text-xs text-foreground/80 mb-1 break-words line-clamp-2">
                           {buildRouteCell(r)}
                         </div>
                         {r.client_name && (
-                          <div className="text-[11px] text-muted-foreground truncate mb-1">
+                          <div className="text-[11px] text-muted-foreground mb-1 break-words line-clamp-2">
                             Cliente: <span className="text-foreground/80">{r.client_name}</span>
                           </div>
                         )}
                         <div className="flex items-center justify-between gap-2 text-[11px]">
-                          <span className="truncate text-muted-foreground">
+                          <span className="line-clamp-2 break-words text-muted-foreground min-w-0">
                             {DELIVERY_TARGET_LABELS[r.delivery_target] || "A sucursal"} · {SHIPPING_METHOD_LABELS[r.shipping_method] || r.shipping_method}
                           </span>
                           <Tooltip>
@@ -1026,13 +1038,23 @@ export default function Solicitudes() {
           </CardContent>
         </Card>
 
-        {/* Detail Dialog */}
+        {/* Detail Dialog — fullscreen mobile, modal centrado desktop */}
         <Dialog open={!!selectedId} onOpenChange={(open) => !open && setSelectedId(null)}>
-          <DialogContent className="w-[calc(100vw-0.75rem)] max-w-3xl max-h-[90vh] overflow-y-auto overflow-x-hidden p-3 sm:p-6">
-            <DialogHeader>
-              <DialogTitle>Detalle del Pedido</DialogTitle>
+          <DialogContent
+            className="
+              p-0 gap-0 overflow-hidden
+              w-screen h-[100dvh] max-h-[100dvh] max-w-none rounded-none border-0
+              sm:w-[calc(100vw-2rem)] sm:max-w-3xl sm:h-auto sm:max-h-[90vh]
+              sm:rounded-lg sm:border
+              flex flex-col
+            "
+          >
+            <DialogHeader className="px-4 py-3 sm:px-6 sm:py-4 border-b bg-background sticky top-0 z-20 shrink-0 pr-12 pt-[calc(env(safe-area-inset-top)+0.75rem)] sm:pt-4">
+              <DialogTitle className="text-base sm:text-lg">Detalle del Pedido</DialogTitle>
             </DialogHeader>
-            {selectedId && <SolicitudDetail requestId={selectedId} onUpdate={refetch} />}
+            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-3 py-3 sm:px-6 sm:py-5 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
+              {selectedId && <SolicitudDetail requestId={selectedId} onUpdate={refetch} />}
+            </div>
           </DialogContent>
         </Dialog>
 
