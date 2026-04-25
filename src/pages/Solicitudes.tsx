@@ -141,6 +141,9 @@ export default function Solicitudes() {
   const { data: parentIdsList = [] } = useParentRequestIds();
   const parentIdsSet = useMemo(() => new Set(parentIdsList), [parentIdsList]);
 
+  // Observabilidad preventiva (no afecta UI/queries operativas; warnings en consola).
+  useSolicitudesIntegrityCheck({ allowedBranchIds, isAllBranches });
+
   // Default tab por rol
   const defaultTab: TabKey = "activos";
   const defaultBranch: string = useMemo(() => {
