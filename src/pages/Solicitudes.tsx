@@ -405,7 +405,7 @@ export default function Solicitudes() {
         supabase
           .from("branch_requests")
           .select("id", { count: "exact", head: true })
-          .not("notes", "ilike", "%[Pedido padre multi-origen]%");
+          .or("notes.is.null,notes.not.ilike.%[Pedido padre multi-origen]%");
 
       const applyAny = (q: any) => {
         if (!ids || ids.length === 0) return q;
