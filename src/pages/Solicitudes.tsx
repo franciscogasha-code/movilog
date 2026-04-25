@@ -293,6 +293,8 @@ export default function Solicitudes() {
       // Incluimos los ids relacionados para refrescar correctamente cuando
       // se completa el pre-fetch de búsqueda numérica.
       numericSearchTerm ? (relatedSearchIds?.join(",") ?? "pending") : "",
+      // Refrescar cuando cambia el set de padres (nuevo pedido multi-origen creado).
+      parentIdsList.length,
     ],
     initialPageSize: 25,
     buildQuery: () => {
