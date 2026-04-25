@@ -330,9 +330,12 @@ export default function Solicitudes() {
 
       // ─── MODO NORMAL (sin búsqueda numérica) ─────────────────────
       // Ocultar padres multi-origen (contenedores de trazabilidad) de las bandejas operativas.
-      // IMPORTANTE: usamos OR con `notes.is.null` porque en SQL `NULL NOT ILIKE '...'` evalúa a NULL,
-      // lo que excluiría incorrectamente todos los pedidos sin notas (regresión #306/#307).
-      query = query.or("notes.is.null,notes.not.ilike.%[Pedido padre multi-origen]%");
+      // FIX ESTRUCTURAL: detección por FK (parent_request_id de los hijos) en lugar de
+      // substring en `notes`. La regla anterior `NOT ILIKE` evaluaba NULL → NULL y
+      // excluía pedidos sin notas (regresión #306/#307).
+      if (parentIdsList.length > 0) {
+        query = query.not("id", "in", `(${parentIdsList.join(",")})`);
+      }
 
       // Tab: estados
       if (tab === "activos" || tab === "mios" || tab === "otros") {
