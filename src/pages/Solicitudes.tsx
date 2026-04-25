@@ -47,24 +47,8 @@ import { cn } from "@/lib/utils";
  *    AdminReposicionForm, lógica flow_type, integración choferes, deep-links.
  */
 
-// Estados activos (requieren acción / seguimiento)
-const ACTIVE_STATUSES = [
-  "pending",
-  "accepted",
-  "in_preparation",
-  "ready_for_pickup",
-  "ready_for_delivery",
-  "in_consolidation",
-  "assigned_to_trip",
-  "in_transit",
-  "delivered",
-  "delivered_to_third_party",
-  "picking",
-  "dispatched",
-];
-
-// Estados cerrados / históricos
-const CLOSED_STATUSES = ["received", "logistic_closed", "closed", "rejected"];
+// Estados activos / cerrados: importados desde @/lib/request-status (single source of truth).
+// NO redefinir localmente — la divergencia entre módulos causó la regresión #306/#307.
 
 type TabKey = "activos" | "mios" | "otros" | "cerrados";
 
