@@ -898,16 +898,16 @@ export default function Solicitudes() {
                           </div>
                           <StatusBadge status={r.status} config={REQUEST_STATUS_CONFIG} className="shrink-0" />
                         </div>
-                        <div className="text-xs text-foreground/80 mb-1 break-words">
+                        <div className="text-xs text-foreground/80 mb-1 break-words line-clamp-2">
                           {buildRouteCell(r)}
                         </div>
                         {r.client_name && (
-                          <div className="text-[11px] text-muted-foreground truncate mb-1">
+                          <div className="text-[11px] text-muted-foreground mb-1 break-words line-clamp-2">
                             Cliente: <span className="text-foreground/80">{r.client_name}</span>
                           </div>
                         )}
                         <div className="flex items-center justify-between gap-2 text-[11px]">
-                          <span className="truncate text-muted-foreground">
+                          <span className="line-clamp-2 break-words text-muted-foreground min-w-0">
                             {DELIVERY_TARGET_LABELS[r.delivery_target] || "A sucursal"} · {SHIPPING_METHOD_LABELS[r.shipping_method] || r.shipping_method}
                           </span>
                           <Tooltip>
