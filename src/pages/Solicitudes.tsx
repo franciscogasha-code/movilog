@@ -112,11 +112,16 @@ function formatFullDate(dateStr: string): string {
 }
 
 /**
+/**
  * Detecta pedido padre multi-origen.
- * Compatible con la convención legacy (string en notas) — la detección formal
- * por existencia de hijos se hace server-side via fn_is_parent_request.
+ * Detección estructural: el pedido es padre si su id aparece en el set
+ * de `parent_request_id` (existe al menos un hijo apuntándolo).
+ *
+ * Se conserva la detección por substring únicamente como fallback defensivo
+ * para datos en tránsito de migración. La fuente de verdad es la FK.
  */
-function isParentMultiOrigin(r: any): boolean {
+function isParentMultiOrigin(r: any, parentIds?: Set<string>): boolean {
+  if (parentIds && r?.id && parentIds.has(r.id)) return true;
   return typeof r?.notes === "string" && r.notes.includes("[Pedido padre multi-origen]");
 }
 
