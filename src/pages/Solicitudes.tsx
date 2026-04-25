@@ -743,7 +743,7 @@ export default function Solicitudes() {
                 <div className="lg:hidden divide-y divide-border/50">
                   {requests.map((r: any) => {
                     const dir = getDirectionChip(r);
-                    const isParent = isParentMultiOrigin(r);
+                    const isParent = isParentMultiOrigin(r, parentIdsSet);
                     return (
                       <button
                         key={r.id}
@@ -826,7 +826,7 @@ export default function Solicitudes() {
                     <tbody>
                       {requests.map((r: any) => {
                         const dir = getDirectionChip(r);
-                        const isParent = isParentMultiOrigin(r);
+                        const isParent = isParentMultiOrigin(r, parentIdsSet);
                         return (
                           <tr
                             key={r.id}
