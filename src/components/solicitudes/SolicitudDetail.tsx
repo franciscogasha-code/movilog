@@ -212,7 +212,23 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
         .eq("reference_type", "branch_request")
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return data;
+      const actorIds = Array.from(
+        new Set((data || []).map((e: any) => e.triggered_by).filter(Boolean))
+      ) as string[];
+      let nameMap: Record<string, string> = {};
+      if (actorIds.length > 0) {
+        const { data: profs } = await supabase
+          .from("profiles")
+          .select("user_id, full_name")
+          .in("user_id", actorIds);
+        nameMap = Object.fromEntries(
+          (profs || []).map((p: any) => [p.user_id, p.full_name || ""])
+        );
+      }
+      return (data || []).map((ev: any) => ({
+        ...ev,
+        actor_name: ev.triggered_by ? (nameMap[ev.triggered_by] || "Usuario interno") : "Sistema",
+      }));
     },
     enabled: !!requestId,
   });
