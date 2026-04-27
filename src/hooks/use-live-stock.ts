@@ -3,19 +3,33 @@ import { supabase } from "@/integrations/supabase/client";
 
 export type LiveStockData = Record<string, { stock_by_warehouse: Record<string, number>; total_stock: number }>;
 
+const CHUNK_SIZE = 20;
+
+function chunk<T>(arr: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
+
 async function fetchLiveStock(bimsCodes: string[]): Promise<LiveStockData> {
   if (!bimsCodes.length) return {};
 
-  const { data, error } = await supabase.functions.invoke("bims-stock-live", {
-    body: { bims_codes: bimsCodes },
-  });
+  const batches = chunk(bimsCodes, CHUNK_SIZE);
 
-  if (error) {
-    console.error("Live stock fetch error:", error);
-    return {};
-  }
+  const results = await Promise.all(
+    batches.map(async (batch) => {
+      const { data, error } = await supabase.functions.invoke("bims-stock-live", {
+        body: { bims_codes: batch },
+      });
+      if (error) {
+        console.error("Live stock fetch error (batch):", error);
+        return {} as LiveStockData;
+      }
+      return (data as LiveStockData) || {};
+    })
+  );
 
-  return (data as LiveStockData) || {};
+  return results.reduce<LiveStockData>((acc, part) => Object.assign(acc, part), {});
 }
 
 /**
