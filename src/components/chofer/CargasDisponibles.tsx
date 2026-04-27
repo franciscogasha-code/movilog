@@ -434,9 +434,21 @@ export function CargasDisponibles() {
           </Badge>
           {showPickup && (
             <>
-              {!f.__isRequestOnly && (
-                <Button size="sm" variant="outline" onClick={() => setRejectingId(f.id)} className="h-7 text-xs text-destructive">
-                  <XCircle className="h-3 w-3 mr-1" /> Rechazar
+              <Button size="sm" variant="outline" onClick={() => setRejectingId(f.id)} className="h-7 text-xs text-destructive">
+                <XCircle className="h-3 w-3 mr-1" /> Rechazar
+              </Button>
+              {hubBranches.length > 0 && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setHubBranchId(hubBranches[0]?.id || "");
+                    setHubModalRowId(f.id);
+                  }}
+                  className="h-7 text-xs gap-1"
+                  title="Retirar y dejar en acopio"
+                >
+                  <Warehouse className="h-3 w-3" /> A acopio
                 </Button>
               )}
               <Button size="sm" onClick={() => pickupOutOfCutoff(f.id)} className="h-7 text-xs gap-1">
