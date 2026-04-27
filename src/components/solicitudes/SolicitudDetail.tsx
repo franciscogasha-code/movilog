@@ -678,62 +678,98 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
       <div>
         <h4 className="font-display font-semibold mb-3">Ítems ({items?.length || 0})</h4>
         <div className="space-y-2">
-          {items?.map((item: any) => (
-            <div key={item.id} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 p-3 rounded-lg bg-muted/30 border border-border/30 text-sm">
-              {/* Encabezado del item: icono + nombre/código + cantidad destacada */}
-              <div className="flex items-start gap-2 sm:gap-3 sm:flex-1 min-w-0">
-                <Package className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium break-words">{item.product?.name}</p>
-                  <p className="text-xs text-muted-foreground break-all">{item.product?.sku || item.product?.bims_code}</p>
-                </div>
-                {/* Cantidad solicitada SIEMPRE visible (junto al nombre en mobile) */}
-                <div className="text-right shrink-0 sm:hidden">
-                  <span className="font-mono font-bold text-base text-foreground">{item.quantity_requested}</span>
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide">solicitado</p>
-                </div>
-              </div>
+          {items?.map((item: any) => {
+            const sourceCode = r.source_branch?.code as string | undefined;
+            const sourceName = r.source_branch?.name as string | undefined;
+            const bimsCode = item.product?.bims_code as string | undefined;
+            const liveEntry = bimsCode && itemsLiveStock?.[bimsCode];
+            const stockMap = (liveEntry?.stock_by_warehouse ?? null) as Record<string, number> | null;
+            const stockAtSource = stockMap && sourceCode ? Math.floor(stockMap[sourceCode] ?? 0) : null;
+            const reqQty = Number(item.quantity_requested ?? 0);
+            const missing = stockAtSource != null ? Math.max(0, reqQty - stockAtSource) : 0;
+            const showStockBlock = stockAtSource != null && !!sourceName;
 
-              {/* Metadatos: badges + cantidades enviadas/aceptadas */}
-              <div className="flex flex-wrap items-center gap-2 sm:justify-end sm:shrink-0 pl-6 sm:pl-0">
-                <Badge variant="outline" className="text-xs">
-                  {ITEM_PURPOSE_LABELS[item.item_purpose] || item.item_purpose}
-                </Badge>
-                {item.rejection_reason_type && (
-                  <Badge variant="destructive" className="text-xs">
-                    {REJECTION_REASONS[item.rejection_reason_type] || item.rejection_reason_type}
-                  </Badge>
+            return (
+              <div key={item.id} className="flex flex-col gap-2 p-3 rounded-lg bg-muted/30 border border-border/30 text-sm">
+                {/* Fila principal: producto + cantidad + estado de envío */}
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+                  <div className="flex items-start gap-2 sm:gap-3 sm:flex-1 min-w-0">
+                    <Package className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium break-words">{item.product?.name}</p>
+                      <p className="text-xs text-muted-foreground break-all">{item.product?.sku || item.product?.bims_code}</p>
+                    </div>
+                    {/* Cantidad solicitada SIEMPRE visible (junto al nombre en mobile) */}
+                    <div className="text-right shrink-0 sm:hidden">
+                      <span className="font-mono font-bold text-base text-foreground">{item.quantity_requested}</span>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wide">solicitado</p>
+                    </div>
+                  </div>
+
+                  {/* Metadatos: badges propios del ítem + cantidades enviadas/aceptadas
+                      NOTA: el tipo global (Cliente/Reposición) NO se repite acá; ya está en el encabezado. */}
+                  <div className="flex flex-wrap items-center gap-2 sm:justify-end sm:shrink-0 pl-6 sm:pl-0">
+                    {item.rejection_reason_type && (
+                      <Badge variant="destructive" className="text-xs">
+                        {REJECTION_REASONS[item.rejection_reason_type] || item.rejection_reason_type}
+                      </Badge>
+                    )}
+                    {/* Cantidad solicitada en sm+ (oculta en mobile porque ya se mostró arriba) */}
+                    <div className="hidden sm:block text-right sm:min-w-[120px]">
+                      <span className="font-mono font-semibold">{item.quantity_requested}</span>
+                      {item.quantity_shipped != null && item.quantity_shipped > 0 && item.quantity_shipped !== item.quantity_requested && (
+                        <span className="text-xs ml-1 text-destructive font-semibold">
+                          / {item.quantity_shipped} enviados
+                        </span>
+                      )}
+                      {item.quantity_accepted != null && item.quantity_accepted > 0 && (
+                        <span className={`text-xs ml-1 ${item.quantity_accepted !== item.quantity_requested ? "text-destructive font-semibold" : "text-muted-foreground"}`}>
+                          / {item.quantity_accepted} aceptados
+                        </span>
+                      )}
+                    </div>
+                    {/* En mobile, mostrar enviados/aceptados como chips si difieren */}
+                    <div className="sm:hidden flex flex-wrap gap-1.5 text-[11px]">
+                      {item.quantity_shipped != null && item.quantity_shipped > 0 && item.quantity_shipped !== item.quantity_requested && (
+                        <span className="font-mono px-1.5 py-0.5 rounded bg-destructive/10 text-destructive font-semibold">
+                          {item.quantity_shipped} enviados
+                        </span>
+                      )}
+                      {item.quantity_accepted != null && item.quantity_accepted > 0 && (
+                        <span className={`font-mono px-1.5 py-0.5 rounded ${item.quantity_accepted !== item.quantity_requested ? "bg-destructive/10 text-destructive font-semibold" : "bg-muted text-muted-foreground"}`}>
+                          {item.quantity_accepted} aceptados
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Stock actual en sucursal abastecedora (informativo, lectura BIMS) */}
+                {showStockBlock && (
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pl-6 text-xs">
+                    <span className="text-muted-foreground">
+                      Stock actual {sourceName}:{" "}
+                      <span className={`font-mono font-semibold ${stockAtSource < reqQty ? "text-destructive" : "text-foreground"}`}>
+                        {stockAtSource.toLocaleString("de-DE")}
+                      </span>
+                    </span>
+                    {missing > 0 && (
+                      <span className="font-mono px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-700 dark:text-amber-400 font-medium">
+                        Faltante informativo: {missing.toLocaleString("de-DE")}
+                      </span>
+                    )}
+                  </div>
                 )}
-                {/* Cantidad solicitada en sm+ (oculta en mobile porque ya se mostró arriba) */}
-                <div className="hidden sm:block text-right sm:min-w-[120px]">
-                  <span className="font-mono font-semibold">{item.quantity_requested}</span>
-                  {item.quantity_shipped != null && item.quantity_shipped > 0 && item.quantity_shipped !== item.quantity_requested && (
-                    <span className="text-xs ml-1 text-destructive font-semibold">
-                      / {item.quantity_shipped} enviados
-                    </span>
-                  )}
-                  {item.quantity_accepted != null && item.quantity_accepted > 0 && (
-                    <span className={`text-xs ml-1 ${item.quantity_accepted !== item.quantity_requested ? "text-destructive font-semibold" : "text-muted-foreground"}`}>
-                      / {item.quantity_accepted} aceptados
-                    </span>
-                  )}
-                </div>
-                {/* En mobile, mostrar enviados/aceptados como chips si difieren */}
-                <div className="sm:hidden flex flex-wrap gap-1.5 text-[11px]">
-                  {item.quantity_shipped != null && item.quantity_shipped > 0 && item.quantity_shipped !== item.quantity_requested && (
-                    <span className="font-mono px-1.5 py-0.5 rounded bg-destructive/10 text-destructive font-semibold">
-                      {item.quantity_shipped} enviados
-                    </span>
-                  )}
-                  {item.quantity_accepted != null && item.quantity_accepted > 0 && (
-                    <span className={`font-mono px-1.5 py-0.5 rounded ${item.quantity_accepted !== item.quantity_requested ? "bg-destructive/10 text-destructive font-semibold" : "bg-muted text-muted-foreground"}`}>
-                      {item.quantity_accepted} aceptados
-                    </span>
-                  )}
-                </div>
+
+                {/* Alerta de otras solicitudes pendientes para este producto (reuso de DemandAlert) */}
+                {item.product?.id && (
+                  <div className="pl-6">
+                    <DemandAlert productId={item.product.id} />
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
