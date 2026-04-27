@@ -1077,7 +1077,7 @@ export default function Solicitudes() {
               flex flex-col
             "
           >
-            <DialogHeader className="px-4 py-3 sm:px-6 sm:py-4 border-b bg-background shrink-0 pr-12">
+            <DialogHeader className="px-4 py-3 sm:px-6 sm:py-4 border-b bg-background shrink-0 pr-14 sm:pr-12 pt-[calc(env(safe-area-inset-top)+0.75rem)] sm:pt-4">
               <DialogTitle className="text-base sm:text-lg">Reposición Administrativa</DialogTitle>
             </DialogHeader>
             <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 py-4 sm:px-6 sm:py-5 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
