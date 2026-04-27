@@ -15,7 +15,8 @@ import {
   REQUEST_STATUS_CONFIG, SHIPPING_METHOD_LABELS, DELIVERY_TARGET_LABELS,
   ITEM_PURPOSE_LABELS, REJECTION_REASONS, REQUEST_TYPE_LABELS, FULFILLMENT_STATUS_CONFIG,
 } from "@/lib/constants";
-import { Package, AlertTriangle, Check, X, Loader2, Truck, ClipboardList, FileSpreadsheet, Download, XCircle } from "lucide-react";
+import { proxyImageUrl } from "@/lib/image-utils";
+import { Package, ImageOff, AlertTriangle, Check, X, Loader2, Truck, ClipboardList, FileSpreadsheet, Download, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { ParentRequestSummary } from "@/components/solicitudes/ParentRequestSummary";
