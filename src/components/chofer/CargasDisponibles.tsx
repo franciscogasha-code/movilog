@@ -556,7 +556,7 @@ export function CargasDisponibles() {
             </div>
           ) : (
             <div className="divide-y divide-border/50">
-              {readyLoads.map((f: any) => <FulfillmentRow key={f.id} f={f} />)}
+              {readyLoads.map((f: any) => <FulfillmentRow key={f.id} f={f} forceReadyLabel />)}
             </div>
           )}
         </CardContent>
