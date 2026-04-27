@@ -805,7 +805,7 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
 
                 {/* Alerta de otras solicitudes pendientes para este producto (reuso de DemandAlert) */}
                 {item.product?.id && (
-                  <div className="pl-6">
+                  <div className="pl-12 sm:pl-[60px]">
                     <DemandAlert productId={item.product.id} />
                   </div>
                 )}
