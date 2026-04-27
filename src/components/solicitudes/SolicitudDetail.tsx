@@ -841,27 +841,40 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
 
       {/* Timeline */}
       <div>
-        <h4 className="font-display font-semibold mb-3">Timeline de eventos</h4>
+        <h4 className="font-display font-semibold mb-3">Línea de tiempo</h4>
         {!events?.length ? (
           <p className="text-sm text-muted-foreground">Sin eventos registrados</p>
         ) : (
-          <div className="space-y-0">
-            {events.map((ev: any, idx: number) => (
-              <div key={ev.id} className="flex gap-3">
-                <div className="flex flex-col items-center">
-                  <div className="w-2 h-2 rounded-full bg-primary mt-2" />
-                  {idx < events.length - 1 && <div className="w-px flex-1 bg-border" />}
-                </div>
-                <div className="pb-4">
-                  <p className="text-sm font-medium">{ev.event_description || ev.event_type}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {new Date(ev.created_at).toLocaleString("es-PY")}
-                    {ev.new_status && <span className="ml-2">→ {ev.new_status}</span>}
+          <ol className="relative border-l border-border/60 ml-1.5 space-y-4">
+            {events.map((ev: any) => {
+              const newLabel = ev.new_status
+                ? (REQUEST_STATUS_CONFIG[ev.new_status]?.label || ev.new_status)
+                : null;
+              const oldLabel = ev.previous_status
+                ? (REQUEST_STATUS_CONFIG[ev.previous_status]?.label || ev.previous_status)
+                : null;
+              const title = newLabel
+                ? (oldLabel ? `${oldLabel} → ${newLabel}` : newLabel)
+                : (ev.event_description || "Evento");
+              return (
+                <li key={ev.id} className="pl-4 relative">
+                  <span className="absolute -left-[5px] top-1.5 w-2.5 h-2.5 rounded-full bg-primary ring-4 ring-background" />
+                  <p className="text-sm font-medium leading-tight">{title}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    por <span className="font-medium text-foreground/80">{ev.actor_name || "Sistema"}</span>
+                    <span className="mx-1.5">·</span>
+                    {new Date(ev.created_at).toLocaleString("es-PY", {
+                      day: "2-digit", month: "2-digit", year: "numeric",
+                      hour: "2-digit", minute: "2-digit",
+                    })}
                   </p>
-                </div>
-              </div>
-            ))}
-          </div>
+                  {ev.event_description && newLabel && ev.event_description !== title && (
+                    <p className="text-xs text-muted-foreground/80 mt-1 italic">{ev.event_description}</p>
+                  )}
+                </li>
+              );
+            })}
+          </ol>
         )}
       </div>
 
