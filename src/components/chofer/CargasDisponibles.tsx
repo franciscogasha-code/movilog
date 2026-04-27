@@ -441,9 +441,11 @@ export function CargasDisponibles() {
           {(f.branch_request?.delivery_target === "client" || f.shipping_method === "courier") && f.package_count > 0 && (
             <Badge variant="secondary" className="text-xs">{f.package_count} bultos</Badge>
           )}
-          <Badge variant="outline" className="text-xs">
-            {statusLabel}
-          </Badge>
+          {!forceReadyLabel && (
+            <Badge variant="outline" className="text-xs">
+              {statusLabel}
+            </Badge>
+          )}
           {showPickup && (
             <>
               <Button size="sm" variant="outline" onClick={() => setRejectingId(f.id)} className="h-7 text-xs text-destructive">
