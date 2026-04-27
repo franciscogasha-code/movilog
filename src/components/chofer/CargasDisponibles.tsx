@@ -5,11 +5,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Package, CheckCircle2, AlertTriangle, XCircle, Truck, MapPin, Clock, FileWarning, FileCheck } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { Package, CheckCircle2, AlertTriangle, XCircle, Truck, MapPin, Clock, FileWarning, FileCheck, Warehouse } from "lucide-react";
 import { toast } from "sonner";
 import { BranchSelector } from "@/components/shared/BranchSelector";
 import { DELIVERY_TARGET_LABELS, REQUEST_TYPE_LABELS } from "@/lib/constants";
 import { runDriverAction } from "@/lib/driver-actions";
+import { useBranches } from "@/hooks/use-branches";
 
 const REJECTION_REASONS = [
   { value: "no_space", label: "No entra en el móvil" },
