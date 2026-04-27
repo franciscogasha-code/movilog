@@ -5,11 +5,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Package, CheckCircle2, AlertTriangle, XCircle, Truck, MapPin, Clock, FileWarning, FileCheck } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { Package, CheckCircle2, AlertTriangle, XCircle, Truck, MapPin, Clock, FileWarning, FileCheck, Warehouse } from "lucide-react";
 import { toast } from "sonner";
 import { BranchSelector } from "@/components/shared/BranchSelector";
 import { DELIVERY_TARGET_LABELS, REQUEST_TYPE_LABELS } from "@/lib/constants";
 import { runDriverAction } from "@/lib/driver-actions";
+import { useBranches } from "@/hooks/use-branches";
 
 const REJECTION_REASONS = [
   { value: "no_space", label: "No entra en el móvil" },
@@ -46,7 +49,11 @@ function missingDocLabel(f: any): string {
 export function CargasDisponibles() {
   const queryClient = useQueryClient();
   const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [hubModalRowId, setHubModalRowId] = useState<string | null>(null);
+  const [hubBranchId, setHubBranchId] = useState<string>("");
   const [selectedBranchId, setSelectedBranchId] = useState<string>("");
+  const { data: allBranches } = useBranches();
+  const hubBranches = (allBranches || []).filter((b: any) => b.is_central_warehouse);
 
   // ── Driver record ──
   const { data: myDriver } = useQuery({
@@ -284,18 +291,23 @@ export function CargasDisponibles() {
     }
   };
 
-  const rejectPickup = async (fulfillmentId: string, reason: string) => {
+  const rejectPickup = async (rowId: string, reason: string) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
+      const isRequest = rowId.startsWith("req:");
+      const refId = isRequest ? rowId.slice(4) : rowId;
+      const refType = isRequest ? "branch_request" : "fulfillment_order";
+      const reasonLabel = REJECTION_REASONS.find(r => r.value === reason)?.label || reason;
+
       await supabase.from("operational_events").insert({
-        reference_type: "fulfillment_order",
-        reference_id: fulfillmentId,
+        reference_type: refType,
+        reference_id: refId,
         event_type: "driver_pickup_rejected",
         category: "logistics" as any,
-        event_description: `Chofer rechazó retiro: ${REJECTION_REASONS.find(r => r.value === reason)?.label || reason}`,
+        event_description: `Chofer rechazó retiro: ${reasonLabel}`,
         triggered_by: user.id,
-        metadata: { rejection_reason: reason },
+        metadata: { rejection_reason: reason, source: refType },
       });
       await supabase.from("ai_anomalies").insert({
         anomaly_type: "driver_pickup_rejected",
@@ -303,11 +315,65 @@ export function CargasDisponibles() {
         severity: "warning" as any,
         alert_level: "branch_operational" as any,
         title: "Chofer rechazó retiro de carga",
-        description: `Motivo: ${REJECTION_REASONS.find(r => r.value === reason)?.label || reason}`,
-        affected_entities: [{ type: "fulfillment_order", id: fulfillmentId }],
+        description: `Motivo: ${reasonLabel}`,
+        affected_entities: [{ type: refType, id: refId }],
       });
       toast.info("Carga rechazada — queda disponible para próximo corte");
       setRejectingId(null);
+      invalidateAll();
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
+  // Toma la carga y la deja en acopio en una sola acción.
+  // Para request-only, primero crea el FO transicionando a in_transit,
+  // luego ejecuta drop_at_hub sobre el FO recién creado.
+  const sendToHub = async (rowId: string, hubId: string) => {
+    try {
+      let fulfillmentId = rowId;
+
+      if (rowId.startsWith("req:")) {
+        const requestId = rowId.slice(4);
+        const { error: trErr } = await supabase.rpc("fn_transition_request_status", {
+          p_request_id: requestId,
+          p_new_status: "in_transit",
+          p_reason: "Retiro hacia acopio",
+          p_rejection_reason_type: null,
+          p_trip_id: myActiveTrip?.id ?? null,
+        });
+        if (trErr) throw trErr;
+        const { data: fo, error: foErr } = await supabase
+          .from("fulfillment_orders")
+          .select("id")
+          .eq("branch_request_id", requestId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (foErr || !fo) throw foErr || new Error("No se pudo localizar la carga creada");
+        fulfillmentId = fo.id;
+      } else {
+        const { data: pkData, error: pkErr } = await runDriverAction({
+          action: "pickup",
+          fulfillmentId,
+          tripId: myActiveTrip?.id ?? null,
+        });
+        if (pkErr) throw pkErr;
+        if (!(pkData as any)?.success) throw new Error((pkData as any)?.error || "Error al retirar");
+      }
+
+      const { data, error } = await runDriverAction({
+        action: "drop_at_hub",
+        fulfillmentId,
+        tripId: myActiveTrip?.id ?? null,
+        metadata: { hub_branch_id: hubId, observation: "Enviado directo a acopio" },
+      });
+      if (error) throw error;
+      if (!(data as any)?.success) throw new Error((data as any)?.error || "Error al dejar en acopio");
+
+      toast.success("Carga enviada a acopio");
+      setHubModalRowId(null);
+      setHubBranchId("");
       invalidateAll();
     } catch (err: any) {
       toast.error(err.message);
@@ -368,9 +434,21 @@ export function CargasDisponibles() {
           </Badge>
           {showPickup && (
             <>
-              {!f.__isRequestOnly && (
-                <Button size="sm" variant="outline" onClick={() => setRejectingId(f.id)} className="h-7 text-xs text-destructive">
-                  <XCircle className="h-3 w-3 mr-1" /> Rechazar
+              <Button size="sm" variant="outline" onClick={() => setRejectingId(f.id)} className="h-7 text-xs text-destructive">
+                <XCircle className="h-3 w-3 mr-1" /> Rechazar
+              </Button>
+              {hubBranches.length > 0 && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setHubBranchId(hubBranches[0]?.id || "");
+                    setHubModalRowId(f.id);
+                  }}
+                  className="h-7 text-xs gap-1"
+                  title="Retirar y dejar en acopio"
+                >
+                  <Warehouse className="h-3 w-3" /> A acopio
                 </Button>
               )}
               <Button size="sm" onClick={() => pickupOutOfCutoff(f.id)} className="h-7 text-xs gap-1">
@@ -535,6 +613,50 @@ export function CargasDisponibles() {
                 {r.label}
               </Button>
             ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Send-to-hub dialog */}
+      <Dialog
+        open={!!hubModalRowId}
+        onOpenChange={(o) => {
+          if (!o) {
+            setHubModalRowId(null);
+            setHubBranchId("");
+          }
+        }}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Enviar a acopio</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              La carga será retirada y dejada en el depósito de acopio seleccionado.
+            </p>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Depósito de acopio *</Label>
+              <Select value={hubBranchId} onValueChange={setHubBranchId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar depósito" />
+                </SelectTrigger>
+                <SelectContent>
+                  {hubBranches.map((b: any) => (
+                    <SelectItem key={b.id} value={b.id}>
+                      {b.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              className="w-full"
+              disabled={!hubBranchId || !hubModalRowId}
+              onClick={() => hubModalRowId && hubBranchId && sendToHub(hubModalRowId, hubBranchId)}
+            >
+              <Warehouse className="h-4 w-4 mr-1" /> Confirmar envío a acopio
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
