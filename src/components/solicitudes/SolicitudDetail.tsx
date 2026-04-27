@@ -228,17 +228,113 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
   });
 
   const { data: events } = useQuery({
-    queryKey: ["request-events", requestId],
+    queryKey: ["request-events", requestId, request?.status, request?.updated_at],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("operational_events")
         .select("*")
         .eq("reference_id", requestId)
         .eq("reference_type", "branch_request")
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: true });
       if (error) throw error;
+
+      // Fallback sintético: si no hay (o muy pocos) eventos persistidos pero el pedido
+      // avanzó por estados, reconstruimos hitos reales a partir de branch_requests.
+      const r: any = request;
+      const synthetic: any[] = [];
+      if (r) {
+        if (r.created_at && r.created_by) {
+          synthetic.push({
+            id: `syn-created-${r.id}`,
+            created_at: r.created_at,
+            triggered_by: r.created_by,
+            new_status: "pending",
+            previous_status: null,
+            event_description: "Pedido creado",
+            __synthetic: true,
+          });
+        }
+        if (r.accepted_at) {
+          synthetic.push({
+            id: `syn-accepted-${r.id}`,
+            created_at: r.accepted_at,
+            triggered_by: r.accepted_by,
+            new_status: "accepted",
+            previous_status: "pending",
+            __synthetic: true,
+          });
+        }
+        if (r.rejected_at) {
+          synthetic.push({
+            id: `syn-rejected-${r.id}`,
+            created_at: r.rejected_at,
+            triggered_by: r.rejected_by,
+            new_status: "rejected",
+            event_description: r.rejection_reason || "Pedido rechazado",
+            __synthetic: true,
+          });
+        }
+        if (r.logistic_closed_at) {
+          synthetic.push({
+            id: `syn-logclosed-${r.id}`,
+            created_at: r.logistic_closed_at,
+            triggered_by: r.logistic_closed_by,
+            new_status: "logistic_closed",
+            __synthetic: true,
+          });
+        }
+        if (r.admin_closed_at) {
+          synthetic.push({
+            id: `syn-adminclosed-${r.id}`,
+            created_at: r.admin_closed_at,
+            triggered_by: r.admin_closed_by,
+            new_status: "closed",
+            __synthetic: true,
+          });
+        }
+        // Hito "Estado actual" si no hay evento persistido para el status vigente
+        const persistedStatuses = new Set(
+          (data || []).map((e: any) => e.new_status).filter(Boolean)
+        );
+        const syntheticStatuses = new Set(synthetic.map((e) => e.new_status));
+        const intermediateStatuses = [
+          "pending",
+          "accepted",
+          "rejected",
+          "logistic_closed",
+          "closed",
+        ];
+        if (
+          r.status &&
+          !intermediateStatuses.includes(r.status) &&
+          !persistedStatuses.has(r.status) &&
+          !syntheticStatuses.has(r.status)
+        ) {
+          synthetic.push({
+            id: `syn-current-${r.id}`,
+            created_at: r.updated_at || r.created_at,
+            triggered_by: null,
+            new_status: r.status,
+            event_description: "Última actualización registrada",
+            __synthetic: true,
+          });
+        }
+      }
+
+      // Combinar reales + sintéticos sin duplicar transiciones por status
+      const realByStatus = new Set(
+        (data || []).map((e: any) => e.new_status).filter(Boolean)
+      );
+      const merged = [
+        ...(data || []),
+        ...synthetic.filter((s) => !realByStatus.has(s.new_status)),
+      ].sort(
+        (a, b) =>
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+
       const actorIds = Array.from(
-        new Set((data || []).map((e: any) => e.triggered_by).filter(Boolean))
+        new Set(merged.map((e: any) => e.triggered_by).filter(Boolean))
       ) as string[];
       let nameMap: Record<string, string> = {};
       if (actorIds.length > 0) {
@@ -250,12 +346,14 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
           (profs || []).map((p: any) => [p.user_id, p.full_name || ""])
         );
       }
-      return (data || []).map((ev: any) => ({
+      return merged.map((ev: any) => ({
         ...ev,
-        actor_name: ev.triggered_by ? (nameMap[ev.triggered_by] || "Usuario interno") : "Sistema",
+        actor_name: ev.triggered_by
+          ? nameMap[ev.triggered_by] || "Usuario interno"
+          : "Sistema",
       }));
     },
-    enabled: !!requestId,
+    enabled: !!requestId && !!request,
   });
 
   const { data: documents } = useQuery({
