@@ -229,6 +229,12 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
     enabled: !!requestId,
   });
 
+  // Live stock from BIMS for source branch (informational, read-only)
+  const itemsBimsCodes = (items || [])
+    .map((it: any) => it.product?.bims_code)
+    .filter(Boolean) as string[];
+  const { liveStock: itemsLiveStock } = useLiveStock(itemsBimsCodes);
+
   // Available trips for assignment (active or planned)
   const { data: availableTrips } = useQuery({
     queryKey: ["available-trips-for-assignment"],
