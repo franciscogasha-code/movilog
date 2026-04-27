@@ -390,20 +390,31 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
         </div>
       )}
 
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="flex items-center gap-3">
-            <h3 className="font-display text-xl font-bold">Pedido #{r.request_number}</h3>
-            <StatusBadge status={r.status} config={REQUEST_STATUS_CONFIG} />
-          </div>
-          <p className="text-sm text-muted-foreground mt-1">
-            {new Date(r.created_at).toLocaleString("es-PY")}
-          </p>
+      {/* Header — integrado: #N + estado + tipo, fecha, origen → destino */}
+      <div className="space-y-1.5">
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 className="font-display text-xl font-bold leading-tight">Pedido #{r.request_number}</h3>
+          <StatusBadge status={r.status} config={REQUEST_STATUS_CONFIG} />
+          <Badge variant="outline" className="capitalize">
+            {REQUEST_TYPE_LABELS[r.request_type] || r.request_type}
+          </Badge>
         </div>
-        <Badge variant="outline" className="capitalize">
-          {REQUEST_TYPE_LABELS[r.request_type] || r.request_type}
-        </Badge>
+        <p className="text-xs sm:text-sm text-muted-foreground">
+          {new Date(r.created_at).toLocaleString("es-PY")}
+        </p>
+        {(r.source_branch?.name || r.requesting_branch?.name) && (
+          <p className="text-xs sm:text-sm text-foreground/80">
+            <span className="text-muted-foreground">De:</span>{" "}
+            <span className="font-medium">{r.source_branch?.name || "—"}</span>
+            <span className="text-muted-foreground mx-1.5">→</span>
+            <span className="text-muted-foreground">Para:</span>{" "}
+            <span className="font-medium">
+              {r.delivery_target === "client"
+                ? (r.client_name || "Cliente")
+                : (r.requesting_branch?.name || "—")}
+            </span>
+          </p>
+        )}
       </div>
 
       {/* ─── REJECTION INFO BLOCK ──────────────────────────────────── */}
