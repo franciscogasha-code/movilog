@@ -15,7 +15,8 @@ import {
   REQUEST_STATUS_CONFIG, SHIPPING_METHOD_LABELS, DELIVERY_TARGET_LABELS,
   ITEM_PURPOSE_LABELS, REJECTION_REASONS, REQUEST_TYPE_LABELS, FULFILLMENT_STATUS_CONFIG,
 } from "@/lib/constants";
-import { Package, AlertTriangle, Check, X, Loader2, Truck, ClipboardList, FileSpreadsheet, Download, XCircle } from "lucide-react";
+import { proxyImageUrl } from "@/lib/image-utils";
+import { Package, ImageOff, AlertTriangle, Check, X, Loader2, Truck, ClipboardList, FileSpreadsheet, Download, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { ParentRequestSummary } from "@/components/solicitudes/ParentRequestSummary";
@@ -34,6 +35,31 @@ function OperationalResponsibleName({ userId }: { userId: string }) {
     <div>
       <span className="text-muted-foreground">Resp. operativo:</span>{" "}
       <span className="font-medium">{data || "..."}</span>
+    </div>
+  );
+}
+
+// Miniatura de producto: imagen real con fallback discreto
+function ProductThumb({ url, alt }: { url?: string | null; alt?: string }) {
+  const [failed, setFailed] = useState(false);
+  const safeUrl = url ? proxyImageUrl(url) : null;
+  if (!safeUrl || failed) {
+    return (
+      <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-md bg-muted/60 border border-border/40 flex items-center justify-center shrink-0">
+        <ImageOff className="h-4 w-4 text-muted-foreground/60" aria-hidden />
+      </div>
+    );
+  }
+  return (
+    <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-md bg-muted/30 border border-border/40 overflow-hidden shrink-0">
+      <img
+        src={safeUrl}
+        alt={alt || "Producto"}
+        loading="lazy"
+        decoding="async"
+        onError={() => setFailed(true)}
+        className="h-full w-full object-contain"
+      />
     </div>
   );
 }
@@ -180,7 +206,7 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
     queryFn: async () => {
       const { data, error } = await supabase
         .from("branch_request_items")
-        .select(`*, product:products(name, sku, bims_code)`)
+        .select(`*, product:products(name, sku, bims_code, image_url)`)
         .eq("request_id", requestId);
       if (error) throw error;
       return data;
@@ -211,7 +237,23 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
         .eq("reference_type", "branch_request")
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return data;
+      const actorIds = Array.from(
+        new Set((data || []).map((e: any) => e.triggered_by).filter(Boolean))
+      ) as string[];
+      let nameMap: Record<string, string> = {};
+      if (actorIds.length > 0) {
+        const { data: profs } = await supabase
+          .from("profiles")
+          .select("user_id, full_name")
+          .in("user_id", actorIds);
+        nameMap = Object.fromEntries(
+          (profs || []).map((p: any) => [p.user_id, p.full_name || ""])
+        );
+      }
+      return (data || []).map((ev: any) => ({
+        ...ev,
+        actor_name: ev.triggered_by ? (nameMap[ev.triggered_by] || "Usuario interno") : "Sistema",
+      }));
     },
     enabled: !!requestId,
   });
@@ -694,7 +736,7 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
                 {/* Fila principal: producto + cantidad + estado de envío */}
                 <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
                   <div className="flex items-start gap-2 sm:gap-3 sm:flex-1 min-w-0">
-                    <Package className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                    <ProductThumb url={item.product?.image_url} alt={item.product?.name} />
                     <div className="flex-1 min-w-0">
                       <p className="font-medium break-words">{item.product?.name}</p>
                       <p className="text-xs text-muted-foreground break-all">{item.product?.sku || item.product?.bims_code}</p>
@@ -708,7 +750,7 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
 
                   {/* Metadatos: badges propios del ítem + cantidades enviadas/aceptadas
                       NOTA: el tipo global (Cliente/Reposición) NO se repite acá; ya está en el encabezado. */}
-                  <div className="flex flex-wrap items-center gap-2 sm:justify-end sm:shrink-0 pl-6 sm:pl-0">
+                  <div className="flex flex-wrap items-center gap-2 sm:justify-end sm:shrink-0 pl-12 sm:pl-0">
                     {item.rejection_reason_type && (
                       <Badge variant="destructive" className="text-xs">
                         {REJECTION_REASONS[item.rejection_reason_type] || item.rejection_reason_type}
@@ -746,7 +788,7 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
 
                 {/* Stock actual en sucursal abastecedora (informativo, lectura BIMS) */}
                 {showStockBlock && (
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pl-6 text-xs">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pl-12 sm:pl-[60px] text-xs">
                     <span className="text-muted-foreground">
                       Stock actual {sourceName}:{" "}
                       <span className={`font-mono font-semibold ${stockAtSource < reqQty ? "text-destructive" : "text-foreground"}`}>
@@ -763,7 +805,7 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
 
                 {/* Alerta de otras solicitudes pendientes para este producto (reuso de DemandAlert) */}
                 {item.product?.id && (
-                  <div className="pl-6">
+                  <div className="pl-12 sm:pl-[60px]">
                     <DemandAlert productId={item.product.id} />
                   </div>
                 )}
@@ -799,27 +841,40 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
 
       {/* Timeline */}
       <div>
-        <h4 className="font-display font-semibold mb-3">Timeline de eventos</h4>
+        <h4 className="font-display font-semibold mb-3">Línea de tiempo</h4>
         {!events?.length ? (
           <p className="text-sm text-muted-foreground">Sin eventos registrados</p>
         ) : (
-          <div className="space-y-0">
-            {events.map((ev: any, idx: number) => (
-              <div key={ev.id} className="flex gap-3">
-                <div className="flex flex-col items-center">
-                  <div className="w-2 h-2 rounded-full bg-primary mt-2" />
-                  {idx < events.length - 1 && <div className="w-px flex-1 bg-border" />}
-                </div>
-                <div className="pb-4">
-                  <p className="text-sm font-medium">{ev.event_description || ev.event_type}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {new Date(ev.created_at).toLocaleString("es-PY")}
-                    {ev.new_status && <span className="ml-2">→ {ev.new_status}</span>}
+          <ol className="relative border-l border-border/60 ml-1.5 space-y-4">
+            {events.map((ev: any) => {
+              const newLabel = ev.new_status
+                ? (REQUEST_STATUS_CONFIG[ev.new_status]?.label || ev.new_status)
+                : null;
+              const oldLabel = ev.previous_status
+                ? (REQUEST_STATUS_CONFIG[ev.previous_status]?.label || ev.previous_status)
+                : null;
+              const title = newLabel
+                ? (oldLabel ? `${oldLabel} → ${newLabel}` : newLabel)
+                : (ev.event_description || "Evento");
+              return (
+                <li key={ev.id} className="pl-4 relative">
+                  <span className="absolute -left-[5px] top-1.5 w-2.5 h-2.5 rounded-full bg-primary ring-4 ring-background" />
+                  <p className="text-sm font-medium leading-tight">{title}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    por <span className="font-medium text-foreground/80">{ev.actor_name || "Sistema"}</span>
+                    <span className="mx-1.5">·</span>
+                    {new Date(ev.created_at).toLocaleString("es-PY", {
+                      day: "2-digit", month: "2-digit", year: "numeric",
+                      hour: "2-digit", minute: "2-digit",
+                    })}
                   </p>
-                </div>
-              </div>
-            ))}
-          </div>
+                  {ev.event_description && newLabel && ev.event_description !== title && (
+                    <p className="text-xs text-muted-foreground/80 mt-1 italic">{ev.event_description}</p>
+                  )}
+                </li>
+              );
+            })}
+          </ol>
         )}
       </div>
 
