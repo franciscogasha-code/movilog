@@ -207,6 +207,8 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
   const addProduct = (product: ProductResult) => {
     if (items.find(i => i.product.id === product.id)) {
       toast.info("Producto ya agregado");
+      // Resaltar/expandir el existente para que el usuario lo vea inmediato
+      setExpandedProduct(product.id);
       return;
     }
     let autoSource: string | undefined;
@@ -222,7 +224,9 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
         if (branch) autoSource = branch.id;
       }
     }
-    setItems(prev => [...prev, { product, quantity: 1, sourceBranchId: autoSource }]);
+    // El último producto agregado se muestra ARRIBA para que sea inmediatamente visible
+    // sin necesidad de bajar el scroll en mobile.
+    setItems(prev => [{ product, quantity: 1, sourceBranchId: autoSource }, ...prev]);
     setExpandedProduct(product.id);
   };
 
