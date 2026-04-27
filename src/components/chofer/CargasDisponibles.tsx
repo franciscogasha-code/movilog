@@ -616,6 +616,50 @@ export function CargasDisponibles() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Send-to-hub dialog */}
+      <Dialog
+        open={!!hubModalRowId}
+        onOpenChange={(o) => {
+          if (!o) {
+            setHubModalRowId(null);
+            setHubBranchId("");
+          }
+        }}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Enviar a acopio</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              La carga será retirada y dejada en el depósito de acopio seleccionado.
+            </p>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Depósito de acopio *</Label>
+              <Select value={hubBranchId} onValueChange={setHubBranchId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar depósito" />
+                </SelectTrigger>
+                <SelectContent>
+                  {hubBranches.map((b: any) => (
+                    <SelectItem key={b.id} value={b.id}>
+                      {b.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              className="w-full"
+              disabled={!hubBranchId || !hubModalRowId}
+              onClick={() => hubModalRowId && hubBranchId && sendToHub(hubModalRowId, hubBranchId)}
+            >
+              <Warehouse className="h-4 w-4 mr-1" /> Confirmar envío a acopio
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
