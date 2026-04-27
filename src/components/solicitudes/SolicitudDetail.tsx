@@ -736,7 +736,7 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
                 {/* Fila principal: producto + cantidad + estado de envío */}
                 <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
                   <div className="flex items-start gap-2 sm:gap-3 sm:flex-1 min-w-0">
-                    <Package className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                    <ProductThumb url={item.product?.image_url} alt={item.product?.name} />
                     <div className="flex-1 min-w-0">
                       <p className="font-medium break-words">{item.product?.name}</p>
                       <p className="text-xs text-muted-foreground break-all">{item.product?.sku || item.product?.bims_code}</p>
