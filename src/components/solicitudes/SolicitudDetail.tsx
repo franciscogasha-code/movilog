@@ -750,7 +750,7 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
 
                   {/* Metadatos: badges propios del ítem + cantidades enviadas/aceptadas
                       NOTA: el tipo global (Cliente/Reposición) NO se repite acá; ya está en el encabezado. */}
-                  <div className="flex flex-wrap items-center gap-2 sm:justify-end sm:shrink-0 pl-6 sm:pl-0">
+                  <div className="flex flex-wrap items-center gap-2 sm:justify-end sm:shrink-0 pl-12 sm:pl-0">
                     {item.rejection_reason_type && (
                       <Badge variant="destructive" className="text-xs">
                         {REJECTION_REASONS[item.rejection_reason_type] || item.rejection_reason_type}
