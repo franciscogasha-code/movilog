@@ -181,7 +181,7 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
     queryFn: async () => {
       const { data, error } = await supabase
         .from("branch_request_items")
-        .select(`*, product:products(name, sku, bims_code)`)
+        .select(`*, product:products(name, sku, bims_code, image_url)`)
         .eq("request_id", requestId);
       if (error) throw error;
       return data;
