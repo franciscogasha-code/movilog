@@ -49,7 +49,11 @@ function missingDocLabel(f: any): string {
 export function CargasDisponibles() {
   const queryClient = useQueryClient();
   const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [hubModalRowId, setHubModalRowId] = useState<string | null>(null);
+  const [hubBranchId, setHubBranchId] = useState<string>("");
   const [selectedBranchId, setSelectedBranchId] = useState<string>("");
+  const { data: allBranches } = useBranches();
+  const hubBranches = (allBranches || []).filter((b: any) => b.is_central_warehouse);
 
   // ── Driver record ──
   const { data: myDriver } = useQuery({
