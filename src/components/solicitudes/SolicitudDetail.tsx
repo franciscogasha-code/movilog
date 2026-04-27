@@ -39,6 +39,31 @@ function OperationalResponsibleName({ userId }: { userId: string }) {
   );
 }
 
+// Miniatura de producto: imagen real con fallback discreto
+function ProductThumb({ url, alt }: { url?: string | null; alt?: string }) {
+  const [failed, setFailed] = useState(false);
+  const safeUrl = url ? proxyImageUrl(url) : null;
+  if (!safeUrl || failed) {
+    return (
+      <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-md bg-muted/60 border border-border/40 flex items-center justify-center shrink-0">
+        <ImageOff className="h-4 w-4 text-muted-foreground/60" aria-hidden />
+      </div>
+    );
+  }
+  return (
+    <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-md bg-muted/30 border border-border/40 overflow-hidden shrink-0">
+      <img
+        src={safeUrl}
+        alt={alt || "Producto"}
+        loading="lazy"
+        decoding="async"
+        onError={() => setFailed(true)}
+        className="h-full w-full object-contain"
+      />
+    </div>
+  );
+}
+
 // ─── Action definitions per status ───────────────────────────────────
 type ActionDef = {
   label: string;
