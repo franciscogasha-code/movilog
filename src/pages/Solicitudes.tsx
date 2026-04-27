@@ -777,8 +777,21 @@ export default function Solicitudes() {
             </Button>
           </div>
         )}
+        {/*
+          Tabs bandeja:
+          - Mobile (<sm): grid 2 columnas → todas las opciones visibles sin scroll lateral.
+          - Desktop (sm+): fila inline tradicional. Mantiene comportamiento original.
+          Esto resuelve el caso real reportado donde "Cerrados" quedaba escondido.
+        */}
         <div
-          className="flex gap-1.5 overflow-x-auto scrollbar-hide -mx-3 sm:-mx-1 px-3 sm:px-1 pb-1"
+          className={cn(
+            "gap-1.5 pb-1",
+            "grid",
+            // En mobile: 2 cols si hay 4 tabs, 2 cols si hay 2 (ocupan toda la fila igual)
+            showMineOtros ? "grid-cols-2" : "grid-cols-2",
+            // Desktop: vuelve a fila inline auto-fit
+            "sm:flex sm:flex-wrap sm:gap-1.5",
+          )}
           role="tablist"
           aria-label="Bandejas de pedidos"
         >
@@ -793,25 +806,21 @@ export default function Solicitudes() {
                 key={k}
                 role="tab"
                 aria-selected={active}
-                ref={(el) => {
-                  // Asegura que la tab activa quede visible al cargar (scroll horizontal)
-                  if (active && el) {
-                    el.scrollIntoView({ block: "nearest", inline: "center", behavior: "auto" });
-                  }
-                }}
                 onClick={() => { setTab(k); setStatusFilter("all"); setPage(1); }}
                 className={cn(
-                  "shrink-0 inline-flex items-center gap-1.5 px-3.5 py-2.5 sm:py-1.5 rounded-md text-sm font-medium transition-colors border whitespace-nowrap min-h-[44px] sm:min-h-0",
+                  "inline-flex items-center justify-center gap-1.5 px-3 py-2.5 sm:py-1.5 rounded-md text-sm font-medium transition-colors border min-h-[44px] sm:min-h-0",
+                  // Mobile: ocupa celda completa; Desktop: ancho contenido + nowrap
+                  "w-full sm:w-auto sm:shrink-0 sm:whitespace-nowrap sm:px-3.5",
                   active
                     ? "bg-primary text-primary-foreground border-primary"
                     : "bg-background text-foreground/80 border-border hover:bg-muted",
                 )}
               >
-                <span>{TAB_LABELS[k]}</span>
+                <span className="truncate">{TAB_LABELS[k]}</span>
                 {count !== null && (
                   <span
                     className={cn(
-                      "text-[11px] rounded-full px-1.5 py-px min-w-[20px] text-center",
+                      "text-[11px] rounded-full px-1.5 py-px min-w-[20px] text-center shrink-0",
                       active ? "bg-primary-foreground/20 text-primary-foreground" : "bg-muted text-muted-foreground",
                     )}
                   >
