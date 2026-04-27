@@ -788,7 +788,7 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
 
                 {/* Stock actual en sucursal abastecedora (informativo, lectura BIMS) */}
                 {showStockBlock && (
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pl-6 text-xs">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pl-12 sm:pl-[60px] text-xs">
                     <span className="text-muted-foreground">
                       Stock actual {sourceName}:{" "}
                       <span className={`font-mono font-semibold ${stockAtSource < reqQty ? "text-destructive" : "text-foreground"}`}>
