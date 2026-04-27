@@ -9,6 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { StatusBadge } from "@/components/StatusBadge";
 import { RequestProgressBar } from "@/components/solicitudes/RequestProgressBar";
 import { RequestDocuments } from "@/components/solicitudes/RequestDocuments";
+import { DemandAlert } from "@/components/solicitudes/DemandAlert";
+import { useLiveStock } from "@/hooks/use-live-stock";
 import {
   REQUEST_STATUS_CONFIG, SHIPPING_METHOD_LABELS, DELIVERY_TARGET_LABELS,
   ITEM_PURPOSE_LABELS, REJECTION_REASONS, REQUEST_TYPE_LABELS, FULFILLMENT_STATUS_CONFIG,
