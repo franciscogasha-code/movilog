@@ -6,19 +6,38 @@ import { useEffect, useRef } from "react";
  * (Android, gesto iOS, Alt+← en desktop) cierre el overlay en lugar de
  * abandonar la pantalla actual.
  *
- * Uso:
- *   const [open, setOpen] = useState(false);
- *   useBackToClose(open, () => setOpen(false));
+ * Diseño actualizado (anti-regresión navegación mobile):
+ *  - Al abrir, hacemos pushState con un marker. Si el usuario presiona back,
+ *    el popstate cierra el overlay (sin volver a llamar history.back, porque
+ *    el navegador ya consumió la entrada marker).
+ *  - Al cerrarse el overlay desde la UI:
+ *      * si nuestra entrada marker sigue siendo el TOP del history,
+ *        la quitamos con un único history.back() y silenciamos ese popstate.
+ *      * si entre medio ocurrió una navegación real (push/replace) — por
+ *        ejemplo el usuario tocó un item del sidebar y React Router empujó
+ *        una ruta encima de nuestro marker — NO tocamos history. Hacerlo
+ *        revertía la navegación recién hecha (síntoma: tocar Pedidos vuelve
+ *        a Dashboard). En ese caso el marker queda enterrado en el stack y
+ *        se ignora.
  *
- * Implementación: cuando el overlay se abre, hacemos pushState con un marker.
- * Al disparar popstate, si el overlay sigue abierto lo cerramos. Cuando el
- * overlay se cierra desde la UI, removemos la entrada del history.
+ * El marker incluye un id único por instancia para detectar exactamente
+ * nuestra entrada y evitar interferencias entre overlays anidados.
  */
-export function useBackToClose(isOpen: boolean, onClose: () => void) {
-  const pushedRef = useRef(false);
-  const onCloseRef = useRef(onClose);
 
-  // Mantener referencia fresca sin re-disparar el efecto
+type BackMarker = { __overlay: true; id: number };
+
+let markerCounter = 0;
+
+function isOurMarkerOnTop(id: number): boolean {
+  const s = window.history.state as BackMarker | null;
+  return !!s && typeof s === "object" && (s as any).__overlay === true && (s as any).id === id;
+}
+
+export function useBackToClose(isOpen: boolean, onClose: () => void) {
+  const onCloseRef = useRef(onClose);
+  const markerIdRef = useRef<number | null>(null);
+  const ignoreNextPopRef = useRef(false);
+
   useEffect(() => {
     onCloseRef.current = onClose;
   }, [onClose]);
@@ -26,14 +45,23 @@ export function useBackToClose(isOpen: boolean, onClose: () => void) {
   useEffect(() => {
     if (!isOpen) return;
 
-    // Push de una entrada "marker" al abrir
-    const marker = { __overlay: true, ts: Date.now() };
-    window.history.pushState(marker, "");
-    pushedRef.current = true;
+    const id = ++markerCounter;
+    markerIdRef.current = id;
+    const marker: BackMarker = { __overlay: true, id };
+
+    try {
+      window.history.pushState(marker, "");
+    } catch {
+      /* noop */
+    }
 
     const handlePop = () => {
-      // El usuario presionó back: cerrar el overlay
-      pushedRef.current = false;
+      if (ignoreNextPopRef.current) {
+        ignoreNextPopRef.current = false;
+        return;
+      }
+      // Back nativo: el navegador ya consumió el marker. Sólo cerramos UI.
+      markerIdRef.current = null;
       onCloseRef.current();
     };
 
@@ -41,14 +69,19 @@ export function useBackToClose(isOpen: boolean, onClose: () => void) {
 
     return () => {
       window.removeEventListener("popstate", handlePop);
-      // Si el overlay se cerró desde la UI (no por back), limpiar la entrada
-      if (pushedRef.current) {
-        pushedRef.current = false;
-        // Evita romper la pila si el usuario ya navegó
+
+      const id = markerIdRef.current;
+      markerIdRef.current = null;
+      if (id == null) return; // ya consumido por popstate
+
+      // Sólo intentamos remover el marker si SIGUE siendo el top del stack.
+      // Si hay una navegación real encima (ej. router.push), NO tocamos history.
+      if (isOurMarkerOnTop(id)) {
+        ignoreNextPopRef.current = true;
         try {
           window.history.back();
         } catch {
-          /* noop */
+          ignoreNextPopRef.current = false;
         }
       }
     };

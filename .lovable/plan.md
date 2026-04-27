@@ -1,143 +1,108 @@
+## Plan de corrección crítica: navegación mobile estable
 
-# Plan quirúrgico — Visibilidad y UX en Pedidos (etapa 1)
+### Diagnóstico inicial encontrado
 
-**Alcance estricto**: solo `src/pages/Solicitudes.tsx` y `src/components/solicitudes/SolicitudDetail.tsx`. **Sin** tocar RLS, RPC, triggers, queries de creación, choferes, transporte, consultas, dashboard ni schema. Sin migraciones SQL.
+La regresión más probable no está en Pedidos ni en lógica de negocio. Está en el app shell mobile:
 
----
+1. El sidebar mobile usa `Sheet`.
+2. `Sheet` fue modificado recientemente para usar `useBackToClose`.
+3. `useBackToClose` hace `history.pushState()` al abrir un overlay y `history.back()` cuando se cierra desde UI.
+4. Al tocar un item del menú mobile, hoy ocurre una carrera:
+   - el `NavLink` navega a `/solicitudes`, `/consultas`, `/chofer`, etc.
+   - el `onClick` del contenedor cierra el sidebar mobile
+   - al cerrarse el `Sheet`, `useBackToClose` ejecuta `window.history.back()`
+   - eso puede volver a la ruta anterior, típicamente Dashboard `/`
 
-## Diagnóstico confirmado (consulta a DB)
+Esto explica directamente: “tocar Pedidos lleva a Dashboard”, necesidad de tocar varias veces, rebotes y navegación inestable. Es un problema estructural de navegación/history, no un tema visual.
 
-| # | Rol | parent_id | requesting | source | Estado | Notes |
-|---|---|---|---|---|---|---|
-| 256 | Padre legacy | — | San Roque | San Roque | pending | `[Pedido padre multi-origen] [LEGACY 1-hijo]` |
-| 257 | Hijo de 256 | 256 | San Roque | Caballero | ready_for_pickup | — |
-| 260 | Padre legacy | — | San Roque | San Roque | pending | `[Pedido padre multi-origen] [LEGACY 1-hijo]` |
-| 261 | Hijo de 260 | 260 | San Roque | Caballero | pending | — |
-| 264 | Padre real | — | Caballero | Caballero | accepted | `[Pedido padre multi-origen] enviar con el corte.` |
-| 268 | Hijo de 264 | 264 | Caballero | San Roque | rejected | `enviar con el corte.` |
+### Objetivo
 
-**Conclusiones**:
-1. Datos correctos. **No hay inversión** en #268 (Caballero pide, San Roque abastece).
-2. #256/#260/#264 hoy están filtrados out por `notes ilike '%[Pedido padre multi-origen]%'`. Por eso "no aparecen" al buscar `#256`.
-3. #257/#261 sí aparecen al buscar por su número, pero no muestran su vínculo con el padre.
-4. La confusión percibida es de **microcopy** ("origen" vs "solicitante") + **falta de vínculo visual** padre↔hijo.
+Dejar el flujo mobile así:
 
----
-
-## Cambio 1 — Búsqueda inteligente padre↔hijo (Solicitudes.tsx)
-
-**Archivo**: `src/pages/Solicitudes.tsx`, en `buildQuery` (líneas ~252-325).
-
-**Comportamiento nuevo cuando el término de búsqueda es numérico**:
-
-1. Pre-fetch ligero: `select id, parent_request_id from branch_requests where request_number = <n>`.
-2. Construir set de IDs relacionados:
-   - El propio registro encontrado.
-   - Su `parent_request_id` (si existe).
-   - Todos los hermanos con el mismo `parent_request_id`.
-   - Todos los hijos cuyo `parent_request_id = <id encontrado>` (caso buscar padre).
-3. **Bypass del filtro `notes ilike '%[Pedido padre multi-origen]%'`** únicamente en este modo de búsqueda numérica, para que el padre aparezca en el listado.
-4. **Bypass de filtros de tab/estado/sucursal** durante búsqueda numérica explícita (cuando el usuario tipea un `#N`, el resultado debe encontrarse siempre que tenga permisos RLS — no debe quedar oculto por la pestaña activa).
-5. Construir `query.in("id", [...idsRelacionados])` sustituyendo el `or(request_number.eq.<n>, ...)` actual.
-
-Pseudocódigo dentro de `buildQuery`:
-
-```ts
-if (debouncedSearch) {
-  const term = debouncedSearch.replace(/^#/, "");
-  const numeric = /^\d+$/.test(term);
-
-  if (numeric) {
-    // (resuelto vía hook auxiliar useRelatedIds o fetch awaitable previo)
-    // ids = [match.id, match.parent_request_id, ...siblings, ...children].filter(Boolean)
-    query = query.in("id", ids);
-    // NO aplicar filtro de notes para padre, NO restringir por tab/status/branch
-  } else {
-    // texto: comportamiento actual (client_name, bims_invoice)
-    query = query.or(`client_name.ilike.%${term}%,bims_invoice_number.ilike.%${term}%`);
-  }
-}
+```text
+Tap menú -> navegación correcta -> cierre del menú -> pantalla destino usable
 ```
 
-Como `usePaginatedQuery.buildQuery` es síncrono, el resolver de IDs relacionados se hace en una `useQuery` previa (`["request-related-ids", debouncedSearch]`) y los `ids` se inyectan en el `queryKey` para refrescar correctamente. Si la búsqueda numérica no arroja match, se cae al comportamiento actual (`request_number.eq.<n>` directo) para no romper.
+Sin doble toque, sin rebote al Dashboard, sin overlay invisible bloqueando, sin tocar lógica de pedidos/consultas/transporte.
 
-**RLS intacto**: Supabase sigue aplicando las políticas; solo le mostramos los IDs relacionados que el usuario pueda ver según su rol.
+### Cambios propuestos
 
----
+#### 1. Corregir la causa raíz en `useBackToClose`
 
-## Cambio 2 — Badge "Parte de #N" en filas hijas (Solicitudes.tsx)
+Modificar `src/hooks/use-back-to-close.ts` para que:
 
-En el mapeo de filas (mobile + desktop, líneas ~676-810), cuando `r.parent_request_id != null`:
+- No ejecute `window.history.back()` durante el cleanup normal si el overlay se cerró por una acción de UI.
+- Distinga explícitamente entre:
+  - cierre por botón back/popstate
+  - cierre programático/UI
+- Use una estrategia segura con marker de history que no deshaga una navegación real recién ocurrida.
+- Evite listeners duplicados y efectos encadenados.
 
-- Agregar un `Badge variant="outline"` pequeño junto al `#request_number`:
-  - Texto: `Parte de #<parentNumber>`
-  - Estilo: `text-[10px] border-accent/50 text-accent`
-  - Tooltip: "Pertenece a un pedido padre multi-origen. Click para abrir el padre."
-  - **Click independiente** (con `e.stopPropagation()`) que setea `setSelectedId(parentId)`.
+Resultado esperado: cerrar un Sheet/Dialog no debe revertir la ruta actual.
 
-Para resolver el `request_number` del padre sin un join pesado, se agrega al `select()` actual:
-```
-parent:branch_requests!branch_requests_parent_request_id_fkey(id, request_number)
-```
-Si la FK nombrada no existe en el cliente, se usa `parent:parent_request_id(request_number)` o un mapa pre-fetcheado de IDs únicos visibles. Validaré antes de tocar.
+#### 2. Hacer la navegación del sidebar mobile explícita y atómica
 
-**Sin cambios** en el filtro general: los padres siguen ocultos en navegación normal (solo accesibles por búsqueda numérica o deep-link), preservando la decisión actual de no saturar bandejas.
+Modificar `src/components/AppSidebar.tsx` para eliminar el cierre genérico por `onClick` en `SidebarContent` y reemplazarlo por navegación controlada por item:
 
----
+- Cada item tendrá un handler mobile dedicado.
+- En mobile: cerrar menú y navegar al destino correcto sin depender de bubbling accidental.
+- En desktop: mantener comportamiento actual.
+- No cambiar permisos, módulos visibles ni rutas.
 
-## Cambio 3 — Microcopy Solicitante / Abastecedora (SolicitudDetail.tsx)
+Esto evita que cualquier click interno del sidebar cierre el menú por accidente y reduce carreras de eventos.
 
-**Archivo**: `src/components/solicitudes/SolicitudDetail.tsx`, líneas 553-567.
+#### 3. Revisar `Sheet` mobile para no interferir con rutas
 
-Reemplazar las dos cards "Sucursal origen (abastecedora)" y "Sucursal solicitante (destino)" por versiones con tooltip y aclaración explícita:
+Revisar `src/components/ui/sheet.tsx` y `src/components/ui/sidebar.tsx` para asegurar:
 
-```
-┌─ Sucursal solicitante ─────────────┐  ┌─ Sucursal abastecedora ────────────┐
-│ <reqName>                          │  │ <srcName>                          │
-│ Quien necesita el stock            │  │ Quien provee el stock              │
-└────────────────────────────────────┘  └────────────────────────────────────┘
-```
+- overlay sólo activo cuando el sheet está abierto
+- z-index correcto
+- cierre por overlay/back sin bloquear taps posteriores
+- ancho mobile estable
+- no quedan elementos invisibles con `pointer-events` capturando toques
 
-- **Orden invertido**: primero "Solicitante" (lectura natural: quién pide → quién provee).
-- Subtítulo `text-[11px] text-muted-foreground` con la definición.
-- Tooltip en el ícono `?` opcional (`HelpCircle`) con texto extendido.
-- Mantener todos los campos existentes debajo (delivery_target, shipping_method, etc.) sin cambios.
+Si el problema queda resuelto con el hook, no se harán cambios innecesarios.
 
-Cero cambios de lógica, solo presentación.
+#### 4. Mantener intacta la lógica de negocio
 
----
+No tocar:
 
-## Lo que NO se toca (garantía de no regresión)
+- queries de Pedidos
+- filtros de Pedidos
+- creación de pedidos
+- cambio de estado
+- detalle de pedidos
+- consultas de disponibilidad
+- lógica Chofer/Transporte
+- RLS/backend
+- Dashboard operativo
 
-- ❌ Creación mono-origen ni multi-origen (`SolicitudCreateForm.tsx`).
-- ❌ RLS, RPCs (`fn_transition_request_status`, etc.), triggers, schema.
-- ❌ Filtros de tab `mios`/`otros`/`activos`/`cerrados` en navegación normal.
-- ❌ Conteos de tabs (`tabCounts`).
-- ❌ Dashboard (`Index.tsx`), Chofer, Transporte, Consultas, Recepción.
-- ❌ Limpieza/cierre de padres legacy (queda para etapa siguiente).
-- ❌ `ParentRequestSummary.tsx` (ya muestra hijos cuando se abre el padre por deep-link).
+### QA y validación
 
----
+Ejecutaré validación técnica y funcional:
 
-## Pruebas a ejecutar en preview (con evidencia)
+1. Build/typecheck.
+2. Búsqueda de usos de `history.back`, `pushState`, `popstate`, `setOpenMobile` para confirmar que no queda otra fuente de rebote.
+3. Prueba mobile con viewport equivalente a iPhone/Android en preview:
+   - Dashboard -> Pedidos
+   - Dashboard -> Consultas
+   - Dashboard -> Transporte
+   - volver atrás
+   - abrir/cerrar menú varias veces
+   - abrir/cerrar detalle si hay datos disponibles
+4. Confirmar que desktop mantiene navegación intacta.
 
-| Caso | Acción | Resultado esperado |
-|---|---|---|
-| A | Buscar `#257` | Aparecen #257 (hijo) y #256 (padre legacy). Fila #257 muestra badge "Parte de #256". |
-| B | Buscar `#256` | Aparecen #256 (padre) y #257 (hijo). |
-| C | Buscar `#261` | Aparecen #261 + #260. |
-| D | Buscar `#268` | Aparecen #268 + #264 (padre real, accepted). |
-| E | Buscar `#264` | Aparecen #264 + #268. |
-| F | Abrir #268 | Detalle muestra: "Sucursal solicitante: Caballero — Quien necesita el stock" / "Sucursal abastecedora: San Roque — Quien provee el stock". |
-| G | Listado normal sin búsqueda | #256/#260/#264 siguen ocultos (sin regresión de bandejas). |
-| H | Crear pedido nuevo mono-origen | Funciona idéntico. |
-| I | Dashboard / Chofer / Consultas | Sin cambios visuales ni de comportamiento. |
+### Sobre los videos solicitados
 
----
+En este entorno puedo inspeccionar código, ejecutar pruebas y usar preview automatizado después de aprobar el cambio. Si la herramienta de browser/sandbox lo permite, capturaré evidencia visual del flujo. Si no permite grabación de video real, entregaré exactamente qué se verificó y la limitación técnica; no voy a afirmar “probado en dispositivo real” si no se ejecutó en dispositivo real.
 
-## Entregables
+### Entrega final
 
-1. Archivos modificados (solo dos).
-2. Capturas de los casos A, D, F (desktop) + A en mobile (390px).
-3. Confirmación explícita de que las pruebas G/H/I pasan sin cambios.
-4. Nota: limpieza de padres legacy y opción de "ocultar/mostrar contenedores" quedan documentadas para una segunda etapa.
+Reportaré:
+
+- causa raíz exacta
+- archivos modificados
+- qué carrera de history/router provocaba el rebote a Dashboard
+- pruebas ejecutadas
+- regresiones descartadas
+- confirmación explícita de que no se tocó lógica de negocio ni backend
