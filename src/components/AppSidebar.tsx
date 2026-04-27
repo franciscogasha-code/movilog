@@ -117,11 +117,11 @@ export function AppSidebar() {
           )}
         </div>
       </SidebarHeader>
-      <SidebarContent className="px-2" onClick={handleNav}>
-        <MenuGroup label="Principal" items={mainItems} collapsed={collapsed} />
-        <MenuGroup label="Operación" items={coreItems} collapsed={collapsed} />
-        <MenuGroup label="Logística" items={logisticsItems} collapsed={collapsed} />
-        <MenuGroup label="Administración" items={adminItems} collapsed={collapsed} />
+      <SidebarContent className="px-2">
+        <MenuGroup label="Principal" items={mainItems} collapsed={collapsed} onNavigate={handleNav} />
+        <MenuGroup label="Operación" items={coreItems} collapsed={collapsed} onNavigate={handleNav} />
+        <MenuGroup label="Logística" items={logisticsItems} collapsed={collapsed} onNavigate={handleNav} />
+        <MenuGroup label="Administración" items={adminItems} collapsed={collapsed} onNavigate={handleNav} />
       </SidebarContent>
       <SidebarFooter className="p-3 space-y-2 border-t border-sidebar-border/50">
         {!collapsed && profile && (
