@@ -394,10 +394,22 @@ export function CargasDisponibles() {
   };
 
   // ── Row components ──
-  const FulfillmentRow = ({ f, showPickup = true }: { f: any; showPickup?: boolean }) => {
+  const FulfillmentRow = ({ f, showPickup = true, forceReadyLabel = false }: { f: any; showPickup?: boolean; forceReadyLabel?: boolean }) => {
     const typeBadge = getTypeBadge(f);
     const missedCutoff = isMissedCutoff(f);
     const rejection = rejectionByFulfillment[f.id];
+    // Si la fila está en la bandeja "Listos para retirar" o el pedido ya fue
+    // marcado como ready_for_pickup, unificamos el label a "Listo para retirar"
+    // (evita mostrar "pending" técnico cuando operativamente ya está listo).
+    const showAsReady = forceReadyLabel || f.branch_request?.status === "ready_for_pickup" || f.status === "ready_for_pickup";
+    const statusLabel = showAsReady
+      ? "Listo para retirar"
+      : f.status === "waiting_for_cut" ? "Esperando corte"
+      : f.status === "waiting_for_courier" ? "Esperando transporte"
+      : f.status === "dispatched" ? "Retirado"
+      : f.status === "picking" ? "En preparación"
+      : f.status === "pending" ? "Pendiente"
+      : f.status;
 
     return (
       <div className={`flex items-center justify-between p-3 text-sm ${missedCutoff ? "bg-destructive/5" : ""}`}>
@@ -430,7 +442,7 @@ export function CargasDisponibles() {
             <Badge variant="secondary" className="text-xs">{f.package_count} bultos</Badge>
           )}
           <Badge variant="outline" className="text-xs">
-            {f.status === "waiting_for_cut" ? "Esperando corte" : f.status === "waiting_for_courier" ? "Esperando transporte" : f.status === "dispatched" ? "Retirado" : f.status === "ready_for_pickup" ? "Listo para retiro" : f.status}
+            {statusLabel}
           </Badge>
           {showPickup && (
             <>
@@ -544,7 +556,7 @@ export function CargasDisponibles() {
             </div>
           ) : (
             <div className="divide-y divide-border/50">
-              {readyLoads.map((f: any) => <FulfillmentRow key={f.id} f={f} />)}
+              {readyLoads.map((f: any) => <FulfillmentRow key={f.id} f={f} forceReadyLabel />)}
             </div>
           )}
         </CardContent>
