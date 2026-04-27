@@ -442,7 +442,7 @@ export function CargasDisponibles() {
             <Badge variant="secondary" className="text-xs">{f.package_count} bultos</Badge>
           )}
           <Badge variant="outline" className="text-xs">
-            {f.status === "waiting_for_cut" ? "Esperando corte" : f.status === "waiting_for_courier" ? "Esperando transporte" : f.status === "dispatched" ? "Retirado" : f.status === "ready_for_pickup" ? "Listo para retiro" : f.status}
+            {statusLabel}
           </Badge>
           {showPickup && (
             <>
