@@ -25,9 +25,17 @@ export const TRIP_EVENT_CATEGORY: Record<string, EventCategory> = {
   cutoff_started: "transport",
   cutoff_ended: "transport",
   task_added_in_transit: "transport",
+  // Recepción física
+  driver_delivery_drop: "reception",
+  branch_reception_confirmed: "reception",
   // Incidentes operativos
   driver_pickup_rejected: "incident",
+  incident_created: "incident",
 };
+
+export function categoryForTripEvent(eventType: keyof typeof TRIP_EVENT_CATEGORY): EventCategory {
+  return TRIP_EVENT_CATEGORY[eventType];
+}
 
 export function categoryForTripEvent(eventType: keyof typeof TRIP_EVENT_CATEGORY): EventCategory {
   return TRIP_EVENT_CATEGORY[eventType];
