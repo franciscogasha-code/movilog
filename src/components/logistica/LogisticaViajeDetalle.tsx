@@ -341,6 +341,25 @@ export function LogisticaViajeDetalle({ tripId }: Props) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Edit trip dialog (solo planificados) */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Editar viaje #{trip.trip_number}</DialogTitle>
+          </DialogHeader>
+          <EditarViajeForm
+            trip={trip}
+            onSuccess={() => {
+              setEditOpen(false);
+              queryClient.invalidateQueries({ queryKey: ["trip-detail", tripId] });
+              queryClient.invalidateQueries({ queryKey: ["planned-trips"] });
+              queryClient.invalidateQueries({ queryKey: ["planned-trips-driver-names"] });
+            }}
+            onCancel={() => setEditOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
