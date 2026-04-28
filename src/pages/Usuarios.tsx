@@ -439,12 +439,14 @@ export default function Usuarios() {
     const defBr = selectedProfile.default_branch_id ?? "";
     const currentRole = getUserRole(selectedProfile.user_id) ?? "";
 
+    setEditFullName(selectedProfile.full_name ?? "");
     setEditAllBranches(allBr);
     setEditDefaultBranch(defBr);
     setEditBranchIds(merged);
     setEditRole(currentRole as RoleKey);
 
     setOriginalState({
+      fullName: selectedProfile.full_name ?? "",
       role: currentRole,
       defaultBranch: defBr,
       branchIds: merged,
