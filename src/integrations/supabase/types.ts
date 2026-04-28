@@ -2870,6 +2870,17 @@ export type Database = {
         }
         Returns: Json
       }
+      fn_edit_trip: {
+        Args: {
+          p_clear_vehicle?: boolean
+          p_destination_description?: string
+          p_driver_id?: string
+          p_planned_departure?: string
+          p_trip_id: string
+          p_vehicle_id?: string
+        }
+        Returns: Json
+      }
       fn_ensure_driver_for_user: { Args: { _user_id: string }; Returns: string }
       fn_is_parent_request: { Args: { p_request_id: string }; Returns: boolean }
       fn_recalculate_flow_type: {
