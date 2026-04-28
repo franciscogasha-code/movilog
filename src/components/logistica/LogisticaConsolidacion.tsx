@@ -109,17 +109,45 @@ export function LogisticaConsolidacion() {
   const { data: plannedTrips } = useQuery({
     queryKey: ["planned-trips-for-assignment"],
     queryFn: async () => {
+      // FIX raíz: la columna real es `planned_departure`, no `scheduled_departure`.
+      // El nombre incorrecto hacía fallar el SELECT silenciosamente y dejaba
+      // el modal "Asignar a viaje existente" sin ningún viaje.
+      // También se pide `vehicles.plate` (columna real), no `plate_number`.
       const { data, error } = await supabase
         .from("trips")
         .select(`
-          id, trip_number, trip_type, scheduled_departure,
+          id, trip_number, trip_type, planned_departure, destination_description, driver_id,
           origin_branch:branches!trips_origin_branch_id_fkey(name, code),
-          vehicle:vehicles(plate_number)
+          vehicle:vehicles(plate),
+          driver:drivers!trips_driver_id_fkey(id, user_id)
         `)
         .eq("status", "planned" as any)
-        .order("created_at", { ascending: false });
+        .order("planned_departure", { ascending: true, nullsFirst: false });
       if (error) throw error;
       return data;
+    },
+  });
+
+  // Resolver nombre del chofer para mostrar en el selector (igual estrategia que Programados)
+  const { data: plannedTripsWithDriver } = useQuery({
+    queryKey: [
+      "planned-trips-for-assignment-with-driver",
+      (plannedTrips ?? []).map((t: any) => t.driver?.user_id).filter(Boolean),
+    ],
+    enabled: !!plannedTrips,
+    queryFn: async () => {
+      const list = plannedTrips ?? [];
+      const userIds = Array.from(new Set(list.map((t: any) => t.driver?.user_id).filter(Boolean)));
+      let nameByUser: Record<string, string> = {};
+      if (userIds.length) {
+        const { data: profs } = await supabase
+          .from("profiles").select("user_id, full_name").in("user_id", userIds as string[]);
+        nameByUser = Object.fromEntries((profs ?? []).map((p: any) => [p.user_id, p.full_name]));
+      }
+      return list.map((t: any) => ({
+        ...t,
+        driver_name: t.driver?.user_id ? nameByUser[t.driver.user_id] ?? "Sin chofer" : "Sin chofer",
+      }));
     },
   });
 
