@@ -7,13 +7,12 @@ import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Play, Square, MapPin, Truck, Plus, Route, AlertTriangle, Calendar } from "lucide-react";
+import { Play, Square, MapPin, Truck, Plus, Route, AlertTriangle, Calendar, Package } from "lucide-react";
 import { CorteDetalle } from "./CorteDetalle";
 import { AgregarTareaViaje } from "./AgregarTareaViaje";
+import { AceptarCargasViajeModal } from "./AceptarCargasViajeModal";
 import { branchName } from "@/lib/branch-format";
 import { CrearViajeForm } from "@/components/logistica/CrearViajeForm";
 import { TRIP_TYPE_LABELS } from "@/lib/constants";
@@ -38,13 +37,10 @@ export function ViajeInterurbano({ trips, activeTrip, myDriverId }: Props) {
   const [detailId, setDetailId] = useState<string | null>(null);
   const [addTaskOpen, setAddTaskOpen] = useState(false);
   const [createTripOpen, setCreateTripOpen] = useState(false);
-  const [startingTripId, setStartingTripId] = useState<string | null>(null);
-  const [startMileage, setStartMileage] = useState("");
+  const [acceptTrip, setAcceptTrip] = useState<{ id: string; trip_number: number } | null>(null);
   const [showEndWarning, setShowEndWarning] = useState(false);
   const [pendingCustodyCount, setPendingCustodyCount] = useState(0);
   const [endMileageValue, setEndMileageValue] = useState<number | null>(null);
-  const [showEmptyTripWarning, setShowEmptyTripWarning] = useState(false);
-  const [pendingStartTripId, setPendingStartTripId] = useState<string | null>(null);
 
   const isManagementUser =
     isOwner ||
@@ -57,50 +53,24 @@ export function ViajeInterurbano({ trips, activeTrip, myDriverId }: Props) {
   // Planned trips assigned to this driver (not yet started)
   const plannedTrips = trips.filter(t => t.status === "planned");
 
-  const checkAndStartTrip = async (tripId: string) => {
-    if (!startMileage) { toast.error("Ingresar kilometraje inicial"); return; }
-    // Check if trip has assigned loads
-    const { count } = await supabase
-      .from("fulfillment_orders")
-      .select("id", { count: "exact", head: true })
-      .eq("trip_id", tripId);
-    if (!count || count === 0) {
-      setPendingStartTripId(tripId);
-      setShowEmptyTripWarning(true);
-      return;
-    }
-    await doStartTrip(tripId);
-  };
-
-  const doStartTrip = async (tripId: string) => {
-    setShowEmptyTripWarning(false);
-    setPendingStartTripId(null);
-    try {
-      const { error } = await supabase
-        .from("trips")
-        .update({
-          status: "in_progress" as any,
-          actual_departure: new Date().toISOString(),
-          start_mileage: parseInt(startMileage),
-        })
-        .eq("id", tripId);
+  // Counts of loads per planned trip (for "Ver cargas" button)
+  const { data: plannedLoadCounts } = useQuery({
+    queryKey: ["planned-trip-load-counts", plannedTrips.map(t => t.id).sort().join(",")],
+    queryFn: async () => {
+      if (plannedTrips.length === 0) return {} as Record<string, number>;
+      const { data, error } = await supabase
+        .from("fulfillment_orders")
+        .select("trip_id")
+        .in("trip_id", plannedTrips.map(t => t.id));
       if (error) throw error;
-
-      await supabase.from("operational_events").insert({
-        reference_type: "trip", reference_id: tripId, event_type: "trip_started",
-        category: categoryForTripEvent("trip_started"), event_description: "Inicio de viaje interurbano",
-        new_status: "in_progress", triggered_by: user!.id,
-        metadata: { start_mileage: parseInt(startMileage) },
+      const counts: Record<string, number> = {};
+      (data || []).forEach((r: any) => {
+        if (r.trip_id) counts[r.trip_id] = (counts[r.trip_id] || 0) + 1;
       });
-
-      toast.success("Viaje iniciado");
-      setStartMileage("");
-      setStartingTripId(null);
-      queryClient.invalidateQueries({ queryKey: ["active-trips"] });
-    } catch (err: any) {
-      toast.error(err.message);
-    }
-  };
+      return counts;
+    },
+    enabled: plannedTrips.length > 0,
+  });
 
   const attemptEndTrip = async () => {
     if (!activeTrip) return;
@@ -232,46 +202,65 @@ export function ViajeInterurbano({ trips, activeTrip, myDriverId }: Props) {
       ) : plannedTrips.length > 0 ? (
         /* Planned trips assigned to me — ready to start */
         <div className="space-y-2">
-          {plannedTrips.map(t => (
-            <Card key={t.id} className="glass-card">
-              <CardContent className="p-4">
-                {startingTripId === t.id ? (
-                  <div className="flex gap-3 items-end">
-                    <div className="space-y-1 flex-1 max-w-[200px]">
-                      <Label className="text-xs">Km inicial</Label>
-                      <Input type="number" value={startMileage} onChange={(e) => setStartMileage(e.target.value)} placeholder="0" />
-                    </div>
-                    <Button onClick={() => checkAndStartTrip(t.id)} className="gap-2">
-                      <Play className="h-4 w-4" /> Iniciar
-                    </Button>
-                    <Button variant="ghost" onClick={() => setStartingTripId(null)}>Cancelar</Button>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <Calendar className="h-4 w-4 text-muted-foreground" />
-                      <div>
-                        <span className="font-mono font-semibold text-sm">Viaje #{t.trip_number}</span>
-                        <span className="text-xs text-muted-foreground ml-2">{branchName(t.origin_branch)}</span>
-                        {(t as any).destination_description && (
-                          <span className="text-xs text-muted-foreground ml-1">→ {(t as any).destination_description}</span>
-                        )}
+          {plannedTrips.map(t => {
+            const loadCount = plannedLoadCounts?.[t.id] ?? 0;
+            return (
+              <Card key={t.id} className="glass-card">
+                <CardContent className="p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-3 flex-wrap">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-mono font-semibold text-sm">Viaje #{t.trip_number}</span>
+                          <Badge variant="outline" className="text-[10px]">
+                            {TRIP_TYPE_LABELS[t.trip_type] || t.trip_type}
+                          </Badge>
+                          <Badge variant="outline" className="text-[10px]">Programado</Badge>
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1 truncate">
+                          Desde {branchName(t.origin_branch)}
+                          {(t as any).destination_description && (
+                            <span> → {(t as any).destination_description}</span>
+                          )}
+                        </div>
+                        <div className="text-xs mt-1 flex items-center gap-1.5">
+                          <Package className="h-3 w-3 text-muted-foreground" />
+                          <span className={loadCount > 0 ? "font-semibold text-foreground" : "text-muted-foreground"}>
+                            {loadCount} {loadCount === 1 ? "carga asignada" : "cargas asignadas"}
+                          </span>
+                        </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline" className="text-xs">
-                        {TRIP_TYPE_LABELS[t.trip_type] || t.trip_type}
-                      </Badge>
-                      <Badge variant="outline" className="text-xs">Programado</Badge>
-                      <Button size="sm" onClick={() => setStartingTripId(t.id)} className="gap-1">
-                        <Play className="h-3.5 w-3.5" /> Iniciar viaje
-                      </Button>
-                    </div>
                   </div>
-                )}
-              </CardContent>
-            </Card>
-          ))}
+
+                  <div className="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setDetailId(t.id)}
+                      className="gap-1.5 w-full sm:w-auto"
+                    >
+                      <Package className="h-3.5 w-3.5" /> Ver cargas ({loadCount})
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => setAcceptTrip({ id: t.id, trip_number: t.trip_number })}
+                      disabled={loadCount === 0}
+                      className="gap-1.5 w-full sm:w-auto h-10 sm:h-9"
+                    >
+                      <Play className="h-3.5 w-3.5" /> Aceptar e iniciar
+                    </Button>
+                  </div>
+                  {loadCount === 0 && (
+                    <p className="text-[11px] text-muted-foreground text-right">
+                      Logística aún no asignó cargas a este viaje.
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       ) : isManagementUser ? (
         <Card className="glass-card">
@@ -368,26 +357,15 @@ export function ViajeInterurbano({ trips, activeTrip, myDriverId }: Props) {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Empty trip warning */}
-      <AlertDialog open={showEmptyTripWarning} onOpenChange={setShowEmptyTripWarning}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-secondary" /> Viaje sin cargas asignadas
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              Este viaje no tiene cargas asignadas todavía. Normalmente, logística asigna las cargas antes de la salida.
-              ¿Querés iniciarlo de todas formas?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={() => pendingStartTripId && doStartTrip(pendingStartTripId)}>
-              Iniciar sin cargas
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Aceptar cargas e iniciar viaje */}
+      {acceptTrip && (
+        <AceptarCargasViajeModal
+          open={!!acceptTrip}
+          onOpenChange={(o) => !o && setAcceptTrip(null)}
+          tripId={acceptTrip.id}
+          tripNumber={acceptTrip.trip_number}
+        />
+      )}
 
       {/* Create trip dialog */}
       <Dialog open={createTripOpen} onOpenChange={setCreateTripOpen}>
