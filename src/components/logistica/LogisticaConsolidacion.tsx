@@ -491,12 +491,24 @@ export function LogisticaConsolidacion() {
                 <SelectValue placeholder="Seleccionar viaje..." />
               </SelectTrigger>
               <SelectContent>
-                {plannedTrips?.map((t: any) => (
-                  <SelectItem key={t.id} value={t.id}>
-                    Viaje #{t.trip_number} — {branchName(t.origin_branch as any)}
-                    {(t.vehicle as any)?.plate_number ? ` (${(t.vehicle as any).plate_number})` : ""}
-                  </SelectItem>
-                ))}
+                {(plannedTripsWithDriver ?? plannedTrips)?.map((t: any) => {
+                  const plate = (t.vehicle as any)?.plate;
+                  const driverName = (t as any).driver_name;
+                  const dep = t.planned_departure
+                    ? new Date(t.planned_departure).toLocaleString("es-PY", {
+                        day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
+                      })
+                    : null;
+                  return (
+                    <SelectItem key={t.id} value={t.id}>
+                      Viaje #{t.trip_number} — {branchName(t.origin_branch as any)}
+                      {t.destination_description ? ` → ${t.destination_description}` : ""}
+                      {driverName ? ` · ${driverName}` : ""}
+                      {plate ? ` · ${plate}` : ""}
+                      {dep ? ` · ${dep}` : ""}
+                    </SelectItem>
+                  );
+                })}
                 {(!plannedTrips || plannedTrips.length === 0) && (
                   <SelectItem value="none" disabled>No hay viajes planificados</SelectItem>
                 )}
