@@ -400,18 +400,22 @@ export default function Usuarios() {
 
   const newRoleDef = useMemo(() => newRole ? getRoleDef(newRole) : undefined, [newRole]);
 
+  /* --- Name normalize helper --- */
+  const normalizeName = useCallback((s: string) => s.trim().replace(/\s+/g, " "), []);
+
   /* --- Dirty check --- */
   const isDirty = useMemo(() => {
     if (!originalState || !selectedProfile) return false;
     const currentBranches = [...editBranchIds].sort().join(",");
     const origBranches = [...originalState.branchIds].sort().join(",");
     return (
+      normalizeName(editFullName) !== originalState.fullName ||
       editRole !== originalState.role ||
       editDefaultBranch !== originalState.defaultBranch ||
       currentBranches !== origBranches ||
       editAllBranches !== originalState.allBranches
     );
-  }, [originalState, editRole, editDefaultBranch, editBranchIds, editAllBranches, selectedProfile]);
+  }, [originalState, editFullName, editRole, editDefaultBranch, editBranchIds, editAllBranches, selectedProfile, normalizeName]);
 
   /* Sync detail form when selection changes */
   useEffect(() => {
