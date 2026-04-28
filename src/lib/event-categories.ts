@@ -36,7 +36,3 @@ export const TRIP_EVENT_CATEGORY: Record<string, EventCategory> = {
 export function categoryForTripEvent(eventType: keyof typeof TRIP_EVENT_CATEGORY): EventCategory {
   return TRIP_EVENT_CATEGORY[eventType];
 }
-
-export function categoryForTripEvent(eventType: keyof typeof TRIP_EVENT_CATEGORY): EventCategory {
-  return TRIP_EVENT_CATEGORY[eventType];
-}

@@ -1,3 +1,4 @@
+import { categoryForTripEvent } from "@/lib/event-categories";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
