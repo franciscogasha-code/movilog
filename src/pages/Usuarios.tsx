@@ -275,6 +275,7 @@ export default function Usuarios() {
 
   /* --- Detail state --- */
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
+  const [editFullName, setEditFullName] = useState("");
   const [editDefaultBranch, setEditDefaultBranch] = useState("");
   const [editAllBranches, setEditAllBranches] = useState(false);
   const [editBranchIds, setEditBranchIds] = useState<string[]>([]);
@@ -289,7 +290,7 @@ export default function Usuarios() {
 
   /* --- Dirty tracking --- */
   const [originalState, setOriginalState] = useState<{
-    role: string; defaultBranch: string; branchIds: string[]; allBranches: boolean;
+    fullName: string; role: string; defaultBranch: string; branchIds: string[]; allBranches: boolean;
   } | null>(null);
 
   /* --- Queries --- */
@@ -399,18 +400,22 @@ export default function Usuarios() {
 
   const newRoleDef = useMemo(() => newRole ? getRoleDef(newRole) : undefined, [newRole]);
 
+  /* --- Name normalize helper --- */
+  const normalizeName = useCallback((s: string) => s.trim().replace(/\s+/g, " "), []);
+
   /* --- Dirty check --- */
   const isDirty = useMemo(() => {
     if (!originalState || !selectedProfile) return false;
     const currentBranches = [...editBranchIds].sort().join(",");
     const origBranches = [...originalState.branchIds].sort().join(",");
     return (
+      normalizeName(editFullName) !== originalState.fullName ||
       editRole !== originalState.role ||
       editDefaultBranch !== originalState.defaultBranch ||
       currentBranches !== origBranches ||
       editAllBranches !== originalState.allBranches
     );
-  }, [originalState, editRole, editDefaultBranch, editBranchIds, editAllBranches, selectedProfile]);
+  }, [originalState, editFullName, editRole, editDefaultBranch, editBranchIds, editAllBranches, selectedProfile, normalizeName]);
 
   /* Sync detail form when selection changes */
   useEffect(() => {
@@ -434,12 +439,14 @@ export default function Usuarios() {
     const defBr = selectedProfile.default_branch_id ?? "";
     const currentRole = getUserRole(selectedProfile.user_id) ?? "";
 
+    setEditFullName(selectedProfile.full_name ?? "");
     setEditAllBranches(allBr);
     setEditDefaultBranch(defBr);
     setEditBranchIds(merged);
     setEditRole(currentRole as RoleKey);
 
     setOriginalState({
+      fullName: selectedProfile.full_name ?? "",
       role: currentRole,
       defaultBranch: defBr,
       branchIds: merged,
@@ -516,13 +523,18 @@ export default function Usuarios() {
 
   const saveProfile = useMutation({
     mutationFn: async ({
-      profileId, userId, defaultBranchId, allBranches, branchIds, role,
+      profileId, userId, fullName, defaultBranchId, allBranches, branchIds, role,
     }: {
-      profileId: string; userId: string; defaultBranchId: string | null;
+      profileId: string; userId: string; fullName: string; defaultBranchId: string | null;
       allBranches: boolean; branchIds: string[]; role: RoleKey;
     }) => {
       if (!role) throw new Error("Debés seleccionar un rol");
       const roleDef = getRoleDef(role)!;
+
+      const cleanName = fullName.trim().replace(/\s+/g, " ");
+      if (cleanName.length < 2) {
+        throw new Error("El nombre debe tener al menos 2 caracteres");
+      }
 
       if (!allBranches && (!defaultBranchId || branchIds.length === 0)) {
         throw new Error("Debés asignar al menos una sucursal");
@@ -532,10 +544,11 @@ export default function Usuarios() {
         throw new Error("La sucursal por defecto debe estar entre las sucursales asignadas");
       }
 
-      await supabase
+      const { error: profErr } = await supabase
         .from("profiles")
-        .update({ default_branch_id: defaultBranchId, all_branches_access: allBranches })
+        .update({ full_name: cleanName, default_branch_id: defaultBranchId, all_branches_access: allBranches })
         .eq("id", profileId);
+      if (profErr) throw profErr;
 
       await supabase.from("user_roles").delete().eq("user_id", userId);
       await supabase.from("user_roles").insert({ user_id: userId, role });
@@ -628,6 +641,7 @@ export default function Usuarios() {
     saveProfile.mutate({
       profileId: selectedProfile.id,
       userId: selectedProfile.user_id,
+      fullName: editFullName,
       defaultBranchId: roleDef?.allBranchesByDefault ? null : editDefaultBranch || null,
       allBranches: roleDef?.allBranchesByDefault ?? editAllBranches,
       branchIds: roleDef?.allBranchesByDefault
@@ -652,6 +666,7 @@ export default function Usuarios() {
 
   const canSave =
     !!editRole &&
+    normalizeName(editFullName).length >= 2 &&
     (selectedRoleDef?.allBranchesByDefault || (!!editDefaultBranch && editBranchIds.length > 0));
 
   /* ------------------------------------------------------------------ */
@@ -935,14 +950,29 @@ export default function Usuarios() {
                 {/* Section: General info */}
                 <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-2">
                   <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Datos generales</p>
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                    <div>
-                      <p className="text-[11px] text-muted-foreground">Nombre</p>
-                      <p className="text-sm font-medium">{selectedProfile.full_name}</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
+                    <div className="sm:col-span-2 space-y-1">
+                      <Label htmlFor="edit-full-name" className="text-[11px] text-muted-foreground">
+                        Nombre
+                      </Label>
+                      <Input
+                        id="edit-full-name"
+                        value={editFullName}
+                        onChange={(e) => setEditFullName(e.target.value)}
+                        placeholder="Nombre y apellido"
+                        maxLength={120}
+                        autoComplete="off"
+                        disabled={saveProfile.isPending}
+                      />
+                      {editFullName.length > 0 && normalizeName(editFullName).length < 2 && (
+                        <p className="text-[11px] text-destructive">
+                          El nombre debe tener al menos 2 caracteres.
+                        </p>
+                      )}
                     </div>
                     <div>
                       <p className="text-[11px] text-muted-foreground">Estado</p>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 h-10">
                         {selectedProfile.is_active ? (
                           <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-700 border-emerald-300">
                             Activo
