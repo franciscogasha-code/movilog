@@ -39,13 +39,10 @@ export function ViajeInterurbano({ trips, activeTrip, myDriverId }: Props) {
   const [detailId, setDetailId] = useState<string | null>(null);
   const [addTaskOpen, setAddTaskOpen] = useState(false);
   const [createTripOpen, setCreateTripOpen] = useState(false);
-  const [startingTripId, setStartingTripId] = useState<string | null>(null);
-  const [startMileage, setStartMileage] = useState("");
+  const [acceptTrip, setAcceptTrip] = useState<{ id: string; trip_number: number } | null>(null);
   const [showEndWarning, setShowEndWarning] = useState(false);
   const [pendingCustodyCount, setPendingCustodyCount] = useState(0);
   const [endMileageValue, setEndMileageValue] = useState<number | null>(null);
-  const [showEmptyTripWarning, setShowEmptyTripWarning] = useState(false);
-  const [pendingStartTripId, setPendingStartTripId] = useState<string | null>(null);
 
   const isManagementUser =
     isOwner ||
