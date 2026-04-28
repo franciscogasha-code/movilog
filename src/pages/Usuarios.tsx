@@ -950,14 +950,29 @@ export default function Usuarios() {
                 {/* Section: General info */}
                 <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-2">
                   <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Datos generales</p>
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                    <div>
-                      <p className="text-[11px] text-muted-foreground">Nombre</p>
-                      <p className="text-sm font-medium">{selectedProfile.full_name}</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
+                    <div className="sm:col-span-2 space-y-1">
+                      <Label htmlFor="edit-full-name" className="text-[11px] text-muted-foreground">
+                        Nombre
+                      </Label>
+                      <Input
+                        id="edit-full-name"
+                        value={editFullName}
+                        onChange={(e) => setEditFullName(e.target.value)}
+                        placeholder="Nombre y apellido"
+                        maxLength={120}
+                        autoComplete="off"
+                        disabled={saveProfile.isPending}
+                      />
+                      {editFullName.length > 0 && normalizeName(editFullName).length < 2 && (
+                        <p className="text-[11px] text-destructive">
+                          El nombre debe tener al menos 2 caracteres.
+                        </p>
+                      )}
                     </div>
                     <div>
                       <p className="text-[11px] text-muted-foreground">Estado</p>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 h-10">
                         {selectedProfile.is_active ? (
                           <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-700 border-emerald-300">
                             Activo
