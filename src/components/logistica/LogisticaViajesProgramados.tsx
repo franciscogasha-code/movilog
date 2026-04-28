@@ -104,14 +104,14 @@ export function LogisticaViajesProgramados() {
       return;
     }
     try {
-      const { error } = await supabase
-        .from("trips")
-        .update({ status: "cancelled" as any })
-        .eq("id", tripId);
+      // Usa RPC con trazabilidad: valida cargas server-side, registra evento operativo
+      // y respeta permisos por rol. Reemplaza el UPDATE directo silencioso.
+      const { error } = await supabase.rpc("fn_cancel_trip" as any, { p_trip_id: tripId });
       if (error) throw error;
       toast.success("Viaje cancelado");
       queryClient.invalidateQueries({ queryKey: ["planned-trips"] });
       queryClient.invalidateQueries({ queryKey: ["planned-count"] });
+      queryClient.invalidateQueries({ queryKey: ["trip-load-counts"] });
     } catch (err: any) {
       toast.error(err.message);
     }

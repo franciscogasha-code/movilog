@@ -16,7 +16,7 @@ export function LogisticaViajesEnCurso() {
   const [detailTripId, setDetailTripId] = useState<string | null>(null);
 
   const {
-    rows: trips,
+    rows: tripsBase,
     total,
     page,
     pageSize,
@@ -35,18 +35,39 @@ export function LogisticaViajesEnCurso() {
         .select(`
           *,
           origin_branch:branches!trips_origin_branch_id_fkey(name, code),
-          vehicle:vehicles(plate_number, brand, model),
-          driver:drivers!trips_driver_id_fkey(id, user_id, profiles:user_id(full_name))
+          vehicle:vehicles(plate, brand, model),
+          driver:drivers!trips_driver_id_fkey(id, user_id)
         `, { count: "exact" })
         .eq("status", "in_progress" as any)
         .order("actual_departure", { ascending: false }),
   });
 
-  const { data: tripFulfillments } = useQuery({
-    queryKey: ["active-trip-fulfillments"],
+  // Resolver nombres de chofer aparte (drivers.user_id referencia auth.users, no profiles).
+  // Embed PostgREST `profiles:user_id(...)` no funciona porque no hay FK directa.
+  // Misma estrategia probada en LogisticaViajesProgramados.
+  const { data: trips } = useQuery({
+    queryKey: ["in-progress-trips-driver-names", tripsBase.map((t: any) => t.driver?.user_id).filter(Boolean)],
+    enabled: tripsBase.length > 0,
     queryFn: async () => {
-      if (!trips?.length) return [];
-      const tripIds = trips.map(t => t.id);
+      const userIds = Array.from(new Set(tripsBase.map((t: any) => t.driver?.user_id).filter(Boolean)));
+      let nameByUser: Record<string, string> = {};
+      if (userIds.length) {
+        const { data: profs } = await supabase
+          .from("profiles").select("user_id, full_name").in("user_id", userIds as string[]);
+        nameByUser = Object.fromEntries((profs ?? []).map((p: any) => [p.user_id, p.full_name]));
+      }
+      return tripsBase.map((t: any) => ({
+        ...t,
+        driver_name: t.driver?.user_id ? nameByUser[t.driver.user_id] ?? "Sin chofer" : "Sin chofer",
+      }));
+    },
+  });
+
+  const { data: tripFulfillments } = useQuery({
+    queryKey: ["active-trip-fulfillments", tripsBase.map((t: any) => t.id)],
+    queryFn: async () => {
+      if (!tripsBase.length) return [];
+      const tripIds = tripsBase.map((t: any) => t.id);
       const { data, error } = await supabase
         .from("fulfillment_orders")
         .select(`
@@ -58,7 +79,7 @@ export function LogisticaViajesEnCurso() {
       if (error) throw error;
       return data;
     },
-    enabled: !!trips?.length,
+    enabled: tripsBase.length > 0,
   });
 
   return (
@@ -73,7 +94,7 @@ export function LogisticaViajesEnCurso() {
         <CardContent>
           {isLoading ? (
             <div className="p-6 text-center text-muted-foreground text-sm">Cargando...</div>
-          ) : !trips?.length ? (
+          ) : !tripsBase.length ? (
             <div className="p-8 text-center text-muted-foreground">
               <Truck className="h-8 w-8 mx-auto mb-2 opacity-50" />
               <p className="font-medium">No hay viajes en curso</p>
@@ -81,8 +102,8 @@ export function LogisticaViajesEnCurso() {
             </div>
           ) : (
             <div className="space-y-3">
-              {trips.map((t: any) => {
-                const driverName = (t.driver as any)?.profiles?.full_name || "Sin chofer";
+              {(trips ?? tripsBase).map((t: any) => {
+                const driverName = (t as any).driver_name || "Sin chofer";
                 const loads = tripFulfillments?.filter(f => f.trip_id === t.id) || [];
                 const delivered = loads.filter(f => ["delivered", "received", "completed"].includes(f.status));
                 const progress = loads.length > 0 ? Math.round((delivered.length / loads.length) * 100) : 0;
