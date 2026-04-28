@@ -275,6 +275,7 @@ export default function Usuarios() {
 
   /* --- Detail state --- */
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
+  const [editFullName, setEditFullName] = useState("");
   const [editDefaultBranch, setEditDefaultBranch] = useState("");
   const [editAllBranches, setEditAllBranches] = useState(false);
   const [editBranchIds, setEditBranchIds] = useState<string[]>([]);
