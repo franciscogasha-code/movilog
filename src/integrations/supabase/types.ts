@@ -2843,6 +2843,10 @@ export type Database = {
         Args: { _consultation_id: string; _user_id: string }
         Returns: boolean
       }
+      fn_cancel_trip: {
+        Args: { p_reason?: string; p_trip_id: string }
+        Returns: Json
+      }
       fn_clear_for_pickup: { Args: { p_request_ids: string[] }; Returns: Json }
       fn_close_expired_consultations: { Args: never; Returns: number }
       fn_close_parent_if_complete: {
