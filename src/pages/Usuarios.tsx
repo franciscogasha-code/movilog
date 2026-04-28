@@ -666,6 +666,7 @@ export default function Usuarios() {
 
   const canSave =
     !!editRole &&
+    normalizeName(editFullName).length >= 2 &&
     (selectedRoleDef?.allBranchesByDefault || (!!editDefaultBranch && editBranchIds.length > 0));
 
   /* ------------------------------------------------------------------ */
