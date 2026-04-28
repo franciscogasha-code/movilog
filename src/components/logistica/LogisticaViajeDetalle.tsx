@@ -6,10 +6,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Package, ArrowRight, Truck, MapPin, Plus, Trash2, Calendar, User, ShoppingBag } from "lucide-react";
+import { Package, ArrowRight, Truck, MapPin, Plus, Trash2, Calendar, User, ShoppingBag, Pencil } from "lucide-react";
 import { TRIP_TYPE_LABELS, REQUEST_TYPE_LABELS, FULFILLMENT_STATUS_CONFIG } from "@/lib/constants";
 import { branchLabel, branchName } from "@/lib/branch-format";
 import { toast } from "sonner";
+import { EditarViajeForm } from "./EditarViajeForm";
 
 interface Props {
   tripId: string;
@@ -18,6 +19,7 @@ interface Props {
 export function LogisticaViajeDetalle({ tripId }: Props) {
   const queryClient = useQueryClient();
   const [addOpen, setAddOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const [selectedRequestId, setSelectedRequestId] = useState("");
   const [assigning, setAssigning] = useState(false);
 
@@ -196,8 +198,8 @@ export function LogisticaViajeDetalle({ tripId }: Props) {
   return (
     <div className="space-y-4">
       {/* Trip header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
+      <div className="flex items-start justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap min-w-0">
           <span className="font-display font-bold text-lg">Viaje #{trip.trip_number}</span>
           <Badge variant={isSupplier ? "secondary" : "outline"} className="text-xs">
             {isSupplier && <ShoppingBag className="h-3 w-3 mr-0.5" />}
@@ -207,9 +209,21 @@ export function LogisticaViajeDetalle({ tripId }: Props) {
             {isPlanned ? "Planificado" : "En curso"}
           </Badge>
         </div>
-        <div className="text-right">
-          <p className="text-lg font-bold">{totalLoads} <span className="text-sm font-normal text-muted-foreground">carga(s)</span></p>
-          {totalBultos > 0 && <p className="text-xs text-muted-foreground">{totalBultos} bultos</p>}
+        <div className="flex items-center gap-3">
+          {isPlanned && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setEditOpen(true)}
+              className="gap-1.5"
+            >
+              <Pencil className="h-3.5 w-3.5" /> Editar viaje
+            </Button>
+          )}
+          <div className="text-right">
+            <p className="text-lg font-bold">{totalLoads} <span className="text-sm font-normal text-muted-foreground">carga(s)</span></p>
+            {totalBultos > 0 && <p className="text-xs text-muted-foreground">{totalBultos} bultos</p>}
+          </div>
         </div>
       </div>
 
@@ -325,6 +339,25 @@ export function LogisticaViajeDetalle({ tripId }: Props) {
               {assigning ? "Asignando..." : "Asignar"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit trip dialog (solo planificados) */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Editar viaje #{trip.trip_number}</DialogTitle>
+          </DialogHeader>
+          <EditarViajeForm
+            trip={trip}
+            onSuccess={() => {
+              setEditOpen(false);
+              queryClient.invalidateQueries({ queryKey: ["trip-detail", tripId] });
+              queryClient.invalidateQueries({ queryKey: ["planned-trips"] });
+              queryClient.invalidateQueries({ queryKey: ["planned-trips-driver-names"] });
+            }}
+            onCancel={() => setEditOpen(false)}
+          />
         </DialogContent>
       </Dialog>
     </div>
