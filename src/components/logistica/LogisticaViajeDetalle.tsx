@@ -6,10 +6,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Package, ArrowRight, Truck, MapPin, Plus, Trash2, Calendar, User, ShoppingBag } from "lucide-react";
+import { Package, ArrowRight, Truck, MapPin, Plus, Trash2, Calendar, User, ShoppingBag, Pencil } from "lucide-react";
 import { TRIP_TYPE_LABELS, REQUEST_TYPE_LABELS, FULFILLMENT_STATUS_CONFIG } from "@/lib/constants";
 import { branchLabel, branchName } from "@/lib/branch-format";
 import { toast } from "sonner";
+import { EditarViajeForm } from "./EditarViajeForm";
 
 interface Props {
   tripId: string;
@@ -18,6 +19,7 @@ interface Props {
 export function LogisticaViajeDetalle({ tripId }: Props) {
   const queryClient = useQueryClient();
   const [addOpen, setAddOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const [selectedRequestId, setSelectedRequestId] = useState("");
   const [assigning, setAssigning] = useState(false);
 
