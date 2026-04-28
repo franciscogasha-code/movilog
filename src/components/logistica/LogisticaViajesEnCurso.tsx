@@ -43,6 +43,7 @@ export function LogisticaViajesEnCurso() {
   });
 
   const { data: trips } = useTripsWithDriverNames(tripsBase, "in-progress-trips-driver-names");
+  const displayedTrips = trips ?? tripsBase;
 
   const { data: tripFulfillments } = useQuery({
     queryKey: ["active-trip-fulfillments", tripsBase.map((t: any) => t.id)],
@@ -83,8 +84,8 @@ export function LogisticaViajesEnCurso() {
             </div>
           ) : (
             <div className="space-y-3">
-              {(trips ?? tripsBase).map((t: any) => {
-                const driverName = (t as any).driver_name || "Sin chofer";
+              {displayedTrips.map((t: any) => {
+                const driverName = (t as any).driver_name ?? "Resolviendo chofer...";
                 const loads = tripFulfillments?.filter(f => f.trip_id === t.id) || [];
                 const delivered = loads.filter(f => ["delivered", "received", "completed"].includes(f.status));
                 const progress = loads.length > 0 ? Math.round((delivered.length / loads.length) * 100) : 0;
