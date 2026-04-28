@@ -55,50 +55,24 @@ export function ViajeInterurbano({ trips, activeTrip, myDriverId }: Props) {
   // Planned trips assigned to this driver (not yet started)
   const plannedTrips = trips.filter(t => t.status === "planned");
 
-  const checkAndStartTrip = async (tripId: string) => {
-    if (!startMileage) { toast.error("Ingresar kilometraje inicial"); return; }
-    // Check if trip has assigned loads
-    const { count } = await supabase
-      .from("fulfillment_orders")
-      .select("id", { count: "exact", head: true })
-      .eq("trip_id", tripId);
-    if (!count || count === 0) {
-      setPendingStartTripId(tripId);
-      setShowEmptyTripWarning(true);
-      return;
-    }
-    await doStartTrip(tripId);
-  };
-
-  const doStartTrip = async (tripId: string) => {
-    setShowEmptyTripWarning(false);
-    setPendingStartTripId(null);
-    try {
-      const { error } = await supabase
-        .from("trips")
-        .update({
-          status: "in_progress" as any,
-          actual_departure: new Date().toISOString(),
-          start_mileage: parseInt(startMileage),
-        })
-        .eq("id", tripId);
+  // Counts of loads per planned trip (for "Ver cargas" button)
+  const { data: plannedLoadCounts } = useQuery({
+    queryKey: ["planned-trip-load-counts", plannedTrips.map(t => t.id).sort().join(",")],
+    queryFn: async () => {
+      if (plannedTrips.length === 0) return {} as Record<string, number>;
+      const { data, error } = await supabase
+        .from("fulfillment_orders")
+        .select("trip_id")
+        .in("trip_id", plannedTrips.map(t => t.id));
       if (error) throw error;
-
-      await supabase.from("operational_events").insert({
-        reference_type: "trip", reference_id: tripId, event_type: "trip_started",
-        category: categoryForTripEvent("trip_started"), event_description: "Inicio de viaje interurbano",
-        new_status: "in_progress", triggered_by: user!.id,
-        metadata: { start_mileage: parseInt(startMileage) },
+      const counts: Record<string, number> = {};
+      (data || []).forEach((r: any) => {
+        if (r.trip_id) counts[r.trip_id] = (counts[r.trip_id] || 0) + 1;
       });
-
-      toast.success("Viaje iniciado");
-      setStartMileage("");
-      setStartingTripId(null);
-      queryClient.invalidateQueries({ queryKey: ["active-trips"] });
-    } catch (err: any) {
-      toast.error(err.message);
-    }
-  };
+      return counts;
+    },
+    enabled: plannedTrips.length > 0,
+  });
 
   const attemptEndTrip = async () => {
     if (!activeTrip) return;
