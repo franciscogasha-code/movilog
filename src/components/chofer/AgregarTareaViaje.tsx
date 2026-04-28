@@ -69,7 +69,7 @@ export function AgregarTareaViaje({ tripId, onSuccess }: Props) {
         reference_type: "trip",
         reference_id: tripId,
         event_type: "task_added_in_transit",
-        category: "logistics" as any,
+        category: categoryForTripEvent("task_added_in_transit"),
         event_description: `Tarea agregada en tránsito: ${TASK_TYPES.find(t => t.value === taskType)?.label}`,
         triggered_by: user.id,
         metadata: { task: newStop },

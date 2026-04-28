@@ -132,7 +132,7 @@ export function CorteDetalle({ tripId }: { tripId: string }) {
 
       await supabase.from("operational_events").insert({
         reference_type: "fulfillment_order", reference_id: fulfillmentId,
-        event_type: "driver_pickup_rejected", category: "logistics" as any,
+        event_type: "driver_pickup_rejected", category: categoryForTripEvent("driver_pickup_rejected"),
         event_description: `Chofer rechazó retiro: ${REJECTION_REASONS.find(r => r.value === reason)?.label || reason}`,
         triggered_by: user.id, metadata: { trip_id: tripId, rejection_reason: reason },
       });
