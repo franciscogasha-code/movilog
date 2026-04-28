@@ -641,6 +641,7 @@ export default function Usuarios() {
     saveProfile.mutate({
       profileId: selectedProfile.id,
       userId: selectedProfile.user_id,
+      fullName: editFullName,
       defaultBranchId: roleDef?.allBranchesByDefault ? null : editDefaultBranch || null,
       allBranches: roleDef?.allBranchesByDefault ?? editAllBranches,
       branchIds: roleDef?.allBranchesByDefault
