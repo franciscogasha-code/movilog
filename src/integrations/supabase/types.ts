@@ -2882,6 +2882,40 @@ export type Database = {
         Returns: Json
       }
       fn_ensure_driver_for_user: { Args: { _user_id: string }; Returns: string }
+      fn_get_trip_detail: {
+        Args: { p_trip_id: string }
+        Returns: {
+          actual_arrival: string
+          actual_departure: string
+          created_at: string
+          destination_description: string
+          driver_id: string
+          driver_name: string
+          driver_user_id: string
+          id: string
+          origin_branch_code: string
+          origin_branch_id: string
+          origin_branch_name: string
+          planned_departure: string
+          status: Database["public"]["Enums"]["trip_status"]
+          trip_number: number
+          trip_type: Database["public"]["Enums"]["trip_type"]
+          updated_at: string
+          vehicle_brand: string
+          vehicle_id: string
+          vehicle_model: string
+          vehicle_plate: string
+        }[]
+      }
+      fn_get_trip_driver_names: {
+        Args: { p_trip_ids: string[] }
+        Returns: {
+          driver_id: string
+          driver_name: string
+          driver_user_id: string
+          trip_id: string
+        }[]
+      }
       fn_is_parent_request: { Args: { p_request_id: string }; Returns: boolean }
       fn_recalculate_flow_type: {
         Args: { p_request_id: string }
