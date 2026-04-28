@@ -94,7 +94,7 @@ export function LogisticaViajesEnCurso() {
         <CardContent>
           {isLoading ? (
             <div className="p-6 text-center text-muted-foreground text-sm">Cargando...</div>
-          ) : !trips?.length ? (
+          ) : !tripsBase.length ? (
             <div className="p-8 text-center text-muted-foreground">
               <Truck className="h-8 w-8 mx-auto mb-2 opacity-50" />
               <p className="font-medium">No hay viajes en curso</p>
@@ -102,8 +102,8 @@ export function LogisticaViajesEnCurso() {
             </div>
           ) : (
             <div className="space-y-3">
-              {trips.map((t: any) => {
-                const driverName = (t.driver as any)?.profiles?.full_name || "Sin chofer";
+              {(trips ?? tripsBase).map((t: any) => {
+                const driverName = (t as any).driver_name || "Sin chofer";
                 const loads = tripFulfillments?.filter(f => f.trip_id === t.id) || [];
                 const delivered = loads.filter(f => ["delivered", "received", "completed"].includes(f.status));
                 const progress = loads.length > 0 ? Math.round((delivered.length / loads.length) * 100) : 0;
