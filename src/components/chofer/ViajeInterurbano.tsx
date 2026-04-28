@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Play, Square, MapPin, Truck, Plus, Route, AlertTriangle, Calendar } from "lucide-react";
+import { Play, Square, MapPin, Truck, Plus, Route, AlertTriangle, Calendar, Package } from "lucide-react";
 import { CorteDetalle } from "./CorteDetalle";
 import { AgregarTareaViaje } from "./AgregarTareaViaje";
 import { AceptarCargasViajeModal } from "./AceptarCargasViajeModal";
@@ -359,26 +359,15 @@ export function ViajeInterurbano({ trips, activeTrip, myDriverId }: Props) {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Empty trip warning */}
-      <AlertDialog open={showEmptyTripWarning} onOpenChange={setShowEmptyTripWarning}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-secondary" /> Viaje sin cargas asignadas
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              Este viaje no tiene cargas asignadas todavía. Normalmente, logística asigna las cargas antes de la salida.
-              ¿Querés iniciarlo de todas formas?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={() => pendingStartTripId && doStartTrip(pendingStartTripId)}>
-              Iniciar sin cargas
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Aceptar cargas e iniciar viaje */}
+      {acceptTrip && (
+        <AceptarCargasViajeModal
+          open={!!acceptTrip}
+          onOpenChange={(o) => !o && setAcceptTrip(null)}
+          tripId={acceptTrip.id}
+          tripNumber={acceptTrip.trip_number}
+        />
+      )}
 
       {/* Create trip dialog */}
       <Dialog open={createTripOpen} onOpenChange={setCreateTripOpen}>
