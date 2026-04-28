@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { useSearchParams } from "react-router-dom";
 import { usePaginatedQuery } from "@/hooks/use-paginated-query";
 import { PaginationBar } from "@/components/shared/PaginationBar";
+import { useTripsWithDriverNames } from "@/hooks/use-trip-driver-names";
 
 export function LogisticaViajesProgramados() {
   const queryClient = useQueryClient();
@@ -52,51 +53,13 @@ export function LogisticaViajesProgramados() {
         .select(`
           *,
           origin_branch:branches!trips_origin_branch_id_fkey(name, code),
-          vehicle:vehicles(plate, brand, model),
-          driver:drivers!trips_driver_id_fkey(id, user_id)
+          vehicle:vehicles(plate, brand, model)
         `, { count: "exact" })
         .eq("status", "planned" as any)
         .order("planned_departure", { ascending: true, nullsFirst: false }),
   });
 
-  // Resolver nombres de chofer.
-  // FIX bug edición viaje: el queryKey anterior usaba sólo los user_ids existentes,
-  // lo que provocaba cache hits stale tras editar (ej: viaje #48 quedaba "Sin chofer"
-  // aunque DB tuviera el driver_id correcto). Ahora la key incluye un fingerprint
-  // estable por (trip.id, driver_id) y el queryFn se re-ejecuta ante cualquier cambio.
-  const tripsFingerprint = tripsBase
-    .map((t: any) => `${t.id}:${t.driver_id ?? "null"}`)
-    .join("|");
-
-  const { data: trips } = useQuery({
-    queryKey: ["planned-trips-driver-names", tripsFingerprint],
-    enabled: tripsBase.length > 0,
-    queryFn: async () => {
-      // Reconsultar drivers directamente por driver_id evita depender del join PostgREST
-      // (que en algunos casos devuelve null por timing/RLS).
-      const driverIds = Array.from(
-        new Set(tripsBase.map((t: any) => t.driver_id).filter(Boolean))
-      );
-      let userByDriver: Record<string, string> = {};
-      let nameByUser: Record<string, string> = {};
-      if (driverIds.length) {
-        const { data: drvs } = await supabase
-          .from("drivers").select("id, user_id").in("id", driverIds);
-        userByDriver = Object.fromEntries((drvs ?? []).map((d: any) => [d.id, d.user_id]));
-        const userIds = Array.from(new Set(Object.values(userByDriver).filter(Boolean)));
-        if (userIds.length) {
-          const { data: profs } = await supabase
-            .from("profiles").select("user_id, full_name").in("user_id", userIds);
-          nameByUser = Object.fromEntries((profs ?? []).map((p: any) => [p.user_id, p.full_name]));
-        }
-      }
-      return tripsBase.map((t: any) => {
-        const uid = t.driver_id ? userByDriver[t.driver_id] : null;
-        const name = uid ? nameByUser[uid] : null;
-        return { ...t, driver_name: name || "Sin chofer" };
-      });
-    },
-  });
+  const { data: trips } = useTripsWithDriverNames(tripsBase, "planned-trips-driver-names");
 
   const { data: tripLoadCounts } = useQuery({
     queryKey: ["trip-load-counts"],
