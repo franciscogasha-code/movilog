@@ -65,19 +65,25 @@ export function LogisticaViajeDetalle({ tripId }: Props) {
   });
 
   const { data: availableRequests } = useQuery({
-    queryKey: ["available-for-trip"],
+    queryKey: ["available-for-trip", tripId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("branch_requests")
         .select(`
           id, request_number, request_type, client_name, delivery_target, created_at,
-          requesting_branch:branches!branch_requests_requesting_branch_id_fkey(code, name)
+          requesting_branch:branches!branch_requests_requesting_branch_id_fkey(code, name),
+          fulfillment_orders!fulfillment_orders_branch_request_id_fkey(trip_id)
         `)
         .eq("status", "in_consolidation" as any)
         .eq("flow_type", "interurban")
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return data;
+      // A4: evitar mostrar como "disponible" un pedido cuya FO ya tiene trip_id
+      // (caso donde status volvió a in_consolidation pero la FO no se reseteó).
+      return (data || []).filter((r: any) => {
+        const fos = r.fulfillment_orders || [];
+        return !fos.some((fo: any) => fo.trip_id);
+      });
     },
     enabled: addOpen,
   });
