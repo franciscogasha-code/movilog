@@ -15,6 +15,7 @@ import { CrearViajeForm } from "./CrearViajeForm";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePaginatedQuery } from "@/hooks/use-paginated-query";
 import { PaginationBar } from "@/components/shared/PaginationBar";
+import { useTripsWithDriverNames } from "@/hooks/use-trip-driver-names";
 
 const URGENCY_HOURS = 48;
 
@@ -118,8 +119,7 @@ export function LogisticaConsolidacion() {
         .select(`
           id, trip_number, trip_type, planned_departure, destination_description, driver_id,
           origin_branch:branches!trips_origin_branch_id_fkey(name, code),
-          vehicle:vehicles(plate),
-          driver:drivers!trips_driver_id_fkey(id, user_id)
+          vehicle:vehicles(plate)
         `)
         .eq("status", "planned" as any)
         .order("planned_departure", { ascending: true, nullsFirst: false });
@@ -128,28 +128,10 @@ export function LogisticaConsolidacion() {
     },
   });
 
-  // Resolver nombre del chofer para mostrar en el selector (igual estrategia que Programados)
-  const { data: plannedTripsWithDriver } = useQuery({
-    queryKey: [
-      "planned-trips-for-assignment-with-driver",
-      (plannedTrips ?? []).map((t: any) => t.driver?.user_id).filter(Boolean),
-    ],
-    enabled: !!plannedTrips,
-    queryFn: async () => {
-      const list = plannedTrips ?? [];
-      const userIds = Array.from(new Set(list.map((t: any) => t.driver?.user_id).filter(Boolean)));
-      let nameByUser: Record<string, string> = {};
-      if (userIds.length) {
-        const { data: profs } = await supabase
-          .from("profiles").select("user_id, full_name").in("user_id", userIds as string[]);
-        nameByUser = Object.fromEntries((profs ?? []).map((p: any) => [p.user_id, p.full_name]));
-      }
-      return list.map((t: any) => ({
-        ...t,
-        driver_name: t.driver?.user_id ? nameByUser[t.driver.user_id] ?? "Sin chofer" : "Sin chofer",
-      }));
-    },
-  });
+  const { data: plannedTripsWithDriver } = useTripsWithDriverNames(
+    plannedTrips ?? [],
+    "planned-trips-for-assignment-with-driver",
+  );
 
   // Sort by urgency then date
   const sortedRequests = useMemo(() => {
