@@ -55,7 +55,7 @@ export function EditarViajeForm({ trip, onSuccess, onCancel }: Props) {
     setDestinationDescription(trip?.destination_description || "");
   }, [trip?.id]);
 
-  const { data: driverOptions = [] } = useQuery<DriverOption[]>({
+  const { data: rawDriverOptions = [] } = useQuery<DriverOption[]>({
     queryKey: ["trip-eligible-drivers"],
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke("trip-eligible-drivers");
@@ -75,6 +75,25 @@ export function EditarViajeForm({ trip, onSuccess, onCancel }: Props) {
       return data || [];
     },
   });
+
+  const driverOptions = useMemo(() => {
+    const currentDriverId = trip?.driver_id || trip?.driver?.id;
+    const currentUserId = trip?.driver_user_id || trip?.driver?.user_id || "";
+    const currentName = trip?.driver_name;
+    if (!currentDriverId || rawDriverOptions.some((d) => d.driverId === currentDriverId)) {
+      return rawDriverOptions;
+    }
+    return [
+      {
+        driverId: currentDriverId,
+        userId: currentUserId,
+        name: currentName || "Chofer actual",
+        assignedVehicleId: null,
+        hasDriverRecord: true,
+      },
+      ...rawDriverOptions,
+    ];
+  }, [rawDriverOptions, trip?.driver_id, trip?.driver?.id, trip?.driver_user_id, trip?.driver?.user_id, trip?.driver_name]);
 
   const selectedDriver = useMemo(() => {
     return driverOptions.find(d => {
