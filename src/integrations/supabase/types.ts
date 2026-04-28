@@ -2839,6 +2839,15 @@ export type Database = {
         Args: { _branch_id: string; _user_id: string }
         Returns: boolean
       }
+      fn_accept_and_start_trip: {
+        Args: {
+          p_force_empty?: boolean
+          p_fulfillment_ids: string[]
+          p_start_mileage?: number
+          p_trip_id: string
+        }
+        Returns: Json
+      }
       fn_can_view_consultation: {
         Args: { _consultation_id: string; _user_id: string }
         Returns: boolean
