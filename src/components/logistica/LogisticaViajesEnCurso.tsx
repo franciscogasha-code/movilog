@@ -64,10 +64,10 @@ export function LogisticaViajesEnCurso() {
   });
 
   const { data: tripFulfillments } = useQuery({
-    queryKey: ["active-trip-fulfillments"],
+    queryKey: ["active-trip-fulfillments", tripsBase.map((t: any) => t.id)],
     queryFn: async () => {
-      if (!trips?.length) return [];
-      const tripIds = trips.map(t => t.id);
+      if (!tripsBase.length) return [];
+      const tripIds = tripsBase.map((t: any) => t.id);
       const { data, error } = await supabase
         .from("fulfillment_orders")
         .select(`
@@ -79,7 +79,7 @@ export function LogisticaViajesEnCurso() {
       if (error) throw error;
       return data;
     },
-    enabled: !!trips?.length,
+    enabled: tripsBase.length > 0,
   });
 
   return (
