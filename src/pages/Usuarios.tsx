@@ -523,13 +523,18 @@ export default function Usuarios() {
 
   const saveProfile = useMutation({
     mutationFn: async ({
-      profileId, userId, defaultBranchId, allBranches, branchIds, role,
+      profileId, userId, fullName, defaultBranchId, allBranches, branchIds, role,
     }: {
-      profileId: string; userId: string; defaultBranchId: string | null;
+      profileId: string; userId: string; fullName: string; defaultBranchId: string | null;
       allBranches: boolean; branchIds: string[]; role: RoleKey;
     }) => {
       if (!role) throw new Error("Debés seleccionar un rol");
       const roleDef = getRoleDef(role)!;
+
+      const cleanName = fullName.trim().replace(/\s+/g, " ");
+      if (cleanName.length < 2) {
+        throw new Error("El nombre debe tener al menos 2 caracteres");
+      }
 
       if (!allBranches && (!defaultBranchId || branchIds.length === 0)) {
         throw new Error("Debés asignar al menos una sucursal");
@@ -539,10 +544,11 @@ export default function Usuarios() {
         throw new Error("La sucursal por defecto debe estar entre las sucursales asignadas");
       }
 
-      await supabase
+      const { error: profErr } = await supabase
         .from("profiles")
-        .update({ default_branch_id: defaultBranchId, all_branches_access: allBranches })
+        .update({ full_name: cleanName, default_branch_id: defaultBranchId, all_branches_access: allBranches })
         .eq("id", profileId);
+      if (profErr) throw profErr;
 
       await supabase.from("user_roles").delete().eq("user_id", userId);
       await supabase.from("user_roles").insert({ user_id: userId, role });
