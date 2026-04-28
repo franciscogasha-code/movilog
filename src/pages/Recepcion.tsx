@@ -1,3 +1,4 @@
+import { categoryForTripEvent } from "@/lib/event-categories";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -76,7 +77,7 @@ export default function Recepcion() {
         reference_type: "fulfillment_order",
         reference_id: fulfillmentId,
         event_type: "driver_delivery_drop",
-        category: "logistics" as any,
+        category: categoryForTripEvent("driver_delivery_drop"),
         event_description: "Chofer descargó mercadería — pendiente confirmación física de sucursal",
         new_status: "pending_physical_confirmation",
         triggered_by: user.id,
@@ -113,7 +114,7 @@ export default function Recepcion() {
         reference_type: "fulfillment_order",
         reference_id: fulfillmentId,
         event_type: "branch_reception_confirmed",
-        category: "logistics" as any,
+        category: categoryForTripEvent("branch_reception_confirmed"),
         event_description: "Sucursal confirmó recepción física",
         new_status: "received",
         triggered_by: user.id,

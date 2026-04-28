@@ -1,3 +1,4 @@
+import { categoryForTripEvent } from "@/lib/event-categories";
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -134,7 +135,7 @@ export function CrearViajeForm({ onSuccess, onCancel }: Props) {
         reference_type: "trip",
         reference_id: trip.id,
         event_type: "trip_planned",
-        category: "logistics" as any,
+        category: categoryForTripEvent("trip_planned"),
         event_description: `Viaje #${trip.trip_number} planificado`,
         new_status: "planned",
         triggered_by: user.id,

@@ -1,3 +1,4 @@
+import { categoryForTripEvent } from "@/lib/event-categories";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -87,7 +88,7 @@ export function ViajeInterurbano({ trips, activeTrip, myDriverId }: Props) {
 
       await supabase.from("operational_events").insert({
         reference_type: "trip", reference_id: tripId, event_type: "trip_started",
-        category: "logistics" as any, event_description: "Inicio de viaje interurbano",
+        category: categoryForTripEvent("trip_started"), event_description: "Inicio de viaje interurbano",
         new_status: "in_progress", triggered_by: user!.id,
         metadata: { start_mileage: parseInt(startMileage) },
       });
@@ -138,7 +139,7 @@ export function ViajeInterurbano({ trips, activeTrip, myDriverId }: Props) {
 
       await supabase.from("operational_events").insert({
         reference_type: "trip", reference_id: activeTrip.id, event_type: "trip_completed",
-        category: "logistics" as any, event_description: "Fin de viaje interurbano",
+        category: categoryForTripEvent("trip_completed"), event_description: "Fin de viaje interurbano",
         previous_status: "in_progress", new_status: "completed", triggered_by: user!.id,
         metadata: { end_mileage: mileage },
       });

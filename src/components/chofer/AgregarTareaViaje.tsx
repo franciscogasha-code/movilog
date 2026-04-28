@@ -1,3 +1,4 @@
+import { categoryForTripEvent } from "@/lib/event-categories";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -69,7 +70,7 @@ export function AgregarTareaViaje({ tripId, onSuccess }: Props) {
         reference_type: "trip",
         reference_id: tripId,
         event_type: "task_added_in_transit",
-        category: "logistics" as any,
+        category: categoryForTripEvent("task_added_in_transit"),
         event_description: `Tarea agregada en tránsito: ${TASK_TYPES.find(t => t.value === taskType)?.label}`,
         triggered_by: user.id,
         metadata: { task: newStop },

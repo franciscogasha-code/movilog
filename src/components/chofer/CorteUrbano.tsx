@@ -1,3 +1,4 @@
+import { categoryForTripEvent } from "@/lib/event-categories";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -110,7 +111,7 @@ export function CorteUrbano({ cutoffs, activeCutoff }: Props) {
         reference_type: "trip",
         reference_id: trip.id,
         event_type: "cutoff_started",
-        category: "logistics" as any,
+        category: categoryForTripEvent("cutoff_started"),
         event_description: "Inicio de corte urbano",
         new_status: "in_progress",
         triggered_by: user.id,
@@ -171,7 +172,7 @@ export function CorteUrbano({ cutoffs, activeCutoff }: Props) {
         reference_type: "trip",
         reference_id: activeCutoff.id,
         event_type: "cutoff_ended",
-        category: "logistics" as any,
+        category: categoryForTripEvent("cutoff_ended"),
         event_description: "Fin de corte urbano",
         previous_status: "in_progress",
         new_status: "completed",

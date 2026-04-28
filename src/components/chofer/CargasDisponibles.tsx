@@ -1,3 +1,4 @@
+import { categoryForTripEvent } from "@/lib/event-categories";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -304,7 +305,7 @@ export function CargasDisponibles() {
         reference_type: refType,
         reference_id: refId,
         event_type: "driver_pickup_rejected",
-        category: "logistics" as any,
+        category: categoryForTripEvent("driver_pickup_rejected"),
         event_description: `Chofer rechazó retiro: ${reasonLabel}`,
         triggered_by: user.id,
         metadata: { rejection_reason: reason, source: refType },

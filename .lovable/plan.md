@@ -1,108 +1,142 @@
-## Plan de corrección crítica: navegación mobile estable
+# Auditoría de raíz — Módulo Ruteo
 
-### Diagnóstico inicial encontrado
+## Diagnóstico (causa raíz exacta)
 
-La regresión más probable no está en Pedidos ni en lógica de negocio. Está en el app shell mobile:
+El error `invalid input value for enum event_category: "logistics"` no es un bug aislado. Es el síntoma de una **inconsistencia estructural sostenida** entre el frontend, las RPC nuevas y el enum real de Postgres.
 
-1. El sidebar mobile usa `Sheet`.
-2. `Sheet` fue modificado recientemente para usar `useBackToClose`.
-3. `useBackToClose` hace `history.pushState()` al abrir un overlay y `history.back()` cuando se cierra desde UI.
-4. Al tocar un item del menú mobile, hoy ocurre una carrera:
-   - el `NavLink` navega a `/solicitudes`, `/consultas`, `/chofer`, etc.
-   - el `onClick` del contenedor cierra el sidebar mobile
-   - al cerrarse el `Sheet`, `useBackToClose` ejecuta `window.history.back()`
-   - eso puede volver a la ruta anterior, típicamente Dashboard `/`
+### Hechos verificados en DB (no asumidos)
 
-Esto explica directamente: “tocar Pedidos lleva a Dashboard”, necesidad de tocar varias veces, rebotes y navegación inestable. Es un problema estructural de navegación/history, no un tema visual.
-
-### Objetivo
-
-Dejar el flujo mobile así:
-
-```text
-Tap menú -> navegación correcta -> cierre del menú -> pantalla destino usable
+**Enum real `public.event_category`** (única fuente de verdad):
+```
+request, fulfillment, document, trip, inventory, incident,
+vehicle, collection, stock, preparation, transport, reception, closure
 ```
 
-Sin doble toque, sin rebote al Dashboard, sin overlay invisible bloqueando, sin tocar lógica de pedidos/consultas/transporte.
+**No existe `logistics`** en este enum, y nunca existió (los 186+15+87+172+1 eventos históricos en `operational_events` usan exclusivamente `transport / request / reception / closure / preparation`).
 
-### Cambios propuestos
+**Confusión de origen**: hay OTRA columna llamada `area` en la tabla `ai_anomalies` que es `text` libre y SÍ acepta `"logistics"`. Históricamente las migraciones insertan `'logistics'` ahí sin problema. Alguien (yo, en intervenciones recientes) extrapoló incorrectamente ese literal a `operational_events.category`, que es un enum estricto.
 
-#### 1. Corregir la causa raíz en `useBackToClose`
+### Lugares contaminados (8 archivos frontend + 2 RPC nuevas)
 
-Modificar `src/hooks/use-back-to-close.ts` para que:
+Frontend (insert directo a `operational_events` con `category: "logistics" as any`):
+- `src/components/logistica/CrearViajeForm.tsx:137` → evento `trip_planned` (debe ser `trip`)
+- `src/components/chofer/ViajeInterurbano.tsx:90` → `trip_started` (debe ser `transport`)
+- `src/components/chofer/ViajeInterurbano.tsx:141` → `trip_completed` (debe ser `transport`)
+- `src/components/chofer/CorteUrbano.tsx:113` → `cutoff_started` (`transport`)
+- `src/components/chofer/CorteUrbano.tsx:174` → `cutoff_ended` (`transport`)
+- `src/components/chofer/AgregarTareaViaje.tsx:72` → `task_added_in_transit` (`transport`)
+- `src/components/chofer/CargasDisponibles.tsx:307` → `driver_pickup_rejected` (`incident`)
+- `src/components/chofer/CorteDetalle.tsx:135` → `driver_pickup_rejected` (`incident`)
 
-- No ejecute `window.history.back()` durante el cleanup normal si el overlay se cerró por una acción de UI.
-- Distinga explícitamente entre:
-  - cierre por botón back/popstate
-  - cierre programático/UI
-- Use una estrategia segura con marker de history que no deshaga una navegación real recién ocurrida.
-- Evite listeners duplicados y efectos encadenados.
+RPC nuevas creadas en intervenciones recientes:
+- `fn_cancel_trip` (migración `20260428172239`) → `'logistics'::event_category` (debe ser `'trip'`)
+- `fn_edit_trip` (migración `20260428174318`) → `'logistics'::event_category` ya estaba mal (ya en DB, falla en runtime al ejecutarse — el cast literal se valida tarde en plpgsql)
 
-Resultado esperado: cerrar un Sheet/Dialog no debe revertir la ruta actual.
+> Postgres aceptó **crear** las funciones porque el cast `'logistics'::event_category` dentro de plpgsql se valida al ejecutar, no al definir. Por eso el error aparece sólo al usar la función.
 
-#### 2. Hacer la navegación del sidebar mobile explícita y atómica
+### Por qué pasó (estructural, no anecdótico)
 
-Modificar `src/components/AppSidebar.tsx` para eliminar el cierre genérico por `onClick` en `SidebarContent` y reemplazarlo por navegación controlada por item:
+1. **No hay un mapeo único** evento→categoría. Cada archivo decidió ad-hoc.
+2. **`as any` ocultó el error de tipos** que TS habría detectado (los tipos generados de Supabase tienen el enum real).
+3. **Las RPC nuevas se escribieron a mano** sin consultar el enum vigente.
+4. **No hay test ni linter** que detecte literales enum inválidos antes de ejecutar.
 
-- Cada item tendrá un handler mobile dedicado.
-- En mobile: cerrar menú y navegar al destino correcto sin depender de bubbling accidental.
-- En desktop: mantener comportamiento actual.
-- No cambiar permisos, módulos visibles ni rutas.
+---
 
-Esto evita que cualquier click interno del sidebar cierre el menú por accidente y reduce carreras de eventos.
+## Mapa de corrección (mapping definitivo, sin inventar)
 
-#### 3. Revisar `Sheet` mobile para no interferir con rutas
+| Acción | event_type | category correcta |
+|---|---|---|
+| Crear viaje | `trip_planned` | `trip` |
+| Editar viaje | `trip_edited` | `trip` |
+| Cancelar viaje | `trip_cancelled` | `trip` |
+| Iniciar viaje | `trip_started` | `transport` |
+| Finalizar viaje | `trip_completed` | `transport` |
+| Iniciar corte urbano | `cutoff_started` | `transport` |
+| Finalizar corte urbano | `cutoff_ended` | `transport` |
+| Tarea agregada en tránsito | `task_added_in_transit` | `transport` |
+| Chofer rechazó retiro | `driver_pickup_rejected` | `incident` |
 
-Revisar `src/components/ui/sheet.tsx` y `src/components/ui/sidebar.tsx` para asegurar:
+Criterio: alinear con los 461 eventos históricos ya en producción (`transport`, `reception`, `closure`, `request`, `preparation`). `trip` queda reservado a cambios de **planificación** del viaje (crear/editar/cancelar), `transport` a la **operación** del viaje (iniciar/finalizar/tareas).
 
-- overlay sólo activo cuando el sheet está abierto
-- z-index correcto
-- cierre por overlay/back sin bloquear taps posteriores
-- ancho mobile estable
-- no quedan elementos invisibles con `pointer-events` capturando toques
+> No tocamos `ai_anomalies.area = 'logistics'` — esa columna es text, funciona, y cambiarla rompería migraciones, dashboards y consultas históricas.
 
-Si el problema queda resuelto con el hook, no se harán cambios innecesarios.
+---
 
-#### 4. Mantener intacta la lógica de negocio
+## Cambios a aplicar (una sola tanda integral)
 
-No tocar:
+### 1. Fuente única de verdad (frontend)
 
-- queries de Pedidos
-- filtros de Pedidos
-- creación de pedidos
-- cambio de estado
-- detalle de pedidos
-- consultas de disponibilidad
-- lógica Chofer/Transporte
-- RLS/backend
-- Dashboard operativo
+Crear `src/lib/event-categories.ts`:
+- Exporta tipo `EventCategory` derivado de `Database["public"]["Enums"]["event_category"]` (sin `as any`).
+- Exporta constante `EVENT_CATEGORIES` con los 13 valores reales.
+- Exporta helper `categoryForTripEvent(eventType)` con el mapping de la tabla anterior.
 
-### QA y validación
+### 2. Refactor de los 8 archivos frontend
+Reemplazar cada `category: "logistics" as any` por la categoría correcta del mapping, importada del módulo nuevo (sin `as any`). Esto hace que TS valide el literal contra el enum real.
 
-Ejecutaré validación técnica y funcional:
+### 3. Migración SQL correctiva (sólo 2 funciones, sin tocar schema)
+Reemplazar (`CREATE OR REPLACE`) `fn_cancel_trip` y `fn_edit_trip` para que usen `'trip'::event_category` en su `INSERT INTO operational_events`. Cero cambios de firma, cero cambios de lógica de validación, cero cambios de RLS.
 
-1. Build/typecheck.
-2. Búsqueda de usos de `history.back`, `pushState`, `popstate`, `setOpenMobile` para confirmar que no queda otra fuente de rebote.
-3. Prueba mobile con viewport equivalente a iPhone/Android en preview:
-   - Dashboard -> Pedidos
-   - Dashboard -> Consultas
-   - Dashboard -> Transporte
-   - volver atrás
-   - abrir/cerrar menú varias veces
-   - abrir/cerrar detalle si hay datos disponibles
-4. Confirmar que desktop mantiene navegación intacta.
+### 4. Nada más
+- No tocamos `fn_transition_request_status`, `fn_driver_action`, `fn_clear_for_pickup`, `fn_ensure_driver_for_user` — todas usan categorías correctas (`request`, `transport`, `reception`, etc.).
+- No tocamos triggers (`fn_auto_resolve_alerts`, etc.) — usan `'logistics'` sólo en `ai_anomalies.area` que es text.
+- No tocamos enums, RLS, schema, índices, tipos generados, hooks de cache.
 
-### Sobre los videos solicitados
+---
 
-En este entorno puedo inspeccionar código, ejecutar pruebas y usar preview automatizado después de aprobar el cambio. Si la herramienta de browser/sandbox lo permite, capturaré evidencia visual del flujo. Si no permite grabación de video real, entregaré exactamente qué se verificó y la limitación técnica; no voy a afirmar “probado en dispositivo real” si no se ejecutó en dispositivo real.
+## Lo que NO se toca (y por qué)
 
-### Entrega final
+| Ítem | Por qué no se toca |
+|---|---|
+| Enum `event_category` | Agregar `logistics` rompería el modelo semántico ya consolidado (461 eventos) y duplicaría significado con `transport/trip` |
+| `ai_anomalies.area` | Es `text`, funciona, cambiarlo rompe migraciones históricas y dashboards |
+| RPC ajenas a Ruteo | Sin `'logistics'::event_category`. Validado |
+| Tipos `src/integrations/supabase/types.ts` | Auto-generados |
+| Realtime / RLS | Fuera del scope del bug |
+| Lógica de joins / cache de `LogisticaViajesProgramados` | Ya estabilizada en intervención previa |
 
-Reportaré:
+---
 
-- causa raíz exacta
-- archivos modificados
-- qué carrera de history/router provocaba el rebote a Dashboard
-- pruebas ejecutadas
-- regresiones descartadas
-- confirmación explícita de que no se tocó lógica de negocio ni backend
+## Plan de validación (post-implementación)
+
+Casos funcionales (cada uno verifica que ya no salta el error de enum y la operación persiste):
+
+1. Crear viaje → ver evento `trip_planned` con `category=trip` en `operational_events`.
+2. Editar viaje (cambiar chofer) → evento `trip_edited` con `category=trip`.
+3. Cancelar viaje vacío → evento `trip_cancelled` con `category=trip`.
+4. Iniciar viaje (chofer) → `trip_started` con `category=transport`.
+5. Finalizar viaje → `trip_completed` con `category=transport`.
+6. Iniciar/finalizar corte urbano → `category=transport`.
+7. Agregar tarea en tránsito → `category=transport`.
+8. Rechazar retiro desde móvil → `category=incident` + alerta en `ai_anomalies`.
+9. Asignar/quitar carga, refresh navegador, navegación atrás móvil → sin regresión.
+10. Multi-rol: owner / jefe_logistica / warehouse_operator / driver — sin permisos rotos (no tocamos `has_role`/RLS).
+
+Query de verificación post-deploy:
+```sql
+SELECT category, count(*) FROM operational_events
+WHERE created_at > now() - interval '1 hour' GROUP BY 1;
+```
+No debe aparecer error en logs ni categorías nuevas inesperadas.
+
+---
+
+## Riesgos mitigados
+
+- **Riesgo de inventar enum**: descartado. Usamos sólo valores reales del schema.
+- **Riesgo de romper triggers**: triggers no tocados.
+- **Riesgo de tipos stale**: el refactor quita `as any`, así TS bloquea futuras regresiones.
+- **Riesgo de afectar permisos del Jefe de Logística** (intervención anterior): no se toca `fn_edit_trip`/`fn_cancel_trip` en la parte de roles, sólo el literal de category.
+- **Riesgo en chofer móvil**: cambios mínimos, mismo comportamiento, sólo categoría correcta.
+
+---
+
+## Resumen
+
+3 cambios concretos:
+1. **Nuevo**: `src/lib/event-categories.ts` (mapping tipado).
+2. **Editar 8 archivos frontend** — sustituir literal incorrecto por categoría tipada del mapping.
+3. **Una migración** que reemplaza `fn_cancel_trip` y `fn_edit_trip` con `'trip'::event_category`.
+
+Esto cierra la causa raíz del módulo Ruteo sin parches, sin tocar nada que ya funciona, y deja una barrera de tipos para que no vuelva a ocurrir.

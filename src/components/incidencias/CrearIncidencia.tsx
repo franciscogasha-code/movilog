@@ -1,3 +1,4 @@
+import { categoryForTripEvent } from "@/lib/event-categories";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -75,7 +76,7 @@ export function CrearIncidencia({ onSuccess }: { onSuccess: () => void }) {
         reference_type: "logistics_incident",
         reference_id: crypto.randomUUID(),
         event_type: "incident_created",
-        category: "logistics" as any,
+        category: categoryForTripEvent("incident_created"),
         event_description: `Incidencia creada: ${title}`,
         triggered_by: user.id,
         metadata: { detection_context: detectionContext, incident_type: incidentType },
