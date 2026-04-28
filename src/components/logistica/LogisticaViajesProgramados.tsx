@@ -60,12 +60,14 @@ export function LogisticaViajesProgramados() {
   });
 
   const { data: trips } = useTripsWithDriverNames(tripsBase, "planned-trips-driver-names");
+  const displayedTrips = trips ?? tripsBase;
+  const tripIdsFingerprint = tripsBase.map((t: any) => t.id).join("|");
 
   const { data: tripLoadCounts } = useQuery({
-    queryKey: ["trip-load-counts"],
+    queryKey: ["trip-load-counts", tripIdsFingerprint],
     queryFn: async () => {
-      if (!trips?.length) return {};
-      const tripIds = trips.map(t => t.id);
+      if (!tripsBase.length) return {};
+      const tripIds = tripsBase.map((t: any) => t.id);
       const { data, error } = await supabase
         .from("fulfillment_orders")
         .select("trip_id")
@@ -77,7 +79,7 @@ export function LogisticaViajesProgramados() {
       });
       return counts;
     },
-    enabled: !!trips?.length,
+    enabled: tripsBase.length > 0,
   });
 
   const cancelTrip = async (tripId: string) => {
@@ -118,7 +120,7 @@ export function LogisticaViajesProgramados() {
         <CardContent>
           {isLoading ? (
             <div className="p-6 text-center text-muted-foreground text-sm">Cargando...</div>
-          ) : !trips?.length ? (
+          ) : !tripsBase.length ? (
             <div className="p-8 text-center text-muted-foreground">
               <Calendar className="h-8 w-8 mx-auto mb-2 opacity-50" />
               <p className="font-medium">No hay viajes programados</p>
@@ -126,9 +128,9 @@ export function LogisticaViajesProgramados() {
             </div>
           ) : (
             <div className="space-y-2">
-              {trips.map((t: any) => {
+              {displayedTrips.map((t: any) => {
                 const loadCount = tripLoadCounts?.[t.id] || 0;
-                const driverName = (t as any).driver_name || "Sin chofer";
+                const driverName = (t as any).driver_name ?? "Resolviendo chofer...";
                 const isSupplier = t.trip_type === "supplier_pickup";
                 return (
                   <div
