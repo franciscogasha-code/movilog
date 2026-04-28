@@ -26,25 +26,20 @@ export function LogisticaViajeDetalle({ tripId }: Props) {
   const { data: trip } = useQuery({
     queryKey: ["trip-detail", tripId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("trips")
-        .select(`
-          *,
-          origin_branch:branches!trips_origin_branch_id_fkey(name, code),
-          vehicle:vehicles(plate, brand, model),
-          driver:drivers!trips_driver_id_fkey(id, user_id)
-        `)
-        .eq("id", tripId)
-        .single();
+      const { data, error } = await (supabase.rpc("fn_get_trip_detail" as any, {
+        p_trip_id: tripId,
+      }) as any).maybeSingle();
       if (error) throw error;
-      let driver_name = "Sin chofer";
-      const uid = (data as any)?.driver?.user_id;
-      if (uid) {
-        const { data: prof } = await supabase
-          .from("profiles").select("full_name").eq("user_id", uid).maybeSingle();
-        if (prof?.full_name) driver_name = prof.full_name;
-      }
-      return { ...data, driver_name } as any;
+      if (!data) throw new Error("Viaje no encontrado");
+      return {
+        ...data,
+        origin_branch: { name: data.origin_branch_name, code: data.origin_branch_code },
+        vehicle: data.vehicle_id
+          ? { plate: data.vehicle_plate, brand: data.vehicle_brand, model: data.vehicle_model }
+          : null,
+        driver: data.driver_id ? { id: data.driver_id, user_id: data.driver_user_id } : null,
+        driver_name: data.driver_name || "Sin chofer",
+      } as any;
     },
   });
 
@@ -141,9 +136,13 @@ export function LogisticaViajeDetalle({ tripId }: Props) {
 
   const invalidateAll = () => {
     queryClient.invalidateQueries({ queryKey: ["trip-fulfillments", tripId] });
+    queryClient.invalidateQueries({ queryKey: ["trip-detail", tripId] });
     queryClient.invalidateQueries({ queryKey: ["consolidation-requests"] });
     queryClient.invalidateQueries({ queryKey: ["consolidation-count"] });
     queryClient.invalidateQueries({ queryKey: ["planned-trips"] });
+    queryClient.invalidateQueries({ queryKey: ["planned-trips-driver-names"] });
+    queryClient.invalidateQueries({ queryKey: ["in-progress-trips"] });
+    queryClient.invalidateQueries({ queryKey: ["in-progress-trips-driver-names"] });
     queryClient.invalidateQueries({ queryKey: ["trip-load-counts"] });
     queryClient.invalidateQueries({ queryKey: ["assigned-today-count"] });
   };
@@ -352,9 +351,7 @@ export function LogisticaViajeDetalle({ tripId }: Props) {
             trip={trip}
             onSuccess={() => {
               setEditOpen(false);
-              queryClient.invalidateQueries({ queryKey: ["trip-detail", tripId] });
-              queryClient.invalidateQueries({ queryKey: ["planned-trips"] });
-              queryClient.invalidateQueries({ queryKey: ["planned-trips-driver-names"] });
+              invalidateAll();
             }}
             onCancel={() => setEditOpen(false)}
           />

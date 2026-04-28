@@ -34,7 +34,8 @@ function toLocalInput(iso: string | null | undefined): string {
 
 export function EditarViajeForm({ trip, onSuccess, onCancel }: Props) {
   // Estado inicial desde el viaje
-  const initialDriverKey = trip?.driver?.id ? `d:${trip.driver.id}` : "";
+  const initialDriverId = trip?.driver_id || trip?.driver?.id;
+  const initialDriverKey = initialDriverId ? `d:${initialDriverId}` : "";
   const initialVehicleId: string = trip?.vehicle_id || "";
   const initialDeparture = toLocalInput(trip?.planned_departure);
   const initialDescription: string = trip?.destination_description || "";
@@ -48,14 +49,15 @@ export function EditarViajeForm({ trip, onSuccess, onCancel }: Props) {
 
   // Si el viaje cambia (cambio de tripId), resetear campos
   useEffect(() => {
-    setSelectedDriverKey(trip?.driver?.id ? `d:${trip.driver.id}` : "");
+    const currentDriverId = trip?.driver_id || trip?.driver?.id;
+    setSelectedDriverKey(currentDriverId ? `d:${currentDriverId}` : "");
     setVehicleId(trip?.vehicle_id || "");
     setClearVehicle(false);
     setScheduledDate(toLocalInput(trip?.planned_departure));
     setDestinationDescription(trip?.destination_description || "");
-  }, [trip?.id]);
+  }, [trip?.id, trip?.driver_id, trip?.driver?.id, trip?.vehicle_id, trip?.planned_departure, trip?.destination_description]);
 
-  const { data: driverOptions = [] } = useQuery<DriverOption[]>({
+  const { data: rawDriverOptions = [] } = useQuery<DriverOption[]>({
     queryKey: ["trip-eligible-drivers"],
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke("trip-eligible-drivers");
@@ -75,6 +77,25 @@ export function EditarViajeForm({ trip, onSuccess, onCancel }: Props) {
       return data || [];
     },
   });
+
+  const driverOptions = useMemo(() => {
+    const currentDriverId = trip?.driver_id || trip?.driver?.id;
+    const currentUserId = trip?.driver_user_id || trip?.driver?.user_id || "";
+    const currentName = trip?.driver_name;
+    if (!currentDriverId || rawDriverOptions.some((d) => d.driverId === currentDriverId)) {
+      return rawDriverOptions;
+    }
+    return [
+      {
+        driverId: currentDriverId,
+        userId: currentUserId,
+        name: currentName || "Chofer actual",
+        assignedVehicleId: null,
+        hasDriverRecord: true,
+      },
+      ...rawDriverOptions,
+    ];
+  }, [rawDriverOptions, trip?.driver_id, trip?.driver?.id, trip?.driver_user_id, trip?.driver?.user_id, trip?.driver_name]);
 
   const selectedDriver = useMemo(() => {
     return driverOptions.find(d => {
