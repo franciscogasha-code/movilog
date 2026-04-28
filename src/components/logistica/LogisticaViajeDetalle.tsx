@@ -351,9 +351,7 @@ export function LogisticaViajeDetalle({ tripId }: Props) {
             trip={trip}
             onSuccess={() => {
               setEditOpen(false);
-              queryClient.invalidateQueries({ queryKey: ["trip-detail", tripId] });
-              queryClient.invalidateQueries({ queryKey: ["planned-trips"] });
-              queryClient.invalidateQueries({ queryKey: ["planned-trips-driver-names"] });
+              invalidateAll();
             }}
             onCancel={() => setEditOpen(false)}
           />
