@@ -290,7 +290,7 @@ export default function Usuarios() {
 
   /* --- Dirty tracking --- */
   const [originalState, setOriginalState] = useState<{
-    role: string; defaultBranch: string; branchIds: string[]; allBranches: boolean;
+    fullName: string; role: string; defaultBranch: string; branchIds: string[]; allBranches: boolean;
   } | null>(null);
 
   /* --- Queries --- */
