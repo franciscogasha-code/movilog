@@ -254,21 +254,71 @@ export function CargasDisponibles() {
     queryClient.invalidateQueries({ queryKey: ["hub-count"] });
   };
 
+  // Encadena las transiciones requeridas por la máquina de estados según flow_type.
+  // - urban: ready_for_pickup → in_transit (1 paso)
+  // - interurban: ready_for_pickup → in_consolidation → assigned_to_trip → in_transit (3 pasos)
+  //   Requiere viaje activo. Sin viaje, se bloquea con mensaje claro (debe asignarse desde Ruteo/Logística).
+  const transitionRequestToInTransit = async (
+    requestId: string,
+    flowType: string | null | undefined,
+    tripId: string | null,
+  ) => {
+    const ft = flowType ?? "interurban"; // fallback conservador (igual que el RPC)
+    if (ft === "urban") {
+      const { error } = await supabase.rpc("fn_transition_request_status", {
+        p_request_id: requestId,
+        p_new_status: "in_transit",
+        p_reason: "Retiro realizado por chofer",
+        p_rejection_reason_type: null,
+        p_trip_id: tripId,
+      });
+      if (error) throw error;
+      return;
+    }
+    // interurban (y client_delivery se trata aquí: igual requiere viaje)
+    if (!tripId) {
+      throw new Error(
+        "Este pedido es interurbano. Iniciá un viaje (aceptación de cargas) antes de retirar, o pedí que lo asignen a un viaje desde Ruteo.",
+      );
+    }
+    // Paso 1: ready_for_pickup → in_consolidation
+    const { error: e1 } = await supabase.rpc("fn_transition_request_status", {
+      p_request_id: requestId,
+      p_new_status: "in_consolidation",
+      p_reason: "Consolidación previa al retiro",
+      p_rejection_reason_type: null,
+      p_trip_id: null,
+    });
+    if (e1) throw e1;
+    // Paso 2: in_consolidation → assigned_to_trip (crea FO at_hub vinculada al viaje)
+    const { error: e2 } = await supabase.rpc("fn_transition_request_status", {
+      p_request_id: requestId,
+      p_new_status: "assigned_to_trip",
+      p_reason: "Asignado al viaje del chofer en retiro",
+      p_rejection_reason_type: null,
+      p_trip_id: tripId,
+    });
+    if (e2) throw e2;
+    // Paso 3: assigned_to_trip → in_transit
+    const { error: e3 } = await supabase.rpc("fn_transition_request_status", {
+      p_request_id: requestId,
+      p_new_status: "in_transit",
+      p_reason: "Retiro realizado por chofer",
+      p_rejection_reason_type: null,
+      p_trip_id: tripId,
+    });
+    if (e3) throw e3;
+  };
+
   const pickupOutOfCutoff = async (rowId: string) => {
     try {
       // Caso A: fila proviene de un branch_request sin FO. Se transiciona el
-      // pedido a in_transit (mismo flujo que el módulo Pedidos), lo cual crea
-      // automáticamente el fulfillment_order. No se llama fn_driver_action.
+      // pedido respetando la máquina de estados según flow_type.
       if (rowId.startsWith("req:")) {
         const requestId = rowId.slice(4);
-        const { error } = await supabase.rpc("fn_transition_request_status", {
-          p_request_id: requestId,
-          p_new_status: "in_transit",
-          p_reason: "Retiro realizado por chofer",
-          p_rejection_reason_type: null,
-          p_trip_id: myActiveTrip?.id ?? null,
-        });
-        if (error) throw error;
+        const row = readyLoads.find((r: any) => r.id === rowId);
+        const flowType = row?.branch_request?.flow_type ?? null;
+        await transitionRequestToInTransit(requestId, flowType, myActiveTrip?.id ?? null);
         toast.success("Retiro confirmado");
         invalidateAll();
         return;
@@ -278,6 +328,7 @@ export function CargasDisponibles() {
       const { data, error } = await runDriverAction({
         action: "pickup",
         fulfillmentId: rowId,
+        tripId: myActiveTrip?.id ?? null,
       });
       if (error) throw error;
       const result = data as any;
