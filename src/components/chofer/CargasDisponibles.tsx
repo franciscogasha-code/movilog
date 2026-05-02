@@ -387,14 +387,9 @@ export function CargasDisponibles() {
 
       if (rowId.startsWith("req:")) {
         const requestId = rowId.slice(4);
-        const { error: trErr } = await supabase.rpc("fn_transition_request_status", {
-          p_request_id: requestId,
-          p_new_status: "in_transit",
-          p_reason: "Retiro hacia acopio",
-          p_rejection_reason_type: null,
-          p_trip_id: myActiveTrip?.id ?? null,
-        });
-        if (trErr) throw trErr;
+        const row = readyLoads.find((r: any) => r.id === rowId);
+        const flowType = row?.branch_request?.flow_type ?? null;
+        await transitionRequestToInTransit(requestId, flowType, myActiveTrip?.id ?? null);
         const { data: fo, error: foErr } = await supabase
           .from("fulfillment_orders")
           .select("id")
