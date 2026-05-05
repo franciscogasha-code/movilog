@@ -94,6 +94,45 @@ export function PreSaleDetail({ requestId, onUpdate }: { requestId: string; onUp
     }
   }
 
+  async function markAsConfirmed() {
+    setConfirming(true);
+    try {
+      const { error } = await supabase
+        .from("branch_requests")
+        .update({
+          pre_sale_status: "confirmed",
+          pre_sale_confirmed_at: new Date().toISOString(),
+        } as any)
+        .eq("id", requestId);
+      if (error) throw error;
+      toast.success("Cliente confirmó la pre-venta");
+      qc.invalidateQueries({ queryKey: ["pre-sale-detail", requestId] });
+      qc.invalidateQueries({ queryKey: ["branch-requests"] });
+      onUpdate();
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setConfirming(false);
+    }
+  }
+
+  function handleEditSuccess() {
+    setEditOpen(false);
+    qc.invalidateQueries({ queryKey: ["pre-sale-detail", requestId] });
+    qc.invalidateQueries({ queryKey: ["pre-sale-items", requestId] });
+    qc.invalidateQueries({ queryKey: ["branch-requests"] });
+    onUpdate();
+  }
+
+  const preSaleStatus = (request as any).pre_sale_status ?? "draft";
+  const isConfirmed = preSaleStatus === "confirmed";
+  const statusLabel: Record<string, { label: string; cls: string }> = {
+    draft: { label: "Borrador", cls: "bg-muted text-muted-foreground" },
+    confirmed: { label: "Cliente confirmó", cls: "bg-success text-success-foreground" },
+    sent_to_operation: { label: "Enviada a operación", cls: "bg-primary text-primary-foreground" },
+  };
+  const subStatus = statusLabel[preSaleStatus] ?? statusLabel.draft;
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
