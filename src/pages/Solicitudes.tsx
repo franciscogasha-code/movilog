@@ -943,7 +943,13 @@ export default function Solicitudes() {
                               </Tooltip>
                             )}
                           </div>
-                          <StatusBadge status={r.status} config={REQUEST_STATUS_CONFIG} className="shrink-0" />
+                          {r.is_pre_sale ? (
+                            <Badge variant="outline" className="text-[10px] shrink-0 capitalize">
+                              {r.pre_sale_status === "converted" ? "Convertida" : r.pre_sale_status === "confirmed" ? "Confirmada" : "Borrador"}
+                            </Badge>
+                          ) : (
+                            <StatusBadge status={r.status} config={REQUEST_STATUS_CONFIG} className="shrink-0" />
+                          )}
                         </div>
                         <div className="text-xs text-foreground/80 mb-1 break-words line-clamp-2">
                           {buildRouteCell(r)}
