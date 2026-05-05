@@ -244,6 +244,14 @@ export function PreSaleCreateForm({ onSuccess, editingId }: { onSuccess: () => v
         <strong className="text-warning">Pre Venta Online</strong> — {editingId ? "editando borrador comercial." : "borrador comercial. No reserva stock ni genera operación hasta que la envíes a operación."}
       </div>
 
+      {editingId && wasConfirmed && (
+        <div className="rounded-md bg-destructive/10 border border-destructive/40 px-3 py-2 text-xs text-destructive">
+          <strong>Atención:</strong> esta pre-venta ya estaba confirmada por el cliente. Al guardar cambios
+          se revierte a <strong>borrador</strong> y deberás volver a marcar <strong>"Cliente confirmó"</strong>{" "}
+          sobre la nueva versión antes de enviar a operación.
+        </div>
+      )}
+
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <Label>Sucursal vendedora</Label>
