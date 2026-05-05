@@ -27,7 +27,25 @@ import {
   validateShippingMethod,
 } from "@/lib/business-rules";
 
-// ShippingMethod imported from business-rules
+/**
+ * FormRequestType: extiende RequestType con `pre_sale_online` (variante comercial
+ * del mismo formulario). No es un tipo operativo: cuando se selecciona, el form
+ * muta para no exigir origen logístico ni crear fulfillment, y persiste con
+ * is_pre_sale=true, status='draft'.
+ *
+ * NOTA (refactor pendiente): la integración completa de `pre_sale_online` dentro
+ * de este formulario quedó parcial. El render aún usa el selector operativo
+ * clásico. Ver PreSaleCreateForm / NewRequestDialog para el flujo activo.
+ */
+export type FormRequestType = RequestType | "pre_sale_online";
+
+const SALES_CHANNELS = [
+  { v: "whatsapp", l: "WhatsApp" },
+  { v: "instagram", l: "Instagram" },
+  { v: "presencial", l: "Presencial" },
+  { v: "telefono", l: "Teléfono" },
+  { v: "otro", l: "Otro" },
+];
 
 interface SelectedItem {
   product: ProductResult;
