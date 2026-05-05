@@ -1052,7 +1052,13 @@ export default function Solicitudes() {
                               <div className="text-muted-foreground text-[11px]">{SHIPPING_METHOD_LABELS[r.shipping_method] || r.shipping_method}</div>
                             </td>
                             <td className="px-3 py-2.5">
-                              <StatusBadge status={r.status} config={REQUEST_STATUS_CONFIG} />
+                              {r.is_pre_sale ? (
+                                <Badge variant="outline" className="text-xs capitalize">
+                                  {r.pre_sale_status === "converted" ? "Convertida" : r.pre_sale_status === "confirmed" ? "Confirmada" : "Borrador"}
+                                </Badge>
+                              ) : (
+                                <StatusBadge status={r.status} config={REQUEST_STATUS_CONFIG} />
+                              )}
                             </td>
                             <td className="px-3 py-2.5 text-xs whitespace-nowrap">
                               <Tooltip>
