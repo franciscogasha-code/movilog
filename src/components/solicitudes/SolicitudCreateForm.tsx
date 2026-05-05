@@ -27,21 +27,7 @@ import {
   validateShippingMethod,
 } from "@/lib/business-rules";
 
-/**
- * Tipo extendido SOLO para el formulario.
- * `pre_sale_online` no participa de la matriz operativa de business-rules
- * (no tiene origen logístico, ni multi-origen, ni fulfillment).
- * Se trata como un "modo borrador comercial" del mismo formulario.
- */
-type FormRequestType = RequestType | "pre_sale_online";
-
-const SALES_CHANNELS = [
-  { v: "whatsapp", l: "WhatsApp" },
-  { v: "instagram", l: "Instagram" },
-  { v: "presencial", l: "Presencial" },
-  { v: "telefono", l: "Teléfono" },
-  { v: "otro", l: "Otro" },
-];
+// ShippingMethod imported from business-rules
 
 interface SelectedItem {
   product: ProductResult;
@@ -51,38 +37,15 @@ interface SelectedItem {
   splits?: OriginSplit[];
 }
 
-export function SolicitudCreateForm({
-  onSuccess,
-  fromConsultationId,
-  editingPreSaleId,
-  defaultRequestType = "reposition",
-}: {
-  onSuccess: () => void;
-  fromConsultationId?: string | null;
-  /** Si se pasa, el formulario carga la pre-venta y entra en modo edición. */
-  editingPreSaleId?: string;
-  /** Tipo inicial sugerido (ej. abrir directo en pre-venta desde un CTA externo). */
-  defaultRequestType?: FormRequestType;
-}) {
+export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSuccess: () => void; fromConsultationId?: string | null }) {
   const { user } = useAuth();
   const { defaultBranchId, canChangeBranch } = useAutoDetectBranch();
   const { data: branches } = useBranches();
 
   // Step 1: Context
   const [requestingBranchId, setRequestingBranchId] = useState("");
-  const [requestType, setRequestType] = useState<FormRequestType>(
-    editingPreSaleId ? "pre_sale_online" : defaultRequestType,
-  );
+  const [requestType, setRequestType] = useState<RequestType>("reposition");
   const [deliveryTarget, setDeliveryTarget] = useState<DeliveryTarget>("branch");
-
-  // Pre-Venta extras (solo activos cuando requestType === 'pre_sale_online')
-  const [salesChannel, setSalesChannel] = useState("whatsapp");
-  const [clientPhone, setClientPhone] = useState("");
-  const [clientEmail, setClientEmail] = useState("");
-  const [loadingEdit, setLoadingEdit] = useState(!!editingPreSaleId);
-  const [wasConfirmed, setWasConfirmed] = useState(false);
-
-  const isPreSale = requestType === "pre_sale_online";
 
   // Step 2: Products
   const [items, setItems] = useState<SelectedItem[]>([]);
