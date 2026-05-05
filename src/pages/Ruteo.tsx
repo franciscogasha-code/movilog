@@ -35,6 +35,7 @@ export default function Ruteo() {
       const { count, error } = await supabase
         .from("branch_requests")
         .select("id", { count: "exact", head: true })
+        .eq("is_pre_sale", false)
         .eq("status", "in_consolidation" as any)
         .eq("flow_type", "interurban");
       if (error) return 0;
@@ -48,6 +49,7 @@ export default function Ruteo() {
       const { data, error } = await supabase
         .from("branch_requests")
         .select(`id, fulfillment_orders!fulfillment_orders_branch_request_id_fkey(trip_id, status)`)
+        .eq("is_pre_sale", false)
         .eq("request_type", "client" as any)
         .eq("shipping_method", "own_fleet" as any)
         .eq("delivery_target", "client" as any)
@@ -89,6 +91,7 @@ export default function Ruteo() {
       const { count, error } = await supabase
         .from("branch_requests")
         .select("id", { count: "exact", head: true })
+        .eq("is_pre_sale", false)
         .eq("status", "assigned_to_trip" as any)
         .gte("updated_at", today.toISOString());
       if (error) return 0;

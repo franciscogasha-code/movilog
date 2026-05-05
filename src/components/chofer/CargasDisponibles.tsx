@@ -152,6 +152,7 @@ export function CargasDisponibles() {
         .from("branch_requests")
         .select(`id, request_number, request_type, delivery_target, status, flow_type, client_name, client_address, source_branch_id, requesting_branch_id, created_at, source_branch:branches!branch_requests_source_branch_id_fkey(name, code, is_central_warehouse), destination_branch:branches!branch_requests_requesting_branch_id_fkey(name, code)`)
         .eq("source_branch_id", effectiveBranchId)
+        .eq("is_pre_sale", false)
         .eq("status", "ready_for_pickup" as any)
         .order("created_at", { ascending: true })
         .limit(100);

@@ -77,6 +77,7 @@ export function PedidosClienteFlotaPropia() {
             current_location_branch:branches!fulfillment_orders_current_location_branch_id_fkey(name, code)
           )
         `, { count: "exact" })
+        .eq("is_pre_sale", false)
         .eq("request_type", "client" as any)
         .eq("shipping_method", "own_fleet" as any)
         .eq("delivery_target", "client" as any)

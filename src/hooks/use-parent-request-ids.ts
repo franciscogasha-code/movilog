@@ -20,6 +20,7 @@ export function useParentRequestIds() {
       const { data, error } = await supabase
         .from("branch_requests")
         .select("parent_request_id")
+        .eq("is_pre_sale", false)
         .not("parent_request_id", "is", null);
       if (error) throw error;
       const set = new Set<string>();
