@@ -183,8 +183,8 @@ export default function Solicitudes() {
   //  usando el branchFilter explícito como contexto de "mi sucursal".)
 
   const [createOpen, setCreateOpen] = useState(false);
-  const [preSaleOpen, setPreSaleOpen] = useState(false);
   const [adminRepoOpen, setAdminRepoOpen] = useState(false);
+  const [newRequestKind, setNewRequestKind] = useState<"operational" | "pre_sale">("operational");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const fromConsultation = searchParams.get("from_consultation");
   const detailParam = searchParams.get("detail");
