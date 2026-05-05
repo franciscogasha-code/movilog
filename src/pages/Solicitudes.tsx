@@ -1087,7 +1087,7 @@ export default function Solicitudes() {
               <DialogTitle className="text-base sm:text-lg">Detalle del Pedido</DialogTitle>
             </DialogHeader>
             <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-3 py-3 sm:px-6 sm:py-5 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
-              {selectedId && <SolicitudDetail requestId={selectedId} onUpdate={refetch} />}
+              {selectedId && <RequestDetailRouter requestId={selectedId} onUpdate={refetch} />}
             </div>
           </DialogContent>
         </Dialog>
