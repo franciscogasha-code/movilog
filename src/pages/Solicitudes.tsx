@@ -829,11 +829,14 @@ export default function Solicitudes() {
                 onClick={() => { setTab(k); setStatusFilter("all"); setPage(1); }}
                 className={cn(
                   "inline-flex items-center justify-center gap-1.5 px-3 py-2.5 sm:py-1.5 rounded-md text-sm font-medium transition-colors border min-h-[44px] sm:min-h-0",
-                  // Mobile: ocupa celda completa; Desktop: ancho contenido + nowrap
                   "w-full sm:w-auto sm:shrink-0 sm:whitespace-nowrap sm:px-3.5",
                   active
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "bg-background text-foreground/80 border-border hover:bg-muted",
+                    ? isPreventas
+                      ? "bg-warning text-warning-foreground border-warning"
+                      : "bg-primary text-primary-foreground border-primary"
+                    : isPreventas
+                      ? "bg-warning/5 text-warning border-warning/40 hover:bg-warning/10"
+                      : "bg-background text-foreground/80 border-border hover:bg-muted",
                 )}
               >
                 <span className="truncate">{TAB_LABELS[k]}</span>
