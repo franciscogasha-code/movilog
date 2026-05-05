@@ -139,7 +139,12 @@ export function PreSaleDetail({ requestId, onUpdate }: { requestId: string; onUp
         <div className="flex items-center gap-2">
           <span className="font-mono font-semibold text-lg">#{request.request_number}</span>
           <Badge className="bg-warning text-warning-foreground border-warning">Pre-Venta</Badge>
-          <Badge variant="outline">{(request as any).pre_sale_status ?? "draft"}</Badge>
+          <Badge className={subStatus.cls}>{subStatus.label}</Badge>
+          {(request as any).pre_sale_confirmed_at && (
+            <span className="text-[11px] text-muted-foreground">
+              confirmada {new Date((request as any).pre_sale_confirmed_at).toLocaleString("es-PY")}
+            </span>
+          )}
         </div>
         <div className="text-xs text-muted-foreground">
           {new Date(request.created_at).toLocaleString("es-PY")}
