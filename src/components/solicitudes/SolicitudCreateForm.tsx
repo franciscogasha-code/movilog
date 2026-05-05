@@ -11,7 +11,7 @@ import { ProductCard } from "@/components/shared/ProductCard";
 import { BranchSelector, useAutoDetectBranch } from "@/components/shared/BranchSelector";
 import { useBranches } from "@/hooks/use-branches";
 import { useLiveStock, revalidateLiveStock } from "@/hooks/use-live-stock";
-import { Plus, Trash2, Package, ChevronDown, ChevronUp, AlertTriangle, XCircle, Loader2, Split } from "lucide-react";
+import { Plus, Trash2, Package, ChevronDown, ChevronUp, AlertTriangle, XCircle, Loader2, Split, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { ContextBanner, type EffectiveOriginMode } from "./ContextBanner";
@@ -26,6 +26,23 @@ import {
   shouldShowClientFields,
   validateShippingMethod,
 } from "@/lib/business-rules";
+
+/**
+ * FormRequestType extiende RequestType con `pre_sale_online`, una variante
+ * COMERCIAL del mismo formulario. No es un tipo operativo: cuando se elige,
+ * el formulario muta para no exigir origen logístico, no crear fulfillment,
+ * no comprometer stock, y no aparecer en módulos operativos. Se persiste
+ * con is_pre_sale=true, status='draft', request_type='pre_sale_online'.
+ */
+export type FormRequestType = RequestType | "pre_sale_online";
+
+const SALES_CHANNELS = [
+  { v: "whatsapp", l: "WhatsApp" },
+  { v: "instagram", l: "Instagram" },
+  { v: "presencial", l: "Presencial" },
+  { v: "telefono", l: "Teléfono" },
+  { v: "otro", l: "Otro" },
+];
 
 // ShippingMethod imported from business-rules
 
