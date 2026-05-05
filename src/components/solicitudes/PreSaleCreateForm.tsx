@@ -51,7 +51,7 @@ interface SelItem {
   quantity: number;
 }
 
-export function PreSaleCreateForm({ onSuccess }: { onSuccess: () => void }) {
+export function PreSaleCreateForm({ onSuccess, editingId }: { onSuccess: () => void; editingId?: string }) {
   const { user } = useAuth();
   const { defaultBranchId } = useAutoDetectBranch();
   const { data: branches = [] } = useBranches();
@@ -66,6 +66,51 @@ export function PreSaleCreateForm({ onSuccess }: { onSuccess: () => void }) {
   const [notes, setNotes] = useState("");
   const [items, setItems] = useState<SelItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [loadingEdit, setLoadingEdit] = useState(!!editingId);
+
+  // Cargar datos para edición
+  useEffect(() => {
+    if (!editingId) return;
+    let mounted = true;
+    (async () => {
+      try {
+        const { data: req, error } = await supabase
+          .from("branch_requests")
+          .select("*")
+          .eq("id", editingId)
+          .single();
+        if (error) throw error;
+        if (!mounted) return;
+        setRequestingBranchId(req.requesting_branch_id);
+        setSalesChannel((req as any).sales_channel ?? "whatsapp");
+        setShippingMethod(req.shipping_method);
+        setClientName(req.client_name ?? "");
+        setClientPhone((req as any).client_phone ?? "");
+        setClientEmail((req as any).client_email ?? "");
+        setClientAddress(req.client_address ?? "");
+        setNotes(req.notes ?? "");
+        const { data: its } = await supabase
+          .from("branch_request_items")
+          .select("*, product:products(*)")
+          .eq("request_id", editingId);
+        if (mounted && its) {
+          setItems(
+            its.map((it: any) => ({
+              product: it.product,
+              quantity: Number(it.quantity_requested),
+            })),
+          );
+        }
+      } catch (e: any) {
+        toast.error(`No se pudo cargar: ${e.message}`);
+      } finally {
+        if (mounted) setLoadingEdit(false);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [editingId]);
 
   const requiresAddress = shippingMethod === "delivery" || shippingMethod === "courier";
 
