@@ -222,11 +222,14 @@ export function PreSaleCreateForm({ onSuccess, editingId }: { onSuccess: () => v
     }
   }
 
+  if (loadingEdit) {
+    return <div className="p-8 text-center text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin inline" /></div>;
+  }
+
   return (
     <div className="space-y-4">
       <div className="rounded-md bg-warning/10 border border-warning/30 px-3 py-2 text-xs text-warning-foreground">
-        <strong className="text-warning">Pre Venta Online</strong> — borrador comercial. No reserva stock ni
-        genera operación hasta que la envíes a operación.
+        <strong className="text-warning">Pre Venta Online</strong> — {editingId ? "editando borrador comercial." : "borrador comercial. No reserva stock ni genera operación hasta que la envíes a operación."}
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
