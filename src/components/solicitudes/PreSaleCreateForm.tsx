@@ -90,6 +90,7 @@ export function PreSaleCreateForm({ onSuccess, editingId }: { onSuccess: () => v
         setClientEmail((req as any).client_email ?? "");
         setClientAddress(req.client_address ?? "");
         setNotes(req.notes ?? "");
+        setWasConfirmed(((req as any).pre_sale_status ?? "draft") === "confirmed");
         const { data: its } = await supabase
           .from("branch_request_items")
           .select("*, product:products(*)")
