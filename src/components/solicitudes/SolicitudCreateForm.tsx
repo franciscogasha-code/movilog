@@ -700,7 +700,7 @@ export function SolicitudCreateForm({
     return (
       <div className="space-y-4">
         <h3 className="text-sm font-semibold text-foreground">Confirmar pedido</h3>
-        <ContextBanner requestType={requestType} deliveryTarget={deliveryTarget} effectiveOriginMode={effectiveOriginMode} />
+        <ContextBanner requestType={operationalRequestType} deliveryTarget={deliveryTarget} effectiveOriginMode={effectiveOriginMode} />
 
         <div className="space-y-2">
           <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Productos</h4>
@@ -770,7 +770,7 @@ export function SolicitudCreateForm({
   return (
     <form onSubmit={onSubmit} className="space-y-6">
       {/* Context Banner */}
-      <ContextBanner requestType={requestType} deliveryTarget={deliveryTarget} effectiveOriginMode={effectiveOriginMode} />
+      <ContextBanner requestType={operationalRequestType} deliveryTarget={deliveryTarget} effectiveOriginMode={effectiveOriginMode} />
 
       {/* STEP 1: Context */}
       <div className="space-y-4">
