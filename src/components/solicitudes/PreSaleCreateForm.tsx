@@ -219,7 +219,13 @@ export function PreSaleCreateForm({ onSuccess, editingId }: { onSuccess: () => v
       const { error: itErr } = await supabase.from("branch_request_items").insert(itemsPayload);
       if (itErr) throw itErr;
 
-      toast.success(editingId ? `Pre-venta #${requestNumber} actualizada` : `Pre-venta #${requestNumber} creada`);
+      toast.success(
+        editingId
+          ? wasConfirmed
+            ? `Pre-venta #${requestNumber} actualizada — volvé a marcar "Cliente confirmó"`
+            : `Pre-venta #${requestNumber} actualizada`
+          : `Pre-venta #${requestNumber} creada`,
+      );
       onSuccess();
     } catch (e: any) {
       toast.error(`Error: ${e.message}`);
