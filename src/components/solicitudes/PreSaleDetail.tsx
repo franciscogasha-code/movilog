@@ -181,20 +181,46 @@ export function PreSaleDetail({ requestId, onUpdate }: { requestId: string; onUp
         </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-2">
-        <Button variant="outline" onClick={downloadPdf} disabled={pdfLoading} className="flex-1">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <Button
+          variant="outline"
+          onClick={() => setEditOpen(true)}
+          disabled={preSaleStatus === "sent_to_operation"}
+        >
+          <Pencil className="h-4 w-4 mr-2" />
+          Editar pre-venta
+        </Button>
+        <Button variant="outline" onClick={downloadPdf} disabled={pdfLoading}>
           {pdfLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <FileDown className="h-4 w-4 mr-2" />}
           Descargar PDF
         </Button>
-        <Button onClick={sendToOperation} disabled={sending} className="flex-1">
+        <Button
+          variant={isConfirmed ? "secondary" : "default"}
+          onClick={markAsConfirmed}
+          disabled={confirming || isConfirmed || preSaleStatus === "sent_to_operation"}
+        >
+          {confirming ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
+          {isConfirmed ? "Cliente confirmó ✓" : "Cliente confirmó"}
+        </Button>
+        <Button onClick={sendToOperation} disabled={sending || preSaleStatus === "sent_to_operation"}>
           {sending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
           Enviar a operación
         </Button>
       </div>
       <p className="text-[11px] text-muted-foreground">
-        Al enviar a operación, la pre-venta se convierte en pedido online y entra al flujo logístico estándar
-        (mismo número, mismo ID).
+        Editá libremente mientras esté en borrador. Marcá <strong>Cliente confirmó</strong> cuando el cliente
+        acepte la cotización. Al enviar a operación se convierte en pedido online (mismo número, mismo ID) y
+        entra al flujo logístico estándar.
       </p>
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Editar Pre-Venta #{request.request_number}</DialogTitle>
+          </DialogHeader>
+          <PreSaleCreateForm editingId={requestId} onSuccess={handleEditSuccess} />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
