@@ -164,6 +164,10 @@ export function PreSaleCreateForm({ onSuccess, editingId }: { onSuccess: () => v
             client_address: parsed.data.client_address || null,
             sales_channel: salesChannel,
             notes: notes || null,
+            // Regla negocio: cualquier edición invalida la confirmación previa.
+            // El cliente debe re-confirmar la nueva versión antes de enviar a operación.
+            pre_sale_status: "draft",
+            pre_sale_confirmed_at: null,
           } as any)
           .eq("id", editingId)
           .select("request_number")
