@@ -67,6 +67,7 @@ export function PreSaleCreateForm({ onSuccess, editingId }: { onSuccess: () => v
   const [items, setItems] = useState<SelItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [loadingEdit, setLoadingEdit] = useState(!!editingId);
+  const [wasConfirmed, setWasConfirmed] = useState(false);
 
   // Cargar datos para edición
   useEffect(() => {
