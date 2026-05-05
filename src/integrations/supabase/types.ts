@@ -3130,12 +3130,14 @@ export type Database = {
         | "in_consolidation"
         | "assigned_to_trip"
         | "delivered_to_third_party"
+        | "draft"
       request_type:
         | "client"
         | "reposition"
         | "mixed"
         | "online"
         | "redistribution"
+        | "pre_sale_online"
       reserve_reason: "branch_request" | "client_order" | "pending_fulfillment"
       reserve_type: "soft" | "hard"
       shipping_method: "own_fleet" | "courier" | "pickup" | "delivery"
@@ -3446,6 +3448,7 @@ export const Constants = {
         "in_consolidation",
         "assigned_to_trip",
         "delivered_to_third_party",
+        "draft",
       ],
       request_type: [
         "client",
@@ -3453,6 +3456,7 @@ export const Constants = {
         "mixed",
         "online",
         "redistribution",
+        "pre_sale_online",
       ],
       reserve_reason: ["branch_request", "client_order", "pending_fulfillment"],
       reserve_type: ["soft", "hard"],
