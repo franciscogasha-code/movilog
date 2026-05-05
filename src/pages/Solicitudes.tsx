@@ -662,7 +662,7 @@ export default function Solicitudes() {
       case "cerrados":
         return { title: "Sin pedidos cerrados.", hint: "Los pedidos finalizados van a aparecer en este historial.", kind: "empty" as const };
       case "preventas":
-        return { title: "No hay pre-ventas en borrador.", hint: 'Creá una nueva con el botón "Nueva Pre-Venta".', kind: "empty" as const };
+        return { title: "No hay pre-ventas en borrador.", hint: 'Creá una desde "Nuevo Pedido" → tipo "Pre-Venta Online".', kind: "empty" as const };
     }
   }, [tab, debouncedSearch, hasActiveFilters, totalInTabBeforeFilters]);
 
