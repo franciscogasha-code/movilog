@@ -415,11 +415,12 @@ export default function Solicitudes() {
       const anchor: string[] | null =
         isAllBranches && specificBranch ? [specificBranch] : myIds;
 
-      // Excluye padres multi-origen vía FK (parent_request_id de los hijos).
+      // Excluye padres multi-origen vía FK + excluye pre-ventas (cuentas operativas).
       const buildBase = () => {
         let q = supabase
           .from("branch_requests")
-          .select("id", { count: "exact", head: true });
+          .select("id", { count: "exact", head: true })
+          .eq("is_pre_sale", false);
         if (parentIdsList.length > 0) {
           q = q.not("id", "in", `(${parentIdsList.join(",")})`);
         }
@@ -452,11 +453,17 @@ export default function Solicitudes() {
       const miosQ = applyMios(buildBase().in("status", ACTIVE_STATUSES as any));
       const otrosQ = applyOtros(buildBase().in("status", ACTIVE_STATUSES as any));
 
-      const [activos, cerrados, mios, otros] = await Promise.all([
+      const preVentasQ = supabase
+        .from("branch_requests")
+        .select("id", { count: "exact", head: true })
+        .eq("is_pre_sale", true);
+
+      const [activos, cerrados, mios, otros, preventas] = await Promise.all([
         applyAny(buildBase().in("status", ACTIVE_STATUSES as any)),
         applyAny(buildBase().in("status", CLOSED_STATUSES as any)),
         miosQ ?? Promise.resolve({ count: 0 }),
         otrosQ ?? Promise.resolve({ count: 0 }),
+        preVentasQ,
       ]);
 
       return {
@@ -464,6 +471,7 @@ export default function Solicitudes() {
         cerrados: (cerrados as any).count ?? 0,
         mios: (mios as any).count ?? 0,
         otros: (otros as any).count ?? 0,
+        preventas: (preventas as any).count ?? 0,
       };
     },
   });
@@ -652,6 +660,8 @@ export default function Solicitudes() {
         return { title: "No tenés pedidos entrantes desde otras sucursales.", hint: "Acá vas a ver pedidos donde tu sucursal es origen.", kind: "empty" as const };
       case "cerrados":
         return { title: "Sin pedidos cerrados.", hint: "Los pedidos finalizados van a aparecer en este historial.", kind: "empty" as const };
+      case "preventas":
+        return { title: "No hay pre-ventas en borrador.", hint: 'Creá una nueva con "Nuevo Pedido" → opción "Pre Venta Online".', kind: "empty" as const };
     }
   }, [tab, debouncedSearch, hasActiveFilters, totalInTabBeforeFilters]);
 
@@ -805,11 +815,12 @@ export default function Solicitudes() {
           aria-label="Bandejas de pedidos"
         >
           {(showMineOtros
-            ? (["activos", "mios", "otros", "cerrados"] as TabKey[])
-            : (["activos", "cerrados"] as TabKey[])
+            ? (["activos", "mios", "otros", "cerrados", "preventas"] as TabKey[])
+            : (["activos", "cerrados", "preventas"] as TabKey[])
           ).map((k) => {
             const count = tabCounts ? (tabCounts as any)[k] : null;
             const active = tab === k;
+            const isPreventas = k === "preventas";
             return (
               <button
                 key={k}
