@@ -4,9 +4,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader2, FileDown, Send, Pencil } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Loader2, FileDown, Send, Pencil, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { generatePreSalePdf } from "@/lib/pre-sale-pdf";
+import { PreSaleCreateForm } from "./PreSaleCreateForm";
 
 /**
  * Panel de detalle reducido para pre-ventas online (is_pre_sale=true).
