@@ -335,7 +335,9 @@ export type Database = {
           bims_invoice_number: string | null
           bims_sale_reference: string | null
           client_address: string | null
+          client_email: string | null
           client_name: string | null
+          client_phone: string | null
           closed_at: string | null
           closed_by: string | null
           consolidation_override: boolean | null
@@ -350,11 +352,16 @@ export type Database = {
           expected_next_event_deadline: string | null
           flow_type: string | null
           id: string
+          is_pre_sale: boolean
           logistic_closed_at: string | null
           logistic_closed_by: string | null
           notes: string | null
           operational_responsible_id: string | null
           parent_request_id: string | null
+          pre_sale_confirmed_at: string | null
+          pre_sale_pdf_generated_at: string | null
+          pre_sale_sent_at: string | null
+          pre_sale_status: string | null
           priority: string | null
           rejected_at: string | null
           rejected_by: string | null
@@ -365,6 +372,7 @@ export type Database = {
           request_number: number
           request_type: Database["public"]["Enums"]["request_type"]
           requesting_branch_id: string
+          sales_channel: string | null
           shipping_cost: number | null
           shipping_destination_paid: number | null
           shipping_method: Database["public"]["Enums"]["shipping_method"]
@@ -383,7 +391,9 @@ export type Database = {
           bims_invoice_number?: string | null
           bims_sale_reference?: string | null
           client_address?: string | null
+          client_email?: string | null
           client_name?: string | null
+          client_phone?: string | null
           closed_at?: string | null
           closed_by?: string | null
           consolidation_override?: boolean | null
@@ -398,11 +408,16 @@ export type Database = {
           expected_next_event_deadline?: string | null
           flow_type?: string | null
           id?: string
+          is_pre_sale?: boolean
           logistic_closed_at?: string | null
           logistic_closed_by?: string | null
           notes?: string | null
           operational_responsible_id?: string | null
           parent_request_id?: string | null
+          pre_sale_confirmed_at?: string | null
+          pre_sale_pdf_generated_at?: string | null
+          pre_sale_sent_at?: string | null
+          pre_sale_status?: string | null
           priority?: string | null
           rejected_at?: string | null
           rejected_by?: string | null
@@ -413,6 +428,7 @@ export type Database = {
           request_number?: number
           request_type?: Database["public"]["Enums"]["request_type"]
           requesting_branch_id: string
+          sales_channel?: string | null
           shipping_cost?: number | null
           shipping_destination_paid?: number | null
           shipping_method?: Database["public"]["Enums"]["shipping_method"]
@@ -431,7 +447,9 @@ export type Database = {
           bims_invoice_number?: string | null
           bims_sale_reference?: string | null
           client_address?: string | null
+          client_email?: string | null
           client_name?: string | null
+          client_phone?: string | null
           closed_at?: string | null
           closed_by?: string | null
           consolidation_override?: boolean | null
@@ -446,11 +464,16 @@ export type Database = {
           expected_next_event_deadline?: string | null
           flow_type?: string | null
           id?: string
+          is_pre_sale?: boolean
           logistic_closed_at?: string | null
           logistic_closed_by?: string | null
           notes?: string | null
           operational_responsible_id?: string | null
           parent_request_id?: string | null
+          pre_sale_confirmed_at?: string | null
+          pre_sale_pdf_generated_at?: string | null
+          pre_sale_sent_at?: string | null
+          pre_sale_status?: string | null
           priority?: string | null
           rejected_at?: string | null
           rejected_by?: string | null
@@ -461,6 +484,7 @@ export type Database = {
           request_number?: number
           request_type?: Database["public"]["Enums"]["request_type"]
           requesting_branch_id?: string
+          sales_channel?: string | null
           shipping_cost?: number | null
           shipping_destination_paid?: number | null
           shipping_method?: Database["public"]["Enums"]["shipping_method"]
@@ -2938,6 +2962,10 @@ export type Database = {
           p_target_id: string
         }
         Returns: Json
+      }
+      fn_send_presale_to_operation: {
+        Args: { p_request_id: string }
+        Returns: undefined
       }
       fn_transition_request_status:
         | {
