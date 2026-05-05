@@ -23,6 +23,8 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { SolicitudCreateForm } from "@/components/solicitudes/SolicitudCreateForm";
 import { SolicitudDetail } from "@/components/solicitudes/SolicitudDetail";
 import { AdminReposicionForm } from "@/components/solicitudes/AdminReposicionForm";
+import { PreSaleCreateForm } from "@/components/solicitudes/PreSaleCreateForm";
+import { PreSaleDetail } from "@/components/solicitudes/PreSaleDetail";
 import { useUserBranchFilter } from "@/hooks/use-user-access";
 import { useBranches } from "@/hooks/use-branches";
 import { usePaginatedQuery } from "@/hooks/use-paginated-query";
@@ -183,6 +185,7 @@ export default function Solicitudes() {
   //  usando el branchFilter explícito como contexto de "mi sucursal".)
 
   const [createOpen, setCreateOpen] = useState(false);
+  const [preSaleOpen, setPreSaleOpen] = useState(false);
   const [adminRepoOpen, setAdminRepoOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const fromConsultation = searchParams.get("from_consultation");
