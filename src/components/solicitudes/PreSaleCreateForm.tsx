@@ -67,6 +67,7 @@ export function PreSaleCreateForm({ onSuccess, editingId }: { onSuccess: () => v
   const [items, setItems] = useState<SelItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [loadingEdit, setLoadingEdit] = useState(!!editingId);
+  const [wasConfirmed, setWasConfirmed] = useState(false);
 
   // Cargar datos para edición
   useEffect(() => {
@@ -89,6 +90,7 @@ export function PreSaleCreateForm({ onSuccess, editingId }: { onSuccess: () => v
         setClientEmail((req as any).client_email ?? "");
         setClientAddress(req.client_address ?? "");
         setNotes(req.notes ?? "");
+        setWasConfirmed(((req as any).pre_sale_status ?? "draft") === "confirmed");
         const { data: its } = await supabase
           .from("branch_request_items")
           .select("*, product:products(*)")
@@ -162,6 +164,10 @@ export function PreSaleCreateForm({ onSuccess, editingId }: { onSuccess: () => v
             client_address: parsed.data.client_address || null,
             sales_channel: salesChannel,
             notes: notes || null,
+            // Regla negocio: cualquier edición invalida la confirmación previa.
+            // El cliente debe re-confirmar la nueva versión antes de enviar a operación.
+            pre_sale_status: "draft",
+            pre_sale_confirmed_at: null,
           } as any)
           .eq("id", editingId)
           .select("request_number")
@@ -213,7 +219,13 @@ export function PreSaleCreateForm({ onSuccess, editingId }: { onSuccess: () => v
       const { error: itErr } = await supabase.from("branch_request_items").insert(itemsPayload);
       if (itErr) throw itErr;
 
-      toast.success(editingId ? `Pre-venta #${requestNumber} actualizada` : `Pre-venta #${requestNumber} creada`);
+      toast.success(
+        editingId
+          ? wasConfirmed
+            ? `Pre-venta #${requestNumber} actualizada — volvé a marcar "Cliente confirmó"`
+            : `Pre-venta #${requestNumber} actualizada`
+          : `Pre-venta #${requestNumber} creada`,
+      );
       onSuccess();
     } catch (e: any) {
       toast.error(`Error: ${e.message}`);
@@ -231,6 +243,14 @@ export function PreSaleCreateForm({ onSuccess, editingId }: { onSuccess: () => v
       <div className="rounded-md bg-warning/10 border border-warning/30 px-3 py-2 text-xs text-warning-foreground">
         <strong className="text-warning">Pre Venta Online</strong> — {editingId ? "editando borrador comercial." : "borrador comercial. No reserva stock ni genera operación hasta que la envíes a operación."}
       </div>
+
+      {editingId && wasConfirmed && (
+        <div className="rounded-md bg-destructive/10 border border-destructive/40 px-3 py-2 text-xs text-destructive">
+          <strong>Atención:</strong> esta pre-venta ya estaba confirmada por el cliente. Al guardar cambios
+          se revierte a <strong>borrador</strong> y deberás volver a marcar <strong>"Cliente confirmó"</strong>{" "}
+          sobre la nueva versión antes de enviar a operación.
+        </div>
+      )}
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
