@@ -312,7 +312,7 @@ export function PreSaleCreateForm({ onSuccess, editingId }: { onSuccess: () => v
 
       <Button className="w-full" disabled={!canSubmit || submitting} onClick={handleSubmit}>
         {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
-        Crear Pre-Venta
+        {editingId ? "Guardar cambios" : "Crear Pre-Venta"}
       </Button>
     </div>
   );
