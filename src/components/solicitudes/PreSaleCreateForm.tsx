@@ -145,31 +145,65 @@ export function PreSaleCreateForm({ onSuccess, editingId }: { onSuccess: () => v
     }
     setSubmitting(true);
     try {
-      const { data: req, error } = await supabase
-        .from("branch_requests")
-        .insert({
-          requesting_branch_id: requestingBranchId,
-          source_branch_id: requestingBranchId, // placeholder; se ajusta al promover
-          request_type: "pre_sale_online" as any,
-          status: "draft" as any,
-          delivery_target: requiresAddress ? ("client" as any) : ("branch" as any),
-          shipping_method: shippingMethod as any,
-          client_name: parsed.data.client_name,
-          client_phone: parsed.data.client_phone,
-          client_email: parsed.data.client_email || null,
-          client_address: parsed.data.client_address || null,
-          sales_channel: salesChannel,
-          is_pre_sale: true,
-          pre_sale_status: "draft",
-          notes: notes || null,
-          created_by: user.id,
-        })
-        .select()
-        .single();
-      if (error) throw error;
+      let requestId = editingId;
+      let requestNumber: number | undefined;
+
+      if (editingId) {
+        const { data: upd, error } = await supabase
+          .from("branch_requests")
+          .update({
+            requesting_branch_id: requestingBranchId,
+            source_branch_id: requestingBranchId,
+            shipping_method: shippingMethod as any,
+            delivery_target: requiresAddress ? ("client" as any) : ("branch" as any),
+            client_name: parsed.data.client_name,
+            client_phone: parsed.data.client_phone,
+            client_email: parsed.data.client_email || null,
+            client_address: parsed.data.client_address || null,
+            sales_channel: salesChannel,
+            notes: notes || null,
+          } as any)
+          .eq("id", editingId)
+          .select("request_number")
+          .single();
+        if (error) throw error;
+        requestNumber = upd.request_number;
+
+        // Reemplazar items: borrar actuales + insertar
+        const { error: delErr } = await supabase
+          .from("branch_request_items")
+          .delete()
+          .eq("request_id", editingId);
+        if (delErr) throw delErr;
+      } else {
+        const { data: req, error } = await supabase
+          .from("branch_requests")
+          .insert({
+            requesting_branch_id: requestingBranchId,
+            source_branch_id: requestingBranchId,
+            request_type: "pre_sale_online" as any,
+            status: "draft" as any,
+            delivery_target: requiresAddress ? ("client" as any) : ("branch" as any),
+            shipping_method: shippingMethod as any,
+            client_name: parsed.data.client_name,
+            client_phone: parsed.data.client_phone,
+            client_email: parsed.data.client_email || null,
+            client_address: parsed.data.client_address || null,
+            sales_channel: salesChannel,
+            is_pre_sale: true,
+            pre_sale_status: "draft",
+            notes: notes || null,
+            created_by: user.id,
+          })
+          .select()
+          .single();
+        if (error) throw error;
+        requestId = req.id;
+        requestNumber = req.request_number;
+      }
 
       const itemsPayload = items.map((it) => ({
-        request_id: req.id,
+        request_id: requestId!,
         product_id: it.product.id,
         quantity_requested: it.quantity,
         item_purpose: "client" as any,
@@ -179,7 +213,7 @@ export function PreSaleCreateForm({ onSuccess, editingId }: { onSuccess: () => v
       const { error: itErr } = await supabase.from("branch_request_items").insert(itemsPayload);
       if (itErr) throw itErr;
 
-      toast.success(`Pre-venta #${req.request_number} creada`);
+      toast.success(editingId ? `Pre-venta #${requestNumber} actualizada` : `Pre-venta #${requestNumber} creada`);
       onSuccess();
     } catch (e: any) {
       toast.error(`Error: ${e.message}`);
