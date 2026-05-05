@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -51,7 +51,7 @@ interface SelItem {
   quantity: number;
 }
 
-export function PreSaleCreateForm({ onSuccess }: { onSuccess: () => void }) {
+export function PreSaleCreateForm({ onSuccess, editingId }: { onSuccess: () => void; editingId?: string }) {
   const { user } = useAuth();
   const { defaultBranchId } = useAutoDetectBranch();
   const { data: branches = [] } = useBranches();
@@ -66,6 +66,51 @@ export function PreSaleCreateForm({ onSuccess }: { onSuccess: () => void }) {
   const [notes, setNotes] = useState("");
   const [items, setItems] = useState<SelItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [loadingEdit, setLoadingEdit] = useState(!!editingId);
+
+  // Cargar datos para edición
+  useEffect(() => {
+    if (!editingId) return;
+    let mounted = true;
+    (async () => {
+      try {
+        const { data: req, error } = await supabase
+          .from("branch_requests")
+          .select("*")
+          .eq("id", editingId)
+          .single();
+        if (error) throw error;
+        if (!mounted) return;
+        setRequestingBranchId(req.requesting_branch_id);
+        setSalesChannel((req as any).sales_channel ?? "whatsapp");
+        setShippingMethod(req.shipping_method);
+        setClientName(req.client_name ?? "");
+        setClientPhone((req as any).client_phone ?? "");
+        setClientEmail((req as any).client_email ?? "");
+        setClientAddress(req.client_address ?? "");
+        setNotes(req.notes ?? "");
+        const { data: its } = await supabase
+          .from("branch_request_items")
+          .select("*, product:products(*)")
+          .eq("request_id", editingId);
+        if (mounted && its) {
+          setItems(
+            its.map((it: any) => ({
+              product: it.product,
+              quantity: Number(it.quantity_requested),
+            })),
+          );
+        }
+      } catch (e: any) {
+        toast.error(`No se pudo cargar: ${e.message}`);
+      } finally {
+        if (mounted) setLoadingEdit(false);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [editingId]);
 
   const requiresAddress = shippingMethod === "delivery" || shippingMethod === "courier";
 
@@ -100,31 +145,65 @@ export function PreSaleCreateForm({ onSuccess }: { onSuccess: () => void }) {
     }
     setSubmitting(true);
     try {
-      const { data: req, error } = await supabase
-        .from("branch_requests")
-        .insert({
-          requesting_branch_id: requestingBranchId,
-          source_branch_id: requestingBranchId, // placeholder; se ajusta al promover
-          request_type: "pre_sale_online" as any,
-          status: "draft" as any,
-          delivery_target: requiresAddress ? ("client" as any) : ("branch" as any),
-          shipping_method: shippingMethod as any,
-          client_name: parsed.data.client_name,
-          client_phone: parsed.data.client_phone,
-          client_email: parsed.data.client_email || null,
-          client_address: parsed.data.client_address || null,
-          sales_channel: salesChannel,
-          is_pre_sale: true,
-          pre_sale_status: "draft",
-          notes: notes || null,
-          created_by: user.id,
-        })
-        .select()
-        .single();
-      if (error) throw error;
+      let requestId = editingId;
+      let requestNumber: number | undefined;
+
+      if (editingId) {
+        const { data: upd, error } = await supabase
+          .from("branch_requests")
+          .update({
+            requesting_branch_id: requestingBranchId,
+            source_branch_id: requestingBranchId,
+            shipping_method: shippingMethod as any,
+            delivery_target: requiresAddress ? ("client" as any) : ("branch" as any),
+            client_name: parsed.data.client_name,
+            client_phone: parsed.data.client_phone,
+            client_email: parsed.data.client_email || null,
+            client_address: parsed.data.client_address || null,
+            sales_channel: salesChannel,
+            notes: notes || null,
+          } as any)
+          .eq("id", editingId)
+          .select("request_number")
+          .single();
+        if (error) throw error;
+        requestNumber = upd.request_number;
+
+        // Reemplazar items: borrar actuales + insertar
+        const { error: delErr } = await supabase
+          .from("branch_request_items")
+          .delete()
+          .eq("request_id", editingId);
+        if (delErr) throw delErr;
+      } else {
+        const { data: req, error } = await supabase
+          .from("branch_requests")
+          .insert({
+            requesting_branch_id: requestingBranchId,
+            source_branch_id: requestingBranchId,
+            request_type: "pre_sale_online" as any,
+            status: "draft" as any,
+            delivery_target: requiresAddress ? ("client" as any) : ("branch" as any),
+            shipping_method: shippingMethod as any,
+            client_name: parsed.data.client_name,
+            client_phone: parsed.data.client_phone,
+            client_email: parsed.data.client_email || null,
+            client_address: parsed.data.client_address || null,
+            sales_channel: salesChannel,
+            is_pre_sale: true,
+            pre_sale_status: "draft",
+            notes: notes || null,
+            created_by: user.id,
+          })
+          .select()
+          .single();
+        if (error) throw error;
+        requestId = req.id;
+        requestNumber = req.request_number;
+      }
 
       const itemsPayload = items.map((it) => ({
-        request_id: req.id,
+        request_id: requestId!,
         product_id: it.product.id,
         quantity_requested: it.quantity,
         item_purpose: "client" as any,
@@ -134,7 +213,7 @@ export function PreSaleCreateForm({ onSuccess }: { onSuccess: () => void }) {
       const { error: itErr } = await supabase.from("branch_request_items").insert(itemsPayload);
       if (itErr) throw itErr;
 
-      toast.success(`Pre-venta #${req.request_number} creada`);
+      toast.success(editingId ? `Pre-venta #${requestNumber} actualizada` : `Pre-venta #${requestNumber} creada`);
       onSuccess();
     } catch (e: any) {
       toast.error(`Error: ${e.message}`);
@@ -143,11 +222,14 @@ export function PreSaleCreateForm({ onSuccess }: { onSuccess: () => void }) {
     }
   }
 
+  if (loadingEdit) {
+    return <div className="p-8 text-center text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin inline" /></div>;
+  }
+
   return (
     <div className="space-y-4">
       <div className="rounded-md bg-warning/10 border border-warning/30 px-3 py-2 text-xs text-warning-foreground">
-        <strong className="text-warning">Pre Venta Online</strong> — borrador comercial. No reserva stock ni
-        genera operación hasta que la envíes a operación.
+        <strong className="text-warning">Pre Venta Online</strong> — {editingId ? "editando borrador comercial." : "borrador comercial. No reserva stock ni genera operación hasta que la envíes a operación."}
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
@@ -230,7 +312,7 @@ export function PreSaleCreateForm({ onSuccess }: { onSuccess: () => void }) {
 
       <Button className="w-full" disabled={!canSubmit || submitting} onClick={handleSubmit}>
         {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
-        Crear Pre-Venta
+        {editingId ? "Guardar cambios" : "Crear Pre-Venta"}
       </Button>
     </div>
   );

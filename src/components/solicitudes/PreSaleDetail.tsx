@@ -4,9 +4,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader2, FileDown, Send, Pencil } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Loader2, FileDown, Send, Pencil, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { generatePreSalePdf } from "@/lib/pre-sale-pdf";
+import { PreSaleCreateForm } from "./PreSaleCreateForm";
 
 /**
  * Panel de detalle reducido para pre-ventas online (is_pre_sale=true).
@@ -16,6 +18,8 @@ export function PreSaleDetail({ requestId, onUpdate }: { requestId: string; onUp
   const qc = useQueryClient();
   const [pdfLoading, setPdfLoading] = useState(false);
   const [sending, setSending] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
 
   const { data: request, isLoading } = useQuery({
     queryKey: ["pre-sale-detail", requestId],
@@ -90,13 +94,57 @@ export function PreSaleDetail({ requestId, onUpdate }: { requestId: string; onUp
     }
   }
 
+  async function markAsConfirmed() {
+    setConfirming(true);
+    try {
+      const { error } = await supabase
+        .from("branch_requests")
+        .update({
+          pre_sale_status: "confirmed",
+          pre_sale_confirmed_at: new Date().toISOString(),
+        } as any)
+        .eq("id", requestId);
+      if (error) throw error;
+      toast.success("Cliente confirmó la pre-venta");
+      qc.invalidateQueries({ queryKey: ["pre-sale-detail", requestId] });
+      qc.invalidateQueries({ queryKey: ["branch-requests"] });
+      onUpdate();
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setConfirming(false);
+    }
+  }
+
+  function handleEditSuccess() {
+    setEditOpen(false);
+    qc.invalidateQueries({ queryKey: ["pre-sale-detail", requestId] });
+    qc.invalidateQueries({ queryKey: ["pre-sale-items", requestId] });
+    qc.invalidateQueries({ queryKey: ["branch-requests"] });
+    onUpdate();
+  }
+
+  const preSaleStatus = (request as any).pre_sale_status ?? "draft";
+  const isConfirmed = preSaleStatus === "confirmed";
+  const statusLabel: Record<string, { label: string; cls: string }> = {
+    draft: { label: "Borrador", cls: "bg-muted text-muted-foreground" },
+    confirmed: { label: "Cliente confirmó", cls: "bg-success text-success-foreground" },
+    sent_to_operation: { label: "Enviada a operación", cls: "bg-primary text-primary-foreground" },
+  };
+  const subStatus = statusLabel[preSaleStatus] ?? statusLabel.draft;
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2">
           <span className="font-mono font-semibold text-lg">#{request.request_number}</span>
           <Badge className="bg-warning text-warning-foreground border-warning">Pre-Venta</Badge>
-          <Badge variant="outline">{(request as any).pre_sale_status ?? "draft"}</Badge>
+          <Badge className={subStatus.cls}>{subStatus.label}</Badge>
+          {(request as any).pre_sale_confirmed_at && (
+            <span className="text-[11px] text-muted-foreground">
+              confirmada {new Date((request as any).pre_sale_confirmed_at).toLocaleString("es-PY")}
+            </span>
+          )}
         </div>
         <div className="text-xs text-muted-foreground">
           {new Date(request.created_at).toLocaleString("es-PY")}
@@ -133,20 +181,46 @@ export function PreSaleDetail({ requestId, onUpdate }: { requestId: string; onUp
         </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-2">
-        <Button variant="outline" onClick={downloadPdf} disabled={pdfLoading} className="flex-1">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <Button
+          variant="outline"
+          onClick={() => setEditOpen(true)}
+          disabled={preSaleStatus === "sent_to_operation"}
+        >
+          <Pencil className="h-4 w-4 mr-2" />
+          Editar pre-venta
+        </Button>
+        <Button variant="outline" onClick={downloadPdf} disabled={pdfLoading}>
           {pdfLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <FileDown className="h-4 w-4 mr-2" />}
           Descargar PDF
         </Button>
-        <Button onClick={sendToOperation} disabled={sending} className="flex-1">
+        <Button
+          variant={isConfirmed ? "secondary" : "default"}
+          onClick={markAsConfirmed}
+          disabled={confirming || isConfirmed || preSaleStatus === "sent_to_operation"}
+        >
+          {confirming ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
+          {isConfirmed ? "Cliente confirmó ✓" : "Cliente confirmó"}
+        </Button>
+        <Button onClick={sendToOperation} disabled={sending || preSaleStatus === "sent_to_operation"}>
           {sending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
           Enviar a operación
         </Button>
       </div>
       <p className="text-[11px] text-muted-foreground">
-        Al enviar a operación, la pre-venta se convierte en pedido online y entra al flujo logístico estándar
-        (mismo número, mismo ID).
+        Editá libremente mientras esté en borrador. Marcá <strong>Cliente confirmó</strong> cuando el cliente
+        acepte la cotización. Al enviar a operación se convierte en pedido online (mismo número, mismo ID) y
+        entra al flujo logístico estándar.
       </p>
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Editar Pre-Venta #{request.request_number}</DialogTitle>
+          </DialogHeader>
+          <PreSaleCreateForm editingId={requestId} onSuccess={handleEditSuccess} />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
