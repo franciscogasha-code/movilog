@@ -27,7 +27,25 @@ import {
   validateShippingMethod,
 } from "@/lib/business-rules";
 
-// ShippingMethod imported from business-rules
+/**
+ * FormRequestType: extiende RequestType con `pre_sale_online` (variante comercial
+ * del mismo formulario). No es un tipo operativo: cuando se selecciona, el form
+ * muta para no exigir origen logístico ni crear fulfillment, y persiste con
+ * is_pre_sale=true, status='draft'.
+ *
+ * NOTA (refactor pendiente): la integración completa de `pre_sale_online` dentro
+ * de este formulario quedó parcial. El render aún usa el selector operativo
+ * clásico. Ver PreSaleCreateForm / NewRequestDialog para el flujo activo.
+ */
+export type FormRequestType = RequestType | "pre_sale_online";
+
+const SALES_CHANNELS = [
+  { v: "whatsapp", l: "WhatsApp" },
+  { v: "instagram", l: "Instagram" },
+  { v: "presencial", l: "Presencial" },
+  { v: "telefono", l: "Teléfono" },
+  { v: "otro", l: "Otro" },
+];
 
 interface SelectedItem {
   product: ProductResult;
@@ -37,14 +55,26 @@ interface SelectedItem {
   splits?: OriginSplit[];
 }
 
-export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSuccess: () => void; fromConsultationId?: string | null }) {
+export function SolicitudCreateForm({
+  onSuccess,
+  fromConsultationId,
+  editingPreSaleId,
+  defaultRequestType = "reposition",
+}: {
+  onSuccess: () => void;
+  fromConsultationId?: string | null;
+  /** Si se pasa, el form arranca en modo edición de una pre-venta existente. */
+  editingPreSaleId?: string | null;
+  /** Tipo inicial seleccionado al abrir el formulario. */
+  defaultRequestType?: FormRequestType;
+}) {
   const { user } = useAuth();
   const { defaultBranchId, canChangeBranch } = useAutoDetectBranch();
   const { data: branches } = useBranches();
 
   // Step 1: Context
   const [requestingBranchId, setRequestingBranchId] = useState("");
-  const [requestType, setRequestType] = useState<RequestType>("reposition");
+  const [requestType, setRequestType] = useState<FormRequestType>(defaultRequestType);
   const [deliveryTarget, setDeliveryTarget] = useState<DeliveryTarget>("branch");
 
   // Step 2: Products
@@ -68,35 +98,48 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [revalidating, setRevalidating] = useState(false);
 
-  // Derived from business rules matrix
-  const originMode = getOriginMode(requestType, deliveryTarget);
-  const isMultiOrigin = originMode === "multi";
-  const allowedTargets = getAllowedDeliveryTargets(requestType);
-  const showClientFieldsFlag = shouldShowClientFields(requestType, deliveryTarget);
-  const showDeliveryPaidBy = shippingMethod === "delivery";
-  const showCourierBilling = shippingMethod === "courier";
-  const showShippingAmount = shippingMethod === "delivery" || (shippingMethod === "courier" && courierBillingMode === "on_invoice");
-  const shippingError = validateShippingMethod(requestType, deliveryTarget, shippingMethod);
+  // ── Pre-Venta: campos comerciales ─────────────────────────────
+  const [salesChannel, setSalesChannel] = useState("whatsapp");
+  const [clientPhone, setClientPhone] = useState("");
+  const [clientEmail, setClientEmail] = useState("");
+  const [loadingEdit, setLoadingEdit] = useState(!!editingPreSaleId);
+  const [wasConfirmed, setWasConfirmed] = useState(false);
+
+  const isPreSale = requestType === "pre_sale_online";
+
+  // Derived from business rules matrix (solo aplica cuando NO es pre-venta).
+  // Para pre-venta usamos defaults seguros que neutralizan la lógica logística.
+  const operationalRequestType: RequestType = isPreSale ? "online" : (requestType as RequestType);
+  const originMode = getOriginMode(operationalRequestType, deliveryTarget);
+  const isMultiOrigin = !isPreSale && originMode === "multi";
+  const allowedTargets = getAllowedDeliveryTargets(operationalRequestType);
+  const showClientFieldsFlag = !isPreSale && shouldShowClientFields(operationalRequestType, deliveryTarget);
+  const showDeliveryPaidBy = !isPreSale && shippingMethod === "delivery";
+  const showCourierBilling = !isPreSale && shippingMethod === "courier";
+  const showShippingAmount = !isPreSale && (shippingMethod === "delivery" || (shippingMethod === "courier" && courierBillingMode === "on_invoice"));
+  const shippingError = isPreSale ? null : validateShippingMethod(operationalRequestType, deliveryTarget, shippingMethod);
 
   // Auto-detect branch
   useEffect(() => {
     if (defaultBranchId && !requestingBranchId) setRequestingBranchId(defaultBranchId);
   }, [defaultBranchId, requestingBranchId]);
 
-  // Business rules: enforce allowed delivery targets
+  // Business rules: enforce allowed delivery targets (no aplica a pre-venta)
   useEffect(() => {
+    if (isPreSale) return;
     if (!allowedTargets.includes(deliveryTarget)) {
       setDeliveryTarget(allowedTargets[0]);
     }
   }, [requestType]);
 
-  // Clear client fields when not needed
+  // Clear client fields when not needed (operacional). Pre-venta gestiona su propio set.
   useEffect(() => {
+    if (isPreSale) return;
     if (!showClientFieldsFlag) {
       setClientName("");
       setClientAddress("");
     }
-  }, [showClientFieldsFlag]);
+  }, [showClientFieldsFlag, isPreSale]);
 
   // When switching from multi to mono, clear per-product sources
   useEffect(() => {
@@ -657,7 +700,7 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
     return (
       <div className="space-y-4">
         <h3 className="text-sm font-semibold text-foreground">Confirmar pedido</h3>
-        <ContextBanner requestType={requestType} deliveryTarget={deliveryTarget} effectiveOriginMode={effectiveOriginMode} />
+        <ContextBanner requestType={operationalRequestType} deliveryTarget={deliveryTarget} effectiveOriginMode={effectiveOriginMode} />
 
         <div className="space-y-2">
           <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Productos</h4>
@@ -727,7 +770,7 @@ export function SolicitudCreateForm({ onSuccess, fromConsultationId }: { onSucce
   return (
     <form onSubmit={onSubmit} className="space-y-6">
       {/* Context Banner */}
-      <ContextBanner requestType={requestType} deliveryTarget={deliveryTarget} effectiveOriginMode={effectiveOriginMode} />
+      <ContextBanner requestType={operationalRequestType} deliveryTarget={deliveryTarget} effectiveOriginMode={effectiveOriginMode} />
 
       {/* STEP 1: Context */}
       <div className="space-y-4">
