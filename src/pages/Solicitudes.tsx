@@ -23,6 +23,8 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { SolicitudCreateForm } from "@/components/solicitudes/SolicitudCreateForm";
 import { SolicitudDetail } from "@/components/solicitudes/SolicitudDetail";
 import { AdminReposicionForm } from "@/components/solicitudes/AdminReposicionForm";
+import { PreSaleCreateForm } from "@/components/solicitudes/PreSaleCreateForm";
+import { PreSaleDetail } from "@/components/solicitudes/PreSaleDetail";
 import { useUserBranchFilter } from "@/hooks/use-user-access";
 import { useBranches } from "@/hooks/use-branches";
 import { usePaginatedQuery } from "@/hooks/use-paginated-query";
@@ -51,13 +53,14 @@ import { cn } from "@/lib/utils";
 // Estados activos / cerrados: importados desde @/lib/request-status (single source of truth).
 // NO redefinir localmente — la divergencia entre módulos causó la regresión #306/#307.
 
-type TabKey = "activos" | "mios" | "otros" | "cerrados";
+type TabKey = "activos" | "mios" | "otros" | "cerrados" | "preventas";
 
 const TAB_LABELS: Record<TabKey, string> = {
   activos: "Activos",
   mios: "Mis pedidos",
   otros: "Otros pedidos",
   cerrados: "Cerrados",
+  preventas: "Pre-Ventas",
 };
 
 const FILTERS_STORAGE_PREFIX = "movilog:pedidos:filters:";
@@ -182,6 +185,7 @@ export default function Solicitudes() {
   //  usando el branchFilter explícito como contexto de "mi sucursal".)
 
   const [createOpen, setCreateOpen] = useState(false);
+  const [preSaleOpen, setPreSaleOpen] = useState(false);
   const [adminRepoOpen, setAdminRepoOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const fromConsultation = searchParams.get("from_consultation");
@@ -341,6 +345,14 @@ export default function Solicitudes() {
         query = query.not("id", "in", `(${parentIdsList.join(",")})`);
       }
 
+      // Pre-Ventas: bandeja independiente. Solo borradores (is_pre_sale=true).
+      if (tab === "preventas") {
+        query = query.eq("is_pre_sale", true);
+      } else {
+        // Resto de tabs operativos: excluir pre-ventas en borrador.
+        query = query.eq("is_pre_sale", false);
+      }
+
       // Tab: estados
       if (tab === "activos" || tab === "mios" || tab === "otros") {
         query = query.in("status", ACTIVE_STATUSES as any);
@@ -406,11 +418,12 @@ export default function Solicitudes() {
       const anchor: string[] | null =
         isAllBranches && specificBranch ? [specificBranch] : myIds;
 
-      // Excluye padres multi-origen vía FK (parent_request_id de los hijos).
+      // Excluye padres multi-origen vía FK + excluye pre-ventas (cuentas operativas).
       const buildBase = () => {
         let q = supabase
           .from("branch_requests")
-          .select("id", { count: "exact", head: true });
+          .select("id", { count: "exact", head: true })
+          .eq("is_pre_sale", false);
         if (parentIdsList.length > 0) {
           q = q.not("id", "in", `(${parentIdsList.join(",")})`);
         }
@@ -443,11 +456,17 @@ export default function Solicitudes() {
       const miosQ = applyMios(buildBase().in("status", ACTIVE_STATUSES as any));
       const otrosQ = applyOtros(buildBase().in("status", ACTIVE_STATUSES as any));
 
-      const [activos, cerrados, mios, otros] = await Promise.all([
+      const preVentasQ = supabase
+        .from("branch_requests")
+        .select("id", { count: "exact", head: true })
+        .eq("is_pre_sale", true);
+
+      const [activos, cerrados, mios, otros, preventas] = await Promise.all([
         applyAny(buildBase().in("status", ACTIVE_STATUSES as any)),
         applyAny(buildBase().in("status", CLOSED_STATUSES as any)),
         miosQ ?? Promise.resolve({ count: 0 }),
         otrosQ ?? Promise.resolve({ count: 0 }),
+        preVentasQ,
       ]);
 
       return {
@@ -455,6 +474,7 @@ export default function Solicitudes() {
         cerrados: (cerrados as any).count ?? 0,
         mios: (mios as any).count ?? 0,
         otros: (otros as any).count ?? 0,
+        preventas: (preventas as any).count ?? 0,
       };
     },
   });
@@ -643,6 +663,8 @@ export default function Solicitudes() {
         return { title: "No tenés pedidos entrantes desde otras sucursales.", hint: "Acá vas a ver pedidos donde tu sucursal es origen.", kind: "empty" as const };
       case "cerrados":
         return { title: "Sin pedidos cerrados.", hint: "Los pedidos finalizados van a aparecer en este historial.", kind: "empty" as const };
+      case "preventas":
+        return { title: "No hay pre-ventas en borrador.", hint: 'Creá una nueva con "Nuevo Pedido" → opción "Pre Venta Online".', kind: "empty" as const };
     }
   }, [tab, debouncedSearch, hasActiveFilters, totalInTabBeforeFilters]);
 
@@ -796,11 +818,12 @@ export default function Solicitudes() {
           aria-label="Bandejas de pedidos"
         >
           {(showMineOtros
-            ? (["activos", "mios", "otros", "cerrados"] as TabKey[])
-            : (["activos", "cerrados"] as TabKey[])
+            ? (["activos", "mios", "otros", "cerrados", "preventas"] as TabKey[])
+            : (["activos", "cerrados", "preventas"] as TabKey[])
           ).map((k) => {
             const count = tabCounts ? (tabCounts as any)[k] : null;
             const active = tab === k;
+            const isPreventas = k === "preventas";
             return (
               <button
                 key={k}
@@ -809,11 +832,14 @@ export default function Solicitudes() {
                 onClick={() => { setTab(k); setStatusFilter("all"); setPage(1); }}
                 className={cn(
                   "inline-flex items-center justify-center gap-1.5 px-3 py-2.5 sm:py-1.5 rounded-md text-sm font-medium transition-colors border min-h-[44px] sm:min-h-0",
-                  // Mobile: ocupa celda completa; Desktop: ancho contenido + nowrap
                   "w-full sm:w-auto sm:shrink-0 sm:whitespace-nowrap sm:px-3.5",
                   active
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "bg-background text-foreground/80 border-border hover:bg-muted",
+                    ? isPreventas
+                      ? "bg-warning text-warning-foreground border-warning"
+                      : "bg-primary text-primary-foreground border-primary"
+                    : isPreventas
+                      ? "bg-warning/5 text-warning border-warning/40 hover:bg-warning/10"
+                      : "bg-background text-foreground/80 border-border hover:bg-muted",
                 )}
               >
                 <span className="truncate">{TAB_LABELS[k]}</span>

@@ -71,6 +71,7 @@ export function LogisticaViajeDetalle({ tripId }: Props) {
           requesting_branch:branches!branch_requests_requesting_branch_id_fkey(code, name),
           fulfillment_orders!fulfillment_orders_branch_request_id_fkey(trip_id)
         `)
+        .eq("is_pre_sale", false)
         .eq("status", "in_consolidation" as any)
         .eq("flow_type", "interurban")
         .order("created_at", { ascending: false });

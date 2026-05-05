@@ -65,12 +65,14 @@ export function useExecutiveKPIs(range: DateRange, branchId?: string) {
       // Current period requests
       let reqQuery = supabase.from("branch_requests")
         .select("id, status, created_at")
+        .eq("is_pre_sale", false)
         .gte("created_at", from).lte("created_at", to);
       if (branchId) reqQuery = reqQuery.or(`requesting_branch_id.eq.${branchId},source_branch_id.eq.${branchId}`);
 
       // Previous period requests
       let prevReqQuery = supabase.from("branch_requests")
         .select("id, status, created_at")
+        .eq("is_pre_sale", false)
         .gte("created_at", prev.from).lte("created_at", prev.to);
       if (branchId) prevReqQuery = prevReqQuery.or(`requesting_branch_id.eq.${branchId},source_branch_id.eq.${branchId}`);
 
@@ -153,7 +155,7 @@ export function useOperationalFunnel(range: DateRange, branchId?: string) {
   return useQuery({
     queryKey: ["exec-funnel-v3", range, branchId],
     queryFn: async () => {
-      let reqQuery = supabase.from("branch_requests").select("id, status");
+      let reqQuery = supabase.from("branch_requests").select("id, status").eq("is_pre_sale", false);
       if (branchId) reqQuery = reqQuery.or(`requesting_branch_id.eq.${branchId},source_branch_id.eq.${branchId}`);
 
       let fulQuery = supabase.from("fulfillment_orders").select("id, status").neq("status", "cancelled");
@@ -204,6 +206,7 @@ export function useCriticalAlerts(branchId?: string) {
       const [staleRes, noBimsRes, incRes, anomRes, failedRes] = await Promise.all([
         supabase.from("branch_requests")
           .select("id, request_number, created_at, source_branch_id")
+          .eq("is_pre_sale", false)
           .eq("status", "pending").lt("created_at", staleThreshold)
           .order("created_at", { ascending: true })
           .then(r => r.data || []),
@@ -330,7 +333,7 @@ export function useBranchPerformance(range: DateRange, branchId?: string) {
     queryFn: async () => {
       const [branchRes, reqRes, fulRes, incRes] = await Promise.all([
         supabase.from("branches").select("id, name, code").eq("is_active", true).order("name"),
-        supabase.from("branch_requests").select("id, source_branch_id, requesting_branch_id, status, created_at").gte("created_at", from).lte("created_at", to),
+        supabase.from("branch_requests").select("id, source_branch_id, requesting_branch_id, status, created_at").eq("is_pre_sale", false).gte("created_at", from).lte("created_at", to),
         supabase.from("fulfillment_orders").select("id, source_branch_id, destination_branch_id, status").neq("status", "cancelled"),
         supabase.from("logistics_incidents").select("id, branch_id, created_at").gte("created_at", from).lte("created_at", to),
       ]);
@@ -483,6 +486,7 @@ export function useCycleTimes(range: DateRange, branchId?: string) {
 
       let reqQuery = supabase.from("branch_requests")
         .select("id, created_at, accepted_at, status")
+        .eq("is_pre_sale", false)
         .gte("created_at", from).lte("created_at", to);
       if (branchId) reqQuery = reqQuery.or(`requesting_branch_id.eq.${branchId},source_branch_id.eq.${branchId}`);
 

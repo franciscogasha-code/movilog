@@ -73,6 +73,7 @@ export function LogisticaConsolidacion() {
             current_location_branch:branches!fulfillment_orders_current_location_branch_id_fkey(code, name)
           )
         `, { count: "exact" })
+        .eq("is_pre_sale", false)
         .eq("status", "in_consolidation" as any)
         .eq("flow_type", "interurban")
         .order("created_at", { ascending: true }),
@@ -93,6 +94,7 @@ export function LogisticaConsolidacion() {
           requesting_branch:branches!branch_requests_requesting_branch_id_fkey(name, code),
           fulfillment_orders!fulfillment_orders_branch_request_id_fkey(status)
         `)
+        .eq("is_pre_sale", false)
         .eq("status", "in_consolidation" as any)
         .or("flow_type.is.null,flow_type.neq.interurban")
         .order("created_at", { ascending: true });

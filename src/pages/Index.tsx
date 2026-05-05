@@ -271,6 +271,7 @@ export default function Index() {
           source_branch:branches!branch_requests_source_branch_id_fkey(name)
         `)
         .in("status", DASHBOARD_PENDING_REQUEST_STATUSES as any)
+        .eq("is_pre_sale", false)
         .order("created_at", { ascending: false })
         .limit(50);
 

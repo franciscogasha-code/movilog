@@ -1,142 +1,186 @@
-# Auditoría de raíz — Módulo Ruteo
 
-## Diagnóstico (causa raíz exacta)
+# Pre Venta Online — Plan v3 (final, aprobable)
 
-El error `invalid input value for enum event_category: "logistics"` no es un bug aislado. Es el síntoma de una **inconsistencia estructural sostenida** entre el frontend, las RPC nuevas y el enum real de Postgres.
+Ajustes incorporados sobre v2: trigger simplificado, `original_request_type` eliminado, `seller_id` aclarado, PDF con timeout extendido y fallback progresivo, regresión de `'draft'` validada.
 
-### Hechos verificados en DB (no asumidos)
+---
 
-**Enum real `public.event_category`** (única fuente de verdad):
+## A. Validación de regresión `status = 'draft'` ✅
+
+Búsqueda ejecutada en todo el repo (`src/` + `supabase/`):
 ```
-request, fulfillment, document, trip, inventory, incident,
-vehicle, collection, stock, preparation, transport, reception, closure
+rg -n "'draft'|\"draft\"" → 0 resultados
 ```
 
-**No existe `logistics`** en este enum, y nunca existió (los 186+15+87+172+1 eventos históricos en `operational_events` usan exclusivamente `transport / request / reception / closure / preparation`).
+- Ningún query, hook, dashboard, RPC ni RLS existente usa el literal `'draft'`.
+- Las RPC operativas (`fn_transition_request_status`, `fn_driver_action`) tienen whitelist explícita de estados origen — `'draft'` no figura, así que cualquier intento de transición desde pre-venta es naturalmente rechazado.
+- Los dashboards (`use-executive-dashboard`, `Index`, `Ruteo`) filtran por estados específicos (`pending`, `in_preparation`, etc.) o por flag `is_pre_sale=false` (nuevo helper). Cero contaminación.
 
-**Confusión de origen**: hay OTRA columna llamada `area` en la tabla `ai_anomalies` que es `text` libre y SÍ acepta `"logistics"`. Históricamente las migraciones insertan `'logistics'` ahí sin problema. Alguien (yo, en intervenciones recientes) extrapoló incorrectamente ese literal a `operational_events.category`, que es un enum estricto.
-
-### Lugares contaminados (8 archivos frontend + 2 RPC nuevas)
-
-Frontend (insert directo a `operational_events` con `category: "logistics" as any`):
-- `src/components/logistica/CrearViajeForm.tsx:137` → evento `trip_planned` (debe ser `trip`)
-- `src/components/chofer/ViajeInterurbano.tsx:90` → `trip_started` (debe ser `transport`)
-- `src/components/chofer/ViajeInterurbano.tsx:141` → `trip_completed` (debe ser `transport`)
-- `src/components/chofer/CorteUrbano.tsx:113` → `cutoff_started` (`transport`)
-- `src/components/chofer/CorteUrbano.tsx:174` → `cutoff_ended` (`transport`)
-- `src/components/chofer/AgregarTareaViaje.tsx:72` → `task_added_in_transit` (`transport`)
-- `src/components/chofer/CargasDisponibles.tsx:307` → `driver_pickup_rejected` (`incident`)
-- `src/components/chofer/CorteDetalle.tsx:135` → `driver_pickup_rejected` (`incident`)
-
-RPC nuevas creadas en intervenciones recientes:
-- `fn_cancel_trip` (migración `20260428172239`) → `'logistics'::event_category` (debe ser `'trip'`)
-- `fn_edit_trip` (migración `20260428174318`) → `'logistics'::event_category` ya estaba mal (ya en DB, falla en runtime al ejecutarse — el cast literal se valida tarde en plpgsql)
-
-> Postgres aceptó **crear** las funciones porque el cast `'logistics'::event_category` dentro de plpgsql se valida al ejecutar, no al definir. Por eso el error aparece sólo al usar la función.
-
-### Por qué pasó (estructural, no anecdótico)
-
-1. **No hay un mapeo único** evento→categoría. Cada archivo decidió ad-hoc.
-2. **`as any` ocultó el error de tipos** que TS habría detectado (los tipos generados de Supabase tienen el enum real).
-3. **Las RPC nuevas se escribieron a mano** sin consultar el enum vigente.
-4. **No hay test ni linter** que detecte literales enum inválidos antes de ejecutar.
+**Conclusión**: agregar `'draft'` al enum es 100 % seguro y no rompe nada.
 
 ---
 
-## Mapa de corrección (mapping definitivo, sin inventar)
+## B. Ajustes finales aplicados
 
-| Acción | event_type | category correcta |
-|---|---|---|
-| Crear viaje | `trip_planned` | `trip` |
-| Editar viaje | `trip_edited` | `trip` |
-| Cancelar viaje | `trip_cancelled` | `trip` |
-| Iniciar viaje | `trip_started` | `transport` |
-| Finalizar viaje | `trip_completed` | `transport` |
-| Iniciar corte urbano | `cutoff_started` | `transport` |
-| Finalizar corte urbano | `cutoff_ended` | `transport` |
-| Tarea agregada en tránsito | `task_added_in_transit` | `transport` |
-| Chofer rechazó retiro | `driver_pickup_rejected` | `incident` |
+### B.1 Trigger `fn_validate_pre_sale_coherence` simplificado
+Sólo coherencia estructural en BD. Validación de cliente se hace en frontend (zod) + RPC `fn_send_presale_to_operation`.
 
-Criterio: alinear con los 461 eventos históricos ya en producción (`transport`, `reception`, `closure`, `request`, `preparation`). `trip` queda reservado a cambios de **planificación** del viaje (crear/editar/cancelar), `transport` a la **operación** del viaje (iniciar/finalizar/tareas).
-
-> No tocamos `ai_anomalies.area = 'logistics'` — esa columna es text, funciona, y cambiarla rompería migraciones, dashboards y consultas históricas.
-
----
-
-## Cambios a aplicar (una sola tanda integral)
-
-### 1. Fuente única de verdad (frontend)
-
-Crear `src/lib/event-categories.ts`:
-- Exporta tipo `EventCategory` derivado de `Database["public"]["Enums"]["event_category"]` (sin `as any`).
-- Exporta constante `EVENT_CATEGORIES` con los 13 valores reales.
-- Exporta helper `categoryForTripEvent(eventType)` con el mapping de la tabla anterior.
-
-### 2. Refactor de los 8 archivos frontend
-Reemplazar cada `category: "logistics" as any` por la categoría correcta del mapping, importada del módulo nuevo (sin `as any`). Esto hace que TS valide el literal contra el enum real.
-
-### 3. Migración SQL correctiva (sólo 2 funciones, sin tocar schema)
-Reemplazar (`CREATE OR REPLACE`) `fn_cancel_trip` y `fn_edit_trip` para que usen `'trip'::event_category` en su `INSERT INTO operational_events`. Cero cambios de firma, cero cambios de lógica de validación, cero cambios de RLS.
-
-### 4. Nada más
-- No tocamos `fn_transition_request_status`, `fn_driver_action`, `fn_clear_for_pickup`, `fn_ensure_driver_for_user` — todas usan categorías correctas (`request`, `transport`, `reception`, etc.).
-- No tocamos triggers (`fn_auto_resolve_alerts`, etc.) — usan `'logistics'` sólo en `ai_anomalies.area` que es text.
-- No tocamos enums, RLS, schema, índices, tipos generados, hooks de cache.
-
----
-
-## Lo que NO se toca (y por qué)
-
-| Ítem | Por qué no se toca |
-|---|---|
-| Enum `event_category` | Agregar `logistics` rompería el modelo semántico ya consolidado (461 eventos) y duplicaría significado con `transport/trip` |
-| `ai_anomalies.area` | Es `text`, funciona, cambiarlo rompe migraciones históricas y dashboards |
-| RPC ajenas a Ruteo | Sin `'logistics'::event_category`. Validado |
-| Tipos `src/integrations/supabase/types.ts` | Auto-generados |
-| Realtime / RLS | Fuera del scope del bug |
-| Lógica de joins / cache de `LogisticaViajesProgramados` | Ya estabilizada en intervención previa |
-
----
-
-## Plan de validación (post-implementación)
-
-Casos funcionales (cada uno verifica que ya no salta el error de enum y la operación persiste):
-
-1. Crear viaje → ver evento `trip_planned` con `category=trip` en `operational_events`.
-2. Editar viaje (cambiar chofer) → evento `trip_edited` con `category=trip`.
-3. Cancelar viaje vacío → evento `trip_cancelled` con `category=trip`.
-4. Iniciar viaje (chofer) → `trip_started` con `category=transport`.
-5. Finalizar viaje → `trip_completed` con `category=transport`.
-6. Iniciar/finalizar corte urbano → `category=transport`.
-7. Agregar tarea en tránsito → `category=transport`.
-8. Rechazar retiro desde móvil → `category=incident` + alerta en `ai_anomalies`.
-9. Asignar/quitar carga, refresh navegador, navegación atrás móvil → sin regresión.
-10. Multi-rol: owner / jefe_logistica / warehouse_operator / driver — sin permisos rotos (no tocamos `has_role`/RLS).
-
-Query de verificación post-deploy:
 ```sql
-SELECT category, count(*) FROM operational_events
-WHERE created_at > now() - interval '1 hour' GROUP BY 1;
+CREATE OR REPLACE FUNCTION fn_validate_pre_sale_coherence()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.is_pre_sale THEN
+    IF NEW.request_type <> 'pre_sale_online' THEN
+      RAISE EXCEPTION 'Pre-venta requiere request_type=pre_sale_online (got %)', NEW.request_type;
+    END IF;
+    IF NEW.status <> 'draft' THEN
+      RAISE EXCEPTION 'Pre-venta requiere status=draft (got %)', NEW.status;
+    END IF;
+  END IF;
+  RETURN NEW;
+END $$;
 ```
-No debe aparecer error en logs ni categorías nuevas inesperadas.
+
+### B.2 `original_request_type` eliminado
+No se agrega esa columna. La promoción setea directamente `request_type='online'` y `pre_sale_status='sent_to_operation'`, lo que ya da trazabilidad suficiente para esta fase.
+
+### B.3 `seller_id` eliminado — se usa `created_by`
+No hay diferencia funcional: el vendedor que crea la pre-venta es siempre el `auth.uid()`. Reusar `created_by` evita columna duplicada y mantiene consistencia con el resto de `branch_requests`. Si en fase 2 aparece la figura de "vendedor distinto del creador" se agrega entonces.
+
+### B.4 Validación cliente: sólo frontend + RPC promoción
+- **Frontend** (`SolicitudCreateForm` + `PreSaleClientForm`): zod valida `client_name` (≥2), `client_phone` (≥6), `client_email` opcional con formato, `client_address` obligatoria si `shipping_method ∈ {delivery, courier}`.
+- **Backend** (RPC `fn_send_presale_to_operation`): re-valida nombre + teléfono + (dirección condicional) antes de promover. Si falla, no promueve y devuelve mensaje claro.
+- **Trigger BD**: NO valida cliente (queda libre durante el borrador, donde el vendedor puede ir cargando datos por partes).
+
+### B.5 PDF — timeout 3s + fallback progresivo
+Helper `src/lib/pdf-image.ts`:
+- `maxSize = 64px` lado mayor (resize canvas).
+- Compresión `image/jpeg` calidad `0.6`.
+- `timeout = 3000ms` por imagen (`Promise.race`).
+- **Fallback progresivo**:
+  1. Reintento único con calidad `0.4` y `timeout=2000ms`.
+  2. Si falla, placeholder gris con `bims_code` como texto.
+- Cache en memoria por sesión (`Map<bims_code, dataURL>`).
+- Generación en paralelo con `Promise.allSettled` para que una imagen lenta no bloquee al resto.
 
 ---
 
-## Riesgos mitigados
+## C. Modelo de datos final
 
-- **Riesgo de inventar enum**: descartado. Usamos sólo valores reales del schema.
-- **Riesgo de romper triggers**: triggers no tocados.
-- **Riesgo de tipos stale**: el refactor quita `as any`, así TS bloquea futuras regresiones.
-- **Riesgo de afectar permisos del Jefe de Logística** (intervención anterior): no se toca `fn_edit_trip`/`fn_cancel_trip` en la parte de roles, sólo el literal de category.
-- **Riesgo en chofer móvil**: cambios mínimos, mismo comportamiento, sólo categoría correcta.
+```sql
+-- Enums (aditivos)
+ALTER TYPE request_type   ADD VALUE IF NOT EXISTS 'pre_sale_online';
+ALTER TYPE request_status ADD VALUE IF NOT EXISTS 'draft';
 
----
+-- Columnas
+ALTER TABLE branch_requests
+  ADD COLUMN is_pre_sale boolean NOT NULL DEFAULT false,
+  ADD COLUMN pre_sale_status text NULL,        -- 'draft' | 'confirmed' | 'sent_to_operation'
+  ADD COLUMN sales_channel  text NULL,         -- whatsapp | instagram | presencial | otro
+  ADD COLUMN client_phone   text NULL,
+  ADD COLUMN client_email   text NULL,
+  ADD COLUMN pre_sale_confirmed_at      timestamptz NULL,
+  ADD COLUMN pre_sale_sent_at           timestamptz NULL,
+  ADD COLUMN pre_sale_pdf_generated_at  timestamptz NULL;
 
-## Resumen
+CREATE INDEX idx_branch_requests_pre_sale
+  ON branch_requests(is_pre_sale, pre_sale_status)
+  WHERE is_pre_sale = true;
 
-3 cambios concretos:
-1. **Nuevo**: `src/lib/event-categories.ts` (mapping tipado).
-2. **Editar 8 archivos frontend** — sustituir literal incorrecto por categoría tipada del mapping.
-3. **Una migración** que reemplaza `fn_cancel_trip` y `fn_edit_trip` con `'trip'::event_category`.
+-- Trigger coherencia (B.1)
+CREATE TRIGGER trg_validate_pre_sale_coherence
+  BEFORE INSERT OR UPDATE ON branch_requests
+  FOR EACH ROW EXECUTE FUNCTION fn_validate_pre_sale_coherence();
 
-Esto cierra la causa raíz del módulo Ruteo sin parches, sin tocar nada que ya funciona, y deja una barrera de tipos para que no vuelva a ocurrir.
+-- Bloqueo fulfillment (con log en diagnostic_logs)
+CREATE TRIGGER trg_block_fulfillment_presale
+  BEFORE INSERT ON fulfillment_orders
+  FOR EACH ROW EXECUTE FUNCTION fn_block_fulfillment_for_presale();
+```
+
+## D. RPC promoción a operación (UPDATE in-place)
+
+```sql
+CREATE OR REPLACE FUNCTION fn_send_presale_to_operation(p_request_id uuid)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE r record;
+BEGIN
+  SELECT * INTO r FROM branch_requests
+   WHERE id = p_request_id AND is_pre_sale = true FOR UPDATE;
+  IF r.id IS NULL THEN RAISE EXCEPTION 'Pre-venta no encontrada o ya promovida'; END IF;
+  IF r.created_by <> auth.uid()
+     AND NOT (has_role(auth.uid(),'admin') OR is_owner(auth.uid())) THEN
+    RAISE EXCEPTION 'Solo el creador o admin puede enviar a operación';
+  END IF;
+
+  -- Re-validación cliente
+  IF COALESCE(r.client_name,'') = '' OR COALESCE(r.client_phone,'') = '' THEN
+    RAISE EXCEPTION 'Falta nombre o teléfono del cliente';
+  END IF;
+  IF r.shipping_method IN ('delivery','courier')
+     AND COALESCE(r.client_address,'') = '' THEN
+    RAISE EXCEPTION 'Delivery/courier requiere dirección del cliente';
+  END IF;
+
+  -- UPDATE in-place: mismo id, mismo request_number
+  UPDATE branch_requests
+     SET is_pre_sale     = false,
+         request_type    = 'online',
+         status          = 'pending',
+         pre_sale_status = 'sent_to_operation',
+         pre_sale_sent_at = now(),
+         updated_at       = now()
+   WHERE id = p_request_id;
+END $$;
+```
+
+## E. Centralización de queries (helper único)
+
+`src/lib/branch-requests-query.ts`:
+```ts
+export const operationalRequests = () =>
+  supabase.from("branch_requests").select("*").eq("is_pre_sale", false);
+export const allRequests       = () => supabase.from("branch_requests");
+export const preSaleRequests   = () =>
+  supabase.from("branch_requests").select("*").eq("is_pre_sale", true);
+```
+
+Refactor de los 11 archivos operativos identificados; los 4 de Solicitudes/Admin usan `allRequests()` con su propio filtro UI. Se agrega regla ESLint `no-restricted-syntax` que bloquea `from("branch_requests")` fuera del helper.
+
+## F. Frontend
+
+- **`SolicitudCreateForm`**: opción "Pre Venta Online" → fija `request_type='pre_sale_online'`, `status='draft'`, abre `PreSaleClientForm` (zod).
+- **`SolicitudDetail`**: si `is_pre_sale=true`, panel reducido: `Editar / Generar PDF / Cliente confirmó / Enviar a operación`.
+- **`Solicitudes.tsx`**: chip "Pre-Ventas" + badge amarillo. Tabs operativos filtran por `is_pre_sale=false`.
+- **`StatusBadge`**: variante para `pre_sale_status`.
+
+## G. RLS
+
+Política adicional única:
+```sql
+CREATE POLICY "Edit own pre-sale draft"
+  ON branch_requests FOR UPDATE TO authenticated
+  USING      (is_pre_sale = true AND created_by = auth.uid())
+  WITH CHECK (is_pre_sale = true AND created_by = auth.uid());
+```
+
+## H. Matriz de regresión
+
+| Escenario | Resultado | Verificación |
+|-----------|-----------|--------------|
+| Crear pre-venta | sólo en bandeja "Pre-Ventas" | helper excluye en Pedidos/Ruteo/Chofer/Dashboard |
+| Editar pre-venta | persiste sin generar fulfillment | trigger bloqueo ok |
+| Generar PDF | < 1 MB, < 5s mobile | timeout 3s + fallback |
+| Promover a operación | mismo `id`, `request_number`, sin duplicar | RPC UPDATE in-place |
+| Pedido normal reposición | flujo intacto | regresión cero |
+| Forzar fulfillment sobre pre-venta | rechazado + `diagnostic_logs` | trigger fulfillment |
+| Query operativa que olvide filtro | bloqueada en build | ESLint rule |
+| Estado `'draft'` en queries existentes | invisible | grep `'draft'` = 0 hits |
+
+## I. Archivos
+
+**Nuevos**: migración SQL, `branch-requests-query.ts`, `pdf-image.ts`, `PreSaleClientForm.tsx`, `PreSalePDF.ts`, `PreSaleActions.tsx`, memoria `mem://negocio/pre-venta-online`.
+**Editados**: 11 archivos operativos (sólo cambian la fuente de query) + `SolicitudCreateForm`, `SolicitudDetail`, `Solicitudes`, `StatusBadge`, `business-rules.ts` + regla ESLint.
+
+## J. Fuera de alcance (fase 2)
+Buscador clientes BIMS · tabla `customers` · datos fiscales · conversión a factura BIMS · `seller_id` separado de `created_by`.
