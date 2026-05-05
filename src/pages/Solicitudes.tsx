@@ -695,6 +695,37 @@ export default function Solicitudes() {
                   <FileSpreadsheet className="h-4 w-4 mr-2" /> Reposición admin.
                 </Button>
               )}
+              <Dialog open={preSaleOpen} onOpenChange={setPreSaleOpen}>
+                <DialogTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="w-full sm:w-auto border-warning/50 text-warning hover:bg-warning/10 hover:text-warning"
+                  >
+                    <Plus className="h-4 w-4 mr-2" /> Nueva Pre-Venta
+                  </Button>
+                </DialogTrigger>
+                <DialogContent
+                  className="
+                    p-0 gap-0 overflow-hidden
+                    w-screen h-[100dvh] max-w-none rounded-none border-0
+                    sm:w-[calc(100vw-2rem)] sm:max-w-2xl sm:h-auto sm:max-h-[90vh] sm:rounded-lg sm:border
+                    flex flex-col
+                  "
+                >
+                  <DialogHeader className="px-4 py-3 sm:px-6 sm:py-4 border-b bg-background sticky top-0 z-10 shrink-0 pr-14 sm:pr-12 pt-[calc(env(safe-area-inset-top)+0.75rem)] sm:pt-4">
+                    <DialogTitle className="text-base sm:text-lg">Nueva Pre-Venta Online</DialogTitle>
+                  </DialogHeader>
+                  <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 py-4 sm:px-6 sm:py-5 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
+                    <PreSaleCreateForm
+                      onSuccess={() => {
+                        setPreSaleOpen(false);
+                        setTab("preventas");
+                        refetch();
+                      }}
+                    />
+                  </div>
+                </DialogContent>
+              </Dialog>
               <Dialog open={createOpen} onOpenChange={setCreateOpen}>
                 <DialogTrigger asChild>
                   <Button className="w-full sm:w-auto">
