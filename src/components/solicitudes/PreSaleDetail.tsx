@@ -18,6 +18,8 @@ export function PreSaleDetail({ requestId, onUpdate }: { requestId: string; onUp
   const qc = useQueryClient();
   const [pdfLoading, setPdfLoading] = useState(false);
   const [sending, setSending] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
 
   const { data: request, isLoading } = useQuery({
     queryKey: ["pre-sale-detail", requestId],
