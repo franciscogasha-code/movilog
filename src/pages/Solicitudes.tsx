@@ -51,13 +51,14 @@ import { cn } from "@/lib/utils";
 // Estados activos / cerrados: importados desde @/lib/request-status (single source of truth).
 // NO redefinir localmente — la divergencia entre módulos causó la regresión #306/#307.
 
-type TabKey = "activos" | "mios" | "otros" | "cerrados";
+type TabKey = "activos" | "mios" | "otros" | "cerrados" | "preventas";
 
 const TAB_LABELS: Record<TabKey, string> = {
   activos: "Activos",
   mios: "Mis pedidos",
   otros: "Otros pedidos",
   cerrados: "Cerrados",
+  preventas: "Pre-Ventas",
 };
 
 const FILTERS_STORAGE_PREFIX = "movilog:pedidos:filters:";
@@ -339,6 +340,14 @@ export default function Solicitudes() {
       // excluía pedidos sin notas (regresión #306/#307).
       if (parentIdsList.length > 0) {
         query = query.not("id", "in", `(${parentIdsList.join(",")})`);
+      }
+
+      // Pre-Ventas: bandeja independiente. Solo borradores (is_pre_sale=true).
+      if (tab === "preventas") {
+        query = query.eq("is_pre_sale", true);
+      } else {
+        // Resto de tabs operativos: excluir pre-ventas en borrador.
+        query = query.eq("is_pre_sale", false);
       }
 
       // Tab: estados
