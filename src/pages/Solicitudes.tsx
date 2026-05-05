@@ -20,9 +20,8 @@ import {
 } from "@/lib/request-status";
 import { useParentRequestIds } from "@/hooks/use-parent-request-ids";
 import { StatusBadge } from "@/components/StatusBadge";
-import { SolicitudCreateForm } from "@/components/solicitudes/SolicitudCreateForm";
 import { AdminReposicionForm } from "@/components/solicitudes/AdminReposicionForm";
-import { PreSaleCreateForm } from "@/components/solicitudes/PreSaleCreateForm";
+import { NewRequestDialog } from "@/components/solicitudes/NewRequestDialog";
 import { RequestDetailRouter } from "@/components/solicitudes/RequestDetailRouter";
 import { useUserBranchFilter } from "@/hooks/use-user-access";
 import { useBranches } from "@/hooks/use-branches";
