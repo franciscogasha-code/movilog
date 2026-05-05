@@ -341,9 +341,13 @@ export type Database = {
           closed_at: string | null
           closed_by: string | null
           consolidation_override: boolean | null
+          converted_at: string | null
+          converted_by_user_id: string | null
+          converted_to_request_id: string | null
           courier_billing_mode: string | null
           created_at: string
           created_by: string
+          created_from_presale_id: string | null
           current_custody_holder_id: string | null
           current_location_branch_id: string | null
           delivery_payer: string | null
@@ -397,9 +401,13 @@ export type Database = {
           closed_at?: string | null
           closed_by?: string | null
           consolidation_override?: boolean | null
+          converted_at?: string | null
+          converted_by_user_id?: string | null
+          converted_to_request_id?: string | null
           courier_billing_mode?: string | null
           created_at?: string
           created_by: string
+          created_from_presale_id?: string | null
           current_custody_holder_id?: string | null
           current_location_branch_id?: string | null
           delivery_payer?: string | null
@@ -453,9 +461,13 @@ export type Database = {
           closed_at?: string | null
           closed_by?: string | null
           consolidation_override?: boolean | null
+          converted_at?: string | null
+          converted_by_user_id?: string | null
+          converted_to_request_id?: string | null
           courier_billing_mode?: string | null
           created_at?: string
           created_by?: string
+          created_from_presale_id?: string | null
           current_custody_holder_id?: string | null
           current_location_branch_id?: string | null
           delivery_payer?: string | null
@@ -2885,6 +2897,10 @@ export type Database = {
       fn_close_parent_if_complete: {
         Args: { p_parent_id: string }
         Returns: undefined
+      }
+      fn_convert_presale_to_order: {
+        Args: { p_request_id: string; p_source_branch_id?: string }
+        Returns: string
       }
       fn_derive_flow_type: {
         Args: {

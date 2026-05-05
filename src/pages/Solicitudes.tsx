@@ -20,9 +20,8 @@ import {
 } from "@/lib/request-status";
 import { useParentRequestIds } from "@/hooks/use-parent-request-ids";
 import { StatusBadge } from "@/components/StatusBadge";
-import { SolicitudCreateForm } from "@/components/solicitudes/SolicitudCreateForm";
 import { AdminReposicionForm } from "@/components/solicitudes/AdminReposicionForm";
-import { PreSaleCreateForm } from "@/components/solicitudes/PreSaleCreateForm";
+import { NewRequestDialog } from "@/components/solicitudes/NewRequestDialog";
 import { RequestDetailRouter } from "@/components/solicitudes/RequestDetailRouter";
 import { useUserBranchFilter } from "@/hooks/use-user-access";
 import { useBranches } from "@/hooks/use-branches";
@@ -184,8 +183,8 @@ export default function Solicitudes() {
   //  usando el branchFilter explícito como contexto de "mi sucursal".)
 
   const [createOpen, setCreateOpen] = useState(false);
-  const [preSaleOpen, setPreSaleOpen] = useState(false);
   const [adminRepoOpen, setAdminRepoOpen] = useState(false);
+  const [newRequestKind, setNewRequestKind] = useState<"operational" | "pre_sale">("operational");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const fromConsultation = searchParams.get("from_consultation");
   const detailParam = searchParams.get("detail");
@@ -663,7 +662,7 @@ export default function Solicitudes() {
       case "cerrados":
         return { title: "Sin pedidos cerrados.", hint: "Los pedidos finalizados van a aparecer en este historial.", kind: "empty" as const };
       case "preventas":
-        return { title: "No hay pre-ventas en borrador.", hint: 'Creá una nueva con el botón "Nueva Pre-Venta".', kind: "empty" as const };
+        return { title: "No hay pre-ventas en borrador.", hint: 'Creá una desde "Nuevo Pedido" → tipo "Pre-Venta Online".', kind: "empty" as const };
     }
   }, [tab, debouncedSearch, hasActiveFilters, totalInTabBeforeFilters]);
 
@@ -695,40 +694,18 @@ export default function Solicitudes() {
                   <FileSpreadsheet className="h-4 w-4 mr-2" /> Reposición admin.
                 </Button>
               )}
-              <Dialog open={preSaleOpen} onOpenChange={setPreSaleOpen}>
+              <Dialog
+                open={createOpen}
+                onOpenChange={(open) => {
+                  setCreateOpen(open);
+                  if (!open) {
+                    setActiveConsultationId(null);
+                    setNewRequestKind("operational");
+                  }
+                }}
+              >
                 <DialogTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="w-full sm:w-auto border-warning/50 text-warning hover:bg-warning/10 hover:text-warning"
-                  >
-                    <Plus className="h-4 w-4 mr-2" /> Nueva Pre-Venta
-                  </Button>
-                </DialogTrigger>
-                <DialogContent
-                  className="
-                    p-0 gap-0 overflow-hidden
-                    w-screen h-[100dvh] max-w-none rounded-none border-0
-                    sm:w-[calc(100vw-2rem)] sm:max-w-2xl sm:h-auto sm:max-h-[90vh] sm:rounded-lg sm:border
-                    flex flex-col
-                  "
-                >
-                  <DialogHeader className="px-4 py-3 sm:px-6 sm:py-4 border-b bg-background sticky top-0 z-10 shrink-0 pr-14 sm:pr-12 pt-[calc(env(safe-area-inset-top)+0.75rem)] sm:pt-4">
-                    <DialogTitle className="text-base sm:text-lg">Nueva Pre-Venta Online</DialogTitle>
-                  </DialogHeader>
-                  <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 py-4 sm:px-6 sm:py-5 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
-                    <PreSaleCreateForm
-                      onSuccess={() => {
-                        setPreSaleOpen(false);
-                        setTab("preventas");
-                        refetch();
-                      }}
-                    />
-                  </div>
-                </DialogContent>
-              </Dialog>
-              <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-                <DialogTrigger asChild>
-                  <Button className="w-full sm:w-auto">
+                  <Button className="w-full sm:w-auto" onClick={() => setNewRequestKind("operational")}>
                     <Plus className="h-4 w-4 mr-2" /> Nuevo Pedido
                   </Button>
                 </DialogTrigger>
@@ -741,12 +718,17 @@ export default function Solicitudes() {
                   "
                 >
                   <DialogHeader className="px-4 py-3 sm:px-6 sm:py-4 border-b bg-background sticky top-0 z-10 shrink-0 pr-14 sm:pr-12 pt-[calc(env(safe-area-inset-top)+0.75rem)] sm:pt-4">
-                    <DialogTitle className="text-base sm:text-lg">Crear Pedido</DialogTitle>
+                    <DialogTitle className="text-base sm:text-lg">Nuevo Pedido</DialogTitle>
                   </DialogHeader>
                   <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 py-4 sm:px-6 sm:py-5 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
-                    <SolicitudCreateForm
+                    <NewRequestDialog
+                      defaultKind={newRequestKind}
                       fromConsultationId={activeConsultationId}
-                      onSuccess={() => { setCreateOpen(false); setActiveConsultationId(null); refetch(); }}
+                      onSuccess={() => {
+                        setCreateOpen(false);
+                        setActiveConsultationId(null);
+                        refetch();
+                      }}
                     />
                   </div>
                 </DialogContent>
@@ -961,7 +943,13 @@ export default function Solicitudes() {
                               </Tooltip>
                             )}
                           </div>
-                          <StatusBadge status={r.status} config={REQUEST_STATUS_CONFIG} className="shrink-0" />
+                          {r.is_pre_sale ? (
+                            <Badge variant="outline" className="text-[10px] shrink-0 capitalize">
+                              {r.pre_sale_status === "converted" ? "Convertida" : r.pre_sale_status === "confirmed" ? "Confirmada" : "Borrador"}
+                            </Badge>
+                          ) : (
+                            <StatusBadge status={r.status} config={REQUEST_STATUS_CONFIG} className="shrink-0" />
+                          )}
                         </div>
                         <div className="text-xs text-foreground/80 mb-1 break-words line-clamp-2">
                           {buildRouteCell(r)}
@@ -1064,7 +1052,13 @@ export default function Solicitudes() {
                               <div className="text-muted-foreground text-[11px]">{SHIPPING_METHOD_LABELS[r.shipping_method] || r.shipping_method}</div>
                             </td>
                             <td className="px-3 py-2.5">
-                              <StatusBadge status={r.status} config={REQUEST_STATUS_CONFIG} />
+                              {r.is_pre_sale ? (
+                                <Badge variant="outline" className="text-xs capitalize">
+                                  {r.pre_sale_status === "converted" ? "Convertida" : r.pre_sale_status === "confirmed" ? "Confirmada" : "Borrador"}
+                                </Badge>
+                              ) : (
+                                <StatusBadge status={r.status} config={REQUEST_STATUS_CONFIG} />
+                              )}
                             </td>
                             <td className="px-3 py-2.5 text-xs whitespace-nowrap">
                               <Tooltip>
