@@ -1350,7 +1350,7 @@ export function SolicitudCreateForm({
           <XCircle className="h-4 w-4 shrink-0 mt-0.5" />
           <span className="break-words">
             {isPreSale
-              ? "Alerta visual: hay stock insuficiente según la referencia actual, pero la pre-venta puede guardarse porque no reserva stock."
+              ? "Stock insuficiente. Esta pre-venta no reserva stock."
               : "Hay productos con stock insuficiente. Corregí las cantidades o cambiá el origen antes de continuar."}
           </span>
         </div>
