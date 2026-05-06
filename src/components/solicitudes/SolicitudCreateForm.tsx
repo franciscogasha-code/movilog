@@ -1031,12 +1031,12 @@ export function SolicitudCreateForm({
                         {item.product.sku && <span>SKU: {item.product.sku}</span>}
                         {item.product.bims_code && <span> • Cód: {item.product.bims_code}</span>}
                       </p>
-                      {isMultiOrigin && item.sourceBranchId && (
+                      {!isPreSale && isMultiOrigin && item.sourceBranchId && (
                         <p className="text-xs text-primary mt-0.5 break-words">
                           Origen: {branches?.find(b => b.id === item.sourceBranchId)?.name || "—"}
                         </p>
                       )}
-                      {isMultiOrigin && !item.sourceBranchId && (
+                      {!isPreSale && isMultiOrigin && !item.sourceBranchId && (
                         <p className="text-xs text-amber-600 mt-0.5">Sin origen asignado</p>
                       )}
                       {stockErrors[item.product.id] && (
@@ -1059,19 +1059,21 @@ export function SolicitudCreateForm({
                       />
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
-                      <Button type="button" variant="ghost" size="sm"
-                        onClick={() => setSplitPanelOpen(splitPanelOpen === item.product.id ? null : item.product.id)}
-                        className="h-9 px-2 text-xs gap-1"
-                        aria-label="Dividir entre sucursales"
-                        title="Dividir entre sucursales">
-                        <Split className="h-4 w-4" />
-                        <span className="hidden sm:inline">Dividir</span>
-                        {itemHasValidSplits(item) && (
-                          <Badge variant="secondary" className="ml-1 h-4 px-1 text-[10px]">
-                            {item.splits!.filter(s => s.branchId && s.quantity > 0).length}
-                          </Badge>
-                        )}
-                      </Button>
+                      {!isPreSale && (
+                        <Button type="button" variant="ghost" size="sm"
+                          onClick={() => setSplitPanelOpen(splitPanelOpen === item.product.id ? null : item.product.id)}
+                          className="h-9 px-2 text-xs gap-1"
+                          aria-label="Dividir entre sucursales"
+                          title="Dividir entre sucursales">
+                          <Split className="h-4 w-4" />
+                          <span className="hidden sm:inline">Dividir</span>
+                          {itemHasValidSplits(item) && (
+                            <Badge variant="secondary" className="ml-1 h-4 px-1 text-[10px]">
+                              {item.splits!.filter(s => s.branchId && s.quantity > 0).length}
+                            </Badge>
+                          )}
+                        </Button>
+                      )}
                       <Button type="button" variant="ghost" size="sm"
                         onClick={() => setExpandedProduct(expandedProduct === item.product.id ? null : item.product.id)}
                         className="h-9 px-2"
@@ -1104,7 +1106,7 @@ export function SolicitudCreateForm({
                 </div>
 
                 {/* Panel de división entre sucursales */}
-                {splitPanelOpen === item.product.id && (
+                {!isPreSale && splitPanelOpen === item.product.id && (
                   <div className="border-t border-border/50 p-3">
                     <SplitOriginPanel
                       totalQuantity={item.quantity}
