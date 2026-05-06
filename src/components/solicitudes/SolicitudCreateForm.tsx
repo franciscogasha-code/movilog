@@ -936,14 +936,9 @@ export function SolicitudCreateForm({
       {/* STEP 1: Context */}
       <div className="space-y-4">
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">1. Contexto</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-          <BranchSelector
-            label={isPreSale ? "Sucursal vendedora (opcional)" : "Sucursal solicitante"}
-            value={requestingBranchId}
-            onChange={setRequestingBranchId}
-            disabled={!canChangeBranch && !!defaultBranchId}
-          />
-          <div className="space-y-2">
+        <div className={isPreSale ? "" : "grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4"}>
+          {/* Tipo de solicitud SIEMPRE primero (orden obligatorio). */}
+          <div className={isPreSale ? "space-y-2 max-w-sm" : "space-y-2 order-first sm:order-last"}>
             <Label>Tipo de solicitud</Label>
             <select
               value={requestType}
@@ -956,6 +951,15 @@ export function SolicitudCreateForm({
               <option value="pre_sale_online">Pre-Venta Online</option>
             </select>
           </div>
+          {/* Sucursal solicitante: solo modo operativo. Pre-venta no tiene sucursal vendedora. */}
+          {!isPreSale && (
+            <BranchSelector
+              label="Sucursal solicitante"
+              value={requestingBranchId}
+              onChange={setRequestingBranchId}
+              disabled={!canChangeBranch && !!defaultBranchId}
+            />
+          )}
         </div>
 
         {/* Delivery target */}
