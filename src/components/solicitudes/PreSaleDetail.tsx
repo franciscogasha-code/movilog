@@ -247,7 +247,9 @@ export function PreSaleDetail({ requestId, onUpdate }: { requestId: string; onUp
           {(request as any).client_phone && <div><span className="text-muted-foreground">Tel:</span> {(request as any).client_phone}</div>}
           {(request as any).client_email && <div><span className="text-muted-foreground">Email:</span> {(request as any).client_email}</div>}
           {request.client_address && <div><span className="text-muted-foreground">Dirección:</span> {request.client_address}</div>}
-          <div><span className="text-muted-foreground">Envío:</span> {request.shipping_method}</div>
+          {request.shipping_method && (
+            <div><span className="text-muted-foreground">Envío:</span> {({pickup:"Retiro en sucursal",own_fleet:"Flota propia",delivery:"Delivery",courier:"Encomienda"} as any)[request.shipping_method] ?? request.shipping_method}</div>
+          )}
           {(request as any).sales_channel && <div><span className="text-muted-foreground">Canal:</span> {(request as any).sales_channel}</div>}
           <div><span className="text-muted-foreground">Sucursal vendedora:</span> {(request as any).requesting_branch?.name ?? "—"}</div>
         </CardContent>
