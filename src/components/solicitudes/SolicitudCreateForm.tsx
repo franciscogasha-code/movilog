@@ -476,7 +476,6 @@ export function SolicitudCreateForm({
     if (!requestingBranchId || !items.length) return false;
     if (isPreSale) {
       if (!clientName.trim() || !clientPhone.trim()) return false;
-      if (requiresPreSaleAddress && !clientAddress.trim()) return false;
       return true;
     }
     if (hasStockErrors || shippingError) return false;
