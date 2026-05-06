@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { useBranches } from "@/hooks/use-branches";
 import { generatePreSalePdf } from "@/lib/pre-sale-pdf";
-import { PreSaleCreateForm } from "./PreSaleCreateForm";
+import { SolicitudCreateForm } from "./SolicitudCreateForm";
 
 /**
  * Panel de detalle para pre-ventas (is_pre_sale=true).
@@ -306,7 +306,7 @@ export function PreSaleDetail({ requestId, onUpdate }: { requestId: string; onUp
           <DialogHeader>
             <DialogTitle>Editar Pre-Venta #{request.request_number}</DialogTitle>
           </DialogHeader>
-          <PreSaleCreateForm editingId={requestId} onSuccess={handleEditSuccess} />
+          <SolicitudCreateForm editingPreSaleId={requestId} defaultRequestType="pre_sale_online" onSuccess={handleEditSuccess} />
         </DialogContent>
       </Dialog>
 
