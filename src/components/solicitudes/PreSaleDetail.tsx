@@ -37,6 +37,8 @@ export function PreSaleDetail({ requestId, onUpdate }: { requestId: string; onUp
   const [editOpen, setEditOpen] = useState(false);
   const [convertOpen, setConvertOpen] = useState(false);
   const [convertSourceId, setConvertSourceId] = useState<string>("");
+  const [convertTarget, setConvertTarget] = useState<string>("");
+  const [convertMethod, setConvertMethod] = useState<string>("");
 
   const { data: request, isLoading } = useQuery({
     queryKey: ["pre-sale-detail", requestId],
@@ -143,17 +145,27 @@ export function PreSaleDetail({ requestId, onUpdate }: { requestId: string; onUp
 
   function openConvertDialog() {
     setConvertSourceId(defaultSourceId);
+    setConvertTarget("");
+    setConvertMethod("");
     setConvertOpen(true);
   }
 
+  const addressRequired =
+    convertTarget === "client" && (convertMethod === "delivery" || convertMethod === "courier");
+  const missingAddress =
+    addressRequired && !((request as any)?.client_address ?? "").toString().trim();
+  const canConvert =
+    !!convertSourceId && !!convertTarget && !!convertMethod && !missingAddress;
+
   async function convertToOrder() {
+    if (!canConvert) return;
     setConverting(true);
     try {
       const { data, error } = await supabase.rpc("fn_send_presale_to_operation" as any, {
         p_request_id: requestId,
-        p_source_branch_id: convertSourceId || null,
-        p_delivery_target: null,
-        p_shipping_method: null,
+        p_source_branch_id: convertSourceId,
+        p_delivery_target: convertTarget,
+        p_shipping_method: convertMethod,
       });
       if (error) throw error;
       const newId = (data as string) || requestId;
@@ -235,7 +247,9 @@ export function PreSaleDetail({ requestId, onUpdate }: { requestId: string; onUp
           {(request as any).client_phone && <div><span className="text-muted-foreground">Tel:</span> {(request as any).client_phone}</div>}
           {(request as any).client_email && <div><span className="text-muted-foreground">Email:</span> {(request as any).client_email}</div>}
           {request.client_address && <div><span className="text-muted-foreground">Dirección:</span> {request.client_address}</div>}
-          <div><span className="text-muted-foreground">Envío:</span> {request.shipping_method}</div>
+          {request.shipping_method && (
+            <div><span className="text-muted-foreground">Envío:</span> {({pickup:"Retiro en sucursal",own_fleet:"Flota propia",delivery:"Delivery",courier:"Encomienda"} as any)[request.shipping_method] ?? request.shipping_method}</div>
+          )}
           {(request as any).sales_channel && <div><span className="text-muted-foreground">Canal:</span> {(request as any).sales_channel}</div>}
           <div><span className="text-muted-foreground">Sucursal vendedora:</span> {(request as any).requesting_branch?.name ?? "—"}</div>
         </CardContent>
@@ -311,21 +325,21 @@ export function PreSaleDetail({ requestId, onUpdate }: { requestId: string; onUp
         </DialogContent>
       </Dialog>
 
-      {/* Convertir → elegir sucursal de origen */}
+      {/* Convertir → elegir sucursal origen, destino y método */}
       <Dialog open={convertOpen} onOpenChange={setConvertOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Convertir a pedido</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Se va a crear un pedido nuevo (Pedido Online) a partir de esta pre-venta.
-              Elegí la sucursal que va a abastecer el stock.
+              Se va a generar un pedido operativo (Pedido Online) a partir de esta pre-venta.
+              Definí origen, destino y método de entrega.
             </p>
             <div>
               <Label>Sucursal origen del stock</Label>
               <Select value={convertSourceId} onValueChange={setConvertSourceId}>
-                <SelectTrigger><SelectValue placeholder="Sucursal" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Seleccionar sucursal" /></SelectTrigger>
                 <SelectContent>
                   {branches.map((b: any) => (
                     <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
@@ -333,11 +347,38 @@ export function PreSaleDetail({ requestId, onUpdate }: { requestId: string; onUp
                 </SelectContent>
               </Select>
             </div>
+            <div>
+              <Label>Destino</Label>
+              <Select value={convertTarget} onValueChange={setConvertTarget}>
+                <SelectTrigger><SelectValue placeholder="Seleccionar destino" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="client">Cliente</SelectItem>
+                  <SelectItem value="branch">Sucursal</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Método de entrega</Label>
+              <Select value={convertMethod} onValueChange={setConvertMethod}>
+                <SelectTrigger><SelectValue placeholder="Seleccionar método" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pickup">Retiro en sucursal</SelectItem>
+                  <SelectItem value="own_fleet">Flota propia</SelectItem>
+                  <SelectItem value="delivery">Delivery</SelectItem>
+                  <SelectItem value="courier">Encomienda</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {missingAddress && (
+              <p className="text-xs text-destructive">
+                Delivery/Encomienda a cliente requiere dirección. Editá la pre-venta para agregarla.
+              </p>
+            )}
             <div className="flex gap-2 pt-2">
               <Button variant="outline" className="flex-1" onClick={() => setConvertOpen(false)} disabled={converting}>
                 Cancelar
               </Button>
-              <Button className="flex-1" onClick={convertToOrder} disabled={!convertSourceId || converting}>
+              <Button className="flex-1" onClick={convertToOrder} disabled={!canConvert || converting}>
                 {converting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <ArrowRightCircle className="h-4 w-4 mr-2" />}
                 Convertir
               </Button>
