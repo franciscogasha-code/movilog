@@ -21,7 +21,7 @@ import {
 import { useParentRequestIds } from "@/hooks/use-parent-request-ids";
 import { StatusBadge } from "@/components/StatusBadge";
 import { AdminReposicionForm } from "@/components/solicitudes/AdminReposicionForm";
-import { NewRequestDialog } from "@/components/solicitudes/NewRequestDialog";
+import { SolicitudCreateForm } from "@/components/solicitudes/SolicitudCreateForm";
 import { RequestDetailRouter } from "@/components/solicitudes/RequestDetailRouter";
 import { useUserBranchFilter } from "@/hooks/use-user-access";
 import { useBranches } from "@/hooks/use-branches";
@@ -184,7 +184,6 @@ export default function Solicitudes() {
 
   const [createOpen, setCreateOpen] = useState(false);
   const [adminRepoOpen, setAdminRepoOpen] = useState(false);
-  const [newRequestKind, setNewRequestKind] = useState<"operational" | "pre_sale">("operational");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const fromConsultation = searchParams.get("from_consultation");
   const detailParam = searchParams.get("detail");
@@ -700,12 +699,11 @@ export default function Solicitudes() {
                   setCreateOpen(open);
                   if (!open) {
                     setActiveConsultationId(null);
-                    setNewRequestKind("operational");
                   }
                 }}
               >
                 <DialogTrigger asChild>
-                  <Button className="w-full sm:w-auto" onClick={() => setNewRequestKind("operational")}>
+                  <Button className="w-full sm:w-auto">
                     <Plus className="h-4 w-4 mr-2" /> Nuevo Pedido
                   </Button>
                 </DialogTrigger>
@@ -721,8 +719,7 @@ export default function Solicitudes() {
                     <DialogTitle className="text-base sm:text-lg">Nuevo Pedido</DialogTitle>
                   </DialogHeader>
                   <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 py-4 sm:px-6 sm:py-5 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
-                    <NewRequestDialog
-                      defaultKind={newRequestKind}
+                    <SolicitudCreateForm
                       fromConsultationId={activeConsultationId}
                       onSuccess={() => {
                         setCreateOpen(false);

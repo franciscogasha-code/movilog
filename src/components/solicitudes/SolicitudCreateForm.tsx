@@ -28,14 +28,8 @@ import {
 } from "@/lib/business-rules";
 
 /**
- * FormRequestType: extiende RequestType con `pre_sale_online` (variante comercial
- * del mismo formulario). No es un tipo operativo: cuando se selecciona, el form
- * muta para no exigir origen logístico ni crear fulfillment, y persiste con
- * is_pre_sale=true, status='draft'.
- *
- * NOTA (refactor pendiente): la integración completa de `pre_sale_online` dentro
- * de este formulario quedó parcial. El render aún usa el selector operativo
- * clásico. Ver PreSaleCreateForm / NewRequestDialog para el flujo activo.
+ * FormRequestType integra Pre-Venta Online como variante comercial del mismo
+ * formulario de Nuevo Pedido. No crea operación logística hasta la conversión.
  */
 export type FormRequestType = RequestType | "pre_sale_online";
 
@@ -118,11 +112,19 @@ export function SolicitudCreateForm({
   const showCourierBilling = !isPreSale && shippingMethod === "courier";
   const showShippingAmount = !isPreSale && (shippingMethod === "delivery" || (shippingMethod === "courier" && courierBillingMode === "on_invoice"));
   const shippingError = isPreSale ? null : validateShippingMethod(operationalRequestType, deliveryTarget, shippingMethod);
+  const requiresPreSaleAddress = isPreSale && (shippingMethod === "delivery" || shippingMethod === "courier");
 
   // Auto-detect branch
   useEffect(() => {
     if (defaultBranchId && !requestingBranchId) setRequestingBranchId(defaultBranchId);
   }, [defaultBranchId, requestingBranchId]);
+
+  useEffect(() => {
+    if (!isPreSale) return;
+    setSourceBranchId("");
+    setDeliveryTarget("branch");
+    setOperationalResponsibleId("");
+  }, [isPreSale]);
 
   // Business rules: enforce allowed delivery targets (no aplica a pre-venta)
   useEffect(() => {
@@ -235,6 +237,51 @@ export function SolicitudCreateForm({
     }
   }, [consultationData]);
 
+  useEffect(() => {
+    if (!editingPreSaleId) return;
+    let mounted = true;
+    (async () => {
+      try {
+        const { data: req, error } = await supabase
+          .from("branch_requests")
+          .select("*")
+          .eq("id", editingPreSaleId)
+          .eq("is_pre_sale", true)
+          .single();
+        if (error) throw error;
+        if (!mounted) return;
+
+        setRequestType("pre_sale_online");
+        setRequestingBranchId(req.requesting_branch_id);
+        setDeliveryTarget((req.delivery_target as DeliveryTarget) ?? "branch");
+        setShippingMethod(req.shipping_method as ShippingMethod);
+        setClientName(req.client_name ?? "");
+        setClientAddress(req.client_address ?? "");
+        setSalesChannel((req as any).sales_channel ?? "whatsapp");
+        setClientPhone((req as any).client_phone ?? "");
+        setClientEmail((req as any).client_email ?? "");
+        setNotes(req.notes ?? "");
+        setWasConfirmed(((req as any).pre_sale_status ?? "draft") === "confirmed");
+
+        const { data: loadedItems, error: itemsError } = await supabase
+          .from("branch_request_items")
+          .select("*, product:products(*)")
+          .eq("request_id", editingPreSaleId);
+        if (itemsError) throw itemsError;
+        if (!mounted) return;
+        setItems((loadedItems ?? []).map((it: any) => ({
+          product: it.product as ProductResult,
+          quantity: Number(it.quantity_requested) || 1,
+        })));
+      } catch (err: any) {
+        toast.error(`No se pudo cargar la pre-venta: ${err.message}`);
+      } finally {
+        if (mounted) setLoadingEdit(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [editingPreSaleId]);
+
   // Live stock from BIMS
   const bimsCodes = items.map(i => i.product.bims_code).filter(Boolean) as string[];
   const { liveStock, isLive } = useLiveStock(bimsCodes);
@@ -342,6 +389,13 @@ export function SolicitudCreateForm({
     for (const item of items) {
       const live = getEffectiveStock(item.product);
       const sbw = live?.stock_by_warehouse ?? item.product.stock_by_warehouse;
+      if (isPreSale) {
+        const total = live?.total_stock ?? item.product.total_stock;
+        if (total != null && total < item.quantity) {
+          errors[item.product.id] = `Stock referencial insuficiente (disp: ${Math.floor(total)}, solicitado: ${item.quantity})`;
+        }
+        continue;
+      }
       if (!sbw) continue;
 
       // Caso A: splits válidos → validar cada tramo
@@ -370,7 +424,7 @@ export function SolicitudCreateForm({
       }
     }
     return errors;
-  }, [items, isMultiOrigin, sourceBranchId, branches, liveStock]);
+  }, [items, isPreSale, isMultiOrigin, sourceBranchId, branches, liveStock]);
 
   const hasStockErrors = Object.keys(stockErrors).length > 0;
 
@@ -417,13 +471,99 @@ export function SolicitudCreateForm({
   // Validation
   const canSubmit = useMemo(() => {
     if (!requestingBranchId || !items.length) return false;
+    if (isPreSale) {
+      if (!clientName.trim() || !clientPhone.trim()) return false;
+      if (requiresPreSaleAddress && !clientAddress.trim()) return false;
+      return true;
+    }
     if (hasStockErrors || shippingError) return false;
     // Cada item debe estar resuelto (splits válidos, origen propio, o origen global mono)
     if (!items.every(isItemResolved)) return false;
     if (isSameBranch) return false;
     return true;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [requestingBranchId, items, isMultiOrigin, sourceBranchId, hasStockErrors, shippingError, isSameBranch]);
+  }, [requestingBranchId, items, isPreSale, clientName, clientPhone, clientAddress, requiresPreSaleAddress, isMultiOrigin, sourceBranchId, hasStockErrors, shippingError, isSameBranch]);
+
+  const savePreSale = async () => {
+    if (!user) { toast.error("Debés iniciar sesión"); return; }
+    if (!clientName.trim() || !clientPhone.trim()) {
+      toast.error("Completá nombre y teléfono del cliente");
+      return;
+    }
+    if (requiresPreSaleAddress && !clientAddress.trim()) {
+      toast.error("Dirección requerida para delivery/courier");
+      return;
+    }
+    if (!items.length) {
+      toast.error("Agregá al menos un producto");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      let requestId = editingPreSaleId || null;
+      let requestNumber: number | undefined;
+      const payload = {
+        requesting_branch_id: requestingBranchId,
+        source_branch_id: requestingBranchId,
+        request_type: "pre_sale_online" as any,
+        status: "draft" as any,
+        delivery_target: requiresPreSaleAddress ? ("client" as any) : ("branch" as any),
+        shipping_method: shippingMethod as any,
+        client_name: clientName.trim(),
+        client_phone: clientPhone.trim(),
+        client_email: clientEmail.trim() || null,
+        client_address: clientAddress.trim() || null,
+        sales_channel: salesChannel,
+        is_pre_sale: true,
+        notes: notes.trim() || null,
+      };
+
+      if (editingPreSaleId) {
+        const { data, error } = await supabase
+          .from("branch_requests")
+          .update(payload)
+          .eq("id", editingPreSaleId)
+          .eq("is_pre_sale", true)
+          .select("request_number")
+          .single();
+        if (error) throw error;
+        requestNumber = data.request_number;
+        const { error: deleteItemsError } = await supabase
+          .from("branch_request_items")
+          .delete()
+          .eq("request_id", editingPreSaleId);
+        if (deleteItemsError) throw deleteItemsError;
+      } else {
+        const { data, error } = await supabase
+          .from("branch_requests")
+          .insert({ ...payload, pre_sale_status: "draft", created_by: user.id })
+          .select("id, request_number")
+          .single();
+        if (error) throw error;
+        requestId = data.id;
+        requestNumber = data.request_number;
+      }
+
+      const itemsPayload = items.map((item) => ({
+        request_id: requestId!,
+        product_id: item.product.id,
+        quantity_requested: item.quantity,
+        item_purpose: "client" as any,
+        client_name: clientName.trim(),
+        client_address: clientAddress.trim() || null,
+      }));
+      const { error: itemsError } = await supabase.from("branch_request_items").insert(itemsPayload);
+      if (itemsError) throw itemsError;
+
+      toast.success(editingPreSaleId ? `Pre-venta #${requestNumber} actualizada` : `Pre-venta #${requestNumber} creada`);
+      onSuccess();
+    } catch (err: any) {
+      toast.error(err.message || "Error al guardar pre-venta");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   // Re-validate stock from BIMS live right before confirmation.
   // Respeta splits válidos (valida cada tramo) y cae a origen único cuando no hay splits.
@@ -468,6 +608,11 @@ export function SolicitudCreateForm({
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (isPreSale) {
+      await savePreSale();
+      return;
+    }
 
     // Show confirmation step first
     if (!showConfirmation && canSubmit) {
@@ -696,6 +841,10 @@ export function SolicitudCreateForm({
   };
 
   // Confirmation summary view
+  if (loadingEdit) {
+    return <div className="p-8 text-center text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin inline" /></div>;
+  }
+
   if (showConfirmation) {
     return (
       <div className="space-y-4">
@@ -769,15 +918,20 @@ export function SolicitudCreateForm({
 
   return (
     <form onSubmit={onSubmit} className="space-y-6">
-      {/* Context Banner */}
-      <ContextBanner requestType={operationalRequestType} deliveryTarget={deliveryTarget} effectiveOriginMode={effectiveOriginMode} />
+      {isPreSale ? (
+        <div className="rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-foreground">
+          <strong className="text-warning">Pre-Venta Online</strong> — borrador comercial sin reserva de stock, fulfillment, carga ni ruteo.
+        </div>
+      ) : (
+        <ContextBanner requestType={operationalRequestType} deliveryTarget={deliveryTarget} effectiveOriginMode={effectiveOriginMode} />
+      )}
 
       {/* STEP 1: Context */}
       <div className="space-y-4">
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">1. Contexto</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
           <BranchSelector
-            label="Sucursal solicitante"
+            label={isPreSale ? "Sucursal vendedora (opcional)" : "Sucursal solicitante"}
             value={requestingBranchId}
             onChange={setRequestingBranchId}
             disabled={!canChangeBranch && !!defaultBranchId}
@@ -786,18 +940,19 @@ export function SolicitudCreateForm({
             <Label>Tipo de solicitud</Label>
             <select
               value={requestType}
-              onChange={(e) => setRequestType(e.target.value as RequestType)}
+              onChange={(e) => setRequestType(e.target.value as FormRequestType)}
               className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <option value="reposition">Reposición</option>
               <option value="client">Pedido Cliente</option>
               <option value="online">Pedido Online</option>
+              <option value="pre_sale_online">Pre-Venta Online</option>
             </select>
           </div>
         </div>
 
         {/* Delivery target */}
-        {allowedTargets.length > 1 && (
+        {!isPreSale && allowedTargets.length > 1 && (
           <div className="space-y-2">
             <Label>Destino de entrega</Label>
             <select
@@ -809,6 +964,57 @@ export function SolicitudCreateForm({
                 <option key={t} value={t}>{t === "branch" ? "A sucursal" : "A cliente"}</option>
               ))}
             </select>
+          </div>
+        )}
+
+        {isPreSale && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 rounded-lg border border-border/50 bg-muted/30 p-3">
+            {editingPreSaleId && wasConfirmed && (
+              <div className="sm:col-span-2 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-foreground">
+                Esta pre-venta ya estaba confirmada. Al editarla conserva su estado confirmado; si cambian condiciones comerciales, volvé a validar con el cliente antes de convertir.
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label>Canal de venta</Label>
+              <select
+                value={salesChannel}
+                onChange={(e) => setSalesChannel(e.target.value)}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {SALES_CHANNELS.map((channel) => (
+                  <option key={channel.v} value={channel.v}>{channel.l}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label>Método de envío</Label>
+              <select
+                value={shippingMethod}
+                onChange={(e) => setShippingMethod(e.target.value as ShippingMethod)}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <option value="pickup">Retiro del cliente</option>
+                <option value="own_fleet">Flota propia</option>
+                <option value="delivery">Delivery</option>
+                <option value="courier">Courier</option>
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label>Nombre cliente *</Label>
+              <Input value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Nombre del cliente" />
+            </div>
+            <div className="space-y-2">
+              <Label>Teléfono *</Label>
+              <Input value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} placeholder="Número de contacto" />
+            </div>
+            <div className="space-y-2">
+              <Label>Email</Label>
+              <Input type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} placeholder="cliente@email.com" />
+            </div>
+            <div className="space-y-2">
+              <Label>{requiresPreSaleAddress ? "Dirección de entrega *" : "Dirección"}</Label>
+              <Input value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} placeholder="Dirección del cliente" />
+            </div>
           </div>
         )}
       </div>
@@ -832,12 +1038,12 @@ export function SolicitudCreateForm({
                         {item.product.sku && <span>SKU: {item.product.sku}</span>}
                         {item.product.bims_code && <span> • Cód: {item.product.bims_code}</span>}
                       </p>
-                      {isMultiOrigin && item.sourceBranchId && (
+                      {!isPreSale && isMultiOrigin && item.sourceBranchId && (
                         <p className="text-xs text-primary mt-0.5 break-words">
                           Origen: {branches?.find(b => b.id === item.sourceBranchId)?.name || "—"}
                         </p>
                       )}
-                      {isMultiOrigin && !item.sourceBranchId && (
+                      {!isPreSale && isMultiOrigin && !item.sourceBranchId && (
                         <p className="text-xs text-amber-600 mt-0.5">Sin origen asignado</p>
                       )}
                       {stockErrors[item.product.id] && (
@@ -860,19 +1066,21 @@ export function SolicitudCreateForm({
                       />
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
-                      <Button type="button" variant="ghost" size="sm"
-                        onClick={() => setSplitPanelOpen(splitPanelOpen === item.product.id ? null : item.product.id)}
-                        className="h-9 px-2 text-xs gap-1"
-                        aria-label="Dividir entre sucursales"
-                        title="Dividir entre sucursales">
-                        <Split className="h-4 w-4" />
-                        <span className="hidden sm:inline">Dividir</span>
-                        {itemHasValidSplits(item) && (
-                          <Badge variant="secondary" className="ml-1 h-4 px-1 text-[10px]">
-                            {item.splits!.filter(s => s.branchId && s.quantity > 0).length}
-                          </Badge>
-                        )}
-                      </Button>
+                      {!isPreSale && (
+                        <Button type="button" variant="ghost" size="sm"
+                          onClick={() => setSplitPanelOpen(splitPanelOpen === item.product.id ? null : item.product.id)}
+                          className="h-9 px-2 text-xs gap-1"
+                          aria-label="Dividir entre sucursales"
+                          title="Dividir entre sucursales">
+                          <Split className="h-4 w-4" />
+                          <span className="hidden sm:inline">Dividir</span>
+                          {itemHasValidSplits(item) && (
+                            <Badge variant="secondary" className="ml-1 h-4 px-1 text-[10px]">
+                              {item.splits!.filter(s => s.branchId && s.quantity > 0).length}
+                            </Badge>
+                          )}
+                        </Button>
+                      )}
                       <Button type="button" variant="ghost" size="sm"
                         onClick={() => setExpandedProduct(expandedProduct === item.product.id ? null : item.product.id)}
                         className="h-9 px-2"
@@ -905,7 +1113,7 @@ export function SolicitudCreateForm({
                 </div>
 
                 {/* Panel de división entre sucursales */}
-                {splitPanelOpen === item.product.id && (
+                {!isPreSale && splitPanelOpen === item.product.id && (
                   <div className="border-t border-border/50 p-3">
                     <SplitOriginPanel
                       totalQuantity={item.quantity}
@@ -936,8 +1144,9 @@ export function SolicitudCreateForm({
                       productPriceLists={item.product.price_lists as { name: string; amount: number }[] | undefined}
                       productStockByWarehouse={item.product.stock_by_warehouse as Record<string, number> | undefined}
                       productTotalStock={item.product.total_stock}
-                      stockMode="select_source"
+                      stockMode={isPreSale ? "info_only" : "select_source"}
                       onSelectSourceBranch={(bid) => {
+                        if (isPreSale) return;
                         if (isMultiOrigin) {
                           setItemSourceBranch(item.product.id, bid);
                         } else {
@@ -950,7 +1159,7 @@ export function SolicitudCreateForm({
                       compact={false}
                       liveStock={getEffectiveStock(item.product)}
                       isLive={isLive}
-                      disabledBranchIds={requestingBranchId ? [requestingBranchId] : undefined}
+                      disabledBranchIds={!isPreSale && requestingBranchId ? [requestingBranchId] : undefined}
                     />
                   </div>
                 )}
@@ -966,7 +1175,7 @@ export function SolicitudCreateForm({
       </div>
 
       {/* STEP 3: Origin */}
-      <div className="space-y-3">
+      {!isPreSale && <div className="space-y-3">
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">3. Origen del stock</h3>
 
         {/* Aviso: cantidad cambió y los splits quedaron inconsistentes */}
@@ -1039,10 +1248,10 @@ export function SolicitudCreateForm({
             <span>{itemsWithoutSource.length} producto(s) sin origen resuelto</span>
           </div>
         )}
-      </div>
+      </div>}
 
       {/* STEP 4: Logistics */}
-      <div className="space-y-4">
+      {!isPreSale && <div className="space-y-4">
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">4. Logística</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
           <div className="space-y-2">
@@ -1136,12 +1345,16 @@ export function SolicitudCreateForm({
           <Label>Notas</Label>
           <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Observaciones adicionales..." rows={2} />
         </div>
-      </div>
+      </div>}
 
       {hasStockErrors && (
         <div className="flex items-start gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-sm text-destructive">
           <XCircle className="h-4 w-4 shrink-0 mt-0.5" />
-          <span className="break-words">Hay productos con stock insuficiente. Corregí las cantidades o cambiá el origen antes de continuar.</span>
+          <span className="break-words">
+            {isPreSale
+              ? "Alerta visual: hay stock insuficiente según la referencia actual, pero la pre-venta puede guardarse porque no reserva stock."
+              : "Hay productos con stock insuficiente. Corregí las cantidades o cambiá el origen antes de continuar."}
+          </span>
         </div>
       )}
 
@@ -1160,7 +1373,9 @@ export function SolicitudCreateForm({
           disabled={submitting || !canSubmit}
         >
           {submitting
-            ? "Creando..."
+            ? (isPreSale ? "Guardando..." : "Creando...")
+            : isPreSale
+              ? `${editingPreSaleId ? "Guardar" : "Crear"} Pre-Venta (${items.length} ${items.length === 1 ? "producto" : "productos"})`
             : effectiveOriginMode === "multi"
               ? `Revisar y crear (${Object.keys(originSummary).length} transferencias)`
               : `Revisar y crear pedido (${items.length} ${items.length === 1 ? "producto" : "productos"})`

@@ -89,6 +89,7 @@ export const REQUEST_TYPE_LABELS: Record<string, string> = {
   client: "Pedido Cliente",
   mixed: "Mixto",
   online: "Pedido Online",
+  pre_sale_online: "Pre-Venta Online",
   redistribution: "Redistribución",
   consultation: "Consulta",
 };
