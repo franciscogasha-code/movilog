@@ -998,19 +998,6 @@ export function SolicitudCreateForm({
               </select>
             </div>
             <div className="space-y-2">
-              <Label>Método de envío</Label>
-              <select
-                value={shippingMethod}
-                onChange={(e) => setShippingMethod(e.target.value as ShippingMethod)}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <option value="pickup">Retiro del cliente</option>
-                <option value="own_fleet">Flota propia</option>
-                <option value="delivery">Delivery</option>
-                <option value="courier">Courier</option>
-              </select>
-            </div>
-            <div className="space-y-2">
               <Label>Nombre cliente *</Label>
               <Input value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Nombre del cliente" />
             </div>
@@ -1023,8 +1010,8 @@ export function SolicitudCreateForm({
               <Input type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} placeholder="cliente@email.com" />
             </div>
             <div className="space-y-2">
-              <Label>{requiresPreSaleAddress ? "Dirección de entrega *" : "Dirección"}</Label>
-              <Input value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} placeholder="Dirección del cliente" />
+              <Label>Dirección</Label>
+              <Input value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} placeholder="Dirección del cliente (opcional)" />
             </div>
           </div>
         )}
