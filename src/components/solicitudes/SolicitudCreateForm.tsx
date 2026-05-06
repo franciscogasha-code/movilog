@@ -499,11 +499,12 @@ export function SolicitudCreateForm({
       return;
     }
 
-    // Pre-venta NO tiene sucursal "vendedora": el vendedor es el usuario (created_by).
-    // La DB exige requesting_branch_id / source_branch_id NOT NULL → usamos un fallback
-    // silencioso (default del perfil o primera permitida) sin exponerlo en UI.
-    const fallbackBranch = requestingBranchId || defaultBranchId || branches?.[0]?.id || null;
-    if (!fallbackBranch) {
+    // Pre-venta NO tiene sucursal "vendedora" ni lógica logística.
+    // requesting_branch_id se conserva (default del perfil o primera permitida) sólo
+    // para RLS/visibilidad; el resto de campos logísticos van NULL y los completa la
+    // promoción a operación (fn_send_presale_to_operation).
+    const ownerBranch = requestingBranchId || defaultBranchId || branches?.[0]?.id || null;
+    if (!ownerBranch) {
       toast.error("No hay sucursal disponible para asociar la pre-venta");
       return;
     }
@@ -513,12 +514,12 @@ export function SolicitudCreateForm({
       let requestId = editingPreSaleId || null;
       let requestNumber: number | undefined;
       const payload = {
-        requesting_branch_id: fallbackBranch,
-        source_branch_id: fallbackBranch,
+        requesting_branch_id: ownerBranch,
+        source_branch_id: null,
         request_type: "pre_sale_online" as any,
         status: "draft" as any,
-        delivery_target: "client" as any,
-        shipping_method: "pickup" as any,
+        delivery_target: null,
+        shipping_method: null,
         client_name: clientName.trim(),
         client_phone: clientPhone.trim(),
         client_email: clientEmail.trim() || null,
