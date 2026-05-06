@@ -389,6 +389,13 @@ export function SolicitudCreateForm({
     for (const item of items) {
       const live = getEffectiveStock(item.product);
       const sbw = live?.stock_by_warehouse ?? item.product.stock_by_warehouse;
+      if (isPreSale) {
+        const total = live?.total_stock ?? item.product.total_stock;
+        if (total != null && total < item.quantity) {
+          errors[item.product.id] = `Stock referencial insuficiente (disp: ${Math.floor(total)}, solicitado: ${item.quantity})`;
+        }
+        continue;
+      }
       if (!sbw) continue;
 
       // Caso A: splits válidos → validar cada tramo
@@ -417,7 +424,7 @@ export function SolicitudCreateForm({
       }
     }
     return errors;
-  }, [items, isMultiOrigin, sourceBranchId, branches, liveStock]);
+  }, [items, isPreSale, isMultiOrigin, sourceBranchId, branches, liveStock]);
 
   const hasStockErrors = Object.keys(stockErrors).length > 0;
 
