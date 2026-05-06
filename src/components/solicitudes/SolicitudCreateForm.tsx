@@ -1137,8 +1137,9 @@ export function SolicitudCreateForm({
                       productPriceLists={item.product.price_lists as { name: string; amount: number }[] | undefined}
                       productStockByWarehouse={item.product.stock_by_warehouse as Record<string, number> | undefined}
                       productTotalStock={item.product.total_stock}
-                      stockMode="select_source"
+                      stockMode={isPreSale ? "info_only" : "select_source"}
                       onSelectSourceBranch={(bid) => {
+                        if (isPreSale) return;
                         if (isMultiOrigin) {
                           setItemSourceBranch(item.product.id, bid);
                         } else {
@@ -1151,7 +1152,7 @@ export function SolicitudCreateForm({
                       compact={false}
                       liveStock={getEffectiveStock(item.product)}
                       isLive={isLive}
-                      disabledBranchIds={requestingBranchId ? [requestingBranchId] : undefined}
+                      disabledBranchIds={!isPreSale && requestingBranchId ? [requestingBranchId] : undefined}
                     />
                   </div>
                 )}
