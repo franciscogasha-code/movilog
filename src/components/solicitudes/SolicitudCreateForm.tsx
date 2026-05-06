@@ -35,10 +35,11 @@ export type FormRequestType = RequestType | "pre_sale_online";
 
 const SALES_CHANNELS = [
   { v: "whatsapp", l: "WhatsApp" },
+  { v: "ecommerce", l: "Ecommerce" },
   { v: "instagram", l: "Instagram" },
+  { v: "tiktok", l: "TikTok" },
+  { v: "facebook", l: "Facebook" },
   { v: "presencial", l: "Presencial" },
-  { v: "telefono", l: "Teléfono" },
-  { v: "otro", l: "Otro" },
 ];
 
 interface SelectedItem {
