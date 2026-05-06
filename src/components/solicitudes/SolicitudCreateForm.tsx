@@ -1343,7 +1343,11 @@ export function SolicitudCreateForm({
       {hasStockErrors && (
         <div className="flex items-start gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-sm text-destructive">
           <XCircle className="h-4 w-4 shrink-0 mt-0.5" />
-          <span className="break-words">Hay productos con stock insuficiente. Corregí las cantidades o cambiá el origen antes de continuar.</span>
+          <span className="break-words">
+            {isPreSale
+              ? "Alerta visual: hay stock insuficiente según la referencia actual, pero la pre-venta puede guardarse porque no reserva stock."
+              : "Hay productos con stock insuficiente. Corregí las cantidades o cambiá el origen antes de continuar."}
+          </span>
         </div>
       )}
 
@@ -1362,7 +1366,9 @@ export function SolicitudCreateForm({
           disabled={submitting || !canSubmit}
         >
           {submitting
-            ? "Creando..."
+            ? (isPreSale ? "Guardando..." : "Creando...")
+            : isPreSale
+              ? `${editingPreSaleId ? "Guardar" : "Crear"} Pre-Venta (${items.length} ${items.length === 1 ? "producto" : "productos"})`
             : effectiveOriginMode === "multi"
               ? `Revisar y crear (${Object.keys(originSummary).length} transferencias)`
               : `Revisar y crear pedido (${items.length} ${items.length === 1 ? "producto" : "productos"})`
