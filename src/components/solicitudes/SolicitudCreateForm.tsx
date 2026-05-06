@@ -602,6 +602,11 @@ export function SolicitudCreateForm({
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (isPreSale) {
+      await savePreSale();
+      return;
+    }
+
     // Show confirmation step first
     if (!showConfirmation && canSubmit) {
       setShowConfirmation(true);
