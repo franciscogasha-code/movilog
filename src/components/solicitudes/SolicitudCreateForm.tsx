@@ -834,6 +834,10 @@ export function SolicitudCreateForm({
   };
 
   // Confirmation summary view
+  if (loadingEdit) {
+    return <div className="p-8 text-center text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin inline" /></div>;
+  }
+
   if (showConfirmation) {
     return (
       <div className="space-y-4">
@@ -907,15 +911,20 @@ export function SolicitudCreateForm({
 
   return (
     <form onSubmit={onSubmit} className="space-y-6">
-      {/* Context Banner */}
-      <ContextBanner requestType={operationalRequestType} deliveryTarget={deliveryTarget} effectiveOriginMode={effectiveOriginMode} />
+      {isPreSale ? (
+        <div className="rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-foreground">
+          <strong className="text-warning">Pre-Venta Online</strong> — borrador comercial sin reserva de stock, fulfillment, carga ni ruteo.
+        </div>
+      ) : (
+        <ContextBanner requestType={operationalRequestType} deliveryTarget={deliveryTarget} effectiveOriginMode={effectiveOriginMode} />
+      )}
 
       {/* STEP 1: Context */}
       <div className="space-y-4">
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">1. Contexto</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
           <BranchSelector
-            label="Sucursal solicitante"
+            label={isPreSale ? "Sucursal vendedora (opcional)" : "Sucursal solicitante"}
             value={requestingBranchId}
             onChange={setRequestingBranchId}
             disabled={!canChangeBranch && !!defaultBranchId}
@@ -924,18 +933,19 @@ export function SolicitudCreateForm({
             <Label>Tipo de solicitud</Label>
             <select
               value={requestType}
-              onChange={(e) => setRequestType(e.target.value as RequestType)}
+              onChange={(e) => setRequestType(e.target.value as FormRequestType)}
               className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <option value="reposition">Reposición</option>
               <option value="client">Pedido Cliente</option>
               <option value="online">Pedido Online</option>
+              <option value="pre_sale_online">Pre-Venta Online</option>
             </select>
           </div>
         </div>
 
         {/* Delivery target */}
-        {allowedTargets.length > 1 && (
+        {!isPreSale && allowedTargets.length > 1 && (
           <div className="space-y-2">
             <Label>Destino de entrega</Label>
             <select
