@@ -395,7 +395,7 @@ export function SolicitudCreateForm({
       if (isPreSale) {
         const total = live?.total_stock ?? item.product.total_stock;
         if (total != null && total < item.quantity) {
-          errors[item.product.id] = `Stock referencial insuficiente (disp: ${Math.floor(total)}, solicitado: ${item.quantity})`;
+          errors[item.product.id] = `Stock insuficiente. Esta pre-venta no reserva stock.`;
         }
         continue;
       }
@@ -927,7 +927,7 @@ export function SolicitudCreateForm({
     <form onSubmit={onSubmit} className="space-y-6">
       {isPreSale ? (
         <div className="rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-foreground">
-          <strong className="text-warning">Pre-Venta Online</strong> — borrador comercial sin reserva de stock, fulfillment, carga ni ruteo.
+          <strong className="text-warning">Pre-Venta Online</strong> — Cotización para cliente. No reserva stock ni genera operación.
         </div>
       ) : (
         <ContextBanner requestType={operationalRequestType} deliveryTarget={deliveryTarget} effectiveOriginMode={effectiveOriginMode} />
@@ -1010,7 +1010,7 @@ export function SolicitudCreateForm({
               <Input type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} placeholder="cliente@email.com" />
             </div>
             <div className="space-y-2">
-              <Label>Dirección</Label>
+              <Label>Dirección (opcional)</Label>
               <Input value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} placeholder="Dirección del cliente (opcional)" />
             </div>
           </div>
@@ -1350,7 +1350,7 @@ export function SolicitudCreateForm({
           <XCircle className="h-4 w-4 shrink-0 mt-0.5" />
           <span className="break-words">
             {isPreSale
-              ? "Alerta visual: hay stock insuficiente según la referencia actual, pero la pre-venta puede guardarse porque no reserva stock."
+              ? "Stock insuficiente. Esta pre-venta no reserva stock."
               : "Hay productos con stock insuficiente. Corregí las cantidades o cambiá el origen antes de continuar."}
           </span>
         </div>
@@ -1373,7 +1373,7 @@ export function SolicitudCreateForm({
           {submitting
             ? (isPreSale ? "Guardando..." : "Creando...")
             : isPreSale
-              ? `${editingPreSaleId ? "Guardar" : "Crear"} Pre-Venta (${items.length} ${items.length === 1 ? "producto" : "productos"})`
+              ? `Guardar Pre-Venta (${items.length} ${items.length === 1 ? "producto" : "productos"})`
             : effectiveOriginMode === "multi"
               ? `Revisar y crear (${Object.keys(originSummary).length} transferencias)`
               : `Revisar y crear pedido (${items.length} ${items.length === 1 ? "producto" : "productos"})`
