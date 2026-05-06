@@ -492,12 +492,17 @@ export function SolicitudCreateForm({
       toast.error("Completá nombre y teléfono del cliente");
       return;
     }
-    if (requiresPreSaleAddress && !clientAddress.trim()) {
-      toast.error("Dirección requerida para delivery/courier");
-      return;
-    }
     if (!items.length) {
       toast.error("Agregá al menos un producto");
+      return;
+    }
+
+    // Pre-venta NO tiene sucursal "vendedora": el vendedor es el usuario (created_by).
+    // La DB exige requesting_branch_id / source_branch_id NOT NULL → usamos un fallback
+    // silencioso (default del perfil o primera permitida) sin exponerlo en UI.
+    const fallbackBranch = requestingBranchId || defaultBranchId || branches?.[0]?.id || null;
+    if (!fallbackBranch) {
+      toast.error("No hay sucursal disponible para asociar la pre-venta");
       return;
     }
 
@@ -506,12 +511,12 @@ export function SolicitudCreateForm({
       let requestId = editingPreSaleId || null;
       let requestNumber: number | undefined;
       const payload = {
-        requesting_branch_id: requestingBranchId,
-        source_branch_id: requestingBranchId,
+        requesting_branch_id: fallbackBranch,
+        source_branch_id: fallbackBranch,
         request_type: "pre_sale_online" as any,
         status: "draft" as any,
-        delivery_target: requiresPreSaleAddress ? ("client" as any) : ("branch" as any),
-        shipping_method: shippingMethod as any,
+        delivery_target: "client" as any,
+        shipping_method: "pickup" as any,
         client_name: clientName.trim(),
         client_phone: clientPhone.trim(),
         client_email: clientEmail.trim() || null,
