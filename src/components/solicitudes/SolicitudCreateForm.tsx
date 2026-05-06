@@ -464,13 +464,99 @@ export function SolicitudCreateForm({
   // Validation
   const canSubmit = useMemo(() => {
     if (!requestingBranchId || !items.length) return false;
+    if (isPreSale) {
+      if (!clientName.trim() || !clientPhone.trim()) return false;
+      if (requiresPreSaleAddress && !clientAddress.trim()) return false;
+      return true;
+    }
     if (hasStockErrors || shippingError) return false;
     // Cada item debe estar resuelto (splits válidos, origen propio, o origen global mono)
     if (!items.every(isItemResolved)) return false;
     if (isSameBranch) return false;
     return true;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [requestingBranchId, items, isMultiOrigin, sourceBranchId, hasStockErrors, shippingError, isSameBranch]);
+  }, [requestingBranchId, items, isPreSale, clientName, clientPhone, clientAddress, requiresPreSaleAddress, isMultiOrigin, sourceBranchId, hasStockErrors, shippingError, isSameBranch]);
+
+  const savePreSale = async () => {
+    if (!user) { toast.error("Debés iniciar sesión"); return; }
+    if (!clientName.trim() || !clientPhone.trim()) {
+      toast.error("Completá nombre y teléfono del cliente");
+      return;
+    }
+    if (requiresPreSaleAddress && !clientAddress.trim()) {
+      toast.error("Dirección requerida para delivery/courier");
+      return;
+    }
+    if (!items.length) {
+      toast.error("Agregá al menos un producto");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      let requestId = editingPreSaleId || null;
+      let requestNumber: number | undefined;
+      const payload = {
+        requesting_branch_id: requestingBranchId,
+        source_branch_id: requestingBranchId,
+        request_type: "pre_sale_online" as any,
+        status: "draft" as any,
+        delivery_target: requiresPreSaleAddress ? ("client" as any) : ("branch" as any),
+        shipping_method: shippingMethod as any,
+        client_name: clientName.trim(),
+        client_phone: clientPhone.trim(),
+        client_email: clientEmail.trim() || null,
+        client_address: clientAddress.trim() || null,
+        sales_channel: salesChannel,
+        is_pre_sale: true,
+        notes: notes.trim() || null,
+      };
+
+      if (editingPreSaleId) {
+        const { data, error } = await supabase
+          .from("branch_requests")
+          .update(payload)
+          .eq("id", editingPreSaleId)
+          .eq("is_pre_sale", true)
+          .select("request_number")
+          .single();
+        if (error) throw error;
+        requestNumber = data.request_number;
+        const { error: deleteItemsError } = await supabase
+          .from("branch_request_items")
+          .delete()
+          .eq("request_id", editingPreSaleId);
+        if (deleteItemsError) throw deleteItemsError;
+      } else {
+        const { data, error } = await supabase
+          .from("branch_requests")
+          .insert({ ...payload, pre_sale_status: "draft", created_by: user.id })
+          .select("id, request_number")
+          .single();
+        if (error) throw error;
+        requestId = data.id;
+        requestNumber = data.request_number;
+      }
+
+      const itemsPayload = items.map((item) => ({
+        request_id: requestId!,
+        product_id: item.product.id,
+        quantity_requested: item.quantity,
+        item_purpose: "client" as any,
+        client_name: clientName.trim(),
+        client_address: clientAddress.trim() || null,
+      }));
+      const { error: itemsError } = await supabase.from("branch_request_items").insert(itemsPayload);
+      if (itemsError) throw itemsError;
+
+      toast.success(editingPreSaleId ? `Pre-venta #${requestNumber} actualizada` : `Pre-venta #${requestNumber} creada`);
+      onSuccess();
+    } catch (err: any) {
+      toast.error(err.message || "Error al guardar pre-venta");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   // Re-validate stock from BIMS live right before confirmation.
   // Respeta splits válidos (valida cada tramo) y cae a origen único cuando no hay splits.
