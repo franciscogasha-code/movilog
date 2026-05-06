@@ -28,14 +28,8 @@ import {
 } from "@/lib/business-rules";
 
 /**
- * FormRequestType: extiende RequestType con `pre_sale_online` (variante comercial
- * del mismo formulario). No es un tipo operativo: cuando se selecciona, el form
- * muta para no exigir origen logístico ni crear fulfillment, y persiste con
- * is_pre_sale=true, status='draft'.
- *
- * NOTA (refactor pendiente): la integración completa de `pre_sale_online` dentro
- * de este formulario quedó parcial. El render aún usa el selector operativo
- * clásico. Ver PreSaleCreateForm / NewRequestDialog para el flujo activo.
+ * FormRequestType integra Pre-Venta Online como variante comercial del mismo
+ * formulario de Nuevo Pedido. No crea operación logística hasta la conversión.
  */
 export type FormRequestType = RequestType | "pre_sale_online";
 
@@ -118,11 +112,19 @@ export function SolicitudCreateForm({
   const showCourierBilling = !isPreSale && shippingMethod === "courier";
   const showShippingAmount = !isPreSale && (shippingMethod === "delivery" || (shippingMethod === "courier" && courierBillingMode === "on_invoice"));
   const shippingError = isPreSale ? null : validateShippingMethod(operationalRequestType, deliveryTarget, shippingMethod);
+  const requiresPreSaleAddress = isPreSale && (shippingMethod === "delivery" || shippingMethod === "courier");
 
   // Auto-detect branch
   useEffect(() => {
     if (defaultBranchId && !requestingBranchId) setRequestingBranchId(defaultBranchId);
   }, [defaultBranchId, requestingBranchId]);
+
+  useEffect(() => {
+    if (!isPreSale) return;
+    setSourceBranchId("");
+    setDeliveryTarget("branch");
+    setOperationalResponsibleId("");
+  }, [isPreSale]);
 
   // Business rules: enforce allowed delivery targets (no aplica a pre-venta)
   useEffect(() => {
