@@ -37,6 +37,8 @@ export function PreSaleDetail({ requestId, onUpdate }: { requestId: string; onUp
   const [editOpen, setEditOpen] = useState(false);
   const [convertOpen, setConvertOpen] = useState(false);
   const [convertSourceId, setConvertSourceId] = useState<string>("");
+  const [convertTarget, setConvertTarget] = useState<string>("");
+  const [convertMethod, setConvertMethod] = useState<string>("");
 
   const { data: request, isLoading } = useQuery({
     queryKey: ["pre-sale-detail", requestId],
