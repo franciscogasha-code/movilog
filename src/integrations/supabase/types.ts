@@ -351,7 +351,7 @@ export type Database = {
           current_custody_holder_id: string | null
           current_location_branch_id: string | null
           delivery_payer: string | null
-          delivery_target: Database["public"]["Enums"]["delivery_target"]
+          delivery_target: Database["public"]["Enums"]["delivery_target"] | null
           expected_next_event: string | null
           expected_next_event_deadline: string | null
           flow_type: string | null
@@ -379,10 +379,10 @@ export type Database = {
           sales_channel: string | null
           shipping_cost: number | null
           shipping_destination_paid: number | null
-          shipping_method: Database["public"]["Enums"]["shipping_method"]
+          shipping_method: Database["public"]["Enums"]["shipping_method"] | null
           shipping_origin_paid: number | null
           shipping_paid_by: string | null
-          source_branch_id: string
+          source_branch_id: string | null
           status: Database["public"]["Enums"]["request_status"]
           updated_at: string
         }
@@ -411,7 +411,9 @@ export type Database = {
           current_custody_holder_id?: string | null
           current_location_branch_id?: string | null
           delivery_payer?: string | null
-          delivery_target?: Database["public"]["Enums"]["delivery_target"]
+          delivery_target?:
+            | Database["public"]["Enums"]["delivery_target"]
+            | null
           expected_next_event?: string | null
           expected_next_event_deadline?: string | null
           flow_type?: string | null
@@ -439,10 +441,12 @@ export type Database = {
           sales_channel?: string | null
           shipping_cost?: number | null
           shipping_destination_paid?: number | null
-          shipping_method?: Database["public"]["Enums"]["shipping_method"]
+          shipping_method?:
+            | Database["public"]["Enums"]["shipping_method"]
+            | null
           shipping_origin_paid?: number | null
           shipping_paid_by?: string | null
-          source_branch_id: string
+          source_branch_id?: string | null
           status?: Database["public"]["Enums"]["request_status"]
           updated_at?: string
         }
@@ -471,7 +475,9 @@ export type Database = {
           current_custody_holder_id?: string | null
           current_location_branch_id?: string | null
           delivery_payer?: string | null
-          delivery_target?: Database["public"]["Enums"]["delivery_target"]
+          delivery_target?:
+            | Database["public"]["Enums"]["delivery_target"]
+            | null
           expected_next_event?: string | null
           expected_next_event_deadline?: string | null
           flow_type?: string | null
@@ -499,10 +505,12 @@ export type Database = {
           sales_channel?: string | null
           shipping_cost?: number | null
           shipping_destination_paid?: number | null
-          shipping_method?: Database["public"]["Enums"]["shipping_method"]
+          shipping_method?:
+            | Database["public"]["Enums"]["shipping_method"]
+            | null
           shipping_origin_paid?: number | null
           shipping_paid_by?: string | null
-          source_branch_id?: string
+          source_branch_id?: string | null
           status?: Database["public"]["Enums"]["request_status"]
           updated_at?: string
         }
@@ -2898,10 +2906,6 @@ export type Database = {
         Args: { p_parent_id: string }
         Returns: undefined
       }
-      fn_convert_presale_to_order: {
-        Args: { p_request_id: string; p_source_branch_id?: string }
-        Returns: string
-      }
       fn_derive_flow_type: {
         Args: {
           p_delivery_target: string
@@ -2980,8 +2984,13 @@ export type Database = {
         Returns: Json
       }
       fn_send_presale_to_operation: {
-        Args: { p_request_id: string }
-        Returns: undefined
+        Args: {
+          p_delivery_target?: string
+          p_request_id: string
+          p_shipping_method?: string
+          p_source_branch_id?: string
+        }
+        Returns: string
       }
       fn_transition_request_status:
         | {
