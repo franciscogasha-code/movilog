@@ -145,17 +145,27 @@ export function PreSaleDetail({ requestId, onUpdate }: { requestId: string; onUp
 
   function openConvertDialog() {
     setConvertSourceId(defaultSourceId);
+    setConvertTarget("");
+    setConvertMethod("");
     setConvertOpen(true);
   }
 
+  const addressRequired =
+    convertTarget === "client" && (convertMethod === "delivery" || convertMethod === "courier");
+  const missingAddress =
+    addressRequired && !((request as any)?.client_address ?? "").toString().trim();
+  const canConvert =
+    !!convertSourceId && !!convertTarget && !!convertMethod && !missingAddress;
+
   async function convertToOrder() {
+    if (!canConvert) return;
     setConverting(true);
     try {
       const { data, error } = await supabase.rpc("fn_send_presale_to_operation" as any, {
         p_request_id: requestId,
-        p_source_branch_id: convertSourceId || null,
-        p_delivery_target: null,
-        p_shipping_method: null,
+        p_source_branch_id: convertSourceId,
+        p_delivery_target: convertTarget,
+        p_shipping_method: convertMethod,
       });
       if (error) throw error;
       const newId = (data as string) || requestId;
