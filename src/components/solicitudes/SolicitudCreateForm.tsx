@@ -35,10 +35,11 @@ export type FormRequestType = RequestType | "pre_sale_online";
 
 const SALES_CHANNELS = [
   { v: "whatsapp", l: "WhatsApp" },
+  { v: "ecommerce", l: "Ecommerce" },
   { v: "instagram", l: "Instagram" },
+  { v: "tiktok", l: "TikTok" },
+  { v: "facebook", l: "Facebook" },
   { v: "presencial", l: "Presencial" },
-  { v: "telefono", l: "Teléfono" },
-  { v: "otro", l: "Otro" },
 ];
 
 interface SelectedItem {
@@ -112,7 +113,9 @@ export function SolicitudCreateForm({
   const showCourierBilling = !isPreSale && shippingMethod === "courier";
   const showShippingAmount = !isPreSale && (shippingMethod === "delivery" || (shippingMethod === "courier" && courierBillingMode === "on_invoice"));
   const shippingError = isPreSale ? null : validateShippingMethod(operationalRequestType, deliveryTarget, shippingMethod);
-  const requiresPreSaleAddress = isPreSale && (shippingMethod === "delivery" || shippingMethod === "courier");
+  // Pre-venta es 100% comercial: nunca requiere dirección obligatoria ni método de envío.
+  // El método logístico se define recién al convertir a pedido.
+  const requiresPreSaleAddress = false;
 
   // Auto-detect branch
   useEffect(() => {
@@ -473,7 +476,6 @@ export function SolicitudCreateForm({
     if (!requestingBranchId || !items.length) return false;
     if (isPreSale) {
       if (!clientName.trim() || !clientPhone.trim()) return false;
-      if (requiresPreSaleAddress && !clientAddress.trim()) return false;
       return true;
     }
     if (hasStockErrors || shippingError) return false;
@@ -490,12 +492,17 @@ export function SolicitudCreateForm({
       toast.error("Completá nombre y teléfono del cliente");
       return;
     }
-    if (requiresPreSaleAddress && !clientAddress.trim()) {
-      toast.error("Dirección requerida para delivery/courier");
-      return;
-    }
     if (!items.length) {
       toast.error("Agregá al menos un producto");
+      return;
+    }
+
+    // Pre-venta NO tiene sucursal "vendedora": el vendedor es el usuario (created_by).
+    // La DB exige requesting_branch_id / source_branch_id NOT NULL → usamos un fallback
+    // silencioso (default del perfil o primera permitida) sin exponerlo en UI.
+    const fallbackBranch = requestingBranchId || defaultBranchId || branches?.[0]?.id || null;
+    if (!fallbackBranch) {
+      toast.error("No hay sucursal disponible para asociar la pre-venta");
       return;
     }
 
@@ -504,12 +511,12 @@ export function SolicitudCreateForm({
       let requestId = editingPreSaleId || null;
       let requestNumber: number | undefined;
       const payload = {
-        requesting_branch_id: requestingBranchId,
-        source_branch_id: requestingBranchId,
+        requesting_branch_id: fallbackBranch,
+        source_branch_id: fallbackBranch,
         request_type: "pre_sale_online" as any,
         status: "draft" as any,
-        delivery_target: requiresPreSaleAddress ? ("client" as any) : ("branch" as any),
-        shipping_method: shippingMethod as any,
+        delivery_target: "client" as any,
+        shipping_method: "pickup" as any,
         client_name: clientName.trim(),
         client_phone: clientPhone.trim(),
         client_email: clientEmail.trim() || null,
@@ -929,14 +936,9 @@ export function SolicitudCreateForm({
       {/* STEP 1: Context */}
       <div className="space-y-4">
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">1. Contexto</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-          <BranchSelector
-            label={isPreSale ? "Sucursal vendedora (opcional)" : "Sucursal solicitante"}
-            value={requestingBranchId}
-            onChange={setRequestingBranchId}
-            disabled={!canChangeBranch && !!defaultBranchId}
-          />
-          <div className="space-y-2">
+        <div className={isPreSale ? "" : "grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4"}>
+          {/* Tipo de solicitud SIEMPRE primero (orden obligatorio). */}
+          <div className={isPreSale ? "space-y-2 max-w-sm" : "space-y-2 order-first sm:order-last"}>
             <Label>Tipo de solicitud</Label>
             <select
               value={requestType}
@@ -949,6 +951,15 @@ export function SolicitudCreateForm({
               <option value="pre_sale_online">Pre-Venta Online</option>
             </select>
           </div>
+          {/* Sucursal solicitante: solo modo operativo. Pre-venta no tiene sucursal vendedora. */}
+          {!isPreSale && (
+            <BranchSelector
+              label="Sucursal solicitante"
+              value={requestingBranchId}
+              onChange={setRequestingBranchId}
+              disabled={!canChangeBranch && !!defaultBranchId}
+            />
+          )}
         </div>
 
         {/* Delivery target */}
@@ -987,19 +998,6 @@ export function SolicitudCreateForm({
               </select>
             </div>
             <div className="space-y-2">
-              <Label>Método de envío</Label>
-              <select
-                value={shippingMethod}
-                onChange={(e) => setShippingMethod(e.target.value as ShippingMethod)}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <option value="pickup">Retiro del cliente</option>
-                <option value="own_fleet">Flota propia</option>
-                <option value="delivery">Delivery</option>
-                <option value="courier">Courier</option>
-              </select>
-            </div>
-            <div className="space-y-2">
               <Label>Nombre cliente *</Label>
               <Input value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Nombre del cliente" />
             </div>
@@ -1012,8 +1010,8 @@ export function SolicitudCreateForm({
               <Input type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} placeholder="cliente@email.com" />
             </div>
             <div className="space-y-2">
-              <Label>{requiresPreSaleAddress ? "Dirección de entrega *" : "Dirección"}</Label>
-              <Input value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} placeholder="Dirección del cliente" />
+              <Label>Dirección</Label>
+              <Input value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} placeholder="Dirección del cliente (opcional)" />
             </div>
           </div>
         )}
