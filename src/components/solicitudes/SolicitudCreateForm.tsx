@@ -1168,7 +1168,7 @@ export function SolicitudCreateForm({
       </div>
 
       {/* STEP 3: Origin */}
-      <div className="space-y-3">
+      {!isPreSale && <div className="space-y-3">
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">3. Origen del stock</h3>
 
         {/* Aviso: cantidad cambió y los splits quedaron inconsistentes */}
@@ -1241,10 +1241,10 @@ export function SolicitudCreateForm({
             <span>{itemsWithoutSource.length} producto(s) sin origen resuelto</span>
           </div>
         )}
-      </div>
+      </div>}
 
       {/* STEP 4: Logistics */}
-      <div className="space-y-4">
+      {!isPreSale && <div className="space-y-4">
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">4. Logística</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
           <div className="space-y-2">
@@ -1338,7 +1338,7 @@ export function SolicitudCreateForm({
           <Label>Notas</Label>
           <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Observaciones adicionales..." rows={2} />
         </div>
-      </div>
+      </div>}
 
       {hasStockErrors && (
         <div className="flex items-start gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-sm text-destructive">
