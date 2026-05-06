@@ -323,21 +323,21 @@ export function PreSaleDetail({ requestId, onUpdate }: { requestId: string; onUp
         </DialogContent>
       </Dialog>
 
-      {/* Convertir → elegir sucursal de origen */}
+      {/* Convertir → elegir sucursal origen, destino y método */}
       <Dialog open={convertOpen} onOpenChange={setConvertOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Convertir a pedido</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Se va a crear un pedido nuevo (Pedido Online) a partir de esta pre-venta.
-              Elegí la sucursal que va a abastecer el stock.
+              Se va a generar un pedido operativo (Pedido Online) a partir de esta pre-venta.
+              Definí origen, destino y método de entrega.
             </p>
             <div>
               <Label>Sucursal origen del stock</Label>
               <Select value={convertSourceId} onValueChange={setConvertSourceId}>
-                <SelectTrigger><SelectValue placeholder="Sucursal" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Seleccionar sucursal" /></SelectTrigger>
                 <SelectContent>
                   {branches.map((b: any) => (
                     <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
@@ -345,11 +345,38 @@ export function PreSaleDetail({ requestId, onUpdate }: { requestId: string; onUp
                 </SelectContent>
               </Select>
             </div>
+            <div>
+              <Label>Destino</Label>
+              <Select value={convertTarget} onValueChange={setConvertTarget}>
+                <SelectTrigger><SelectValue placeholder="Seleccionar destino" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="client">Cliente</SelectItem>
+                  <SelectItem value="branch">Sucursal</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Método de entrega</Label>
+              <Select value={convertMethod} onValueChange={setConvertMethod}>
+                <SelectTrigger><SelectValue placeholder="Seleccionar método" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pickup">Retiro en sucursal</SelectItem>
+                  <SelectItem value="own_fleet">Flota propia</SelectItem>
+                  <SelectItem value="delivery">Delivery</SelectItem>
+                  <SelectItem value="courier">Encomienda</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {missingAddress && (
+              <p className="text-xs text-destructive">
+                Delivery/Encomienda a cliente requiere dirección. Editá la pre-venta para agregarla.
+              </p>
+            )}
             <div className="flex gap-2 pt-2">
               <Button variant="outline" className="flex-1" onClick={() => setConvertOpen(false)} disabled={converting}>
                 Cancelar
               </Button>
-              <Button className="flex-1" onClick={convertToOrder} disabled={!convertSourceId || converting}>
+              <Button className="flex-1" onClick={convertToOrder} disabled={!canConvert || converting}>
                 {converting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <ArrowRightCircle className="h-4 w-4 mr-2" />}
                 Convertir
               </Button>
