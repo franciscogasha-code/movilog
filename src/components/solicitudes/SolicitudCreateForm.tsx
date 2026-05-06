@@ -113,7 +113,9 @@ export function SolicitudCreateForm({
   const showCourierBilling = !isPreSale && shippingMethod === "courier";
   const showShippingAmount = !isPreSale && (shippingMethod === "delivery" || (shippingMethod === "courier" && courierBillingMode === "on_invoice"));
   const shippingError = isPreSale ? null : validateShippingMethod(operationalRequestType, deliveryTarget, shippingMethod);
-  const requiresPreSaleAddress = isPreSale && (shippingMethod === "delivery" || shippingMethod === "courier");
+  // Pre-venta es 100% comercial: nunca requiere dirección obligatoria ni método de envío.
+  // El método logístico se define recién al convertir a pedido.
+  const requiresPreSaleAddress = false;
 
   // Auto-detect branch
   useEffect(() => {
