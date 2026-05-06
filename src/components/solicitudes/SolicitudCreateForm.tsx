@@ -927,7 +927,7 @@ export function SolicitudCreateForm({
     <form onSubmit={onSubmit} className="space-y-6">
       {isPreSale ? (
         <div className="rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-foreground">
-          <strong className="text-warning">Pre-Venta Online</strong> — borrador comercial sin reserva de stock, fulfillment, carga ni ruteo.
+          <strong className="text-warning">Pre-Venta Online</strong> — Cotización para cliente. No reserva stock ni genera operación.
         </div>
       ) : (
         <ContextBanner requestType={operationalRequestType} deliveryTarget={deliveryTarget} effectiveOriginMode={effectiveOriginMode} />
