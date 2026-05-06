@@ -1010,7 +1010,7 @@ export function SolicitudCreateForm({
               <Input type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} placeholder="cliente@email.com" />
             </div>
             <div className="space-y-2">
-              <Label>Dirección</Label>
+              <Label>Dirección (opcional)</Label>
               <Input value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} placeholder="Dirección del cliente (opcional)" />
             </div>
           </div>
