@@ -1373,7 +1373,7 @@ export function SolicitudCreateForm({
           {submitting
             ? (isPreSale ? "Guardando..." : "Creando...")
             : isPreSale
-              ? `${editingPreSaleId ? "Guardar" : "Crear"} Pre-Venta (${items.length} ${items.length === 1 ? "producto" : "productos"})`
+              ? `Guardar Pre-Venta (${items.length} ${items.length === 1 ? "producto" : "productos"})`
             : effectiveOriginMode === "multi"
               ? `Revisar y crear (${Object.keys(originSummary).length} transferencias)`
               : `Revisar y crear pedido (${items.length} ${items.length === 1 ? "producto" : "productos"})`
