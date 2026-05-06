@@ -395,7 +395,7 @@ export function SolicitudCreateForm({
       if (isPreSale) {
         const total = live?.total_stock ?? item.product.total_stock;
         if (total != null && total < item.quantity) {
-          errors[item.product.id] = `Stock referencial insuficiente (disp: ${Math.floor(total)}, solicitado: ${item.quantity})`;
+          errors[item.product.id] = `Stock insuficiente. Esta pre-venta no reserva stock.`;
         }
         continue;
       }
