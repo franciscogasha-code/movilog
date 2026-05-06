@@ -149,19 +149,20 @@ export function PreSaleDetail({ requestId, onUpdate }: { requestId: string; onUp
   async function convertToOrder() {
     setConverting(true);
     try {
-      const { data, error } = await supabase.rpc("fn_convert_presale_to_order" as any, {
+      const { data, error } = await supabase.rpc("fn_send_presale_to_operation" as any, {
         p_request_id: requestId,
         p_source_branch_id: convertSourceId || null,
+        p_delivery_target: null,
+        p_shipping_method: null,
       });
       if (error) throw error;
-      const newId = data as string;
-      toast.success("Pre-venta convertida a pedido");
+      const newId = (data as string) || requestId;
+      toast.success("Pre-venta enviada a operación");
       setConvertOpen(false);
       qc.invalidateQueries({ queryKey: ["branch-requests"] });
       qc.invalidateQueries({ queryKey: ["branch-requests-counts"] });
       qc.invalidateQueries({ queryKey: ["pre-sale-detail", requestId] });
       onUpdate();
-      // Abrir el pedido generado
       if (newId) navigate(`/solicitudes?detail=${newId}`);
     } catch (e: any) {
       toast.error(e.message);
