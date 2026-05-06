@@ -237,6 +237,51 @@ export function SolicitudCreateForm({
     }
   }, [consultationData]);
 
+  useEffect(() => {
+    if (!editingPreSaleId) return;
+    let mounted = true;
+    (async () => {
+      try {
+        const { data: req, error } = await supabase
+          .from("branch_requests")
+          .select("*")
+          .eq("id", editingPreSaleId)
+          .eq("is_pre_sale", true)
+          .single();
+        if (error) throw error;
+        if (!mounted) return;
+
+        setRequestType("pre_sale_online");
+        setRequestingBranchId(req.requesting_branch_id);
+        setDeliveryTarget((req.delivery_target as DeliveryTarget) ?? "branch");
+        setShippingMethod(req.shipping_method as ShippingMethod);
+        setClientName(req.client_name ?? "");
+        setClientAddress(req.client_address ?? "");
+        setSalesChannel((req as any).sales_channel ?? "whatsapp");
+        setClientPhone((req as any).client_phone ?? "");
+        setClientEmail((req as any).client_email ?? "");
+        setNotes(req.notes ?? "");
+        setWasConfirmed(((req as any).pre_sale_status ?? "draft") === "confirmed");
+
+        const { data: loadedItems, error: itemsError } = await supabase
+          .from("branch_request_items")
+          .select("*, product:products(*)")
+          .eq("request_id", editingPreSaleId);
+        if (itemsError) throw itemsError;
+        if (!mounted) return;
+        setItems((loadedItems ?? []).map((it: any) => ({
+          product: it.product as ProductResult,
+          quantity: Number(it.quantity_requested) || 1,
+        })));
+      } catch (err: any) {
+        toast.error(`No se pudo cargar la pre-venta: ${err.message}`);
+      } finally {
+        if (mounted) setLoadingEdit(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [editingPreSaleId]);
+
   // Live stock from BIMS
   const bimsCodes = items.map(i => i.product.bims_code).filter(Boolean) as string[];
   const { liveStock, isLive } = useLiveStock(bimsCodes);
