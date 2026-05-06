@@ -473,11 +473,13 @@ export function SolicitudCreateForm({
 
   // Validation
   const canSubmit = useMemo(() => {
-    if (!requestingBranchId || !items.length) return false;
+    if (!items.length) return false;
     if (isPreSale) {
+      // Pre-Venta: solo requiere cliente, teléfono y al menos un producto.
       if (!clientName.trim() || !clientPhone.trim()) return false;
       return true;
     }
+    if (!requestingBranchId) return false;
     if (hasStockErrors || shippingError) return false;
     // Cada item debe estar resuelto (splits válidos, origen propio, o origen global mono)
     if (!items.every(isItemResolved)) return false;
