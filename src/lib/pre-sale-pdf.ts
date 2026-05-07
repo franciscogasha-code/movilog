@@ -18,14 +18,36 @@ interface PreSaleData {
   items: PreSaleItem[];
 }
 
+/* ──────────────────────────────────────────────────────────────
+ * Sistema tipográfico único (en pt — jsPDF usa pt internamente)
+ * Equivalencias aprox. al spec en px:
+ *   14px ≈ 11pt  · 12px ≈ 9pt  · 11px ≈ 8.5pt  · 13px ≈ 10pt
+ * ────────────────────────────────────────────────────────────── */
+const FS = {
+  title: 14,      // PRE-VENTA / COTIZACIÓN
+  meta: 10,       // N°, Fecha
+  label: 9,       // "Cliente:", "Teléfono:" ...
+  body: 10,       // valores cliente
+  table: 9,       // cuerpo tabla
+  tableHead: 9,   // encabezado tabla
+  total: 11,      // total bold
+  small: 8,       // notas / footer
+};
+
+const COLOR = {
+  text: 25,
+  muted: 100,
+  line: 200,
+  headBg: [30, 41, 59] as [number, number, number],
+  rowAlt: [248, 250, 252] as [number, number, number],
+};
+
 const numberToWordsGs = (n: number): string => {
-  // Conversor simple español PY (hasta millones).
   if (n === 0) return "CERO";
   const u = ["", "UN", "DOS", "TRES", "CUATRO", "CINCO", "SEIS", "SIETE", "OCHO", "NUEVE"];
   const e = ["DIEZ", "ONCE", "DOCE", "TRECE", "CATORCE", "QUINCE", "DIECISÉIS", "DIECISIETE", "DIECIOCHO", "DIECINUEVE"];
   const d = ["", "", "VEINTI", "TREINTA", "CUARENTA", "CINCUENTA", "SESENTA", "SETENTA", "OCHENTA", "NOVENTA"];
   const c = ["", "CIENTO", "DOSCIENTOS", "TRESCIENTOS", "CUATROCIENTOS", "QUINIENTOS", "SEISCIENTOS", "SETECIENTOS", "OCHOCIENTOS", "NOVECIENTOS"];
-
   const sub1000 = (x: number): string => {
     if (x === 0) return "";
     if (x === 100) return "CIEN";
@@ -45,7 +67,6 @@ const numberToWordsGs = (n: number): string => {
     }
     return s;
   };
-
   const millones = Math.floor(n / 1_000_000);
   const miles = Math.floor((n % 1_000_000) / 1000);
   const resto = n % 1000;
@@ -57,69 +78,57 @@ const numberToWordsGs = (n: number): string => {
 };
 
 /**
- * PDF Pre-Venta / Cotización — formato comercial profesional.
- * Inspirado en plantilla BIMS: encabezado con N°, datos cliente,
- * tabla con subtotales, total destacado y monto en letras.
- *
- * No incluye canal ni datos logísticos internos.
+ * PDF Pre-Venta / Cotización — diseño comercial profesional.
+ * Layout compacto, alineado a la izquierda, jerarquía tipográfica única.
  */
 export async function generatePreSalePdf(data: PreSaleData): Promise<void> {
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   const W = 210;
-  const M = 14;
+  const M = 16;
 
-  // ── Header
+  // ── 1. HEADER (bloque compacto, todo a la izquierda)
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(11);
-  doc.setTextColor(80);
-  doc.text(
-    new Date(data.created_at).toLocaleString("es-PY", {
-      day: "2-digit", month: "long", year: "numeric",
-    }),
-    W - M, 14, { align: "right" },
-  );
+  doc.setFontSize(FS.title);
+  doc.setTextColor(COLOR.text);
+  doc.text("PRE-VENTA / COTIZACIÓN", M, 20);
 
-  doc.setFontSize(20);
-  doc.setTextColor(20);
-  doc.text("PRE-VENTA / COTIZACIÓN", M, 22);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(FS.meta);
+  doc.setTextColor(COLOR.muted);
+  doc.text(`N° ${data.request_number}`, M, 26);
+  const fecha = new Date(data.created_at).toLocaleDateString("es-PY", {
+    day: "2-digit", month: "2-digit", year: "numeric",
+  });
+  doc.text(`Fecha: ${fecha}`, M, 31);
 
-  doc.setFontSize(13);
-  doc.setTextColor(60);
-  doc.text(`N° ${data.request_number}`, W - M, 22, { align: "right" });
+  // separador sutil
+  doc.setDrawColor(COLOR.line);
+  doc.setLineWidth(0.2);
+  doc.line(M, 35, W - M, 35);
 
-  doc.setDrawColor(220);
-  doc.setLineWidth(0.3);
-  doc.line(M, 26, W - M, 26);
-
-  // ── Cliente
-  let y = 34;
-  doc.setFontSize(10);
-  doc.setTextColor(110);
-  doc.text("Cliente", M, y);
-  doc.text("Teléfono", M + 105, y);
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(20);
-  doc.setFontSize(11);
-  doc.text(data.client_name || "—", M, y + 5);
-  doc.text(data.client_phone || "—", M + 105, y + 5);
-
-  y += 11;
-  if (data.client_email || data.client_address) {
+  // ── 2. CLIENTE (vertical, una sola columna)
+  let y = 42;
+  const drawField = (label: string, value: string) => {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(FS.label);
+    doc.setTextColor(COLOR.muted);
+    const lbl = `${label}: `;
+    doc.text(lbl, M, y);
+    const lblW = doc.getTextWidth(lbl);
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    doc.setTextColor(80);
-    if (data.client_email) {
-      doc.text(`Email: ${data.client_email}`, M, y);
-      y += 5;
-    }
-    if (data.client_address) {
-      const lines = doc.splitTextToSize(`Dirección: ${data.client_address}`, W - M * 2);
-      doc.text(lines, M, y);
-      y += lines.length * 5;
-    }
-  }
+    doc.setFontSize(FS.body);
+    doc.setTextColor(COLOR.text);
+    const lines = doc.splitTextToSize(value || "—", W - M * 2 - lblW);
+    doc.text(lines, M + lblW, y);
+    y += Math.max(5, lines.length * 4.5);
+  };
 
-  // ── Tabla productos
+  drawField("Cliente", data.client_name);
+  drawField("Teléfono", data.client_phone || "—");
+  if (data.client_email) drawField("Email", data.client_email);
+  if (data.client_address) drawField("Dirección", data.client_address);
+
+  // ── 3. TABLA PRODUCTOS
   const total = data.items.reduce(
     (acc, it) => acc + Number(it.product.sell_price ?? 0) * Number(it.quantity_requested),
     0,
@@ -127,70 +136,82 @@ export async function generatePreSalePdf(data: PreSaleData): Promise<void> {
 
   autoTable(doc, {
     startY: y + 4,
-    head: [["N°", "Código", "Descripción", "Cant.", "Precio Unit.", "Subtotal"]],
-    body: data.items.map((it, i) => {
+    head: [["Producto", "Código", "Cant.", "Precio Unit.", "Subtotal"]],
+    body: data.items.map((it) => {
       const price = Number(it.product.sell_price ?? 0);
       const qty = Number(it.quantity_requested);
       return [
-        String(i + 1),
-        it.product.bims_code || it.product.sku || "—",
         it.product.name,
+        it.product.bims_code || it.product.sku || "—",
         formatNumberGs(qty),
         price ? formatNumberGs(price) : "—",
         price ? formatNumberGs(price * qty) : "—",
       ];
     }),
-    styles: { fontSize: 9, cellPadding: 2.2, valign: "middle", textColor: 30 },
-    headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: "bold", halign: "center" },
-    alternateRowStyles: { fillColor: [248, 250, 252] },
+    styles: {
+      fontSize: FS.table,
+      cellPadding: { top: 2.5, right: 3, bottom: 2.5, left: 3 },
+      valign: "middle",
+      textColor: COLOR.text,
+      lineColor: COLOR.line,
+      lineWidth: 0.1,
+    },
+    headStyles: {
+      fillColor: COLOR.headBg,
+      textColor: 255,
+      fontStyle: "bold",
+      fontSize: FS.tableHead,
+      halign: "left",
+    },
+    alternateRowStyles: { fillColor: COLOR.rowAlt },
     columnStyles: {
-      0: { cellWidth: 10, halign: "center" },
-      1: { cellWidth: 30 },
-      2: { cellWidth: "auto" },
-      3: { cellWidth: 16, halign: "right" },
-      4: { cellWidth: 26, halign: "right" },
-      5: { cellWidth: 28, halign: "right", fontStyle: "bold" },
+      0: { cellWidth: "auto", halign: "left" },
+      1: { cellWidth: 30, halign: "left" },
+      2: { cellWidth: 18, halign: "right" },
+      3: { cellWidth: 28, halign: "right" },
+      4: { cellWidth: 30, halign: "right", fontStyle: "bold" },
     },
     margin: { left: M, right: M },
   });
 
   const finalY = (doc as any).lastAutoTable?.finalY ?? y + 60;
 
-  // ── Total
+  // ── 4. TOTAL (alineado a la derecha, mismo sistema tipográfico)
   const totalY = finalY + 6;
-  doc.setDrawColor(30, 41, 59);
-  doc.setLineWidth(0.5);
-  doc.line(W - M - 80, totalY, W - M, totalY);
+  doc.setDrawColor(60);
+  doc.setLineWidth(0.4);
+  doc.line(W - M - 70, totalY, W - M, totalY);
+
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(12);
-  doc.setTextColor(20);
-  doc.text("TOTAL ESTIMADO", W - M - 80, totalY + 7);
-  doc.setFontSize(14);
-  doc.text(`₲ ${formatNumberGs(total)}`, W - M, totalY + 7, { align: "right" });
+  doc.setFontSize(FS.total);
+  doc.setTextColor(COLOR.text);
+  doc.text("Total estimado:", W - M - 70, totalY + 6);
+  doc.text(`₲ ${formatNumberGs(total)}`, W - M, totalY + 6, { align: "right" });
 
   // Monto en letras
   doc.setFont("helvetica", "italic");
-  doc.setFontSize(9);
-  doc.setTextColor(90);
+  doc.setFontSize(FS.small);
+  doc.setTextColor(COLOR.muted);
   const letras = `Son guaraníes: ${numberToWordsGs(Math.round(total))}.-`;
   const lLines = doc.splitTextToSize(letras, W - M * 2);
-  doc.text(lLines, M, totalY + 16);
+  doc.text(lLines, M, totalY + 14);
+
+  let bottomY = totalY + 14 + lLines.length * 4;
 
   // Notas
-  let bottomY = totalY + 16 + lLines.length * 5;
   if (data.notes) {
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    doc.setTextColor(60);
+    doc.setFontSize(FS.small);
+    doc.setTextColor(COLOR.muted);
     const ns = doc.splitTextToSize(`Notas: ${data.notes}`, W - M * 2);
     doc.text(ns, M, bottomY + 4);
-    bottomY += 4 + ns.length * 5;
+    bottomY += 4 + ns.length * 4;
   }
 
-  // Footer
+  // ── Footer
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(8);
-  doc.setTextColor(140);
+  doc.setFontSize(FS.small);
+  doc.setTextColor(150);
   doc.text(
     "Documento no fiscal — Pre-venta sujeta a confirmación de stock y facturación.",
     M, 287,
