@@ -18,6 +18,7 @@ interface PreSaleData {
   client_email?: string | null;
   client_address?: string | null;
   notes?: string | null;
+  commercial_terms?: string | null;
   created_at: string;
   items: PreSaleItem[];
 }
