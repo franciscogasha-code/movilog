@@ -176,17 +176,28 @@ export async function generatePreSalePdf(data: PreSaleData): Promise<void> {
 
   const finalY = (doc as any).lastAutoTable?.finalY ?? y + 60;
 
-  // ── 4. TOTAL (alineado a la derecha, mismo sistema tipográfico)
+  // ── 4. TOTAL (alineado a la derecha, label + valor en el mismo eje)
+  // NOTA: el símbolo "₲" (U+20B2) NO existe en la codificación WinAnsi de
+  // Helvetica nativa de jsPDF y se renderiza como un glifo corrupto (parece
+  // un "2"). Usamos "Gs." que es estándar comercial PY y 100% soportado.
   const totalY = finalY + 6;
-  doc.setDrawColor(60);
-  doc.setLineWidth(0.4);
-  doc.line(W - M - 70, totalY, W - M, totalY);
+  const totalRight = W - M;
+  const totalValueStr = `Gs. ${formatNumberGs(total)}`;
+  const totalLabelStr = "Total estimado:";
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(FS.total);
+  const valueW = doc.getTextWidth(totalValueStr);
+  const labelW = doc.getTextWidth(totalLabelStr);
+  const blockLeft = totalRight - valueW - 6 - labelW;
+
+  doc.setDrawColor(60);
+  doc.setLineWidth(0.4);
+  doc.line(blockLeft, totalY, totalRight, totalY);
+
   doc.setTextColor(COLOR.text);
-  doc.text("Total estimado:", W - M - 70, totalY + 6);
-  doc.text(`₲ ${formatNumberGs(total)}`, W - M, totalY + 6, { align: "right" });
+  doc.text(totalLabelStr, blockLeft, totalY + 6);
+  doc.text(totalValueStr, totalRight, totalY + 6, { align: "right" });
 
   // Monto en letras
   doc.setFont("helvetica", "italic");
