@@ -103,8 +103,6 @@ export function PreSaleDetail({ requestId, onUpdate }: { requestId: string; onUp
         client_phone: (request as any).client_phone,
         client_email: (request as any).client_email,
         client_address: request.client_address,
-        sales_channel: (request as any).sales_channel,
-        shipping_method: request.shipping_method,
         notes: request.notes,
         created_at: request.created_at,
         items: items as any,
@@ -247,29 +245,48 @@ export function PreSaleDetail({ requestId, onUpdate }: { requestId: string; onUp
           {(request as any).client_phone && <div><span className="text-muted-foreground">Tel:</span> {(request as any).client_phone}</div>}
           {(request as any).client_email && <div><span className="text-muted-foreground">Email:</span> {(request as any).client_email}</div>}
           {request.client_address && <div><span className="text-muted-foreground">Dirección:</span> {request.client_address}</div>}
-          {request.shipping_method && (
-            <div><span className="text-muted-foreground">Envío:</span> {({pickup:"Retiro en sucursal",own_fleet:"Flota propia",delivery:"Delivery",courier:"Encomienda"} as any)[request.shipping_method] ?? request.shipping_method}</div>
-          )}
-          {(request as any).sales_channel && <div><span className="text-muted-foreground">Canal:</span> {(request as any).sales_channel}</div>}
-          <div><span className="text-muted-foreground">Sucursal vendedora:</span> {(request as any).requesting_branch?.name ?? "—"}</div>
+          {(request as any).sales_channel && <div><span className="text-muted-foreground">Canal:</span> <span className="capitalize">{(request as any).sales_channel}</span></div>}
         </CardContent>
       </Card>
 
       <div>
-        <div className="text-sm font-medium mb-2">Productos ({items.length})</div>
-        <div className="space-y-1">
-          {(items as any[]).map((it: any) => (
-            <div key={it.id} className="flex items-center gap-2 rounded border border-border/50 p-2 text-sm">
-              <div className="flex-1 min-w-0">
-                <div className="font-medium truncate">{it.product?.name}</div>
-                <div className="text-[11px] text-muted-foreground">{it.product?.bims_code || it.product?.sku || "—"}</div>
+        <div className="flex items-center justify-between mb-2">
+          <div className="text-sm font-medium">Productos ({items.length})</div>
+          <div className="text-xs text-muted-foreground">
+            {(items as any[]).reduce((acc: number, it: any) => acc + Number(it.quantity_requested || 0), 0)} unidades
+          </div>
+        </div>
+        <div className="rounded border border-border/50 overflow-hidden">
+          <div className="hidden sm:grid grid-cols-[1fr_70px_110px_110px] gap-2 px-3 py-1.5 bg-muted/40 text-[11px] uppercase tracking-wide text-muted-foreground font-medium">
+            <div>Producto</div>
+            <div className="text-right">Cant.</div>
+            <div className="text-right">P. Unit.</div>
+            <div className="text-right">Subtotal</div>
+          </div>
+          {(items as any[]).map((it: any) => {
+            const price = Number(it.product?.sell_price ?? 0);
+            const qty = Number(it.quantity_requested || 0);
+            const sub = price * qty;
+            return (
+              <div key={it.id} className="grid grid-cols-[1fr_70px_110px_110px] gap-2 px-3 py-2 text-sm border-t border-border/40 first:border-t-0 items-center">
+                <div className="min-w-0">
+                  <div className="font-medium truncate">{it.product?.name}</div>
+                  <div className="text-[11px] text-muted-foreground truncate">{it.product?.bims_code || it.product?.sku || "—"}</div>
+                </div>
+                <div className="text-right tabular-nums text-sm">{qty.toLocaleString("de-DE")}</div>
+                <div className="text-right tabular-nums text-sm text-muted-foreground">{price ? `₲ ${Math.round(price).toLocaleString("de-DE")}` : "—"}</div>
+                <div className="text-right tabular-nums text-sm font-medium">{price ? `₲ ${Math.round(sub).toLocaleString("de-DE")}` : "—"}</div>
               </div>
-              <div className="text-xs">×{Number(it.quantity_requested).toLocaleString("de-DE")}</div>
-              {it.product?.sell_price && (
-                <div className="text-xs text-muted-foreground">₲ {Math.round(it.product.sell_price).toLocaleString("de-DE")}</div>
-              )}
-            </div>
-          ))}
+            );
+          })}
+          <div className="flex items-center justify-between px-3 py-2.5 bg-muted/30 border-t border-border">
+            <span className="text-sm font-semibold">Total estimado</span>
+            <span className="text-base font-bold tabular-nums">
+              ₲ {Math.round(
+                (items as any[]).reduce((acc: number, it: any) => acc + Number(it.product?.sell_price ?? 0) * Number(it.quantity_requested || 0), 0),
+              ).toLocaleString("de-DE")}
+            </span>
+          </div>
         </div>
       </div>
 

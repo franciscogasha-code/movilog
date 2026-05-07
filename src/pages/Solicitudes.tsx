@@ -303,16 +303,21 @@ export default function Solicitudes() {
     ],
     initialPageSize: 25,
     buildQuery: () => {
+      const isPreSaleTab = tab === "preventas";
       let query: any = supabase
         .from("branch_requests")
         .select(
           `*,
            requesting_branch:branches!branch_requests_requesting_branch_id_fkey(name, code),
            source_branch:branches!branch_requests_source_branch_id_fkey(name, code),
-           parent:parent_request_id(id, request_number)`,
+           parent:parent_request_id(id, request_number)${
+             isPreSaleTab
+               ? `,items:branch_request_items(quantity_requested, product:products(sell_price))`
+               : ""
+           }`,
           { count: "exact" },
         )
-        .order("created_at", { ascending: false });
+        .order(isPreSaleTab ? "updated_at" : "created_at", { ascending: false });
 
       // ─── MODO BÚSQUEDA NUMÉRICA INTELIGENTE ──────────────────────
       // Si el usuario tipea #N, devolvemos el set padre↔hijos relacionados
@@ -894,6 +899,127 @@ export default function Solicitudes() {
                   )}
                 </div>
               </div>
+            ) : tab === "preventas" ? (
+              <>
+                {/* PRE-VENTAS — MOBILE */}
+                <div className="lg:hidden divide-y divide-border/50">
+                  {requests.map((r: any) => {
+                    const items = (r.items as any[]) ?? [];
+                    const totalQty = items.reduce((a, it) => a + Number(it.quantity_requested || 0), 0);
+                    const totalGs = items.reduce(
+                      (a, it) => a + Number(it.product?.sell_price ?? 0) * Number(it.quantity_requested || 0),
+                      0,
+                    );
+                    const ps = r.pre_sale_status;
+                    const psLabel = ps === "converted" ? "Convertida" : ps === "confirmed" ? "Confirmada" : "Borrador";
+                    return (
+                      <button
+                        key={r.id}
+                        onClick={() => setSelectedId(r.id)}
+                        className="w-full text-left p-3 hover:bg-muted/40 active:bg-muted/60 transition-colors"
+                      >
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="font-mono font-semibold text-sm">#{r.request_number}</span>
+                            <Badge variant="outline" className="text-[10px] capitalize shrink-0 border-warning/50 text-warning">
+                              Pre-Venta
+                            </Badge>
+                          </div>
+                          <Badge variant="outline" className="text-[10px] shrink-0">{psLabel}</Badge>
+                        </div>
+                        <div className="text-sm font-medium truncate">{r.client_name || "—"}</div>
+                        <div className="text-[11px] text-muted-foreground flex items-center justify-between gap-2 mt-0.5">
+                          <span className="truncate">
+                            {items.length} prod · {totalQty} und{r.sales_channel ? ` · ${r.sales_channel}` : ""}
+                          </span>
+                          <span className="font-semibold text-foreground tabular-nums shrink-0">
+                            ₲ {Math.round(totalGs).toLocaleString("de-DE")}
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-muted-foreground mt-1">
+                          Creada {formatAge(r.created_at)}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+                {/* PRE-VENTAS — DESKTOP */}
+                <div className="hidden lg:block overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border bg-muted/30">
+                        <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs uppercase tracking-wide">N°</th>
+                        <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs uppercase tracking-wide">Cliente</th>
+                        <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs uppercase tracking-wide">Canal</th>
+                        <th className="text-right px-3 py-2.5 font-medium text-muted-foreground text-xs uppercase tracking-wide">Productos</th>
+                        <th className="text-right px-3 py-2.5 font-medium text-muted-foreground text-xs uppercase tracking-wide">Total ₲</th>
+                        <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs uppercase tracking-wide">Estado</th>
+                        <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs uppercase tracking-wide">Creada</th>
+                        <th className="text-left px-3 py-2.5"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {requests.map((r: any) => {
+                        const items = (r.items as any[]) ?? [];
+                        const totalQty = items.reduce((a, it) => a + Number(it.quantity_requested || 0), 0);
+                        const totalGs = items.reduce(
+                          (a, it) => a + Number(it.product?.sell_price ?? 0) * Number(it.quantity_requested || 0),
+                          0,
+                        );
+                        const ps = r.pre_sale_status;
+                        const psLabel = ps === "converted" ? "Convertida" : ps === "confirmed" ? "Confirmada" : "Borrador";
+                        const psCls =
+                          ps === "converted"
+                            ? "bg-primary/10 text-primary border-primary/30"
+                            : ps === "confirmed"
+                            ? "bg-success/10 text-success border-success/30"
+                            : "bg-muted text-muted-foreground border-border";
+                        return (
+                          <tr
+                            key={r.id}
+                            className="border-b border-border/40 hover:bg-muted/40 transition-colors cursor-pointer"
+                            onClick={() => setSelectedId(r.id)}
+                          >
+                            <td className="px-3 py-2.5 font-mono font-semibold whitespace-nowrap">#{r.request_number}</td>
+                            <td className="px-3 py-2.5 max-w-[260px]">
+                              <div className="font-medium truncate">{r.client_name || "—"}</div>
+                              {r.client_phone && (
+                                <div className="text-[11px] text-muted-foreground truncate">{r.client_phone}</div>
+                              )}
+                            </td>
+                            <td className="px-3 py-2.5 text-xs capitalize text-muted-foreground">
+                              {r.sales_channel || "—"}
+                            </td>
+                            <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap">
+                              <span className="font-medium">{items.length}</span>
+                              <span className="text-[11px] text-muted-foreground ml-1">({totalQty})</span>
+                            </td>
+                            <td className="px-3 py-2.5 text-right tabular-nums font-semibold whitespace-nowrap">
+                              {totalGs ? Math.round(totalGs).toLocaleString("de-DE") : "—"}
+                            </td>
+                            <td className="px-3 py-2.5">
+                              <Badge variant="outline" className={cn("text-xs", psCls)}>{psLabel}</Badge>
+                            </td>
+                            <td className="px-3 py-2.5 text-xs whitespace-nowrap">
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className={getAgeClass(r)}>{formatAge(r.created_at)}</span>
+                                </TooltipTrigger>
+                                <TooltipContent side="top">{formatFullDate(r.created_at)}</TooltipContent>
+                              </Tooltip>
+                            </td>
+                            <td className="px-3 py-2.5 text-right">
+                              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={(e) => { e.stopPropagation(); setSelectedId(r.id); }}>
+                                Abrir
+                              </Button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             ) : (
               <>
                 {/* MOBILE */}
