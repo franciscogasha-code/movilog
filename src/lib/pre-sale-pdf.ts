@@ -166,11 +166,12 @@ export async function generatePreSalePdf(data: PreSaleData): Promise<void> {
     },
     alternateRowStyles: { fillColor: COLOR.rowAlt },
     columnStyles: {
-      0: { cellWidth: "auto", halign: "left" },
-      1: { cellWidth: 30, halign: "left" },
-      2: { cellWidth: 18, halign: "right" },
-      3: { cellWidth: 28, halign: "right" },
-      4: { cellWidth: 30, halign: "right", fontStyle: "bold" },
+      0: { cellWidth: 10, halign: "center" },
+      1: { cellWidth: 22, halign: "left" },
+      2: { cellWidth: "auto", halign: "left" },
+      3: { cellWidth: 16, halign: "right" },
+      4: { cellWidth: 28, halign: "right" },
+      5: { cellWidth: 30, halign: "right", fontStyle: "bold" },
     },
     margin: { left: M, right: M },
   });
