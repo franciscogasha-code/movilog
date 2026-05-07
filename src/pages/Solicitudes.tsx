@@ -303,16 +303,21 @@ export default function Solicitudes() {
     ],
     initialPageSize: 25,
     buildQuery: () => {
+      const isPreSaleTab = tab === "preventas";
       let query: any = supabase
         .from("branch_requests")
         .select(
           `*,
            requesting_branch:branches!branch_requests_requesting_branch_id_fkey(name, code),
            source_branch:branches!branch_requests_source_branch_id_fkey(name, code),
-           parent:parent_request_id(id, request_number)`,
+           parent:parent_request_id(id, request_number)${
+             isPreSaleTab
+               ? `,items:branch_request_items(quantity_requested, product:products(sell_price))`
+               : ""
+           }`,
           { count: "exact" },
         )
-        .order("created_at", { ascending: false });
+        .order(isPreSaleTab ? "updated_at" : "created_at", { ascending: false });
 
       // ─── MODO BÚSQUEDA NUMÉRICA INTELIGENTE ──────────────────────
       // Si el usuario tipea #N, devolvemos el set padre↔hijos relacionados
