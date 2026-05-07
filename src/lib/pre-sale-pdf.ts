@@ -1,7 +1,9 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { formatNumberGs } from "@/lib/format-currency";
+import { numberToWordsGs } from "@/lib/number-to-words";
 import { BRAND, BRAND_TAGLINE, BRAND_CONTACT } from "@/theme/branding";
+import { FS, SPACING } from "@/theme/typography";
 import sanseiLogo from "@/assets/sansei-logo.jpg";
 
 interface PreSaleItem {
@@ -20,59 +22,8 @@ interface PreSaleData {
   items: PreSaleItem[];
 }
 
-const FS = {
-  brandTitle: 16,
-  meta: 9,
-  label: 8.5,
-  body: 10,
-  clientName: 11.5,
-  table: 9,
-  tableHead: 9,
-  total: 13,
-  totalLabel: 10.5,
-  small: 8,
-  obs: 8.5,
-  tagline: 8.5,
-};
-
-const numberToWordsGs = (n: number): string => {
-  if (n === 0) return "CERO";
-  const u = ["", "UN", "DOS", "TRES", "CUATRO", "CINCO", "SEIS", "SIETE", "OCHO", "NUEVE"];
-  const e = ["DIEZ", "ONCE", "DOCE", "TRECE", "CATORCE", "QUINCE", "DIECISÉIS", "DIECISIETE", "DIECIOCHO", "DIECINUEVE"];
-  const d = ["", "", "VEINTI", "TREINTA", "CUARENTA", "CINCUENTA", "SESENTA", "SETENTA", "OCHENTA", "NOVENTA"];
-  const c = ["", "CIENTO", "DOSCIENTOS", "TRESCIENTOS", "CUATROCIENTOS", "QUINIENTOS", "SEISCIENTOS", "SETECIENTOS", "OCHOCIENTOS", "NOVECIENTOS"];
-  const sub1000 = (x: number): string => {
-    if (x === 0) return "";
-    if (x === 100) return "CIEN";
-    const cen = Math.floor(x / 100);
-    const r = x % 100;
-    let s = cen ? c[cen] : "";
-    if (r) {
-      if (s) s += " ";
-      if (r < 10) s += u[r];
-      else if (r < 20) s += e[r - 10];
-      else {
-        const dd = Math.floor(r / 10);
-        const uu = r % 10;
-        if (dd === 2) s += uu ? `VEINTI${u[uu].toLowerCase()}`.toUpperCase() : "VEINTE";
-        else s += uu ? `${d[dd]} Y ${u[uu]}` : d[dd];
-      }
-    }
-    return s;
-  };
-  const millones = Math.floor(n / 1_000_000);
-  const miles = Math.floor((n % 1_000_000) / 1000);
-  const resto = n % 1000;
-  let out = "";
-  if (millones) out += millones === 1 ? "UN MILLÓN" : `${sub1000(millones)} MILLONES`;
-  if (miles) out += `${out ? " " : ""}${miles === 1 ? "MIL" : `${sub1000(miles)} MIL`}`;
-  if (resto) out += `${out ? " " : ""}${sub1000(resto)}`;
-  return out.trim();
-};
-
 /**
  * Carga el logo como HTMLImageElement vía import directo de Vite.
- * Sin fetch, sin FileReader: el bundler resuelve y cachea el asset.
  */
 function loadLogoImage(): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -85,17 +36,33 @@ function loadLogoImage(): Promise<HTMLImageElement> {
 }
 
 /**
- * PDF Pre-Venta / Cotización — branding SANSEI centralizado (src/theme/branding.ts).
- *
- * Ajustes finos vs versión previa:
- * - Espaciado vertical compactado (cliente→tabla, tabla→total).
- * - Bloque TOTAL alineado a la derecha con label y valor en mismo eje, valor en rojo.
- * - "Son guaraníes" pegado al bloque total.
- * - Nombre de cliente jerárquicamente destacado.
- * - Tabla con padding reducido.
- * - Sección "Observaciones" (condiciones comerciales) renderizada como lista neutra.
- * - Logo importado directamente (sin fetch runtime).
- * - "₲" no se renderiza en Helvetica nativa → "Gs." en PDF.
+ * Render de "label valor" alineado a la derecha como un único string.
+ * Elimina dependencia de getTextWidth + offsets manuales.
+ */
+function drawRightAlignedPair(
+  doc: jsPDF,
+  label: string,
+  value: string,
+  x: number,
+  y: number,
+  opts: { labelColor: [number, number, number]; valueColor: [number, number, number]; size: number },
+): void {
+  // Para mantener color distinto en label/valor con alineación derecha estable,
+  // medimos solo el valor (siempre necesario) y posicionamos el label a su izquierda.
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(opts.size);
+
+  doc.setTextColor(...opts.valueColor);
+  doc.text(value, x, y, { align: "right" });
+  const valueW = doc.getTextWidth(value);
+
+  doc.setTextColor(...opts.labelColor);
+  doc.text(label, x - valueW - SPACING.sm, y, { align: "right" });
+}
+
+/**
+ * PDF Pre-Venta / Cotización — branding SANSEI centralizado.
+ * Tipografía y espaciado normalizados desde @/theme/typography.
  */
 export async function generatePreSalePdf(data: PreSaleData): Promise<void> {
   const doc = new jsPDF({ unit: "mm", format: "a4" });
@@ -110,7 +77,7 @@ export async function generatePreSalePdf(data: PreSaleData): Promise<void> {
   doc.addImage(logoImg, "JPEG", M, 14, logoW, logoH);
 
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(FS.brandTitle);
+  doc.setFontSize(FS.title);
   doc.setTextColor(...BRAND.primary);
   doc.text("PRE-VENTA / COTIZACIÓN", W - M, 20, { align: "right" });
 
@@ -127,13 +94,13 @@ export async function generatePreSalePdf(data: PreSaleData): Promise<void> {
   doc.setFillColor(...BRAND.secondary);
   doc.rect(0, 33.4, W, 0.4, "F");
 
-  // ════ CLIENTE (compacto, nombre destacado) ════
-  let y = 40;
+  // ════ CLIENTE ════
+  let y = 32 + SPACING.lg;
   doc.setFont("helvetica", "bold");
   doc.setFontSize(FS.label);
   doc.setTextColor(...BRAND.primary);
   doc.text("DATOS DEL CLIENTE", M, y);
-  y += 4.5;
+  y += SPACING.sm;
 
   // Nombre cliente con jerarquía
   doc.setFont("helvetica", "bold");
@@ -146,7 +113,7 @@ export async function generatePreSalePdf(data: PreSaleData): Promise<void> {
   doc.setFontSize(FS.clientName);
   doc.setTextColor(...BRAND.ink);
   doc.text(data.client_name || "—", M + lblCliW, y);
-  y += 5.2;
+  y += SPACING.md;
 
   const drawField = (label: string, value: string) => {
     doc.setFont("helvetica", "bold");
@@ -160,7 +127,7 @@ export async function generatePreSalePdf(data: PreSaleData): Promise<void> {
     doc.setTextColor(...BRAND.text);
     const lines = doc.splitTextToSize(value || "—", W - M * 2 - lblW);
     doc.text(lines, M + lblW, y);
-    y += Math.max(4.4, lines.length * 4.4);
+    y += Math.max(SPACING.sm + 0.4, lines.length * (SPACING.sm + 0.4));
   };
 
   drawField("Teléfono", data.client_phone || "—");
@@ -174,7 +141,7 @@ export async function generatePreSalePdf(data: PreSaleData): Promise<void> {
   );
 
   autoTable(doc, {
-    startY: y + 2,
+    startY: y + SPACING.xs,
     head: [["N°", "Código", "Producto", "Cant.", "Precio Unit.", "Subtotal"]],
     body: data.items.map((it, idx) => {
       const price = Number(it.product.sell_price ?? 0);
@@ -218,31 +185,25 @@ export async function generatePreSalePdf(data: PreSaleData): Promise<void> {
 
   const finalY = (doc as any).lastAutoTable?.finalY ?? y + 60;
 
-  // ════ TOTAL (alineado, label+valor mismo eje) ════
-  const totalY = finalY + 4;
+  // ════ TOTAL ════
+  const totalY = finalY + SPACING.sm;
   const totalRight = W - M;
-  const totalValueStr = `Gs. ${formatNumberGs(total)}`;
-  const totalLabelStr = "Total estimado:";
 
   // Línea roja firma
   doc.setDrawColor(...BRAND.primary);
   doc.setLineWidth(0.8);
   doc.line(W - M - 80, totalY, totalRight, totalY);
 
-  const totalRowY = totalY + 6;
+  const totalRowY = totalY + SPACING.md;
 
-  // Valor (rojo, bold) — anclado a la derecha
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(FS.total);
-  doc.setTextColor(...BRAND.primary);
-  doc.text(totalValueStr, totalRight, totalRowY, { align: "right" });
-  const valueW = doc.getTextWidth(totalValueStr);
-
-  // Label (muted) — pegado al valor, ambos en mismo eje vertical
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(FS.totalLabel);
-  doc.setTextColor(...BRAND.muted);
-  doc.text(totalLabelStr, totalRight - valueW - 4, totalRowY, { align: "right" });
+  drawRightAlignedPair(
+    doc,
+    "Total estimado:",
+    `Gs. ${formatNumberGs(total)}`,
+    totalRight,
+    totalRowY,
+    { labelColor: BRAND.muted, valueColor: BRAND.primary, size: FS.total },
+  );
 
   // Son guaraníes — pegado al total
   doc.setFont("helvetica", "italic");
@@ -250,23 +211,24 @@ export async function generatePreSalePdf(data: PreSaleData): Promise<void> {
   doc.setTextColor(...BRAND.muted);
   const letras = `Son guaraníes: ${numberToWordsGs(Math.round(total))}.-`;
   const lLines = doc.splitTextToSize(letras, W - M * 2);
-  doc.text(lLines, M, totalRowY + 5.5);
+  doc.text(lLines, M, totalRowY + SPACING.sm + 1.5);
 
-  let bottomY = totalRowY + 5.5 + lLines.length * 3.8;
+  let bottomY = totalRowY + SPACING.sm + 1.5 + lLines.length * 3.8;
 
-  // ════ OBSERVACIONES / CONDICIONES COMERCIALES ════
-  // Reusa el campo `notes` (no se crea campo nuevo). Renderizado como lista neutra.
+  // ════ OBSERVACIONES ════
   if (data.notes && data.notes.trim()) {
-    bottomY += 4;
+    bottomY += SPACING.md;
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(FS.label);
-    doc.setTextColor(...BRAND.muted);
-    doc.text("OBSERVACIONES", M, bottomY);
-    bottomY += 4;
+    doc.setFontSize(FS.subtitle);
+    doc.setTextColor(...BRAND.primary);
+    doc.text("Observaciones", M, bottomY);
+    bottomY += SPACING.sm + 1;
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(FS.obs);
     doc.setTextColor(...BRAND.text);
+    const lineHeight = 4.4;
+    const bulletIndent = 4;
     const lines = data.notes
       .split(/\r?\n/)
       .map((l) => l.trim())
@@ -274,9 +236,10 @@ export async function generatePreSalePdf(data: PreSaleData): Promise<void> {
     for (const line of lines) {
       const isBullet = /^[-•*]\s?/.test(line);
       const text = isBullet ? line.replace(/^[-•*]\s?/, "") : line;
-      const wrapped = doc.splitTextToSize(`•  ${text}`, W - M * 2 - 2);
-      doc.text(wrapped, M, bottomY);
-      bottomY += wrapped.length * 4;
+      doc.text("•", M, bottomY);
+      const wrapped = doc.splitTextToSize(text, W - M * 2 - bulletIndent);
+      doc.text(wrapped, M + bulletIndent, bottomY);
+      bottomY += wrapped.length * lineHeight;
     }
   }
 
