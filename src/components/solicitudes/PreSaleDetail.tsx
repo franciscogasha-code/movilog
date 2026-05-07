@@ -287,6 +287,7 @@ export function PreSaleDetail({ requestId, onUpdate }: { requestId: string; onUp
                 (items as any[]).reduce((acc: number, it: any) => acc + Number(it.product?.sell_price ?? 0) * Number(it.quantity_requested || 0), 0),
               ).toLocaleString("de-DE")}
             </span>
+          </div>
         </div>
       </div>
 
