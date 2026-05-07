@@ -1,0 +1,1 @@
+ALTER TABLE public.branch_requests ADD COLUMN IF NOT EXISTS commercial_terms TEXT;

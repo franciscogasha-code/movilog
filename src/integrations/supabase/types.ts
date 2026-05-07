@@ -340,6 +340,7 @@ export type Database = {
           client_phone: string | null
           closed_at: string | null
           closed_by: string | null
+          commercial_terms: string | null
           consolidation_override: boolean | null
           converted_at: string | null
           converted_by_user_id: string | null
@@ -400,6 +401,7 @@ export type Database = {
           client_phone?: string | null
           closed_at?: string | null
           closed_by?: string | null
+          commercial_terms?: string | null
           consolidation_override?: boolean | null
           converted_at?: string | null
           converted_by_user_id?: string | null
@@ -464,6 +466,7 @@ export type Database = {
           client_phone?: string | null
           closed_at?: string | null
           closed_by?: string | null
+          commercial_terms?: string | null
           consolidation_override?: boolean | null
           converted_at?: string | null
           converted_by_user_id?: string | null
