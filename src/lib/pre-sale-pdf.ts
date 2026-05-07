@@ -22,9 +22,16 @@ interface PreSaleData {
   items: PreSaleItem[];
 }
 
-/**
- * Carga el logo como HTMLImageElement vía import directo de Vite.
- */
+// Layout constants — derivados de SPACING/FS, sin magic numbers visuales.
+const PAGE = { W: 210, H: 297, M: 16 } as const;
+const HEADER_BAND_Y = 32;
+const HEADER_BAND_H_PRIMARY = 1.4;
+const HEADER_BAND_H_SECONDARY = 0.4;
+const FOOTER_RESERVED = SPACING.xl * 2 + SPACING.md; // ~34mm reservado para footer
+const LINE_HEIGHT_BODY = SPACING.sm + 0.4; // interlineado consistente
+const TOTAL_LINE_W = 80;
+const TOTAL_LINE_THICKNESS = 0.8;
+
 function loadLogoImage(): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -36,8 +43,8 @@ function loadLogoImage(): Promise<HTMLImageElement> {
 }
 
 /**
- * Render de "label valor" alineado a la derecha como un único string.
- * Elimina dependencia de getTextWidth + offsets manuales.
+ * Render "label valor" alineado a la derecha con baseline común.
+ * Sin offsets mágicos: la separación es exclusivamente SPACING.sm.
  */
 function drawRightAlignedPair(
   doc: jsPDF,
@@ -47,62 +54,105 @@ function drawRightAlignedPair(
   y: number,
   opts: { labelColor: [number, number, number]; valueColor: [number, number, number]; size: number },
 ): void {
-  // Para mantener color distinto en label/valor con alineación derecha estable,
-  // medimos solo el valor (siempre necesario) y posicionamos el label a su izquierda.
   doc.setFont("helvetica", "bold");
   doc.setFontSize(opts.size);
 
   doc.setTextColor(...opts.valueColor);
-  doc.text(value, x, y, { align: "right" });
+  doc.text(value, x, y, { align: "right", baseline: "alphabetic" });
   const valueW = doc.getTextWidth(value);
 
   doc.setTextColor(...opts.labelColor);
-  doc.text(label, x - valueW - SPACING.sm, y, { align: "right" });
+  doc.text(label, x - valueW - SPACING.sm, y, { align: "right", baseline: "alphabetic" });
 }
 
 /**
- * PDF Pre-Venta / Cotización — branding SANSEI centralizado.
- * Tipografía y espaciado normalizados desde @/theme/typography.
+ * Garantiza espacio vertical o agrega página nueva.
  */
+function ensureSpace(doc: jsPDF, currentY: number, needed: number): number {
+  if (currentY + needed > PAGE.H - FOOTER_RESERVED) {
+    doc.addPage();
+    return PAGE.M + SPACING.md;
+  }
+  return currentY;
+}
+
+/**
+ * Footer institucional aplicado a todas las páginas.
+ */
+function drawFooter(doc: jsPDF): void {
+  const pages = doc.getNumberOfPages();
+  for (let p = 1; p <= pages; p++) {
+    doc.setPage(p);
+    doc.setFillColor(...BRAND.primary);
+    doc.rect(0, PAGE.H - SPACING.xl - SPACING.md, PAGE.W, 0.6, "F");
+
+    doc.setFont("helvetica", "bolditalic");
+    doc.setFontSize(FS.tagline);
+    doc.setTextColor(...BRAND.muted);
+    doc.text(BRAND_TAGLINE, PAGE.M, PAGE.H - SPACING.xl);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(FS.small);
+    doc.setTextColor(...BRAND.muted);
+    doc.text(
+      `${BRAND_CONTACT.web}  ·  ${BRAND_CONTACT.phone}  ·  ${BRAND_CONTACT.email}`,
+      PAGE.M,
+      PAGE.H - SPACING.lg,
+    );
+    doc.text(BRAND_CONTACT.city, PAGE.M, PAGE.H - SPACING.md);
+
+    doc.text(
+      "Documento no fiscal — Pre-venta sujeta a confirmación de stock y facturación.",
+      PAGE.W - PAGE.M,
+      PAGE.H - SPACING.lg,
+      { align: "right" },
+    );
+    doc.text(`Página ${p} de ${pages}  ·  Generado por MoviLog`, PAGE.W - PAGE.M, PAGE.H - SPACING.md, {
+      align: "right",
+    });
+  }
+}
+
 export async function generatePreSalePdf(data: PreSaleData): Promise<void> {
   const doc = new jsPDF({ unit: "mm", format: "a4" });
-  const W = 210;
-  const H = 297;
-  const M = 16;
+  const { W, M } = PAGE;
 
   // ════ HEADER ════
   const logoImg = await loadLogoImage();
-  const logoH = 12;
+  const logoH = SPACING.xl - SPACING.xs; // 12mm
   const logoW = logoH * (logoImg.width / logoImg.height);
-  doc.addImage(logoImg, "JPEG", M, 14, logoW, logoH);
+  doc.addImage(logoImg, "JPEG", M, M - SPACING.xs, logoW, logoH);
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(FS.title);
   doc.setTextColor(...BRAND.primary);
-  doc.text("PRE-VENTA / COTIZACIÓN", W - M, 20, { align: "right" });
+  doc.text("PRE-VENTA / COTIZACIÓN", W - M, M + SPACING.xs, { align: "right" });
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(FS.meta);
   doc.setTextColor(...BRAND.muted);
   const fecha = new Date(data.created_at).toLocaleDateString("es-PY", {
-    day: "2-digit", month: "2-digit", year: "numeric",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
   });
-  doc.text(`N° ${data.request_number}    ·    Fecha: ${fecha}`, W - M, 26, { align: "right" });
+  doc.text(`N° ${data.request_number}    ·    Fecha: ${fecha}`, W - M, M + SPACING.md + SPACING.xs, {
+    align: "right",
+  });
 
   doc.setFillColor(...BRAND.primary);
-  doc.rect(0, 32, W, 1.4, "F");
+  doc.rect(0, HEADER_BAND_Y, W, HEADER_BAND_H_PRIMARY, "F");
   doc.setFillColor(...BRAND.secondary);
-  doc.rect(0, 33.4, W, 0.4, "F");
+  doc.rect(0, HEADER_BAND_Y + HEADER_BAND_H_PRIMARY, W, HEADER_BAND_H_SECONDARY, "F");
 
   // ════ CLIENTE ════
-  let y = 32 + SPACING.lg;
+  let y = HEADER_BAND_Y + SPACING.lg;
   doc.setFont("helvetica", "bold");
   doc.setFontSize(FS.label);
   doc.setTextColor(...BRAND.primary);
   doc.text("DATOS DEL CLIENTE", M, y);
   y += SPACING.sm;
 
-  // Nombre cliente con jerarquía
   doc.setFont("helvetica", "bold");
   doc.setFontSize(FS.label);
   doc.setTextColor(...BRAND.muted);
@@ -127,7 +177,7 @@ export async function generatePreSalePdf(data: PreSaleData): Promise<void> {
     doc.setTextColor(...BRAND.text);
     const lines = doc.splitTextToSize(value || "—", W - M * 2 - lblW);
     doc.text(lines, M + lblW, y);
-    y += Math.max(SPACING.sm + 0.4, lines.length * (SPACING.sm + 0.4));
+    y += Math.max(LINE_HEIGHT_BODY, lines.length * LINE_HEIGHT_BODY);
   };
 
   drawField("Teléfono", data.client_phone || "—");
@@ -157,7 +207,7 @@ export async function generatePreSalePdf(data: PreSaleData): Promise<void> {
     }),
     styles: {
       fontSize: FS.table,
-      cellPadding: { top: 2.1, right: 3, bottom: 2.1, left: 3 },
+      cellPadding: { top: SPACING.xs, right: SPACING.sm - 1, bottom: SPACING.xs, left: SPACING.sm - 1 },
       valign: "middle",
       textColor: BRAND.text,
       lineColor: BRAND.line,
@@ -180,44 +230,42 @@ export async function generatePreSalePdf(data: PreSaleData): Promise<void> {
       4: { cellWidth: 28, halign: "right" },
       5: { cellWidth: 30, halign: "right", fontStyle: "bold" },
     },
-    margin: { left: M, right: M },
+    margin: { left: M, right: M, bottom: FOOTER_RESERVED },
   });
 
-  const finalY = (doc as any).lastAutoTable?.finalY ?? y + 60;
+  const finalY = (doc as any).lastAutoTable?.finalY ?? y + SPACING.xl * 4;
 
   // ════ TOTAL ════
-  const totalY = finalY + SPACING.sm;
+  let totalY = ensureSpace(doc, finalY + SPACING.sm, SPACING.lg + SPACING.md);
   const totalRight = W - M;
 
-  // Línea roja firma
   doc.setDrawColor(...BRAND.primary);
-  doc.setLineWidth(0.8);
-  doc.line(W - M - 80, totalY, totalRight, totalY);
+  doc.setLineWidth(TOTAL_LINE_THICKNESS);
+  doc.line(W - M - TOTAL_LINE_W, totalY, totalRight, totalY);
 
   const totalRowY = totalY + SPACING.md;
 
-  drawRightAlignedPair(
-    doc,
-    "Total estimado:",
-    `Gs. ${formatNumberGs(total)}`,
-    totalRight,
-    totalRowY,
-    { labelColor: BRAND.muted, valueColor: BRAND.primary, size: FS.total },
-  );
+  drawRightAlignedPair(doc, "Total estimado:", `Gs. ${formatNumberGs(total)}`, totalRight, totalRowY, {
+    labelColor: BRAND.muted,
+    valueColor: BRAND.primary,
+    size: FS.total,
+  });
 
-  // Son guaraníes — pegado al total
+  // "Son guaraníes" — espaciado normalizado
+  let bottomY = totalRowY + SPACING.md;
   doc.setFont("helvetica", "italic");
   doc.setFontSize(FS.small);
   doc.setTextColor(...BRAND.muted);
   const letras = `Son guaraníes: ${numberToWordsGs(Math.round(total))}.-`;
   const lLines = doc.splitTextToSize(letras, W - M * 2);
-  doc.text(lLines, M, totalRowY + SPACING.sm + 1.5);
-
-  let bottomY = totalRowY + SPACING.sm + 1.5 + lLines.length * 3.8;
+  bottomY = ensureSpace(doc, bottomY, lLines.length * LINE_HEIGHT_BODY);
+  doc.text(lLines, M, bottomY);
+  bottomY += lLines.length * LINE_HEIGHT_BODY;
 
   // ════ OBSERVACIONES ════
   if (data.notes && data.notes.trim()) {
-    bottomY += SPACING.md;
+    bottomY = ensureSpace(doc, bottomY + SPACING.md, SPACING.lg);
+
     doc.setFont("helvetica", "bold");
     doc.setFontSize(FS.subtitle);
     doc.setTextColor(...BRAND.primary);
@@ -225,47 +273,28 @@ export async function generatePreSalePdf(data: PreSaleData): Promise<void> {
     bottomY += SPACING.sm + 1;
 
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(FS.obs);
+    doc.setFontSize(FS.body);
     doc.setTextColor(...BRAND.text);
-    const lineHeight = 4.4;
-    const bulletIndent = 4;
+    const bulletIndent = SPACING.sm;
     const lines = data.notes
       .split(/\r?\n/)
       .map((l) => l.trim())
       .filter(Boolean);
+
     for (const line of lines) {
       const isBullet = /^[-•*]\s?/.test(line);
       const text = isBullet ? line.replace(/^[-•*]\s?/, "") : line;
-      doc.text("•", M, bottomY);
       const wrapped = doc.splitTextToSize(text, W - M * 2 - bulletIndent);
+      bottomY = ensureSpace(doc, bottomY, wrapped.length * LINE_HEIGHT_BODY);
+      // Bullet único garantizado: nunca renderiza doble
+      doc.text("•", M, bottomY);
       doc.text(wrapped, M + bulletIndent, bottomY);
-      bottomY += wrapped.length * lineHeight;
+      bottomY += wrapped.length * LINE_HEIGHT_BODY;
     }
   }
 
-  // ════ FOOTER ════
-  doc.setFillColor(...BRAND.primary);
-  doc.rect(0, H - 20, W, 0.6, "F");
-
-  doc.setFont("helvetica", "bolditalic");
-  doc.setFontSize(FS.tagline);
-  doc.setTextColor(...BRAND.primary);
-  doc.text(BRAND_TAGLINE, M, H - 14);
-
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(FS.small);
-  doc.setTextColor(...BRAND.muted);
-  doc.text(
-    `${BRAND_CONTACT.web}  ·  ${BRAND_CONTACT.phone}  ·  ${BRAND_CONTACT.email}`,
-    M, H - 9.5,
-  );
-  doc.text(BRAND_CONTACT.city, M, H - 5.5);
-
-  doc.text(
-    "Documento no fiscal — Pre-venta sujeta a confirmación de stock y facturación.",
-    W - M, H - 9.5, { align: "right" },
-  );
-  doc.text("Generado por MoviLog", W - M, H - 5.5, { align: "right" });
+  // ════ FOOTER (todas las páginas) ════
+  drawFooter(doc);
 
   doc.save(`pre-venta-${data.request_number}.pdf`);
 }
