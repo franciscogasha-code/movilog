@@ -1345,21 +1345,31 @@ export function SolicitudCreateForm({
           </div>
         )}
 
+        {isPreSale && (
+          <div className="space-y-2">
+            <Label>Condiciones / Observaciones (opcional)</Label>
+            <Textarea
+              value={commercialTerms}
+              onChange={(e) => setCommercialTerms(e.target.value)}
+              placeholder={"Ej:\n• Validez de la oferta: 10 días\n• Forma de pago: 50% anticipo, saldo contra entrega\n• Plazo de entrega: 20 a 25 días\n• Incluye IVA"}
+              rows={5}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Aparecerán en el PDF como “Condiciones”. Una línea por condición.
+            </p>
+          </div>
+        )}
+
         <div className="space-y-2">
-          <Label>{isPreSale ? "Condiciones comerciales (opcional)" : "Notas"}</Label>
+          <Label>{isPreSale ? "Notas internas (opcional)" : "Notas"}</Label>
           <Textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             placeholder={isPreSale
-              ? "Ej.: Validez de la oferta 7 días\nForma de pago: contado / transferencia\nPlazo de entrega: 48 hs"
+              ? "Notas internas no visibles en el PDF..."
               : "Observaciones adicionales..."}
-            rows={isPreSale ? 4 : 2}
+            rows={2}
           />
-          {isPreSale && (
-            <p className="text-[11px] text-muted-foreground">
-              Aparecerán en el PDF como “Observaciones”. Usá una línea por condición.
-            </p>
-          )}
         </div>
       </div>}
 
