@@ -263,21 +263,21 @@ export async function generatePreSalePdf(data: PreSaleData): Promise<void> {
   doc.text(lLines, M, bottomY);
   bottomY += lLines.length * LINE_HEIGHT_BODY;
 
-  // ════ OBSERVACIONES ════
-  if (data.notes && data.notes.trim()) {
+  // ════ CONDICIONES / OBSERVACIONES ════
+  const renderBulletBlock = (title: string, raw: string) => {
     bottomY = ensureSpace(doc, bottomY + SPACING.md, SPACING.lg);
 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(FS.subtitle);
     doc.setTextColor(...BRAND.primary);
-    doc.text("Observaciones", M, bottomY);
+    doc.text(title, M, bottomY);
     bottomY += SPACING.sm + 1;
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(FS.body);
     doc.setTextColor(...BRAND.text);
     const bulletIndent = SPACING.sm;
-    const lines = data.notes
+    const lines = raw
       .split(/\r?\n/)
       .map((l) => l.trim())
       .filter(Boolean);
@@ -287,11 +287,17 @@ export async function generatePreSalePdf(data: PreSaleData): Promise<void> {
       const text = isBullet ? line.replace(/^[-•*]\s?/, "") : line;
       const wrapped = doc.splitTextToSize(text, W - M * 2 - bulletIndent);
       bottomY = ensureSpace(doc, bottomY, wrapped.length * LINE_HEIGHT_BODY);
-      // Bullet único garantizado: nunca renderiza doble
       doc.text("•", M, bottomY);
       doc.text(wrapped, M + bulletIndent, bottomY);
       bottomY += wrapped.length * LINE_HEIGHT_BODY;
     }
+  };
+
+  if (data.commercial_terms && data.commercial_terms.trim()) {
+    renderBulletBlock("Condiciones", data.commercial_terms);
+  }
+  if (data.notes && data.notes.trim()) {
+    renderBulletBlock("Observaciones", data.notes);
   }
 
   // ════ FOOTER (todas las páginas) ════
