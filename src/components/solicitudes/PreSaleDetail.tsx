@@ -104,6 +104,7 @@ export function PreSaleDetail({ requestId, onUpdate }: { requestId: string; onUp
         client_email: (request as any).client_email,
         client_address: request.client_address,
         notes: request.notes,
+        commercial_terms: (request as any).commercial_terms,
         created_at: request.created_at,
         items: items as any,
       });
@@ -289,6 +290,31 @@ export function PreSaleDetail({ requestId, onUpdate }: { requestId: string; onUp
           </div>
         </div>
       </div>
+
+      {((request as any).commercial_terms?.trim() || request.notes?.trim()) && (
+        <Card>
+          <CardContent className="p-3 space-y-3 text-sm">
+            {(request as any).commercial_terms?.trim() && (
+              <div>
+                <div className="text-xs font-semibold text-primary uppercase tracking-wide mb-1">Condiciones</div>
+                <ul className="list-disc pl-5 space-y-0.5 whitespace-pre-wrap">
+                  {(request as any).commercial_terms
+                    .split(/\r?\n/)
+                    .map((l: string) => l.replace(/^[-•*]\s?/, "").trim())
+                    .filter((l: string) => l.length > 0)
+                    .map((l: string, i: number) => <li key={i}>{l}</li>)}
+                </ul>
+              </div>
+            )}
+            {request.notes?.trim() && (
+              <div>
+                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Notas internas</div>
+                <p className="whitespace-pre-wrap text-muted-foreground">{request.notes}</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {!isConverted && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">

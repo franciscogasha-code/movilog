@@ -97,6 +97,7 @@ export function SolicitudCreateForm({
   const [salesChannel, setSalesChannel] = useState("whatsapp");
   const [clientPhone, setClientPhone] = useState("");
   const [clientEmail, setClientEmail] = useState("");
+  const [commercialTerms, setCommercialTerms] = useState("");
   const [loadingEdit, setLoadingEdit] = useState(!!editingPreSaleId);
   const [wasConfirmed, setWasConfirmed] = useState(false);
 
@@ -264,6 +265,7 @@ export function SolicitudCreateForm({
         setClientPhone((req as any).client_phone ?? "");
         setClientEmail((req as any).client_email ?? "");
         setNotes(req.notes ?? "");
+        setCommercialTerms(((req as any).commercial_terms ?? "") || "");
         setWasConfirmed(((req as any).pre_sale_status ?? "draft") === "confirmed");
 
         const { data: loadedItems, error: itemsError } = await supabase
@@ -527,7 +529,8 @@ export function SolicitudCreateForm({
         sales_channel: salesChannel,
         is_pre_sale: true,
         notes: notes.trim() || null,
-      };
+        commercial_terms: commercialTerms.trim() || null,
+      } as any;
 
       if (editingPreSaleId) {
         const { data, error } = await supabase
@@ -1342,21 +1345,31 @@ export function SolicitudCreateForm({
           </div>
         )}
 
+        {isPreSale && (
+          <div className="space-y-2">
+            <Label>Condiciones / Observaciones (opcional)</Label>
+            <Textarea
+              value={commercialTerms}
+              onChange={(e) => setCommercialTerms(e.target.value)}
+              placeholder={"Ej:\n• Validez de la oferta: 10 días\n• Forma de pago: 50% anticipo, saldo contra entrega\n• Plazo de entrega: 20 a 25 días\n• Incluye IVA"}
+              rows={5}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Aparecerán en el PDF como “Condiciones”. Una línea por condición.
+            </p>
+          </div>
+        )}
+
         <div className="space-y-2">
-          <Label>{isPreSale ? "Condiciones comerciales (opcional)" : "Notas"}</Label>
+          <Label>{isPreSale ? "Notas internas (opcional)" : "Notas"}</Label>
           <Textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             placeholder={isPreSale
-              ? "Ej.: Validez de la oferta 7 días\nForma de pago: contado / transferencia\nPlazo de entrega: 48 hs"
+              ? "Notas internas no visibles en el PDF..."
               : "Observaciones adicionales..."}
-            rows={isPreSale ? 4 : 2}
+            rows={2}
           />
-          {isPreSale && (
-            <p className="text-[11px] text-muted-foreground">
-              Aparecerán en el PDF como “Observaciones”. Usá una línea por condición.
-            </p>
-          )}
         </div>
       </div>}
 
