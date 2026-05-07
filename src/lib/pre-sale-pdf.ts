@@ -1,6 +1,7 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { formatNumberGs } from "@/lib/format-currency";
+import sanseiLogo from "@/assets/sansei-logo.jpg";
 
 interface PreSaleItem {
   product: { name: string; bims_code?: string | null; sku?: string | null; sell_price?: number | null };
@@ -19,27 +20,35 @@ interface PreSaleData {
 }
 
 /* ──────────────────────────────────────────────────────────────
- * Sistema tipográfico único (en pt — jsPDF usa pt internamente)
- * Equivalencias aprox. al spec en px:
- *   14px ≈ 11pt  · 12px ≈ 9pt  · 11px ≈ 8.5pt  · 13px ≈ 10pt
+ * SISTEMA VISUAL SANSEI (branding oficial)
+ * Rojo corporativo dominante + paleta extendida (uso sutil).
+ * Logo: src/assets/sansei-logo.jpg
+ * Tagline: "más que un bazar, un paseo de compras"
  * ────────────────────────────────────────────────────────────── */
-const FS = {
-  title: 14,      // PRE-VENTA / COTIZACIÓN
-  meta: 10,       // N°, Fecha
-  label: 9,       // "Cliente:", "Teléfono:" ...
-  body: 10,       // valores cliente
-  table: 9,       // cuerpo tabla
-  tableHead: 9,   // encabezado tabla
-  total: 11,      // total bold
-  small: 8,       // notas / footer
+const BRAND = {
+  red: [227, 6, 19] as [number, number, number],          // #E30613 — primario
+  redDark: [176, 0, 14] as [number, number, number],      // hover/acento
+  teal: [0, 160, 184] as [number, number, number],
+  orange: [243, 146, 0] as [number, number, number],
+  ink: [26, 43, 58] as [number, number, number],          // azul muy oscuro casi negro
+  text: [33, 37, 41] as [number, number, number],
+  muted: [110, 118, 125] as [number, number, number],
+  line: [225, 228, 232] as [number, number, number],
+  rowAlt: [250, 250, 250] as [number, number, number],
+  white: [255, 255, 255] as [number, number, number],
 };
 
-const COLOR = {
-  text: 25,
-  muted: 100,
-  line: 200,
-  headBg: [30, 41, 59] as [number, number, number],
-  rowAlt: [248, 250, 252] as [number, number, number],
+const FS = {
+  brandTitle: 16,  // PRE-VENTA / COTIZACIÓN
+  meta: 9,
+  label: 8.5,
+  body: 10,
+  table: 9,
+  tableHead: 9,
+  total: 12,
+  totalLabel: 10,
+  small: 8,
+  tagline: 8.5,
 };
 
 const numberToWordsGs = (n: number): string => {
@@ -77,50 +86,93 @@ const numberToWordsGs = (n: number): string => {
   return out.trim();
 };
 
+// Carga el logo importado por Vite y lo convierte a dataURL para jsPDF.
+async function loadLogoDataUrl(): Promise<string> {
+  const res = await fetch(sanseiLogo);
+  const blob = await res.blob();
+  return await new Promise<string>((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result as string);
+    r.onerror = reject;
+    r.readAsDataURL(blob);
+  });
+}
+
 /**
- * PDF Pre-Venta / Cotización — diseño comercial profesional.
- * Layout compacto, alineado a la izquierda, jerarquía tipográfica única.
+ * PDF Pre-Venta / Cotización — branding SANSEI integrado como sistema visual.
+ *
+ * Decisiones de diseño:
+ * - Header: logo SANSEI a la izquierda + bloque "PRE-VENTA / COTIZACIÓN" a la
+ *   derecha en rojo corporativo. Banda inferior roja fina (firma de marca).
+ * - Cuerpo: fondo blanco predominante. Acentos rojos sólo en jerarquías clave
+ *   (título header, encabezado tabla, línea total) — uso sutil, no satura.
+ * - Tabla: head rojo SANSEI, texto blanco, tipografía consistente.
+ * - Total: línea roja gruesa + label/valor alineados a la derecha, valor en
+ *   rojo SANSEI bold para anclar la mirada.
+ * - Footer: tagline oficial "más que un bazar, un paseo de compras" en rojo +
+ *   datos de contacto SANSEI + disclaimer no fiscal.
+ * - "₲" no se renderiza en Helvetica nativa (WinAnsi) → usamos "Gs." estándar.
  */
 export async function generatePreSalePdf(data: PreSaleData): Promise<void> {
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   const W = 210;
+  const H = 297;
   const M = 16;
 
-  // ── 1. HEADER (bloque compacto, todo a la izquierda)
+  // ════════════════════════════════════════════════════════════
+  // 1. HEADER BRANDED (logo + título)
+  // ════════════════════════════════════════════════════════════
+  const logoData = await loadLogoDataUrl();
+  // Logo original 762×184 → ratio ~4.14. Altura objetivo 12mm → ancho ~50mm.
+  const logoH = 12;
+  const logoW = logoH * (762 / 184);
+  doc.addImage(logoData, "JPEG", M, 14, logoW, logoH);
+
+  // Bloque título a la derecha
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(FS.title);
-  doc.setTextColor(COLOR.text);
-  doc.text("PRE-VENTA / COTIZACIÓN", M, 20);
+  doc.setFontSize(FS.brandTitle);
+  doc.setTextColor(...BRAND.red);
+  doc.text("PRE-VENTA / COTIZACIÓN", W - M, 20, { align: "right" });
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(FS.meta);
-  doc.setTextColor(COLOR.muted);
-  doc.text(`N° ${data.request_number}`, M, 26);
+  doc.setTextColor(...BRAND.muted);
   const fecha = new Date(data.created_at).toLocaleDateString("es-PY", {
     day: "2-digit", month: "2-digit", year: "numeric",
   });
-  doc.text(`Fecha: ${fecha}`, M, 31);
+  doc.text(`N° ${data.request_number}    ·    Fecha: ${fecha}`, W - M, 26, { align: "right" });
 
-  // separador sutil
-  doc.setDrawColor(COLOR.line);
-  doc.setLineWidth(0.2);
-  doc.line(M, 35, W - M, 35);
+  // Banda roja firma de marca
+  doc.setFillColor(...BRAND.red);
+  doc.rect(0, 32, W, 1.4, "F");
+  // Sub-banda fina secundaria (teal) para guiño a paleta extendida
+  doc.setFillColor(...BRAND.teal);
+  doc.rect(0, 33.4, W, 0.4, "F");
 
-  // ── 2. CLIENTE (vertical, una sola columna)
+  // ════════════════════════════════════════════════════════════
+  // 2. CLIENTE
+  // ════════════════════════════════════════════════════════════
   let y = 42;
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(FS.label);
+  doc.setTextColor(...BRAND.red);
+  doc.text("DATOS DEL CLIENTE", M, y);
+  y += 5;
+
   const drawField = (label: string, value: string) => {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(FS.label);
-    doc.setTextColor(COLOR.muted);
+    doc.setTextColor(...BRAND.muted);
     const lbl = `${label}: `;
     doc.text(lbl, M, y);
     const lblW = doc.getTextWidth(lbl);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(FS.body);
-    doc.setTextColor(COLOR.text);
+    doc.setTextColor(...BRAND.text);
     const lines = doc.splitTextToSize(value || "—", W - M * 2 - lblW);
     doc.text(lines, M + lblW, y);
-    y += Math.max(5, lines.length * 4.5);
+    y += Math.max(5, lines.length * 4.6);
   };
 
   drawField("Cliente", data.client_name);
@@ -128,7 +180,9 @@ export async function generatePreSalePdf(data: PreSaleData): Promise<void> {
   if (data.client_email) drawField("Email", data.client_email);
   if (data.client_address) drawField("Dirección", data.client_address);
 
-  // ── 3. TABLA PRODUCTOS
+  // ════════════════════════════════════════════════════════════
+  // 3. TABLA PRODUCTOS
+  // ════════════════════════════════════════════════════════════
   const total = data.items.reduce(
     (acc, it) => acc + Number(it.product.sell_price ?? 0) * Number(it.quantity_requested),
     0,
@@ -151,20 +205,21 @@ export async function generatePreSalePdf(data: PreSaleData): Promise<void> {
     }),
     styles: {
       fontSize: FS.table,
-      cellPadding: { top: 2.5, right: 3, bottom: 2.5, left: 3 },
+      cellPadding: { top: 2.8, right: 3, bottom: 2.8, left: 3 },
       valign: "middle",
-      textColor: COLOR.text,
-      lineColor: COLOR.line,
+      textColor: BRAND.text,
+      lineColor: BRAND.line,
       lineWidth: 0.1,
     },
     headStyles: {
-      fillColor: COLOR.headBg,
-      textColor: 255,
+      fillColor: BRAND.red,
+      textColor: BRAND.white,
       fontStyle: "bold",
       fontSize: FS.tableHead,
       halign: "left",
+      lineWidth: 0,
     },
-    alternateRowStyles: { fillColor: COLOR.rowAlt },
+    alternateRowStyles: { fillColor: BRAND.rowAlt },
     columnStyles: {
       0: { cellWidth: 10, halign: "center" },
       1: { cellWidth: 22, halign: "left" },
@@ -178,11 +233,10 @@ export async function generatePreSalePdf(data: PreSaleData): Promise<void> {
 
   const finalY = (doc as any).lastAutoTable?.finalY ?? y + 60;
 
-  // ── 4. TOTAL (alineado a la derecha, label + valor en el mismo eje)
-  // NOTA: el símbolo "₲" (U+20B2) NO existe en la codificación WinAnsi de
-  // Helvetica nativa de jsPDF y se renderiza como un glifo corrupto (parece
-  // un "2"). Usamos "Gs." que es estándar comercial PY y 100% soportado.
-  const totalY = finalY + 6;
+  // ════════════════════════════════════════════════════════════
+  // 4. TOTAL (acento rojo SANSEI)
+  // ════════════════════════════════════════════════════════════
+  const totalY = finalY + 7;
   const totalRight = W - M;
   const totalValueStr = `Gs. ${formatNumberGs(total)}`;
   const totalLabelStr = "Total estimado:";
@@ -190,46 +244,70 @@ export async function generatePreSalePdf(data: PreSaleData): Promise<void> {
   doc.setFont("helvetica", "bold");
   doc.setFontSize(FS.total);
   const valueW = doc.getTextWidth(totalValueStr);
+  doc.setFontSize(FS.totalLabel);
   const labelW = doc.getTextWidth(totalLabelStr);
-  const blockLeft = totalRight - valueW - 6 - labelW;
+  const blockLeft = totalRight - valueW - 8 - labelW;
 
-  doc.setDrawColor(60);
-  doc.setLineWidth(0.4);
+  // Línea roja gruesa (firma de marca)
+  doc.setDrawColor(...BRAND.red);
+  doc.setLineWidth(0.8);
   doc.line(blockLeft, totalY, totalRight, totalY);
 
-  doc.setTextColor(COLOR.text);
-  doc.text(totalLabelStr, blockLeft, totalY + 6);
-  doc.text(totalValueStr, totalRight, totalY + 6, { align: "right" });
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(FS.totalLabel);
+  doc.setTextColor(...BRAND.muted);
+  doc.text(totalLabelStr, blockLeft, totalY + 6.5);
+
+  doc.setFontSize(FS.total);
+  doc.setTextColor(...BRAND.red);
+  doc.text(totalValueStr, totalRight, totalY + 6.5, { align: "right" });
 
   // Monto en letras
   doc.setFont("helvetica", "italic");
   doc.setFontSize(FS.small);
-  doc.setTextColor(COLOR.muted);
+  doc.setTextColor(...BRAND.muted);
   const letras = `Son guaraníes: ${numberToWordsGs(Math.round(total))}.-`;
   const lLines = doc.splitTextToSize(letras, W - M * 2);
-  doc.text(lLines, M, totalY + 14);
+  doc.text(lLines, M, totalY + 15);
 
-  let bottomY = totalY + 14 + lLines.length * 4;
+  let bottomY = totalY + 15 + lLines.length * 4;
 
   // Notas
   if (data.notes) {
     doc.setFont("helvetica", "normal");
     doc.setFontSize(FS.small);
-    doc.setTextColor(COLOR.muted);
+    doc.setTextColor(...BRAND.muted);
     const ns = doc.splitTextToSize(`Notas: ${data.notes}`, W - M * 2);
     doc.text(ns, M, bottomY + 4);
     bottomY += 4 + ns.length * 4;
   }
 
-  // ── Footer
+  // ════════════════════════════════════════════════════════════
+  // 5. FOOTER BRANDED (tagline + contacto)
+  // ════════════════════════════════════════════════════════════
+  // Banda fina roja de cierre
+  doc.setFillColor(...BRAND.red);
+  doc.rect(0, H - 20, W, 0.6, "F");
+
+  // Tagline oficial
+  doc.setFont("helvetica", "bolditalic");
+  doc.setFontSize(FS.tagline);
+  doc.setTextColor(...BRAND.red);
+  doc.text("más que un bazar, un paseo de compras", M, H - 14);
+
+  // Datos de contacto SANSEI (de branding oficial)
   doc.setFont("helvetica", "normal");
   doc.setFontSize(FS.small);
-  doc.setTextColor(150);
+  doc.setTextColor(...BRAND.muted);
+  doc.text("sansei.com.py  ·  0986 364 000  ·  sansei.py@gmail.com", M, H - 9.5);
+  doc.text("Encarnación, Paraguay", M, H - 5.5);
+
+  // Disclaimer derecha
   doc.text(
     "Documento no fiscal — Pre-venta sujeta a confirmación de stock y facturación.",
-    M, 287,
+    W - M, H - 9.5, { align: "right" },
   );
-  doc.text("Generado por MoviLog", W - M, 287, { align: "right" });
+  doc.text("Generado por MoviLog", W - M, H - 5.5, { align: "right" });
 
   doc.save(`pre-venta-${data.request_number}.pdf`);
 }
