@@ -97,6 +97,7 @@ export function SolicitudCreateForm({
   const [salesChannel, setSalesChannel] = useState("whatsapp");
   const [clientPhone, setClientPhone] = useState("");
   const [clientEmail, setClientEmail] = useState("");
+  const [commercialTerms, setCommercialTerms] = useState("");
   const [loadingEdit, setLoadingEdit] = useState(!!editingPreSaleId);
   const [wasConfirmed, setWasConfirmed] = useState(false);
 
@@ -264,6 +265,7 @@ export function SolicitudCreateForm({
         setClientPhone((req as any).client_phone ?? "");
         setClientEmail((req as any).client_email ?? "");
         setNotes(req.notes ?? "");
+        setCommercialTerms(((req as any).commercial_terms ?? "") || "");
         setWasConfirmed(((req as any).pre_sale_status ?? "draft") === "confirmed");
 
         const { data: loadedItems, error: itemsError } = await supabase
@@ -527,7 +529,8 @@ export function SolicitudCreateForm({
         sales_channel: salesChannel,
         is_pre_sale: true,
         notes: notes.trim() || null,
-      };
+        commercial_terms: commercialTerms.trim() || null,
+      } as any;
 
       if (editingPreSaleId) {
         const { data, error } = await supabase
