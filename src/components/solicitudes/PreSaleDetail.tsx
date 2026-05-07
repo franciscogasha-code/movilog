@@ -103,8 +103,6 @@ export function PreSaleDetail({ requestId, onUpdate }: { requestId: string; onUp
         client_phone: (request as any).client_phone,
         client_email: (request as any).client_email,
         client_address: request.client_address,
-        sales_channel: (request as any).sales_channel,
-        shipping_method: request.shipping_method,
         notes: request.notes,
         created_at: request.created_at,
         items: items as any,
