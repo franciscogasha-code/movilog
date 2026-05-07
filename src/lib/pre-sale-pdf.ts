@@ -136,16 +136,17 @@ export async function generatePreSalePdf(data: PreSaleData): Promise<void> {
 
   autoTable(doc, {
     startY: y + 4,
-    head: [["Producto", "Código", "Cant.", "Precio Unit.", "Subtotal"]],
-    body: data.items.map((it) => {
+    head: [["N°", "Código", "Producto", "Cant.", "Precio Unit.", "Subtotal"]],
+    body: data.items.map((it, idx) => {
       const price = Number(it.product.sell_price ?? 0);
       const qty = Number(it.quantity_requested);
       return [
-        it.product.name,
+        String(idx + 1),
         it.product.bims_code || it.product.sku || "—",
+        it.product.name,
         formatNumberGs(qty),
-        price ? formatNumberGs(price) : "—",
-        price ? formatNumberGs(price * qty) : "—",
+        price ? `Gs. ${formatNumberGs(price)}` : "—",
+        price ? `Gs. ${formatNumberGs(price * qty)}` : "—",
       ];
     }),
     styles: {
@@ -165,11 +166,12 @@ export async function generatePreSalePdf(data: PreSaleData): Promise<void> {
     },
     alternateRowStyles: { fillColor: COLOR.rowAlt },
     columnStyles: {
-      0: { cellWidth: "auto", halign: "left" },
-      1: { cellWidth: 30, halign: "left" },
-      2: { cellWidth: 18, halign: "right" },
-      3: { cellWidth: 28, halign: "right" },
-      4: { cellWidth: 30, halign: "right", fontStyle: "bold" },
+      0: { cellWidth: 10, halign: "center" },
+      1: { cellWidth: 22, halign: "left" },
+      2: { cellWidth: "auto", halign: "left" },
+      3: { cellWidth: 16, halign: "right" },
+      4: { cellWidth: 28, halign: "right" },
+      5: { cellWidth: 30, halign: "right", fontStyle: "bold" },
     },
     margin: { left: M, right: M },
   });
