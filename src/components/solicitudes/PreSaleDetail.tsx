@@ -380,9 +380,9 @@ export function PreSaleDetail({ requestId, onUpdate }: { requestId: string; onUp
           </DialogHeader>
           <div className="space-y-3">
             <div className="rounded-md border border-primary/30 bg-primary/5 p-2.5 text-xs space-y-1">
-              <p>• Se creará un <strong>pedido operativo nuevo</strong> con cliente, productos y condiciones heredados.</p>
+              <p>• Se creará un <strong>pedido operativo nuevo</strong> en estado <strong>En abastecimiento</strong>.</p>
               <p>• La pre-venta quedará <strong>bloqueada</strong> con estado "Convertida".</p>
-              <p>• El operador recibirá el pedido pre-cargado y entrará al flujo normal.</p>
+              <p>• El operador resolverá el stock (local o pedidos internos) y luego iniciará la operación logística.</p>
             </div>
 
             <div className="rounded-md border border-border bg-muted/40 p-2.5 text-xs space-y-1">
@@ -398,61 +398,23 @@ export function PreSaleDetail({ requestId, onUpdate }: { requestId: string; onUp
             <div>
               <Label>Sucursal ejecutora *</Label>
               <Select value={convertExecBranchId} onValueChange={setConvertExecBranchId}>
-                <SelectTrigger><SelectValue placeholder="¿Quién ejecuta el pedido?" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="¿Qué sucursal abastece y ejecuta?" /></SelectTrigger>
                 <SelectContent>
                   {branches.map((b: any) => (
                     <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-[10px] text-muted-foreground mt-1">El pedido quedará a cargo de esta sucursal.</p>
+              <p className="text-[10px] text-muted-foreground mt-1">El pedido quedará a cargo de esta sucursal hasta que se inicie la operación.</p>
             </div>
 
-            <div>
-              <Label>Sucursal origen del stock *</Label>
-              <Select value={convertSourceId} onValueChange={setConvertSourceId}>
-                <SelectTrigger><SelectValue placeholder="Seleccionar sucursal" /></SelectTrigger>
-                <SelectContent>
-                  {branches.map((b: any) => (
-                    <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Destino *</Label>
-              <Select value={convertTarget} onValueChange={setConvertTarget}>
-                <SelectTrigger><SelectValue placeholder="Seleccionar destino" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="client">Cliente</SelectItem>
-                  <SelectItem value="branch">Sucursal</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Método de entrega *</Label>
-              <Select value={convertMethod} onValueChange={setConvertMethod}>
-                <SelectTrigger><SelectValue placeholder="Seleccionar método" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="pickup">Retiro en sucursal</SelectItem>
-                  <SelectItem value="own_fleet">Flota propia</SelectItem>
-                  <SelectItem value="delivery">Delivery</SelectItem>
-                  <SelectItem value="courier">Encomienda</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {missingAddress && (
-              <p className="text-xs text-destructive">
-                Delivery/Encomienda a cliente requiere dirección. Editá la pre-venta para agregarla.
-              </p>
-            )}
             <div className="flex gap-2 pt-2">
               <Button variant="outline" className="flex-1" onClick={() => setConvertOpen(false)} disabled={converting}>
                 Cancelar
               </Button>
               <Button className="flex-1" onClick={convertToOrder} disabled={!canConvert || converting}>
                 {converting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <ArrowRightCircle className="h-4 w-4 mr-2" />}
-                Crear pedido operativo
+                Crear pedido en abastecimiento
               </Button>
             </div>
           </div>
