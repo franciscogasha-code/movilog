@@ -2988,10 +2988,12 @@ export type Database = {
       }
       fn_send_presale_to_operation: {
         Args: {
-          p_delivery_target?: string
+          p_delivery_target: string
+          p_operational_responsible_id?: string
           p_request_id: string
-          p_shipping_method?: string
-          p_source_branch_id?: string
+          p_requesting_branch_id: string
+          p_shipping_method: string
+          p_source_branch_id: string
         }
         Returns: string
       }

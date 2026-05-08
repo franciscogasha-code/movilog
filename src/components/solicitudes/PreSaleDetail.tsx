@@ -36,6 +36,7 @@ export function PreSaleDetail({ requestId, onUpdate }: { requestId: string; onUp
   const [confirming, setConfirming] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [convertOpen, setConvertOpen] = useState(false);
+  const [convertExecBranchId, setConvertExecBranchId] = useState<string>("");
   const [convertSourceId, setConvertSourceId] = useState<string>("");
   const [convertTarget, setConvertTarget] = useState<string>("");
   const [convertMethod, setConvertMethod] = useState<string>("");
@@ -158,6 +159,7 @@ export function PreSaleDetail({ requestId, onUpdate }: { requestId: string; onUp
   }
 
   function openConvertDialog() {
+    setConvertExecBranchId("");
     setConvertSourceId(defaultSourceId);
     setConvertTarget("");
     setConvertMethod("");
@@ -169,27 +171,32 @@ export function PreSaleDetail({ requestId, onUpdate }: { requestId: string; onUp
   const missingAddress =
     addressRequired && !((request as any)?.client_address ?? "").toString().trim();
   const canConvert =
-    !!convertSourceId && !!convertTarget && !!convertMethod && !missingAddress;
+    !!convertExecBranchId &&
+    !!convertSourceId &&
+    !!convertTarget &&
+    !!convertMethod &&
+    !missingAddress;
 
   async function convertToOrder() {
-    if (!canConvert) return;
+    if (!canConvert || converting) return;
     setConverting(true);
     try {
       const { data, error } = await supabase.rpc("fn_send_presale_to_operation" as any, {
         p_request_id: requestId,
+        p_requesting_branch_id: convertExecBranchId,
         p_source_branch_id: convertSourceId,
         p_delivery_target: convertTarget,
         p_shipping_method: convertMethod,
       });
       if (error) throw error;
       const newId = (data as string) || requestId;
-      toast.success("Pre-venta enviada a operación");
+      toast.success("Pedido operativo creado a partir de la pre-venta");
       setConvertOpen(false);
       qc.invalidateQueries({ queryKey: ["branch-requests"] });
       qc.invalidateQueries({ queryKey: ["branch-requests-counts"] });
       qc.invalidateQueries({ queryKey: ["pre-sale-detail", requestId] });
       onUpdate();
-      if (newId) navigate(`/solicitudes?detail=${newId}`);
+      if (newId && newId !== requestId) navigate(`/solicitudes?detail=${newId}`);
     } catch (e: any) {
       toast.error(e.message);
     } finally {
@@ -390,12 +397,37 @@ export function PreSaleDetail({ requestId, onUpdate }: { requestId: string; onUp
             <DialogTitle>Convertir a pedido</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              Se va a generar un pedido operativo (Pedido Online) a partir de esta pre-venta.
-              Definí origen, destino y método de entrega.
-            </p>
+            <div className="rounded-md border border-primary/30 bg-primary/5 p-2.5 text-xs space-y-1">
+              <p>• Se creará un <strong>pedido operativo nuevo</strong> con cliente, productos y condiciones heredados.</p>
+              <p>• La pre-venta quedará <strong>bloqueada</strong> con estado "Convertida".</p>
+              <p>• El operador recibirá el pedido pre-cargado y entrará al flujo normal.</p>
+            </div>
+
+            <div className="rounded-md border border-border bg-muted/40 p-2.5 text-xs space-y-1">
+              <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">Resumen heredado (solo lectura)</div>
+              <div><span className="text-muted-foreground">Cliente:</span> {request.client_name} · {(request as any).client_phone ?? "—"}</div>
+              {request.client_address && <div><span className="text-muted-foreground">Dirección:</span> {request.client_address}</div>}
+              <div><span className="text-muted-foreground">Productos:</span> {items.length} ítem(s) · {(items as any[]).reduce((a:number,it:any)=>a+Number(it.quantity_requested||0),0)} unidades</div>
+              {((request as any).commercial_terms?.trim()) && (
+                <div className="line-clamp-2"><span className="text-muted-foreground">Condiciones:</span> {(request as any).commercial_terms}</div>
+              )}
+            </div>
+
             <div>
-              <Label>Sucursal origen del stock</Label>
+              <Label>Sucursal ejecutora *</Label>
+              <Select value={convertExecBranchId} onValueChange={setConvertExecBranchId}>
+                <SelectTrigger><SelectValue placeholder="¿Quién ejecuta el pedido?" /></SelectTrigger>
+                <SelectContent>
+                  {branches.map((b: any) => (
+                    <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[10px] text-muted-foreground mt-1">El pedido quedará a cargo de esta sucursal.</p>
+            </div>
+
+            <div>
+              <Label>Sucursal origen del stock *</Label>
               <Select value={convertSourceId} onValueChange={setConvertSourceId}>
                 <SelectTrigger><SelectValue placeholder="Seleccionar sucursal" /></SelectTrigger>
                 <SelectContent>
@@ -406,7 +438,7 @@ export function PreSaleDetail({ requestId, onUpdate }: { requestId: string; onUp
               </Select>
             </div>
             <div>
-              <Label>Destino</Label>
+              <Label>Destino *</Label>
               <Select value={convertTarget} onValueChange={setConvertTarget}>
                 <SelectTrigger><SelectValue placeholder="Seleccionar destino" /></SelectTrigger>
                 <SelectContent>
@@ -416,7 +448,7 @@ export function PreSaleDetail({ requestId, onUpdate }: { requestId: string; onUp
               </Select>
             </div>
             <div>
-              <Label>Método de entrega</Label>
+              <Label>Método de entrega *</Label>
               <Select value={convertMethod} onValueChange={setConvertMethod}>
                 <SelectTrigger><SelectValue placeholder="Seleccionar método" /></SelectTrigger>
                 <SelectContent>
@@ -438,7 +470,7 @@ export function PreSaleDetail({ requestId, onUpdate }: { requestId: string; onUp
               </Button>
               <Button className="flex-1" onClick={convertToOrder} disabled={!canConvert || converting}>
                 {converting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <ArrowRightCircle className="h-4 w-4 mr-2" />}
-                Convertir
+                Crear pedido operativo
               </Button>
             </div>
           </div>
