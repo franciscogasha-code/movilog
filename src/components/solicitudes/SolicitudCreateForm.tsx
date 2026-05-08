@@ -1349,7 +1349,21 @@ export function SolicitudCreateForm({
           </div>
         )}
 
-        {isPreSale && (
+        <div className="space-y-2">
+          <Label>Notas</Label>
+          <Textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Observaciones adicionales..."
+            rows={2}
+          />
+        </div>
+      </div>}
+
+      {/* PRE-VENTA: Condiciones comerciales + Notas internas (siempre visibles si isPreSale) */}
+      {isPreSale && (
+        <div className="space-y-4">
+          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Condiciones</h3>
           <div className="space-y-2">
             <Label>Condiciones comerciales (opcional)</Label>
             <Textarea
@@ -1366,20 +1380,18 @@ export function SolicitudCreateForm({
               </span>
             </div>
           </div>
-        )}
 
-        <div className="space-y-2">
-          <Label>{isPreSale ? "Notas internas (opcional)" : "Notas"}</Label>
-          <Textarea
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder={isPreSale
-              ? "Notas internas no visibles en el PDF..."
-              : "Observaciones adicionales..."}
-            rows={2}
-          />
+          <div className="space-y-2">
+            <Label>Notas internas (opcional)</Label>
+            <Textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Notas internas no visibles en el PDF..."
+              rows={2}
+            />
+          </div>
         </div>
-      </div>}
+      )}
 
       {hasStockErrors && (
         <div className="flex items-start gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-sm text-destructive">
