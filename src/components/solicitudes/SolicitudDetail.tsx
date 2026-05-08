@@ -172,6 +172,7 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
   const [showRejectForm, setShowRejectForm] = useState(false);
   const [showTripSelector, setShowTripSelector] = useState(false);
   const [selectedTripId, setSelectedTripId] = useState("");
+  const [startOpOpen, setStartOpOpen] = useState(false);
 
   // Detección formal de padre: tiene hijos apuntándolo (parent_request_id).
   // Si es padre, no se exponen acciones operativas (defensa frontend; backend ya bloquea via RPC).
