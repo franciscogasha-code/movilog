@@ -13,8 +13,9 @@
  * históricos en transición.
  */
 export const ACTIVE_REQUEST_STATUSES = [
-  "in_supply",
-  "supplied",
+  // NOTE: "in_supply" y "supplied" se agregarán acá en Fase 3 (M1) cuando
+  // el enum request_status incluya esos valores en DB. Agregarlos antes
+  // rompe queries `.in("status", ...)` (error 22P02).
   "pending",
   "accepted",
   "in_preparation",
