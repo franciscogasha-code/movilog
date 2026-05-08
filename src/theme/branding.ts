@@ -36,8 +36,8 @@ export const BRAND: {
 
 export const BRAND_TAGLINE = "más que un bazar, un paseo de compras";
 export const BRAND_CONTACT = {
-  web: "sansei.com.py",
-  phone: "0986 364 000",
-  email: "sansei.py@gmail.com",
+  web: "www.sansei.com.py",
+  phone: "+595 981 307 900",
+  email: "contacto@sansei.com.py",
   city: "Encarnación, Paraguay",
 };
