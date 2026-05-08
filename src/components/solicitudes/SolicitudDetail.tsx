@@ -568,7 +568,39 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
         )}
       </div>
 
-      {/* ─── REJECTION INFO BLOCK ──────────────────────────────────── */}
+      {/* ─── ETAPA ABASTECIMIENTO (in_supply / supplied) ───────────── */}
+      {r.status === "in_supply" && (
+        <SupplyResolutionPanel requestId={requestId} onUpdate={onUpdate} />
+      )}
+      {r.status === "supplied" && (
+        <Card className="border-success/40 bg-success/5">
+          <CardContent className="p-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <Check className="h-5 w-5 text-success shrink-0" />
+              <div className="min-w-0">
+                <p className="text-sm font-semibold">Pedido abastecido</p>
+                <p className="text-xs text-muted-foreground">
+                  El stock está disponible. Iniciá la operación logística para entrar al flujo normal.
+                </p>
+              </div>
+            </div>
+            <Button onClick={() => setStartOpOpen(true)} disabled={transitioning}>
+              <Truck className="h-4 w-4 mr-2" />
+              Iniciar operación
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+      <StartOperationModal
+        requestId={requestId}
+        open={startOpOpen}
+        onOpenChange={setStartOpOpen}
+        defaultClientName={r.client_name}
+        defaultClientAddress={r.client_address}
+        defaultNotes={r.notes}
+        onStarted={onUpdate}
+      />
+
       {r.status === "rejected" && (
         <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-4 space-y-3">
           <div className="flex items-center gap-2">
