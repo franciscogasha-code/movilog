@@ -294,11 +294,9 @@ export async function generatePreSalePdf(data: PreSaleData): Promise<void> {
   };
 
   if (data.commercial_terms && data.commercial_terms.trim()) {
-    renderBulletBlock("Condiciones", data.commercial_terms);
+    renderBulletBlock("Condiciones comerciales", data.commercial_terms);
   }
-  if (data.notes && data.notes.trim()) {
-    renderBulletBlock("Observaciones", data.notes);
-  }
+  // Nota: `notes` es uso interno y NO se renderiza en el PDF del cliente.
 
   // ════ FOOTER (todas las páginas) ════
   drawFooter(doc);

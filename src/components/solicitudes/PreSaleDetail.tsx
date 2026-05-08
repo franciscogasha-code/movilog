@@ -296,7 +296,7 @@ export function PreSaleDetail({ requestId, onUpdate }: { requestId: string; onUp
           <CardContent className="p-3 space-y-3 text-sm">
             {(request as any).commercial_terms?.trim() && (
               <div>
-                <div className="text-xs font-semibold text-primary uppercase tracking-wide mb-1">Condiciones</div>
+                <div className="text-xs font-semibold text-primary uppercase tracking-wide mb-1">Condiciones comerciales</div>
                 <ul className="list-disc pl-5 space-y-0.5 whitespace-pre-wrap">
                   {(request as any).commercial_terms
                     .split(/\r?\n/)
