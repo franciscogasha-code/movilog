@@ -2909,6 +2909,7 @@ export type Database = {
         Args: { p_parent_id: string }
         Returns: undefined
       }
+      fn_confirm_local_supply: { Args: { p_request_id: string }; Returns: Json }
       fn_derive_flow_type: {
         Args: {
           p_delivery_target: string
@@ -2987,15 +2988,12 @@ export type Database = {
         Returns: Json
       }
       fn_send_presale_to_operation: {
-        Args: {
-          p_delivery_target: string
-          p_operational_responsible_id?: string
-          p_request_id: string
-          p_requesting_branch_id: string
-          p_shipping_method: string
-          p_source_branch_id: string
-        }
+        Args: { p_request_id: string; p_requesting_branch_id: string }
         Returns: string
+      }
+      fn_start_operation_from_supplied: {
+        Args: { p_payload: Json }
+        Returns: Json
       }
       fn_transition_request_status:
         | {
@@ -3189,6 +3187,8 @@ export type Database = {
         | "assigned_to_trip"
         | "delivered_to_third_party"
         | "draft"
+        | "in_supply"
+        | "supplied"
       request_type:
         | "client"
         | "reposition"
@@ -3507,6 +3507,8 @@ export const Constants = {
         "assigned_to_trip",
         "delivered_to_third_party",
         "draft",
+        "in_supply",
+        "supplied",
       ],
       request_type: [
         "client",
