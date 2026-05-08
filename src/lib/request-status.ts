@@ -13,6 +13,8 @@
  * históricos en transición.
  */
 export const ACTIVE_REQUEST_STATUSES = [
+  "in_supply",
+  "supplied",
   "pending",
   "accepted",
   "in_preparation",
