@@ -17,6 +17,19 @@ import { supabase } from "@/integrations/supabase/client";
 export const operationalRequests = () =>
   supabase.from("branch_requests").select("*").eq("is_pre_sale", false);
 
+/**
+ * Solicitudes operativas para flujos LOGÍSTICOS (ruteo, consolidación,
+ * chofer, fulfillment): excluye además los estados nuevos de abastecimiento
+ * (`in_supply`, `supplied`), donde el pedido aún no debe estar visible
+ * para logística.
+ */
+export const operationalLogisticsRequests = () =>
+  supabase
+    .from("branch_requests")
+    .select("*")
+    .eq("is_pre_sale", false)
+    .not("status", "in", "(in_supply,supplied)");
+
 /** Acceso completo (admin / Solicitudes). Incluye pre-ventas. */
 export const allRequests = () => supabase.from("branch_requests");
 
@@ -26,3 +39,5 @@ export const preSaleRequests = () =>
 
 /** Filtro inline reutilizable (texto). */
 export const EXCLUDE_PRESALE_FILTER = { is_pre_sale: false } as const;
+/** Filtro inline para excluir estados de abastecimiento en vistas logísticas. */
+export const EXCLUDE_SUPPLY_STATUSES = ["in_supply", "supplied"] as const;
