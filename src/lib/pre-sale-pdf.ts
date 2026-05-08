@@ -82,35 +82,50 @@ function ensureSpace(doc: jsPDF, currentY: number, needed: number): number {
  */
 function drawFooter(doc: jsPDF): void {
   const pages = doc.getNumberOfPages();
+  const lineH = SPACING.sm;
+
   for (let p = 1; p <= pages; p++) {
     doc.setPage(p);
-    doc.setFillColor(...BRAND.primary);
-    doc.rect(0, PAGE.H - SPACING.xl - SPACING.md, PAGE.W, 0.6, "F");
 
-    doc.setFont("helvetica", "bolditalic");
+    // Línea divisoria superior del footer
+    const footerTop = PAGE.H - (SPACING.xl * 2 + SPACING.sm);
+    doc.setFillColor(...BRAND.primary);
+    doc.rect(0, footerTop, PAGE.W, 0.6, "F");
+
+    // ── Bloque 1: CONTACTO (izquierda, prioridad alta) ──
+    let yL = footerTop + SPACING.md;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(FS.small);
+    doc.setTextColor(...BRAND.ink);
+    doc.text(BRAND_CONTACT.phone, PAGE.M, yL);
+    yL += lineH;
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(...BRAND.text);
+    doc.text(BRAND_CONTACT.email, PAGE.M, yL);
+    yL += lineH;
+    doc.text(BRAND_CONTACT.web, PAGE.M, yL);
+
+    // ── Bloque 2: MARCA (derecha, secundario) ──
+    let yR = footerTop + SPACING.md;
+    doc.setFont("helvetica", "italic");
     doc.setFontSize(FS.tagline);
     doc.setTextColor(...BRAND.muted);
-    doc.text(BRAND_TAGLINE, PAGE.M, PAGE.H - SPACING.xl);
-
+    doc.text(BRAND_TAGLINE, PAGE.W - PAGE.M, yR, { align: "right" });
+    yR += lineH;
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(FS.small);
+    doc.text(BRAND_CONTACT.city, PAGE.W - PAGE.M, yR, { align: "right" });
+
+    // ── Bloque 3: LEGAL (inferior, discreto) ──
+    const yLegal = PAGE.H - SPACING.md;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(FS.small - 1);
     doc.setTextColor(...BRAND.muted);
     doc.text(
-      `${BRAND_CONTACT.web}  ·  ${BRAND_CONTACT.phone}  ·  ${BRAND_CONTACT.email}`,
+      "Documento no fiscal. Cotización sujeta a disponibilidad de stock.",
       PAGE.M,
-      PAGE.H - SPACING.lg,
+      yLegal,
     );
-    doc.text(BRAND_CONTACT.city, PAGE.M, PAGE.H - SPACING.md);
-
-    doc.text(
-      "Documento no fiscal — Pre-venta sujeta a confirmación de stock y facturación.",
-      PAGE.W - PAGE.M,
-      PAGE.H - SPACING.lg,
-      { align: "right" },
-    );
-    doc.text(`Página ${p} de ${pages}  ·  Generado por MoviLog`, PAGE.W - PAGE.M, PAGE.H - SPACING.md, {
-      align: "right",
-    });
+    doc.text(`Página ${p} de ${pages}`, PAGE.W - PAGE.M, yLegal, { align: "right" });
   }
 }
 
