@@ -96,10 +96,7 @@ export function PreSaleDetail({ requestId, onUpdate }: { requestId: string; onUp
   const isConfirmed = preSaleStatus === "confirmed";
   const isConverted = preSaleStatus === "converted";
 
-  const defaultSourceId = useMemo(
-    () => (request as any)?.source_branch_id ?? (request as any)?.requesting_branch_id ?? "",
-    [request],
-  );
+
 
   if (isLoading || !request) {
     return <div className="p-8 text-center text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin inline" /></div>;
