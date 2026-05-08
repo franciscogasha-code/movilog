@@ -36,6 +36,7 @@ export function PreSaleDetail({ requestId, onUpdate }: { requestId: string; onUp
   const [confirming, setConfirming] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [convertOpen, setConvertOpen] = useState(false);
+  const [convertExecBranchId, setConvertExecBranchId] = useState<string>("");
   const [convertSourceId, setConvertSourceId] = useState<string>("");
   const [convertTarget, setConvertTarget] = useState<string>("");
   const [convertMethod, setConvertMethod] = useState<string>("");
@@ -158,6 +159,7 @@ export function PreSaleDetail({ requestId, onUpdate }: { requestId: string; onUp
   }
 
   function openConvertDialog() {
+    setConvertExecBranchId("");
     setConvertSourceId(defaultSourceId);
     setConvertTarget("");
     setConvertMethod("");
@@ -169,27 +171,32 @@ export function PreSaleDetail({ requestId, onUpdate }: { requestId: string; onUp
   const missingAddress =
     addressRequired && !((request as any)?.client_address ?? "").toString().trim();
   const canConvert =
-    !!convertSourceId && !!convertTarget && !!convertMethod && !missingAddress;
+    !!convertExecBranchId &&
+    !!convertSourceId &&
+    !!convertTarget &&
+    !!convertMethod &&
+    !missingAddress;
 
   async function convertToOrder() {
-    if (!canConvert) return;
+    if (!canConvert || converting) return;
     setConverting(true);
     try {
       const { data, error } = await supabase.rpc("fn_send_presale_to_operation" as any, {
         p_request_id: requestId,
+        p_requesting_branch_id: convertExecBranchId,
         p_source_branch_id: convertSourceId,
         p_delivery_target: convertTarget,
         p_shipping_method: convertMethod,
       });
       if (error) throw error;
       const newId = (data as string) || requestId;
-      toast.success("Pre-venta enviada a operación");
+      toast.success("Pedido operativo creado a partir de la pre-venta");
       setConvertOpen(false);
       qc.invalidateQueries({ queryKey: ["branch-requests"] });
       qc.invalidateQueries({ queryKey: ["branch-requests-counts"] });
       qc.invalidateQueries({ queryKey: ["pre-sale-detail", requestId] });
       onUpdate();
-      if (newId) navigate(`/solicitudes?detail=${newId}`);
+      if (newId && newId !== requestId) navigate(`/solicitudes?detail=${newId}`);
     } catch (e: any) {
       toast.error(e.message);
     } finally {
