@@ -500,6 +500,10 @@ export function SolicitudCreateForm({
       toast.error("Agregá al menos un producto");
       return;
     }
+    if (commercialTerms.trim().length > 1500) {
+      toast.error("Las condiciones comerciales no pueden superar 1500 caracteres.");
+      return;
+    }
 
     // Pre-venta NO tiene sucursal "vendedora" ni lógica logística.
     // requesting_branch_id se conserva (default del perfil o primera permitida) sólo
