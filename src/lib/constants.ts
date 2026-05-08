@@ -1,5 +1,7 @@
 // Status labels and colors for the UI
 export const REQUEST_STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
+  in_supply: { label: "En abastecimiento", variant: "secondary" },
+  supplied: { label: "Abastecido", variant: "default" },
   pending: { label: "Pendiente", variant: "secondary" },
   in_preparation: { label: "En preparación", variant: "default" },
   ready_for_pickup: { label: "Listo para retiro", variant: "default" },
