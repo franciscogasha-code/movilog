@@ -20,6 +20,8 @@ import { Package, ImageOff, AlertTriangle, Check, X, Loader2, Truck, ClipboardLi
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { ParentRequestSummary } from "@/components/solicitudes/ParentRequestSummary";
+import { SupplyResolutionPanel } from "@/components/solicitudes/SupplyResolutionPanel";
+import { StartOperationModal } from "@/components/solicitudes/StartOperationModal";
 import { useNavigate } from "react-router-dom";
 
 // Small helper to resolve operational responsible name
