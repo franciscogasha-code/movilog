@@ -53,6 +53,20 @@ export function PreSaleDetail({ requestId, onUpdate }: { requestId: string; onUp
     },
   });
 
+  const createdBy = (request as any)?.created_by ?? null;
+  const { data: salesperson } = useQuery({
+    queryKey: ["pre-sale-salesperson", createdBy],
+    enabled: !!createdBy,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("user_id", createdBy!)
+        .maybeSingle();
+      return data;
+    },
+  });
+
   const { data: items = [] } = useQuery({
     queryKey: ["pre-sale-items", requestId],
     queryFn: async () => {
