@@ -119,6 +119,7 @@ export function PreSaleDetail({ requestId, onUpdate }: { requestId: string; onUp
         client_address: request.client_address,
         notes: request.notes,
         commercial_terms: (request as any).commercial_terms,
+        salesperson_name: (salesperson as any)?.full_name ?? null,
         created_at: request.created_at,
         items: items as any,
       });
