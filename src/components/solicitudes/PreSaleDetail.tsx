@@ -37,9 +37,6 @@ export function PreSaleDetail({ requestId, onUpdate }: { requestId: string; onUp
   const [editOpen, setEditOpen] = useState(false);
   const [convertOpen, setConvertOpen] = useState(false);
   const [convertExecBranchId, setConvertExecBranchId] = useState<string>("");
-  const [convertSourceId, setConvertSourceId] = useState<string>("");
-  const [convertTarget, setConvertTarget] = useState<string>("");
-  const [convertMethod, setConvertMethod] = useState<string>("");
 
   const { data: request, isLoading } = useQuery({
     queryKey: ["pre-sale-detail", requestId],
@@ -160,22 +157,10 @@ export function PreSaleDetail({ requestId, onUpdate }: { requestId: string; onUp
 
   function openConvertDialog() {
     setConvertExecBranchId("");
-    setConvertSourceId(defaultSourceId);
-    setConvertTarget("");
-    setConvertMethod("");
     setConvertOpen(true);
   }
 
-  const addressRequired =
-    convertTarget === "client" && (convertMethod === "delivery" || convertMethod === "courier");
-  const missingAddress =
-    addressRequired && !((request as any)?.client_address ?? "").toString().trim();
-  const canConvert =
-    !!convertExecBranchId &&
-    !!convertSourceId &&
-    !!convertTarget &&
-    !!convertMethod &&
-    !missingAddress;
+  const canConvert = !!convertExecBranchId;
 
   async function convertToOrder() {
     if (!canConvert || converting) return;
@@ -184,13 +169,10 @@ export function PreSaleDetail({ requestId, onUpdate }: { requestId: string; onUp
       const { data, error } = await supabase.rpc("fn_send_presale_to_operation" as any, {
         p_request_id: requestId,
         p_requesting_branch_id: convertExecBranchId,
-        p_source_branch_id: convertSourceId,
-        p_delivery_target: convertTarget,
-        p_shipping_method: convertMethod,
       });
       if (error) throw error;
       const newId = (data as string) || requestId;
-      toast.success("Pedido operativo creado a partir de la pre-venta");
+      toast.success("Pedido creado en abastecimiento. Resolvé el stock antes de iniciar operación.");
       setConvertOpen(false);
       qc.invalidateQueries({ queryKey: ["branch-requests"] });
       qc.invalidateQueries({ queryKey: ["branch-requests-counts"] });
