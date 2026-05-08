@@ -200,6 +200,8 @@ export async function generatePreSalePdf(data: PreSaleData): Promise<void> {
   drawField("Teléfono", data.client_phone || "—");
   if (data.client_email) drawField("Email", data.client_email);
   if (data.client_address) drawField("Dirección", data.client_address);
+  y += SPACING.xs;
+  drawField("Asesor de ventas", (data.salesperson_name && data.salesperson_name.trim()) || "—");
 
   // ════ TABLA ════
   const total = data.items.reduce(
