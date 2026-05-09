@@ -260,6 +260,7 @@ export type Database = {
           created_at: string
           id: string
           item_purpose: Database["public"]["Enums"]["item_purpose"]
+          local_supply_qty: number
           notes: string | null
           product_id: string
           quantity_accepted: number | null
@@ -278,6 +279,7 @@ export type Database = {
           created_at?: string
           id?: string
           item_purpose?: Database["public"]["Enums"]["item_purpose"]
+          local_supply_qty?: number
           notes?: string | null
           product_id: string
           quantity_accepted?: number | null
@@ -296,6 +298,7 @@ export type Database = {
           created_at?: string
           id?: string
           item_purpose?: Database["public"]["Enums"]["item_purpose"]
+          local_supply_qty?: number
           notes?: string | null
           product_id?: string
           quantity_accepted?: number | null
@@ -2909,6 +2912,14 @@ export type Database = {
         Args: { p_parent_id: string }
         Returns: undefined
       }
+      fn_commit_supply_resolution: {
+        Args: {
+          p_idempotency_key: string
+          p_request_id: string
+          p_resolutions: Json
+        }
+        Returns: Json
+      }
       fn_confirm_local_supply: { Args: { p_request_id: string }; Returns: Json }
       fn_derive_flow_type: {
         Args: {
@@ -3015,6 +3026,10 @@ export type Database = {
             }
             Returns: Json
           }
+      fn_try_promote_supplied: {
+        Args: { p_parent_id: string }
+        Returns: undefined
+      }
       fn_validate_driver_pickup: {
         Args: { p_fulfillment_id: string }
         Returns: Json
