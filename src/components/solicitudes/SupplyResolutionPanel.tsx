@@ -11,7 +11,7 @@ import { Loader2, CheckCircle2, ExternalLink, PackageCheck, Clock, Warehouse, Al
 import { toast } from "sonner";
 import { REQUEST_STATUS_CONFIG } from "@/lib/constants";
 import { StatusBadge } from "@/components/StatusBadge";
-import { useLiveStock } from "@/hooks/use-live-stock";
+import { useLiveStock, revalidateLiveStock, type LiveStockData } from "@/hooks/use-live-stock";
 import { useBranches } from "@/hooks/use-branches";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useSupplyResolution } from "@/hooks/use-supply-resolution";
@@ -46,6 +46,7 @@ export function SupplyResolutionPanel({
       if (error) throw error;
       return data;
     },
+    refetchInterval: 15_000, // V4: captar promoción del trigger B en flujo 100% local
   });
 
   const { data: items = [] } = useQuery({
@@ -75,9 +76,15 @@ export function SupplyResolutionPanel({
     refetchInterval: 30_000,
   });
 
-  // ─── Modo monitor: hay hijos o algún local_supply_qty>0 (ya resuelto) ───
+  // V4: monitorMode basado en señal real de commit (no en local_supply_qty solo)
+  // - hasChildren: hijos creados implican commit cerrado (tx atómica del RPC).
+  // - parent.status supplied/cerrado: trigger A/B promovió tras cobertura completa.
+  const hasChildren = (children as any[]).length > 0;
+  const parentStatus = (parent as any)?.status;
+  const parentSupplied = parentStatus === "supplied" || closedSet.has(parentStatus);
+  const monitorMode = hasChildren || parentSupplied;
+  // anyLocal sigue usándose SOLO dentro del bloque monitor para mostrar resumen de stock local.
   const anyLocal = items.some((i: any) => Number(i.local_supply_qty) > 0);
-  const monitorMode = (children as any[]).length > 0 || anyLocal;
 
   // ─── Live stock para items (solo en modo resolución) ──────────────
   const bimsCodes = useMemo(
@@ -123,11 +130,13 @@ export function SupplyResolutionPanel({
     const next = res.nextIncompleteId(itemId);
     setOpenItemId(next);
     if (!next) return;
-    requestAnimationFrame(() => {
-      if (!isMobile) return;
+    // V4: delay defensivo en mobile para evitar competir con animación Radix Accordion (iOS Safari).
+    const delay = isMobile ? 150 : 0;
+    window.setTimeout(() => {
       if (document.activeElement instanceof HTMLInputElement) return;
+      if (!isMobile) return;
       itemRefs.current[next]?.scrollIntoView({ behavior: "smooth", block: "center" });
-    });
+    }, delay);
   };
 
   // Detectar transiciones incompleto→completo para disparar auto-focus
@@ -144,10 +153,61 @@ export function SupplyResolutionPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [res.state, itemDefs]);
 
+  // V4: limpiar marca de "stale" cuando el operador edita la resolución.
+  const stateSig = useMemo(() => JSON.stringify(res.state), [res.state]);
+  const lastStateSigRef = useRef(stateSig);
+  useEffect(() => {
+    if (lastStateSigRef.current !== stateSig) {
+      lastStateSigRef.current = stateSig;
+      setStaleItemIds((prev) => (prev.size === 0 ? prev : new Set()));
+    }
+  }, [stateSig]);
+
   // ─── Commit ────────────────────────────────────────────────────────
   const [commitOpen, setCommitOpen] = useState(false);
   const [committing, setCommitting] = useState(false);
+  const [revalidating, setRevalidating] = useState(false);
+  const [staleItemIds, setStaleItemIds] = useState<Set<string>>(new Set());
   const idempotencyKeyRef = useRef<string | null>(null);
+
+  // V4: Revalidación pre-modal contra stock vivo BIMS fresco.
+  async function openCommitWithRevalidation() {
+    if (revalidating || committing) return;
+    setRevalidating(true);
+    setStaleItemIds(new Set());
+    try {
+      const codes = (items as any[]).map((i) => i.product?.bims_code).filter(Boolean) as string[];
+      const fresh: LiveStockData = await revalidateLiveStock(codes);
+      const failed = new Set<string>();
+      for (const it of items as any[]) {
+        const bims = it.product?.bims_code as string | undefined;
+        const live = bims ? fresh[bims] : undefined;
+        const localAvail = bims && requestingCode ? Math.floor(live?.stock_by_warehouse?.[requestingCode] ?? 0) : 0;
+        const st = res.state[it.id] ?? { localQty: 0, externals: [] };
+        if (st.localQty > localAvail) { failed.add(it.id); continue; }
+        for (const ext of st.externals) {
+          const b = branches?.find((x: any) => x.id === ext.branchId);
+          const code = b?.code;
+          const avail = code ? Math.floor(live?.stock_by_warehouse?.[code] ?? 0) : 0;
+          if (ext.qty > avail) { failed.add(it.id); break; }
+        }
+      }
+      // Refrescar el cache de useLiveStock con el snapshot fresco
+      qc.invalidateQueries({ queryKey: ["live-stock"] });
+      if (failed.size > 0) {
+        setStaleItemIds(failed);
+        const firstFailed = (items as any[]).find((i) => failed.has(i.id))?.id ?? null;
+        if (firstFailed) setOpenItemId(firstFailed);
+        toast.error("El stock cambió. Revisá los items resaltados.");
+        return;
+      }
+      setCommitOpen(true);
+    } catch (e: any) {
+      toast.error(e?.message || "No se pudo revalidar stock");
+    } finally {
+      setRevalidating(false);
+    }
+  }
 
   async function doCommit() {
     if (!idempotencyKeyRef.current) idempotencyKeyRef.current = crypto.randomUUID();
@@ -165,6 +225,9 @@ export function SupplyResolutionPanel({
       qc.invalidateQueries({ queryKey: ["supply-children", requestId] });
       qc.invalidateQueries({ queryKey: ["supply-items", requestId] });
       qc.invalidateQueries({ queryKey: ["supply-parent", requestId] });
+      // V4: invalidar cache live-stock para evitar stock viejo en navegación/back/refresh.
+      qc.invalidateQueries({ queryKey: ["live-stock"] });
+      qc.removeQueries({ queryKey: ["live-stock"], exact: false });
       onUpdate();
       setCommitOpen(false);
     } catch (e: any) {
@@ -299,13 +362,16 @@ export function SupplyResolutionPanel({
             const localMax = Math.min(requested, localStockOf(it.product?.bims_code));
             const st = res.state[it.id] ?? { localQty: 0, externals: [] };
             const externalRemaining = requested - st.localQty;
+            const isStale = staleItemIds.has(it.id);
 
             return (
               <AccordionItem
                 key={it.id}
                 value={it.id}
                 ref={(el: any) => (itemRefs.current[it.id] = el)}
-                className="rounded-md border border-border bg-background data-[state=open]:border-primary/50"
+                className={`rounded-md border bg-background data-[state=open]:border-primary/50 ${
+                  isStale ? "border-destructive/60 bg-destructive/5" : "border-border"
+                }`}
               >
                 <AccordionTrigger className="px-3 py-2 hover:no-underline">
                   <div className="flex items-center justify-between gap-3 w-full min-w-0">
@@ -313,9 +379,14 @@ export function SupplyResolutionPanel({
                       <p className="text-sm font-medium truncate">{it.product?.name ?? "Producto"}</p>
                       <p className="text-[11px] text-muted-foreground">
                         Requerido: <span className="tabular-nums">{requested}</span>
+                        {isStale && <span className="ml-2 text-destructive font-medium">· Stock cambió</span>}
                       </p>
                     </div>
-                    {valid ? (
+                    {isStale ? (
+                      <Badge variant="outline" className="border-destructive/60 text-destructive gap-1 shrink-0">
+                        <AlertCircle className="h-3 w-3" /> Revisar
+                      </Badge>
+                    ) : valid ? (
                       <Badge className="bg-success/15 text-success border-success/30 gap-1 shrink-0">
                         <CheckCircle2 className="h-3 w-3" /> {sum}/{requested}
                       </Badge>
@@ -392,9 +463,18 @@ export function SupplyResolutionPanel({
       {/* CTA sticky cuando todo está completo */}
       {res.allValid && (
         <div className="sticky bottom-0 inset-x-0 bg-background/95 backdrop-blur border-t border-border p-3 z-10">
-          <Button className="w-full" size="lg" onClick={() => setCommitOpen(true)} disabled={committing}>
-            <CheckCircle2 className="h-4 w-4 mr-2" />
-            Revisar y confirmar abastecimiento
+          <Button
+            className="w-full"
+            size="lg"
+            onClick={openCommitWithRevalidation}
+            disabled={committing || revalidating || staleItemIds.size > 0}
+          >
+            {revalidating ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <CheckCircle2 className="h-4 w-4 mr-2" />
+            )}
+            {revalidating ? "Revalidando stock…" : "Revisar y confirmar abastecimiento"}
           </Button>
         </div>
       )}
