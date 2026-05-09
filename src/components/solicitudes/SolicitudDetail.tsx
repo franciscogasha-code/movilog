@@ -20,6 +20,7 @@ import { Package, ImageOff, AlertTriangle, Check, X, Loader2, Truck, ClipboardLi
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { ParentRequestSummary } from "@/components/solicitudes/ParentRequestSummary";
+import { CommercialBackedBadge, isCommercialBackedChild } from "@/components/solicitudes/CommercialBackedBadge";
 import { SupplyResolutionPanel } from "@/components/solicitudes/SupplyResolutionPanel";
 import { StartOperationModal } from "@/components/solicitudes/StartOperationModal";
 import { useNavigate } from "react-router-dom";
@@ -195,7 +196,8 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
         .select(`
           *,
           requesting_branch:branches!branch_requests_requesting_branch_id_fkey(name, code, logistic_group),
-          source_branch:branches!branch_requests_source_branch_id_fkey(name, code, logistic_group, is_central_warehouse)
+          source_branch:branches!branch_requests_source_branch_id_fkey(name, code, logistic_group, is_central_warehouse),
+          parent:parent_request_id(id, request_number, request_type, is_pre_sale)
         `)
         .eq("id", requestId)
         .single();
@@ -549,6 +551,7 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
           <Badge variant="outline" className="capitalize">
             {REQUEST_TYPE_LABELS[r.request_type] || r.request_type}
           </Badge>
+          {isCommercialBackedChild(r.parent) && <CommercialBackedBadge />}
         </div>
         <p className="text-xs sm:text-sm text-muted-foreground">
           {new Date(r.created_at).toLocaleString("es-PY")}

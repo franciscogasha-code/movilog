@@ -20,6 +20,7 @@ import {
 } from "@/lib/request-status";
 import { useParentRequestIds } from "@/hooks/use-parent-request-ids";
 import { StatusBadge } from "@/components/StatusBadge";
+import { CommercialBackedBadge, isCommercialBackedChild } from "@/components/solicitudes/CommercialBackedBadge";
 import { AdminReposicionForm } from "@/components/solicitudes/AdminReposicionForm";
 import { SolicitudCreateForm } from "@/components/solicitudes/SolicitudCreateForm";
 import { RequestDetailRouter } from "@/components/solicitudes/RequestDetailRouter";
@@ -310,7 +311,7 @@ export default function Solicitudes() {
           `*,
            requesting_branch:branches!branch_requests_requesting_branch_id_fkey(name, code),
            source_branch:branches!branch_requests_source_branch_id_fkey(name, code),
-           parent:parent_request_id(id, request_number)${
+           parent:parent_request_id(id, request_number, request_type, is_pre_sale)${
              isPreSaleTab
                ? `,items:branch_request_items(quantity_requested, product:products(sell_price))`
                : ""
@@ -1065,6 +1066,9 @@ export default function Solicitudes() {
                                 <TooltipContent side="top">Pertenece a un pedido padre multi-origen. Tocar para abrir el padre.</TooltipContent>
                               </Tooltip>
                             )}
+                            {!isParent && isCommercialBackedChild(r.parent) && (
+                              <CommercialBackedBadge />
+                            )}
                           </div>
                           {r.is_pre_sale ? (
                             <Badge variant="outline" className="text-[10px] shrink-0 capitalize">
@@ -1158,9 +1162,14 @@ export default function Solicitudes() {
                               </div>
                             </td>
                             <td className="px-3 py-2.5">
-                              <Badge variant="outline" className="text-xs capitalize font-normal">
-                                {REQUEST_TYPE_LABELS[r.request_type] || r.request_type}
-                              </Badge>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <Badge variant="outline" className="text-xs capitalize font-normal">
+                                  {REQUEST_TYPE_LABELS[r.request_type] || r.request_type}
+                                </Badge>
+                                {!isParent && isCommercialBackedChild(r.parent) && (
+                                  <CommercialBackedBadge />
+                                )}
+                              </div>
                             </td>
                             <td className="px-3 py-2.5 max-w-[280px]">
                               <div className="truncate">{buildRouteCell(r)}</div>
