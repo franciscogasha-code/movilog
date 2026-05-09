@@ -35,7 +35,7 @@ export function SupplyResolutionPanel({
   const { data: branches } = useBranches();
 
   // ─── Datos del padre + items + hijos ───────────────────────────────
-  const { data: parent } = useQuery({
+  const { data: parent, isLoading: loadingParent } = useQuery({
     queryKey: ["supply-parent", requestId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -49,7 +49,7 @@ export function SupplyResolutionPanel({
     refetchInterval: 15_000, // V4: captar promoción del trigger B en flujo 100% local
   });
 
-  const { data: items = [] } = useQuery({
+  const { data: items = [], isLoading: loadingItems } = useQuery({
     queryKey: ["supply-items", requestId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -62,7 +62,7 @@ export function SupplyResolutionPanel({
     },
   });
 
-  const { data: children = [] } = useQuery({
+  const { data: children = [], isLoading: loadingChildren } = useQuery({
     queryKey: ["supply-children", requestId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -76,7 +76,7 @@ export function SupplyResolutionPanel({
     refetchInterval: 30_000,
   });
 
-  const { data: commitEventCount = 0 } = useQuery({
+  const { data: commitEventCount = 0, isLoading: loadingCommitEvents } = useQuery({
     queryKey: ["supply-commit-events", requestId],
     queryFn: async () => {
       const { count, error } = await supabase
@@ -97,14 +97,15 @@ export function SupplyResolutionPanel({
   const hasChildren = (children as any[]).length > 0;
   const parentStatus = (parent as any)?.status;
   const hasCommitEvent = commitEventCount > 0;
-  const monitorMode = hasChildren || hasCommitEvent || parentStatus === "supplied" || closedSet.has(parentStatus);
+  const resolutionSignalsLoading = loadingParent || loadingChildren || loadingCommitEvents;
+  const monitorMode = !resolutionSignalsLoading && (hasChildren || hasCommitEvent || parentStatus === "supplied" || closedSet.has(parentStatus));
   // anyLocal sigue usándose SOLO dentro del bloque monitor para mostrar resumen de stock local.
   const anyLocal = items.some((i: any) => Number(i.local_supply_qty) > 0);
 
   // ─── Live stock para items (solo en modo resolución) ──────────────
   const bimsCodes = useMemo(
-    () => (monitorMode ? [] : items.map((i: any) => i.product?.bims_code).filter(Boolean) as string[]),
-    [items, monitorMode]
+    () => (monitorMode || resolutionSignalsLoading ? [] : items.map((i: any) => i.product?.bims_code).filter(Boolean) as string[]),
+    [items, monitorMode, resolutionSignalsLoading]
   );
   const { liveStock, isLoadingStock } = useLiveStock(bimsCodes);
 
