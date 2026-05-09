@@ -78,11 +78,16 @@ export function SupplyResolutionPanel({
 
   // V4: monitorMode basado en señal real de commit (no en local_supply_qty solo)
   // - hasChildren: hijos creados implican commit cerrado (tx atómica del RPC).
-  // - parent.status supplied/cerrado: trigger A/B promovió tras cobertura completa.
+  // - parent.status in_supply/supplied/cerrados: el pedido ya salió de "pending" hacia abastecimiento.
+  //   Esto cubre commits previos por RPC, promociones del trigger A/B, y pedidos legacy en in_supply.
   const hasChildren = (children as any[]).length > 0;
   const parentStatus = (parent as any)?.status;
-  const parentSupplied = parentStatus === "supplied" || closedSet.has(parentStatus);
-  const monitorMode = hasChildren || parentSupplied;
+  const inSupplyOrBeyond = parentStatus === "in_supply"
+    || parentStatus === "supplied"
+    || closedSet.has(parentStatus);
+  const monitorMode = hasChildren || inSupplyOrBeyond;
+  // anyLocal sigue usándose SOLO dentro del bloque monitor para mostrar resumen de stock local.
+  const anyLocal = items.some((i: any) => Number(i.local_supply_qty) > 0);
   // anyLocal sigue usándose SOLO dentro del bloque monitor para mostrar resumen de stock local.
   const anyLocal = items.some((i: any) => Number(i.local_supply_qty) > 0);
 
