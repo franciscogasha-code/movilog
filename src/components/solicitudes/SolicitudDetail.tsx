@@ -550,6 +550,7 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
           <Badge variant="outline" className="capitalize">
             {REQUEST_TYPE_LABELS[r.request_type] || r.request_type}
           </Badge>
+          {isCommercialBackedChild(r.parent) && <CommercialBackedBadge />}
         </div>
         <p className="text-xs sm:text-sm text-muted-foreground">
           {new Date(r.created_at).toLocaleString("es-PY")}
