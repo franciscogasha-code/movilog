@@ -46,6 +46,7 @@ export function SupplyResolutionPanel({
       if (error) throw error;
       return data;
     },
+    refetchInterval: 15_000, // V4: captar promoción del trigger B en flujo 100% local
   });
 
   const { data: items = [] } = useQuery({
@@ -75,9 +76,15 @@ export function SupplyResolutionPanel({
     refetchInterval: 30_000,
   });
 
-  // ─── Modo monitor: hay hijos o algún local_supply_qty>0 (ya resuelto) ───
+  // V4: monitorMode basado en señal real de commit (no en local_supply_qty solo)
+  // - hasChildren: hijos creados implican commit cerrado (tx atómica del RPC).
+  // - parent.status supplied/cerrado: trigger A/B promovió tras cobertura completa.
+  const hasChildren = (children as any[]).length > 0;
+  const parentStatus = (parent as any)?.status;
+  const parentSupplied = parentStatus === "supplied" || closedSet.has(parentStatus);
+  const monitorMode = hasChildren || parentSupplied;
+  // anyLocal sigue usándose SOLO dentro del bloque monitor para mostrar resumen de stock local.
   const anyLocal = items.some((i: any) => Number(i.local_supply_qty) > 0);
-  const monitorMode = (children as any[]).length > 0 || anyLocal;
 
   // ─── Live stock para items (solo en modo resolución) ──────────────
   const bimsCodes = useMemo(
