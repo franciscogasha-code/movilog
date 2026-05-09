@@ -273,6 +273,16 @@ export function SupplyResolutionPanel({
 
   const openChildren = (children as any[]).filter((c) => !closedSet.has(c.status));
 
+  if (resolutionSignalsLoading || loadingItems) {
+    return (
+      <Card className="border-amber-500/40 bg-amber-500/5">
+        <CardContent className="p-4 flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" /> Cargando abastecimiento…
+        </CardContent>
+      </Card>
+    );
+  }
+
   // ─── Render: MODO MONITOR ──────────────────────────────────────────
   if (monitorMode) {
     return (
