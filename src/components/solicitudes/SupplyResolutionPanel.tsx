@@ -130,11 +130,13 @@ export function SupplyResolutionPanel({
     const next = res.nextIncompleteId(itemId);
     setOpenItemId(next);
     if (!next) return;
-    requestAnimationFrame(() => {
-      if (!isMobile) return;
+    // V4: delay defensivo en mobile para evitar competir con animación Radix Accordion (iOS Safari).
+    const delay = isMobile ? 150 : 0;
+    window.setTimeout(() => {
       if (document.activeElement instanceof HTMLInputElement) return;
+      if (!isMobile) return;
       itemRefs.current[next]?.scrollIntoView({ behavior: "smooth", block: "center" });
-    });
+    }, delay);
   };
 
   // Detectar transiciones incompleto→completo para disparar auto-focus
