@@ -88,8 +88,6 @@ export function SupplyResolutionPanel({
   const monitorMode = hasChildren || inSupplyOrBeyond;
   // anyLocal sigue usándose SOLO dentro del bloque monitor para mostrar resumen de stock local.
   const anyLocal = items.some((i: any) => Number(i.local_supply_qty) > 0);
-  // anyLocal sigue usándose SOLO dentro del bloque monitor para mostrar resumen de stock local.
-  const anyLocal = items.some((i: any) => Number(i.local_supply_qty) > 0);
 
   // ─── Live stock para items (solo en modo resolución) ──────────────
   const bimsCodes = useMemo(
