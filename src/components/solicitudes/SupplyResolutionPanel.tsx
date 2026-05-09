@@ -156,7 +156,48 @@ export function SupplyResolutionPanel({
   // ─── Commit ────────────────────────────────────────────────────────
   const [commitOpen, setCommitOpen] = useState(false);
   const [committing, setCommitting] = useState(false);
+  const [revalidating, setRevalidating] = useState(false);
+  const [staleItemIds, setStaleItemIds] = useState<Set<string>>(new Set());
   const idempotencyKeyRef = useRef<string | null>(null);
+
+  // V4: Revalidación pre-modal contra stock vivo BIMS fresco.
+  async function openCommitWithRevalidation() {
+    if (revalidating || committing) return;
+    setRevalidating(true);
+    setStaleItemIds(new Set());
+    try {
+      const codes = (items as any[]).map((i) => i.product?.bims_code).filter(Boolean) as string[];
+      const fresh: LiveStockData = await revalidateLiveStock(codes);
+      const failed = new Set<string>();
+      for (const it of items as any[]) {
+        const bims = it.product?.bims_code as string | undefined;
+        const live = bims ? fresh[bims] : undefined;
+        const localAvail = bims && requestingCode ? Math.floor(live?.stock_by_warehouse?.[requestingCode] ?? 0) : 0;
+        const st = res.state[it.id] ?? { localQty: 0, externals: [] };
+        if (st.localQty > localAvail) { failed.add(it.id); continue; }
+        for (const ext of st.externals) {
+          const b = branches?.find((x: any) => x.id === ext.branchId);
+          const code = b?.code;
+          const avail = code ? Math.floor(live?.stock_by_warehouse?.[code] ?? 0) : 0;
+          if (ext.qty > avail) { failed.add(it.id); break; }
+        }
+      }
+      // Refrescar el cache de useLiveStock con el snapshot fresco
+      qc.invalidateQueries({ queryKey: ["live-stock"] });
+      if (failed.size > 0) {
+        setStaleItemIds(failed);
+        const firstFailed = (items as any[]).find((i) => failed.has(i.id))?.id ?? null;
+        if (firstFailed) setOpenItemId(firstFailed);
+        toast.error("El stock cambió. Revisá los items resaltados.");
+        return;
+      }
+      setCommitOpen(true);
+    } catch (e: any) {
+      toast.error(e?.message || "No se pudo revalidar stock");
+    } finally {
+      setRevalidating(false);
+    }
+  }
 
   async function doCommit() {
     if (!idempotencyKeyRef.current) idempotencyKeyRef.current = crypto.randomUUID();
@@ -174,6 +215,9 @@ export function SupplyResolutionPanel({
       qc.invalidateQueries({ queryKey: ["supply-children", requestId] });
       qc.invalidateQueries({ queryKey: ["supply-items", requestId] });
       qc.invalidateQueries({ queryKey: ["supply-parent", requestId] });
+      // V4: invalidar cache live-stock para evitar stock viejo en navegación/back/refresh.
+      qc.invalidateQueries({ queryKey: ["live-stock"] });
+      qc.removeQueries({ queryKey: ["live-stock"], exact: false });
       onUpdate();
       setCommitOpen(false);
     } catch (e: any) {
