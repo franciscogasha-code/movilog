@@ -1162,9 +1162,14 @@ export default function Solicitudes() {
                               </div>
                             </td>
                             <td className="px-3 py-2.5">
-                              <Badge variant="outline" className="text-xs capitalize font-normal">
-                                {REQUEST_TYPE_LABELS[r.request_type] || r.request_type}
-                              </Badge>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <Badge variant="outline" className="text-xs capitalize font-normal">
+                                  {REQUEST_TYPE_LABELS[r.request_type] || r.request_type}
+                                </Badge>
+                                {!isParent && isCommercialBackedChild(r.parent) && (
+                                  <CommercialBackedBadge />
+                                )}
+                              </div>
                             </td>
                             <td className="px-3 py-2.5 max-w-[280px]">
                               <div className="truncate">{buildRouteCell(r)}</div>
