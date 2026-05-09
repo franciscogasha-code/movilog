@@ -35,7 +35,7 @@ export function SupplyResolutionPanel({
   const { data: branches } = useBranches();
 
   // ─── Datos del padre + items + hijos ───────────────────────────────
-  const { data: parent } = useQuery({
+  const { data: parent, isLoading: loadingParent } = useQuery({
     queryKey: ["supply-parent", requestId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -49,7 +49,7 @@ export function SupplyResolutionPanel({
     refetchInterval: 15_000, // V4: captar promoción del trigger B en flujo 100% local
   });
 
-  const { data: items = [] } = useQuery({
+  const { data: items = [], isLoading: loadingItems } = useQuery({
     queryKey: ["supply-items", requestId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -76,23 +76,36 @@ export function SupplyResolutionPanel({
     refetchInterval: 30_000,
   });
 
-  // V4: monitorMode basado en señal real de commit (no en local_supply_qty solo)
-  // - hasChildren: hijos creados implican commit cerrado (tx atómica del RPC).
-  // - parent.status in_supply/supplied/cerrados: el pedido ya salió de "pending" hacia abastecimiento.
-  //   Esto cubre commits previos por RPC, promociones del trigger A/B, y pedidos legacy en in_supply.
+  const { data: commitEventCount = 0, isLoading: loadingCommitEvents } = useQuery({
+    queryKey: ["supply-commit-events", requestId],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("operational_events")
+        .select("id", { count: "exact", head: true })
+        .eq("reference_type", "branch_request")
+        .eq("reference_id", requestId)
+        .eq("event_type", "supply_resolution_committed");
+      if (error) throw error;
+      return count ?? 0;
+    },
+    refetchInterval: 30_000,
+  });
+
+  // V5A hardening: monitorMode debe depender de evidencia real de resolución confirmada.
+  // Estado in_supply es el punto de trabajo inicial; NO significa commit.
+  // Señales válidas: hijos creados por RPC o evento supply_resolution_committed.
   const hasChildren = (children as any[]).length > 0;
   const parentStatus = (parent as any)?.status;
-  const inSupplyOrBeyond = parentStatus === "in_supply"
-    || parentStatus === "supplied"
-    || closedSet.has(parentStatus);
-  const monitorMode = hasChildren || inSupplyOrBeyond;
+  const hasCommitEvent = commitEventCount > 0;
+  const resolutionSignalsLoading = loadingParent || loadingChildren || loadingCommitEvents;
+  const monitorMode = !resolutionSignalsLoading && (hasChildren || hasCommitEvent || parentStatus === "supplied" || closedSet.has(parentStatus));
   // anyLocal sigue usándose SOLO dentro del bloque monitor para mostrar resumen de stock local.
   const anyLocal = items.some((i: any) => Number(i.local_supply_qty) > 0);
 
   // ─── Live stock para items (solo en modo resolución) ──────────────
   const bimsCodes = useMemo(
-    () => (monitorMode ? [] : items.map((i: any) => i.product?.bims_code).filter(Boolean) as string[]),
-    [items, monitorMode]
+    () => (monitorMode || resolutionSignalsLoading ? [] : items.map((i: any) => i.product?.bims_code).filter(Boolean) as string[]),
+    [items, monitorMode, resolutionSignalsLoading]
   );
   const { liveStock, isLoadingStock } = useLiveStock(bimsCodes);
 
@@ -259,6 +272,16 @@ export function SupplyResolutionPanel({
   }, [items]);
 
   const openChildren = (children as any[]).filter((c) => !closedSet.has(c.status));
+
+  if (resolutionSignalsLoading || loadingItems) {
+    return (
+      <Card className="border-amber-500/40 bg-amber-500/5">
+        <CardContent className="p-4 flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" /> Cargando abastecimiento…
+        </CardContent>
+      </Card>
+    );
+  }
 
   // ─── Render: MODO MONITOR ──────────────────────────────────────────
   if (monitorMode) {
