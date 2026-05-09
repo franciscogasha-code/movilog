@@ -20,6 +20,7 @@ import {
 } from "@/lib/request-status";
 import { useParentRequestIds } from "@/hooks/use-parent-request-ids";
 import { StatusBadge } from "@/components/StatusBadge";
+import { CommercialBackedBadge, isCommercialBackedChild } from "@/components/solicitudes/CommercialBackedBadge";
 import { AdminReposicionForm } from "@/components/solicitudes/AdminReposicionForm";
 import { SolicitudCreateForm } from "@/components/solicitudes/SolicitudCreateForm";
 import { RequestDetailRouter } from "@/components/solicitudes/RequestDetailRouter";
