@@ -4,22 +4,26 @@ import { ShoppingBag } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
- * Determina si un pedido hijo abastece una venta comercial real
- * (preventa convertida, pedido cliente o pedido online).
+ * Determina si un pedido hijo proviene REALMENTE de una preventa convertida.
  *
- * Regla: el hijo ES Reposición (no se cambia request_type), pero su PADRE
- * es la venta comprometida. Por eso la prioridad se HEREDA visualmente.
+ * Fuente ÚNICA de verdad (estructural, no heurística):
+ *   - parent.created_from_presale_id IS NOT NULL  → preventa convertida real
+ *   - parent.is_pre_sale = true                   → todavía es preventa (defensivo)
  *
- * Fuente única de verdad: el `parent_request_id` y los campos del padre.
+ * NO se considera preventa por:
+ *   - request_type = 'online'  (pedido online normal)
+ *   - request_type = 'client'  (pedido cliente normal)
+ *   - flow_type / labels / heurísticas
+ *
+ * Esto evita falsos positivos como #611 (hijo de #609 online normal).
  */
 export function isCommercialBackedChild(parent?: {
-  request_type?: string | null;
   is_pre_sale?: boolean | null;
+  created_from_presale_id?: string | null;
 } | null): boolean {
   if (!parent) return false;
-  if (parent.is_pre_sale) return true;
-  const t = parent.request_type;
-  return t === "client" || t === "online" || t === "pre_sale_online";
+  if (parent.is_pre_sale === true) return true;
+  return !!parent.created_from_presale_id;
 }
 
 interface Props {
