@@ -195,7 +195,8 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
         .select(`
           *,
           requesting_branch:branches!branch_requests_requesting_branch_id_fkey(name, code, logistic_group),
-          source_branch:branches!branch_requests_source_branch_id_fkey(name, code, logistic_group, is_central_warehouse)
+          source_branch:branches!branch_requests_source_branch_id_fkey(name, code, logistic_group, is_central_warehouse),
+          parent:parent_request_id(id, request_number, request_type, is_pre_sale)
         `)
         .eq("id", requestId)
         .single();
