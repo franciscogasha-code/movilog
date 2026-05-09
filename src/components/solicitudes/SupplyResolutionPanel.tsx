@@ -62,7 +62,7 @@ export function SupplyResolutionPanel({
     },
   });
 
-  const { data: children = [], isLoading: loadingChildren } = useQuery({
+  const { data: children = [] } = useQuery({
     queryKey: ["supply-children", requestId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -76,16 +76,28 @@ export function SupplyResolutionPanel({
     refetchInterval: 30_000,
   });
 
-  // V4: monitorMode basado en señal real de commit (no en local_supply_qty solo)
-  // - hasChildren: hijos creados implican commit cerrado (tx atómica del RPC).
-  // - parent.status in_supply/supplied/cerrados: el pedido ya salió de "pending" hacia abastecimiento.
-  //   Esto cubre commits previos por RPC, promociones del trigger A/B, y pedidos legacy en in_supply.
+  const { data: commitEventCount = 0 } = useQuery({
+    queryKey: ["supply-commit-events", requestId],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("operational_events")
+        .select("id", { count: "exact", head: true })
+        .eq("reference_type", "branch_request")
+        .eq("reference_id", requestId)
+        .eq("event_type", "supply_resolution_committed");
+      if (error) throw error;
+      return count ?? 0;
+    },
+    refetchInterval: 30_000,
+  });
+
+  // V5A hardening: monitorMode debe depender de evidencia real de resolución confirmada.
+  // Estado in_supply es el punto de trabajo inicial; NO significa commit.
+  // Señales válidas: hijos creados por RPC o evento supply_resolution_committed.
   const hasChildren = (children as any[]).length > 0;
   const parentStatus = (parent as any)?.status;
-  const inSupplyOrBeyond = parentStatus === "in_supply"
-    || parentStatus === "supplied"
-    || closedSet.has(parentStatus);
-  const monitorMode = hasChildren || inSupplyOrBeyond;
+  const hasCommitEvent = commitEventCount > 0;
+  const monitorMode = hasChildren || hasCommitEvent || parentStatus === "supplied" || closedSet.has(parentStatus);
   // anyLocal sigue usándose SOLO dentro del bloque monitor para mostrar resumen de stock local.
   const anyLocal = items.some((i: any) => Number(i.local_supply_qty) > 0);
 
