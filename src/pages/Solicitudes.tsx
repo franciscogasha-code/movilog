@@ -311,7 +311,7 @@ export default function Solicitudes() {
           `*,
            requesting_branch:branches!branch_requests_requesting_branch_id_fkey(name, code),
            source_branch:branches!branch_requests_source_branch_id_fkey(name, code),
-           parent:parent_request_id(id, request_number, request_type, is_pre_sale)${
+           parent:parent_request_id(id, request_number, is_pre_sale, created_from_presale_id)${
              isPreSaleTab
                ? `,items:branch_request_items(quantity_requested, product:products(sell_price))`
                : ""
