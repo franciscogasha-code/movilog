@@ -11,7 +11,7 @@ import { Loader2, CheckCircle2, ExternalLink, PackageCheck, Clock, Warehouse, Al
 import { toast } from "sonner";
 import { REQUEST_STATUS_CONFIG } from "@/lib/constants";
 import { StatusBadge } from "@/components/StatusBadge";
-import { useLiveStock } from "@/hooks/use-live-stock";
+import { useLiveStock, revalidateLiveStock, type LiveStockData } from "@/hooks/use-live-stock";
 import { useBranches } from "@/hooks/use-branches";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useSupplyResolution } from "@/hooks/use-supply-resolution";
