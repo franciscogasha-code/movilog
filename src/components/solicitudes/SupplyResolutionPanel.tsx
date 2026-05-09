@@ -153,6 +153,16 @@ export function SupplyResolutionPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [res.state, itemDefs]);
 
+  // V4: limpiar marca de "stale" cuando el operador edita la resolución.
+  const stateSig = useMemo(() => JSON.stringify(res.state), [res.state]);
+  const lastStateSigRef = useRef(stateSig);
+  useEffect(() => {
+    if (lastStateSigRef.current !== stateSig) {
+      lastStateSigRef.current = stateSig;
+      setStaleItemIds((prev) => (prev.size === 0 ? prev : new Set()));
+    }
+  }, [stateSig]);
+
   // ─── Commit ────────────────────────────────────────────────────────
   const [commitOpen, setCommitOpen] = useState(false);
   const [committing, setCommitting] = useState(false);
