@@ -352,13 +352,16 @@ export function SupplyResolutionPanel({
             const localMax = Math.min(requested, localStockOf(it.product?.bims_code));
             const st = res.state[it.id] ?? { localQty: 0, externals: [] };
             const externalRemaining = requested - st.localQty;
+            const isStale = staleItemIds.has(it.id);
 
             return (
               <AccordionItem
                 key={it.id}
                 value={it.id}
                 ref={(el: any) => (itemRefs.current[it.id] = el)}
-                className="rounded-md border border-border bg-background data-[state=open]:border-primary/50"
+                className={`rounded-md border bg-background data-[state=open]:border-primary/50 ${
+                  isStale ? "border-destructive/60 bg-destructive/5" : "border-border"
+                }`}
               >
                 <AccordionTrigger className="px-3 py-2 hover:no-underline">
                   <div className="flex items-center justify-between gap-3 w-full min-w-0">
@@ -366,9 +369,14 @@ export function SupplyResolutionPanel({
                       <p className="text-sm font-medium truncate">{it.product?.name ?? "Producto"}</p>
                       <p className="text-[11px] text-muted-foreground">
                         Requerido: <span className="tabular-nums">{requested}</span>
+                        {isStale && <span className="ml-2 text-destructive font-medium">· Stock cambió</span>}
                       </p>
                     </div>
-                    {valid ? (
+                    {isStale ? (
+                      <Badge variant="outline" className="border-destructive/60 text-destructive gap-1 shrink-0">
+                        <AlertCircle className="h-3 w-3" /> Revisar
+                      </Badge>
+                    ) : valid ? (
                       <Badge className="bg-success/15 text-success border-success/30 gap-1 shrink-0">
                         <CheckCircle2 className="h-3 w-3" /> {sum}/{requested}
                       </Badge>
