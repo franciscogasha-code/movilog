@@ -453,9 +453,18 @@ export function SupplyResolutionPanel({
       {/* CTA sticky cuando todo está completo */}
       {res.allValid && (
         <div className="sticky bottom-0 inset-x-0 bg-background/95 backdrop-blur border-t border-border p-3 z-10">
-          <Button className="w-full" size="lg" onClick={() => setCommitOpen(true)} disabled={committing}>
-            <CheckCircle2 className="h-4 w-4 mr-2" />
-            Revisar y confirmar abastecimiento
+          <Button
+            className="w-full"
+            size="lg"
+            onClick={openCommitWithRevalidation}
+            disabled={committing || revalidating || staleItemIds.size > 0}
+          >
+            {revalidating ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <CheckCircle2 className="h-4 w-4 mr-2" />
+            )}
+            {revalidating ? "Revalidando stock…" : "Revisar y confirmar abastecimiento"}
           </Button>
         </div>
       )}
