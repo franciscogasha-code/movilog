@@ -1066,6 +1066,9 @@ export default function Solicitudes() {
                                 <TooltipContent side="top">Pertenece a un pedido padre multi-origen. Tocar para abrir el padre.</TooltipContent>
                               </Tooltip>
                             )}
+                            {!isParent && isCommercialBackedChild(r.parent) && (
+                              <CommercialBackedBadge />
+                            )}
                           </div>
                           {r.is_pre_sale ? (
                             <Badge variant="outline" className="text-[10px] shrink-0 capitalize">
