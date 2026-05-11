@@ -218,6 +218,10 @@ export function SupplyResolutionPanel({
         toast.error("El stock cambió. Revisá los items resaltados.");
         return;
       }
+      if (!res.allValid) {
+        toast.error("Hay cantidades externas sin sucursal o un item excede lo solicitado.");
+        return;
+      }
       setCommitOpen(true);
     } catch (e: any) {
       toast.error(e?.message || "No se pudo revalidar stock");
@@ -496,21 +500,21 @@ export function SupplyResolutionPanel({
         </Accordion>
       </CardContent>
 
-      {/* CTA sticky cuando todo está completo */}
-      {res.allValid && (
+      {/* CTA sticky cuando la resolución es válida: parcial permitido, oversupply bloqueado */}
+      {!monitorMode && (
         <div className="sticky bottom-0 inset-x-0 bg-background/95 backdrop-blur border-t border-border p-3 z-10">
           <Button
             className="w-full"
             size="lg"
             onClick={openCommitWithRevalidation}
-            disabled={committing || revalidating || staleItemIds.size > 0}
+            disabled={committing || revalidating || staleItemIds.size > 0 || !res.allValid}
           >
             {revalidating ? (
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
             ) : (
               <CheckCircle2 className="h-4 w-4 mr-2" />
             )}
-            {revalidating ? "Revalidando stock…" : "Revisar y confirmar abastecimiento"}
+            {revalidating ? "Revalidando stock…" : res.allValid ? "Revisar y confirmar abastecimiento" : "Revisá cantidades"}
           </Button>
         </div>
       )}

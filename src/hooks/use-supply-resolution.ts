@@ -20,6 +20,17 @@ export interface SupplyResolutionItemDef {
 
 const empty: SupplyResolutionItemState = { localQty: 0, externals: [] };
 
+const cleanQty = (qty: number) => (Number.isFinite(qty) ? Math.max(0, qty) : 0);
+
+const assignedExternalQty = (externals: SupplyResolutionExternal[]) =>
+  externals.reduce((sum, external) => {
+    const qty = cleanQty(external.qty);
+    return external.branchId && qty > 0 ? sum + qty : sum;
+  }, 0);
+
+const hasMalformedExternal = (externals: SupplyResolutionExternal[]) =>
+  externals.some((external) => cleanQty(external.qty) > 0 && !external.branchId);
+
 export function useSupplyResolution(items: SupplyResolutionItemDef[]) {
   const [state, setState] = useState<SupplyResolutionState>(() =>
     Object.fromEntries(items.map((i) => [i.id, { ...empty }]))
@@ -37,16 +48,15 @@ export function useSupplyResolution(items: SupplyResolutionItemDef[]) {
     setState(Object.fromEntries(items.map((i) => [i.id, { ...empty }])));
   }, [items]);
 
-  // Permite abastecimiento parcial controlado: sum <= requested.
-  // El faltante (requested - sum) se registra como demanda no satisfecha
-  // sin bloquear el flujo operativo. Solo bloquea oversupply o externos malformados.
+  // Fuente única de verdad del commit parcial: filas externas vacías son borradores UI
+  // y se ignoran igual que buildPayload; solo bloquean cantidades positivas sin sucursal
+  // u oversupply. El faltante (requested - sum) continúa como demanda no satisfecha.
   const isItemValid = useCallback(
     (itemId: string, requested: number) => {
       const st = state[itemId] ?? empty;
-      const sumExt = st.externals.reduce((a, e) => a + (Number.isFinite(e.qty) ? e.qty : 0), 0);
-      const total = st.localQty + sumExt;
+      const total = cleanQty(st.localQty) + assignedExternalQty(st.externals);
       if (total > requested) return false;
-      return st.externals.every((e) => e.branchId && e.qty > 0);
+      return !hasMalformedExternal(st.externals);
     },
     [state]
   );
@@ -54,8 +64,7 @@ export function useSupplyResolution(items: SupplyResolutionItemDef[]) {
   const isItemFullyCovered = useCallback(
     (itemId: string, requested: number) => {
       const st = state[itemId] ?? empty;
-      const sumExt = st.externals.reduce((a, e) => a + (Number.isFinite(e.qty) ? e.qty : 0), 0);
-      return st.localQty + sumExt === requested;
+      return cleanQty(st.localQty) + assignedExternalQty(st.externals) === requested;
     },
     [state]
   );
@@ -63,7 +72,7 @@ export function useSupplyResolution(items: SupplyResolutionItemDef[]) {
   const itemSum = useCallback(
     (itemId: string) => {
       const st = state[itemId] ?? empty;
-      return st.localQty + st.externals.reduce((a, e) => a + (e.qty || 0), 0);
+      return cleanQty(st.localQty) + assignedExternalQty(st.externals);
     },
     [state]
   );
@@ -79,10 +88,10 @@ export function useSupplyResolution(items: SupplyResolutionItemDef[]) {
         const st = state[i.id] ?? empty;
         return {
           request_item_id: i.id,
-          local_qty: st.localQty,
+          local_qty: cleanQty(st.localQty),
           externals: st.externals
-            .filter((e) => e.branchId && e.qty > 0)
-            .map((e) => ({ source_branch_id: e.branchId, qty: e.qty })),
+            .filter((e) => e.branchId && cleanQty(e.qty) > 0)
+            .map((e) => ({ source_branch_id: e.branchId, qty: cleanQty(e.qty) })),
         };
       }),
     };
