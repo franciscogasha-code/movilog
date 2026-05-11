@@ -386,6 +386,8 @@ export function SupplyResolutionPanel({
             const requested = Number(it.quantity_requested);
             const sum = res.itemSum(it.id);
             const valid = res.isItemValid(it.id, requested);
+            const fullyCovered = res.isItemFullyCovered(it.id, requested);
+            const shortfall = Math.max(0, requested - sum);
             const localMax = Math.min(requested, localStockOf(it.product?.bims_code));
             const st = res.state[it.id] ?? { localQty: 0, externals: [] };
             const externalRemaining = requested - st.localQty;
@@ -406,6 +408,9 @@ export function SupplyResolutionPanel({
                       <p className="text-sm font-medium truncate">{it.product?.name ?? "Producto"}</p>
                       <p className="text-[11px] text-muted-foreground">
                         Requerido: <span className="tabular-nums">{requested}</span>
+                        {shortfall > 0 && !isStale && (
+                          <span className="ml-2 text-amber-700 font-medium">· Faltan {shortfall}</span>
+                        )}
                         {isStale && <span className="ml-2 text-destructive font-medium">· Stock cambió</span>}
                       </p>
                     </div>
@@ -413,9 +418,13 @@ export function SupplyResolutionPanel({
                       <Badge variant="outline" className="border-destructive/60 text-destructive gap-1 shrink-0">
                         <AlertCircle className="h-3 w-3" /> Revisar
                       </Badge>
-                    ) : valid ? (
+                    ) : fullyCovered ? (
                       <Badge className="bg-success/15 text-success border-success/30 gap-1 shrink-0">
                         <CheckCircle2 className="h-3 w-3" /> {sum}/{requested}
+                      </Badge>
+                    ) : valid ? (
+                      <Badge variant="outline" className="border-amber-500/50 text-amber-700 gap-1 shrink-0 tabular-nums">
+                        <AlertCircle className="h-3 w-3" /> {sum}/{requested}
                       </Badge>
                     ) : (
                       <Badge variant="outline" className="border-destructive/40 text-destructive gap-1 shrink-0 tabular-nums">
