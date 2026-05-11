@@ -98,7 +98,7 @@ export function useSupplyResolution(items: SupplyResolutionItemDef[]) {
       );
       return next?.id ?? null;
     },
-    [items, isItemValid]
+    [items, isItemValid, isItemFullyCovered]
   );
 
   return {
