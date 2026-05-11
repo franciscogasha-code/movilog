@@ -121,6 +121,27 @@ export function SupplyCommitModal({
               </ul>
             </div>
           ))}
+
+          {shortfalls.length > 0 && (
+            <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-300 mb-2">
+                Demanda no satisfecha
+              </p>
+              <ul className="space-y-1 text-sm">
+                {shortfalls.map((s, i) => (
+                  <li key={i} className="flex justify-between gap-2">
+                    <span className="truncate">{s.name}</span>
+                    <span className="tabular-nums font-medium shrink-0 text-amber-700 dark:text-amber-300">
+                      Faltan {s.missing} de {s.requested}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-[11px] text-muted-foreground mt-2">
+                El faltante queda registrado para análisis de compras. El pedido continúa el flujo igualmente.
+              </p>
+            </div>
+          )}
         </div>
 
         <DialogFooter className="gap-2">
