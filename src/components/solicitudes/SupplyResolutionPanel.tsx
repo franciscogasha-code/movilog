@@ -364,7 +364,7 @@ export function SupplyResolutionPanel({
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold">Resolver abastecimiento</p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Indicá cuánto stock tenés localmente y cuánto pedís a otras sucursales. La suma debe ser exacta.
+              Indicá cuánto stock tenés localmente y cuánto pedís a otras sucursales. Si no llegás al total solicitado, podés continuar igual: el faltante queda registrado como demanda no satisfecha.
             </p>
           </div>
         </div>
