@@ -155,16 +155,17 @@ export function SupplyResolutionPanel({
     }, delay);
   };
 
-  // Detectar transiciones incompleto→completo para disparar auto-focus
+  // Detectar transiciones incompleto→cobertura total para disparar auto-focus.
+  // Con abastecimiento parcial permitido, isItemValid es laxo; el avance se basa en cobertura total.
   const validityRef = useRef<Record<string, boolean>>({});
   useEffect(() => {
     for (const it of itemDefs) {
-      const wasValid = validityRef.current[it.id] ?? false;
-      const isValid = res.isItemValid(it.id, it.quantity_requested);
-      if (!wasValid && isValid && openItemId === it.id) {
+      const wasFull = validityRef.current[it.id] ?? false;
+      const isFull = res.isItemFullyCovered(it.id, it.quantity_requested);
+      if (!wasFull && isFull && openItemId === it.id) {
         handleItemValid(it.id);
       }
-      validityRef.current[it.id] = isValid;
+      validityRef.current[it.id] = isFull;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [res.state, itemDefs]);
