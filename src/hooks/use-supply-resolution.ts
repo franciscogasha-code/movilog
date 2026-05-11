@@ -105,6 +105,7 @@ export function useSupplyResolution(items: SupplyResolutionItemDef[]) {
     setExternals,
     reset,
     isItemValid,
+    isItemFullyCovered,
     itemSum,
     allValid,
     buildPayload,
