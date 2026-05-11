@@ -37,11 +37,25 @@ export function useSupplyResolution(items: SupplyResolutionItemDef[]) {
     setState(Object.fromEntries(items.map((i) => [i.id, { ...empty }])));
   }, [items]);
 
+  // Permite abastecimiento parcial controlado: sum <= requested.
+  // El faltante (requested - sum) se registra como demanda no satisfecha
+  // sin bloquear el flujo operativo. Solo bloquea oversupply o externos malformados.
   const isItemValid = useCallback(
     (itemId: string, requested: number) => {
       const st = state[itemId] ?? empty;
       const sumExt = st.externals.reduce((a, e) => a + (Number.isFinite(e.qty) ? e.qty : 0), 0);
-      return st.localQty + sumExt === requested && st.externals.every((e) => e.branchId && e.qty > 0);
+      const total = st.localQty + sumExt;
+      if (total > requested) return false;
+      return st.externals.every((e) => e.branchId && e.qty > 0);
+    },
+    [state]
+  );
+
+  const isItemFullyCovered = useCallback(
+    (itemId: string, requested: number) => {
+      const st = state[itemId] ?? empty;
+      const sumExt = st.externals.reduce((a, e) => a + (Number.isFinite(e.qty) ? e.qty : 0), 0);
+      return st.localQty + sumExt === requested;
     },
     [state]
   );
@@ -79,10 +93,12 @@ export function useSupplyResolution(items: SupplyResolutionItemDef[]) {
     (currentId: string | null): string | null => {
       const idx = currentId ? items.findIndex((i) => i.id === currentId) : -1;
       const ordered = idx >= 0 ? [...items.slice(idx + 1), ...items.slice(0, idx)] : items;
-      const next = ordered.find((i) => !isItemValid(i.id, i.quantity_requested));
+      const next = ordered.find(
+        (i) => !isItemFullyCovered(i.id, i.quantity_requested) && isItemValid(i.id, i.quantity_requested)
+      );
       return next?.id ?? null;
     },
-    [items, isItemValid]
+    [items, isItemValid, isItemFullyCovered]
   );
 
   return {
@@ -91,6 +107,7 @@ export function useSupplyResolution(items: SupplyResolutionItemDef[]) {
     setExternals,
     reset,
     isItemValid,
+    isItemFullyCovered,
     itemSum,
     allValid,
     buildPayload,

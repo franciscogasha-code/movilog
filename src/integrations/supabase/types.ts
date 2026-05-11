@@ -268,6 +268,7 @@ export type Database = {
           quantity_received: number | null
           quantity_requested: number
           quantity_shipped: number | null
+          quantity_unfulfilled: number
           rejection_reason_type:
             | Database["public"]["Enums"]["rejection_reason_type"]
             | null
@@ -287,6 +288,7 @@ export type Database = {
           quantity_received?: number | null
           quantity_requested: number
           quantity_shipped?: number | null
+          quantity_unfulfilled?: number
           rejection_reason_type?:
             | Database["public"]["Enums"]["rejection_reason_type"]
             | null
@@ -306,6 +308,7 @@ export type Database = {
           quantity_received?: number | null
           quantity_requested?: number
           quantity_shipped?: number | null
+          quantity_unfulfilled?: number
           rejection_reason_type?:
             | Database["public"]["Enums"]["rejection_reason_type"]
             | null

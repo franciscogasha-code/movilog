@@ -155,16 +155,17 @@ export function SupplyResolutionPanel({
     }, delay);
   };
 
-  // Detectar transiciones incompleto→completo para disparar auto-focus
+  // Detectar transiciones incompleto→cobertura total para disparar auto-focus.
+  // Con abastecimiento parcial permitido, isItemValid es laxo; el avance se basa en cobertura total.
   const validityRef = useRef<Record<string, boolean>>({});
   useEffect(() => {
     for (const it of itemDefs) {
-      const wasValid = validityRef.current[it.id] ?? false;
-      const isValid = res.isItemValid(it.id, it.quantity_requested);
-      if (!wasValid && isValid && openItemId === it.id) {
+      const wasFull = validityRef.current[it.id] ?? false;
+      const isFull = res.isItemFullyCovered(it.id, it.quantity_requested);
+      if (!wasFull && isFull && openItemId === it.id) {
         handleItemValid(it.id);
       }
-      validityRef.current[it.id] = isValid;
+      validityRef.current[it.id] = isFull;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [res.state, itemDefs]);
@@ -248,8 +249,8 @@ export function SupplyResolutionPanel({
       setCommitOpen(false);
     } catch (e: any) {
       const msg = String(e?.message || "");
-      if (msg.includes("partial_supply_not_allowed")) {
-        toast.error("No se puede confirmar abastecimiento parcial. Cubrí todas las cantidades.");
+      if (msg.includes("oversupply_not_allowed")) {
+        toast.error("No se puede abastecer más de lo solicitado. Ajustá las cantidades.");
       } else if (msg.includes("self_source_not_allowed")) {
         toast.error("La sucursal ejecutora no puede ser origen externo.");
       } else if (msg.includes("incomplete_resolution")) {
@@ -363,7 +364,7 @@ export function SupplyResolutionPanel({
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold">Resolver abastecimiento</p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Indicá cuánto stock tenés localmente y cuánto pedís a otras sucursales. La suma debe ser exacta.
+              Indicá cuánto stock tenés localmente y cuánto pedís a otras sucursales. Si no llegás al total solicitado, podés continuar igual: el faltante queda registrado como demanda no satisfecha.
             </p>
           </div>
         </div>
@@ -385,6 +386,8 @@ export function SupplyResolutionPanel({
             const requested = Number(it.quantity_requested);
             const sum = res.itemSum(it.id);
             const valid = res.isItemValid(it.id, requested);
+            const fullyCovered = res.isItemFullyCovered(it.id, requested);
+            const shortfall = Math.max(0, requested - sum);
             const localMax = Math.min(requested, localStockOf(it.product?.bims_code));
             const st = res.state[it.id] ?? { localQty: 0, externals: [] };
             const externalRemaining = requested - st.localQty;
@@ -405,6 +408,9 @@ export function SupplyResolutionPanel({
                       <p className="text-sm font-medium truncate">{it.product?.name ?? "Producto"}</p>
                       <p className="text-[11px] text-muted-foreground">
                         Requerido: <span className="tabular-nums">{requested}</span>
+                        {shortfall > 0 && !isStale && (
+                          <span className="ml-2 text-amber-700 font-medium">· Faltan {shortfall}</span>
+                        )}
                         {isStale && <span className="ml-2 text-destructive font-medium">· Stock cambió</span>}
                       </p>
                     </div>
@@ -412,9 +418,13 @@ export function SupplyResolutionPanel({
                       <Badge variant="outline" className="border-destructive/60 text-destructive gap-1 shrink-0">
                         <AlertCircle className="h-3 w-3" /> Revisar
                       </Badge>
-                    ) : valid ? (
+                    ) : fullyCovered ? (
                       <Badge className="bg-success/15 text-success border-success/30 gap-1 shrink-0">
                         <CheckCircle2 className="h-3 w-3" /> {sum}/{requested}
+                      </Badge>
+                    ) : valid ? (
+                      <Badge variant="outline" className="border-amber-500/50 text-amber-700 gap-1 shrink-0 tabular-nums">
+                        <AlertCircle className="h-3 w-3" /> {sum}/{requested}
                       </Badge>
                     ) : (
                       <Badge variant="outline" className="border-destructive/40 text-destructive gap-1 shrink-0 tabular-nums">

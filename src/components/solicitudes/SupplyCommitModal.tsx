@@ -41,24 +41,29 @@ export function SupplyCommitModal({
 }: Props) {
   const { data: branches } = useBranches();
 
-  const { byBranch, locals } = useMemo(() => {
+  const { byBranch, locals, shortfalls } = useMemo(() => {
     const byBranch: Record<string, { branchName: string; lines: { name: string; qty: number }[] }> = {};
     const locals: { name: string; qty: number }[] = [];
+    const shortfalls: { name: string; missing: number; requested: number }[] = [];
     for (const it of items) {
       const st = state[it.id];
       if (!st) continue;
       const prod = products[it.product_id];
       const name = prod?.name ?? "Producto";
       if (st.localQty > 0) locals.push({ name, qty: st.localQty });
+      let extSum = 0;
       for (const ext of st.externals) {
         if (!ext.branchId || ext.qty <= 0) continue;
+        extSum += ext.qty;
         const b = branches?.find((x) => x.id === ext.branchId);
         const branchName = b?.name ?? "Sucursal";
         if (!byBranch[ext.branchId]) byBranch[ext.branchId] = { branchName, lines: [] };
         byBranch[ext.branchId].lines.push({ name, qty: ext.qty });
       }
+      const missing = it.quantity_requested - st.localQty - extSum;
+      if (missing > 0) shortfalls.push({ name, missing, requested: it.quantity_requested });
     }
-    return { byBranch, locals };
+    return { byBranch, locals, shortfalls };
   }, [items, state, products, branches]);
 
   const branchEntries = Object.entries(byBranch);
@@ -116,6 +121,27 @@ export function SupplyCommitModal({
               </ul>
             </div>
           ))}
+
+          {shortfalls.length > 0 && (
+            <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-300 mb-2">
+                Demanda no satisfecha
+              </p>
+              <ul className="space-y-1 text-sm">
+                {shortfalls.map((s, i) => (
+                  <li key={i} className="flex justify-between gap-2">
+                    <span className="truncate">{s.name}</span>
+                    <span className="tabular-nums font-medium shrink-0 text-amber-700 dark:text-amber-300">
+                      Faltan {s.missing} de {s.requested}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-[11px] text-muted-foreground mt-2">
+                El faltante queda registrado para análisis de compras. El pedido continúa el flujo igualmente.
+              </p>
+            </div>
+          )}
         </div>
 
         <DialogFooter className="gap-2">
