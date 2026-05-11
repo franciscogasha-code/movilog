@@ -93,7 +93,9 @@ export function useSupplyResolution(items: SupplyResolutionItemDef[]) {
     (currentId: string | null): string | null => {
       const idx = currentId ? items.findIndex((i) => i.id === currentId) : -1;
       const ordered = idx >= 0 ? [...items.slice(idx + 1), ...items.slice(0, idx)] : items;
-      const next = ordered.find((i) => !isItemValid(i.id, i.quantity_requested));
+      const next = ordered.find(
+        (i) => !isItemFullyCovered(i.id, i.quantity_requested) && isItemValid(i.id, i.quantity_requested)
+      );
       return next?.id ?? null;
     },
     [items, isItemValid]
