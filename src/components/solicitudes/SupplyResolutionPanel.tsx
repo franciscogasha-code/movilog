@@ -249,8 +249,8 @@ export function SupplyResolutionPanel({
       setCommitOpen(false);
     } catch (e: any) {
       const msg = String(e?.message || "");
-      if (msg.includes("partial_supply_not_allowed")) {
-        toast.error("No se puede confirmar abastecimiento parcial. Cubrí todas las cantidades.");
+      if (msg.includes("oversupply_not_allowed")) {
+        toast.error("No se puede abastecer más de lo solicitado. Ajustá las cantidades.");
       } else if (msg.includes("self_source_not_allowed")) {
         toast.error("La sucursal ejecutora no puede ser origen externo.");
       } else if (msg.includes("incomplete_resolution")) {
