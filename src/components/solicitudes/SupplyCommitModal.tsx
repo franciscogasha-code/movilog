@@ -41,24 +41,29 @@ export function SupplyCommitModal({
 }: Props) {
   const { data: branches } = useBranches();
 
-  const { byBranch, locals } = useMemo(() => {
+  const { byBranch, locals, shortfalls } = useMemo(() => {
     const byBranch: Record<string, { branchName: string; lines: { name: string; qty: number }[] }> = {};
     const locals: { name: string; qty: number }[] = [];
+    const shortfalls: { name: string; missing: number; requested: number }[] = [];
     for (const it of items) {
       const st = state[it.id];
       if (!st) continue;
       const prod = products[it.product_id];
       const name = prod?.name ?? "Producto";
       if (st.localQty > 0) locals.push({ name, qty: st.localQty });
+      let extSum = 0;
       for (const ext of st.externals) {
         if (!ext.branchId || ext.qty <= 0) continue;
+        extSum += ext.qty;
         const b = branches?.find((x) => x.id === ext.branchId);
         const branchName = b?.name ?? "Sucursal";
         if (!byBranch[ext.branchId]) byBranch[ext.branchId] = { branchName, lines: [] };
         byBranch[ext.branchId].lines.push({ name, qty: ext.qty });
       }
+      const missing = it.quantity_requested - st.localQty - extSum;
+      if (missing > 0) shortfalls.push({ name, missing, requested: it.quantity_requested });
     }
-    return { byBranch, locals };
+    return { byBranch, locals, shortfalls };
   }, [items, state, products, branches]);
 
   const branchEntries = Object.entries(byBranch);
