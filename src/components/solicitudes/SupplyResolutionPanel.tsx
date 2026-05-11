@@ -507,14 +507,14 @@ export function SupplyResolutionPanel({
             className="w-full"
             size="lg"
             onClick={openCommitWithRevalidation}
-            disabled={committing || revalidating || staleItemIds.size > 0}
+            disabled={committing || revalidating || staleItemIds.size > 0 || !res.allValid}
           >
             {revalidating ? (
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
             ) : (
               <CheckCircle2 className="h-4 w-4 mr-2" />
             )}
-            {revalidating ? "Revalidando stock…" : "Revisar y confirmar abastecimiento"}
+            {revalidating ? "Revalidando stock…" : res.allValid ? "Revisar y confirmar abastecimiento" : "Revisá cantidades"}
           </Button>
         </div>
       )}
