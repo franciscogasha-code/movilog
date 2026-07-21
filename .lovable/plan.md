@@ -1,186 +1,91 @@
+# Módulo Control de Móviles — Fase 1
 
-# Pre Venta Online — Plan v3 (final, aprobable)
+Reemplaza la página `/flota` (hoy read-only) por un módulo completo con CRUD de vehículos, categorías configurables, registro de uso genérico (paralelo a `trips`), carga de combustible con fotos, y galería. Mantenimientos programados, multas y dashboard con gráficos quedan para Fase 2.
 
-Ajustes incorporados sobre v2: trigger simplificado, `original_request_type` eliminado, `seller_id` aclarado, PDF con timeout extendido y fallback progresivo, regresión de `'draft'` validada.
+## Alcance funcional
 
----
+1. **Vehículos** — CRUD completo (alta, edición, baja lógica). Campos ya existentes + apodo interno. Estado: Disponible / En uso / En mantenimiento / Fuera de servicio. Documentación: seguro y VTV con vencimientos y alertas visuales (ya existen).
+2. **Categorías de uso** — Tabla configurable (admin/supervisor): entre sucursales, a proveedor, a cliente, trámites, otro. Editable desde la UI.
+3. **Registro de uso** — Nueva tabla `vehicle_usages` **paralela** a `trips` (no toca la lógica logística existente). Campos: vehículo, chofer (usuario o texto libre), categoría, destino, km inicial/final, km recorridos (calculado), pedido/envío opcional, fecha-hora inicio/fin, fotos odómetro inicial/final, observaciones. Validaciones: km_inicial ≥ último km registrado del vehículo (soft-warning), alerta si km_recorridos > 2× promedio histórico.
+4. **Combustible** — Extender formulario existente (`fuel_records` ya existe) con: foto surtidor/comprobante, cálculo automático precio total ↔ precio/litro, rendimiento km/L entre cargas, alerta si rendimiento cae > 20% vs promedio del vehículo. Historial por vehículo.
+5. **Galería** — Vista por vehículo con todas las fotos (odómetro + combustible) ordenadas por fecha.
+6. **Actualización de kilometraje** — Trigger que actualiza `vehicles.current_mileage` con el mayor km registrado entre `vehicle_usages`, `fuel_records` y `trips`.
 
-## A. Validación de regresión `status = 'draft'` ✅
+## Cambios de base de datos
 
-Búsqueda ejecutada en todo el repo (`src/` + `supabase/`):
-```
-rg -n "'draft'|\"draft\"" → 0 resultados
-```
+**Nuevas tablas:**
+- `vehicle_usage_categories` — id, name, description, is_active, created_at
+- `vehicle_usages` — id, vehicle_id, driver_id (nullable FK a `drivers`), driver_name_text (fallback), category_id, destination, start_mileage, end_mileage, km_traveled (generated), linked_request_id (nullable FK a `branch_requests`), started_at, ended_at, start_odometer_photo_url, end_odometer_photo_url, notes, created_by, created_at, updated_at
 
-- Ningún query, hook, dashboard, RPC ni RLS existente usa el literal `'draft'`.
-- Las RPC operativas (`fn_transition_request_status`, `fn_driver_action`) tienen whitelist explícita de estados origen — `'draft'` no figura, así que cualquier intento de transición desde pre-venta es naturalmente rechazado.
-- Los dashboards (`use-executive-dashboard`, `Index`, `Ruteo`) filtran por estados específicos (`pending`, `in_preparation`, etc.) o por flag `is_pre_sale=false` (nuevo helper). Cero contaminación.
+**Modificaciones:**
+- `vehicles`: agregar `nickname` (text, nullable).
+- `fuel_records`: agregar `computed_efficiency_kmpl` (numeric, calculado por trigger contra la carga anterior).
 
-**Conclusión**: agregar `'draft'` al enum es 100 % seguro y no rompe nada.
+**Storage:**
+- Bucket privado `vehicle-photos` con RLS: chofer puede subir para su vehículo, admin/supervisor/owner todo.
 
----
+**RLS y GRANTs (siguiendo el patrón del proyecto):**
+- `vehicle_usage_categories`: SELECT authenticated; INSERT/UPDATE/DELETE solo admin/supervisor/owner.
+- `vehicle_usages`: SELECT authenticated con branch filter vía vehículo asignado o participación del chofer; INSERT si `driver_id` corresponde al `auth.uid()` **o** rol admin/supervisor/owner; UPDATE/DELETE admin/supervisor/owner.
+- `fuel_records`: endurecer las policies actuales (`USING (true)`) al mismo criterio.
+- Todas con `GRANT` explícito a `authenticated` y `service_role`.
 
-## B. Ajustes finales aplicados
+**Funciones/triggers:**
+- `fn_recompute_vehicle_mileage(vehicle_id)` — actualiza `vehicles.current_mileage`.
+- Trigger `AFTER INSERT/UPDATE` en `vehicle_usages` y `fuel_records` que llama a la función.
+- Trigger en `fuel_records` que calcula `computed_efficiency_kmpl` usando el registro anterior del vehículo.
 
-### B.1 Trigger `fn_validate_pre_sale_coherence` simplificado
-Sólo coherencia estructural en BD. Validación de cliente se hace en frontend (zod) + RPC `fn_send_presale_to_operation`.
+## Cambios de frontend
 
-```sql
-CREATE OR REPLACE FUNCTION fn_validate_pre_sale_coherence()
-RETURNS trigger LANGUAGE plpgsql AS $$
-BEGIN
-  IF NEW.is_pre_sale THEN
-    IF NEW.request_type <> 'pre_sale_online' THEN
-      RAISE EXCEPTION 'Pre-venta requiere request_type=pre_sale_online (got %)', NEW.request_type;
-    END IF;
-    IF NEW.status <> 'draft' THEN
-      RAISE EXCEPTION 'Pre-venta requiere status=draft (got %)', NEW.status;
-    END IF;
-  END IF;
-  RETURN NEW;
-END $$;
-```
+**Ruta:** `/flota` se reemplaza por el nuevo módulo (misma URL, se conserva navegación existente).
 
-### B.2 `original_request_type` eliminado
-No se agrega esa columna. La promoción setea directamente `request_type='online'` y `pre_sale_status='sent_to_operation'`, lo que ya da trazabilidad suficiente para esta fase.
-
-### B.3 `seller_id` eliminado — se usa `created_by`
-No hay diferencia funcional: el vendedor que crea la pre-venta es siempre el `auth.uid()`. Reusar `created_by` evita columna duplicada y mantiene consistencia con el resto de `branch_requests`. Si en fase 2 aparece la figura de "vendedor distinto del creador" se agrega entonces.
-
-### B.4 Validación cliente: sólo frontend + RPC promoción
-- **Frontend** (`SolicitudCreateForm` + `PreSaleClientForm`): zod valida `client_name` (≥2), `client_phone` (≥6), `client_email` opcional con formato, `client_address` obligatoria si `shipping_method ∈ {delivery, courier}`.
-- **Backend** (RPC `fn_send_presale_to_operation`): re-valida nombre + teléfono + (dirección condicional) antes de promover. Si falla, no promueve y devuelve mensaje claro.
-- **Trigger BD**: NO valida cliente (queda libre durante el borrador, donde el vendedor puede ir cargando datos por partes).
-
-### B.5 PDF — timeout 3s + fallback progresivo
-Helper `src/lib/pdf-image.ts`:
-- `maxSize = 64px` lado mayor (resize canvas).
-- Compresión `image/jpeg` calidad `0.6`.
-- `timeout = 3000ms` por imagen (`Promise.race`).
-- **Fallback progresivo**:
-  1. Reintento único con calidad `0.4` y `timeout=2000ms`.
-  2. Si falla, placeholder gris con `bims_code` como texto.
-- Cache en memoria por sesión (`Map<bims_code, dataURL>`).
-- Generación en paralelo con `Promise.allSettled` para que una imagen lenta no bloquee al resto.
-
----
-
-## C. Modelo de datos final
-
-```sql
--- Enums (aditivos)
-ALTER TYPE request_type   ADD VALUE IF NOT EXISTS 'pre_sale_online';
-ALTER TYPE request_status ADD VALUE IF NOT EXISTS 'draft';
-
--- Columnas
-ALTER TABLE branch_requests
-  ADD COLUMN is_pre_sale boolean NOT NULL DEFAULT false,
-  ADD COLUMN pre_sale_status text NULL,        -- 'draft' | 'confirmed' | 'sent_to_operation'
-  ADD COLUMN sales_channel  text NULL,         -- whatsapp | instagram | presencial | otro
-  ADD COLUMN client_phone   text NULL,
-  ADD COLUMN client_email   text NULL,
-  ADD COLUMN pre_sale_confirmed_at      timestamptz NULL,
-  ADD COLUMN pre_sale_sent_at           timestamptz NULL,
-  ADD COLUMN pre_sale_pdf_generated_at  timestamptz NULL;
-
-CREATE INDEX idx_branch_requests_pre_sale
-  ON branch_requests(is_pre_sale, pre_sale_status)
-  WHERE is_pre_sale = true;
-
--- Trigger coherencia (B.1)
-CREATE TRIGGER trg_validate_pre_sale_coherence
-  BEFORE INSERT OR UPDATE ON branch_requests
-  FOR EACH ROW EXECUTE FUNCTION fn_validate_pre_sale_coherence();
-
--- Bloqueo fulfillment (con log en diagnostic_logs)
-CREATE TRIGGER trg_block_fulfillment_presale
-  BEFORE INSERT ON fulfillment_orders
-  FOR EACH ROW EXECUTE FUNCTION fn_block_fulfillment_for_presale();
+**Estructura de tabs:**
+```text
+/flota
+├── Vehículos      → lista + botón "Nuevo vehículo" + modal detalle con historial completo
+├── Usos           → tabla filtrable por vehículo/categoría/fecha + botón "Registrar uso"
+├── Combustible    → historial + botón "Registrar carga" + panel rendimiento por vehículo
+├── Mantenimiento  → tal como está hoy (sin cambios)
+├── Préstamos      → tal como está hoy (sin cambios)
+└── Configuración  → CRUD categorías (visible solo admin/supervisor/owner)
 ```
 
-## D. RPC promoción a operación (UPDATE in-place)
+**Componentes nuevos:**
+- `src/components/flota/VehicleForm.tsx` — alta/edición de vehículo.
+- `src/components/flota/VehicleUsageForm.tsx` — registro de uso con validaciones de km y `FileUpload` para fotos odómetro.
+- `src/components/flota/FuelRecordForm.tsx` — carga de combustible con foto y cálculo bidireccional precio total ↔ precio/litro.
+- `src/components/flota/UsageCategoryManager.tsx` — CRUD categorías.
+- `src/components/flota/VehiclePhotoGallery.tsx` — galería agrupada por fecha.
 
-```sql
-CREATE OR REPLACE FUNCTION fn_send_presale_to_operation(p_request_id uuid)
-RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
-DECLARE r record;
-BEGIN
-  SELECT * INTO r FROM branch_requests
-   WHERE id = p_request_id AND is_pre_sale = true FOR UPDATE;
-  IF r.id IS NULL THEN RAISE EXCEPTION 'Pre-venta no encontrada o ya promovida'; END IF;
-  IF r.created_by <> auth.uid()
-     AND NOT (has_role(auth.uid(),'admin') OR is_owner(auth.uid())) THEN
-    RAISE EXCEPTION 'Solo el creador o admin puede enviar a operación';
-  END IF;
+**Reutilizamos:** `FileUpload` (ya existe, subir a bucket nuevo), `useUserBranchFilter`, patrones de `Dialog` y `Card` del proyecto, tipografía Space Grotesk/Inter, `.toLocaleString("de-DE")` para ₲/km, español paraguayo.
 
-  -- Re-validación cliente
-  IF COALESCE(r.client_name,'') = '' OR COALESCE(r.client_phone,'') = '' THEN
-    RAISE EXCEPTION 'Falta nombre o teléfono del cliente';
-  END IF;
-  IF r.shipping_method IN ('delivery','courier')
-     AND COALESCE(r.client_address,'') = '' THEN
-    RAISE EXCEPTION 'Delivery/courier requiere dirección del cliente';
-  END IF;
+## Permisos (roles existentes)
 
-  -- UPDATE in-place: mismo id, mismo request_number
-  UPDATE branch_requests
-     SET is_pre_sale     = false,
-         request_type    = 'online',
-         status          = 'pending',
-         pre_sale_status = 'sent_to_operation',
-         pre_sale_sent_at = now(),
-         updated_at       = now()
-   WHERE id = p_request_id;
-END $$;
-```
+| Acción                                    | Chofer (propio vehículo) | Admin / Supervisor / Owner |
+|-------------------------------------------|:------------------------:|:--------------------------:|
+| Registrar uso                             | ✅                        | ✅                          |
+| Registrar carga combustible               | ✅                        | ✅                          |
+| Ver historial / galería del vehículo      | ✅                        | ✅                          |
+| CRUD vehículos                            | ❌                        | ✅                          |
+| CRUD categorías                           | ❌                        | ✅                          |
+| Editar/eliminar usos y cargas ajenas      | ❌                        | ✅                          |
 
-## E. Centralización de queries (helper único)
+## Fuera de alcance (Fase 2, ya acordado)
 
-`src/lib/branch-requests-query.ts`:
-```ts
-export const operationalRequests = () =>
-  supabase.from("branch_requests").select("*").eq("is_pre_sale", false);
-export const allRequests       = () => supabase.from("branch_requests");
-export const preSaleRequests   = () =>
-  supabase.from("branch_requests").select("*").eq("is_pre_sale", true);
-```
+- Mantenimientos programados con alertas por km/fecha.
+- Multas/infracciones.
+- Dashboard con Recharts (rendimiento evolución, costo/km, uso por categoría).
+- Cron de alertas.
 
-Refactor de los 11 archivos operativos identificados; los 4 de Solicitudes/Admin usan `allRequests()` con su propio filtro UI. Se agrega regla ESLint `no-restricted-syntax` que bloquea `from("branch_requests")` fuera del helper.
+## Entregables
 
-## F. Frontend
+1. Una migración SQL con: 2 tablas nuevas + 2 alteraciones + triggers + policies + grants + seed de 5 categorías por defecto + bucket privado con policies.
+2. 5 componentes nuevos bajo `src/components/flota/`.
+3. Rewrite de `src/pages/Flota.tsx` con la nueva estructura de tabs.
+4. QA manual: crear vehículo, registrar 2 usos consecutivos (validar km), registrar carga y verificar rendimiento calculado, subir fotos y visualizar en galería, editar categoría, verificar bloqueo a chofer no propietario.
 
-- **`SolicitudCreateForm`**: opción "Pre Venta Online" → fija `request_type='pre_sale_online'`, `status='draft'`, abre `PreSaleClientForm` (zod).
-- **`SolicitudDetail`**: si `is_pre_sale=true`, panel reducido: `Editar / Generar PDF / Cliente confirmó / Enviar a operación`.
-- **`Solicitudes.tsx`**: chip "Pre-Ventas" + badge amarillo. Tabs operativos filtran por `is_pre_sale=false`.
-- **`StatusBadge`**: variante para `pre_sale_status`.
+## Notas técnicas
 
-## G. RLS
-
-Política adicional única:
-```sql
-CREATE POLICY "Edit own pre-sale draft"
-  ON branch_requests FOR UPDATE TO authenticated
-  USING      (is_pre_sale = true AND created_by = auth.uid())
-  WITH CHECK (is_pre_sale = true AND created_by = auth.uid());
-```
-
-## H. Matriz de regresión
-
-| Escenario | Resultado | Verificación |
-|-----------|-----------|--------------|
-| Crear pre-venta | sólo en bandeja "Pre-Ventas" | helper excluye en Pedidos/Ruteo/Chofer/Dashboard |
-| Editar pre-venta | persiste sin generar fulfillment | trigger bloqueo ok |
-| Generar PDF | < 1 MB, < 5s mobile | timeout 3s + fallback |
-| Promover a operación | mismo `id`, `request_number`, sin duplicar | RPC UPDATE in-place |
-| Pedido normal reposición | flujo intacto | regresión cero |
-| Forzar fulfillment sobre pre-venta | rechazado + `diagnostic_logs` | trigger fulfillment |
-| Query operativa que olvide filtro | bloqueada en build | ESLint rule |
-| Estado `'draft'` en queries existentes | invisible | grep `'draft'` = 0 hits |
-
-## I. Archivos
-
-**Nuevos**: migración SQL, `branch-requests-query.ts`, `pdf-image.ts`, `PreSaleClientForm.tsx`, `PreSalePDF.ts`, `PreSaleActions.tsx`, memoria `mem://negocio/pre-venta-online`.
-**Editados**: 11 archivos operativos (sólo cambian la fuente de query) + `SolicitudCreateForm`, `SolicitudDetail`, `Solicitudes`, `StatusBadge`, `business-rules.ts` + regla ESLint.
-
-## J. Fuera de alcance (fase 2)
-Buscador clientes BIMS · tabla `customers` · datos fiscales · conversión a factura BIMS · `seller_id` separado de `created_by`.
+- No se toca la lógica de `trips` ni `fn_driver_action`; los usos genéricos son entidad independiente.
+- El dashboard de la Fase 2 podrá unir `trips + vehicle_usages + fuel_records + vehicle_maintenance` en una vista SQL sin tocar los flujos.
+- `vehicle_usages.linked_request_id` es solo trazabilidad; no dispara ningún cambio en el pedido.
