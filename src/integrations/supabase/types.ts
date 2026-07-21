@@ -1260,6 +1260,7 @@ export type Database = {
       }
       fuel_records: {
         Row: {
+          computed_efficiency_kmpl: number | null
           created_at: string
           date: string
           driver_id: string
@@ -1276,6 +1277,7 @@ export type Database = {
           vehicle_id: string
         }
         Insert: {
+          computed_efficiency_kmpl?: number | null
           created_at?: string
           date?: string
           driver_id: string
@@ -1292,6 +1294,7 @@ export type Database = {
           vehicle_id: string
         }
         Update: {
+          computed_efficiency_kmpl?: number | null
           created_at?: string
           date?: string
           driver_id?: string
@@ -2815,6 +2818,125 @@ export type Database = {
           },
         ]
       }
+      vehicle_usage_categories: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      vehicle_usages: {
+        Row: {
+          category_id: string | null
+          created_at: string
+          created_by: string | null
+          destination: string | null
+          driver_id: string | null
+          driver_name_text: string | null
+          end_mileage: number | null
+          end_odometer_photo_path: string | null
+          ended_at: string | null
+          id: string
+          km_traveled: number | null
+          linked_request_id: string | null
+          notes: string | null
+          start_mileage: number
+          start_odometer_photo_path: string | null
+          started_at: string
+          updated_at: string
+          vehicle_id: string
+        }
+        Insert: {
+          category_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          destination?: string | null
+          driver_id?: string | null
+          driver_name_text?: string | null
+          end_mileage?: number | null
+          end_odometer_photo_path?: string | null
+          ended_at?: string | null
+          id?: string
+          km_traveled?: number | null
+          linked_request_id?: string | null
+          notes?: string | null
+          start_mileage: number
+          start_odometer_photo_path?: string | null
+          started_at?: string
+          updated_at?: string
+          vehicle_id: string
+        }
+        Update: {
+          category_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          destination?: string | null
+          driver_id?: string | null
+          driver_name_text?: string | null
+          end_mileage?: number | null
+          end_odometer_photo_path?: string | null
+          ended_at?: string | null
+          id?: string
+          km_traveled?: number | null
+          linked_request_id?: string | null
+          notes?: string | null
+          start_mileage?: number
+          start_odometer_photo_path?: string | null
+          started_at?: string
+          updated_at?: string
+          vehicle_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicle_usages_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_usage_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vehicle_usages_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
+            referencedRelation: "drivers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vehicle_usages_linked_request_id_fkey"
+            columns: ["linked_request_id"]
+            isOneToOne: false
+            referencedRelation: "branch_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vehicle_usages_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vehicles: {
         Row: {
           assigned_branch_id: string | null
@@ -2825,6 +2947,7 @@ export type Database = {
           insurance_expiry: string | null
           is_active: boolean | null
           model: string | null
+          nickname: string | null
           notes: string | null
           plate: string
           status: Database["public"]["Enums"]["vehicle_status"]
@@ -2841,6 +2964,7 @@ export type Database = {
           insurance_expiry?: string | null
           is_active?: boolean | null
           model?: string | null
+          nickname?: string | null
           notes?: string | null
           plate: string
           status?: Database["public"]["Enums"]["vehicle_status"]
@@ -2857,6 +2981,7 @@ export type Database = {
           insurance_expiry?: string | null
           is_active?: boolean | null
           model?: string | null
+          nickname?: string | null
           notes?: string | null
           plate?: string
           status?: Database["public"]["Enums"]["vehicle_status"]
@@ -2991,6 +3116,10 @@ export type Database = {
       fn_recalculate_flow_type: {
         Args: { p_request_id: string }
         Returns: Json
+      }
+      fn_recompute_vehicle_mileage: {
+        Args: { p_vehicle_id: string }
+        Returns: undefined
       }
       fn_respond_consultation_target: {
         Args: {

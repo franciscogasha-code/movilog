@@ -1,14 +1,23 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  Truck, Wrench, ArrowRightLeft, AlertTriangle, CheckCircle2, Calendar, Gauge,
+  Truck, Wrench, ArrowRightLeft, AlertTriangle, Calendar, Gauge, Plus, Fuel, Route, Settings, Images, Pencil,
 } from "lucide-react";
+import { VehicleForm, type VehicleFormValues } from "@/components/flota/VehicleForm";
+import { VehicleUsageForm } from "@/components/flota/VehicleUsageForm";
+import { FuelRecordForm } from "@/components/flota/FuelRecordForm";
+import { UsageCategoryManager } from "@/components/flota/UsageCategoryManager";
+import { VehiclePhotoGallery } from "@/components/flota/VehiclePhotoGallery";
 
 const VEHICLE_STATUS_LABELS: Record<string, { label: string; color: string }> = {
   available: { label: "Disponible", color: "bg-accent/10 text-accent" },
@@ -24,8 +33,17 @@ const MAINT_STATUS_LABELS: Record<string, { label: string; color: string }> = {
 };
 
 export default function Flota() {
+  const { isOwner, hasRole } = useAuth();
+  const isPrivileged = isOwner || hasRole("admin") || hasRole("supervisor");
+
   const [tab, setTab] = useState("vehiculos");
   const [detailVehicleId, setDetailVehicleId] = useState<string | null>(null);
+  const [vehicleFormOpen, setVehicleFormOpen] = useState(false);
+  const [vehicleEditing, setVehicleEditing] = useState<Partial<VehicleFormValues> | null>(null);
+  const [usageFormOpen, setUsageFormOpen] = useState(false);
+  const [fuelFormOpen, setFuelFormOpen] = useState(false);
+  const [filterVehicle, setFilterVehicle] = useState<string>("");
+  const [filterCategory, setFilterCategory] = useState<string>("");
 
   const { data: vehicles } = useQuery({
     queryKey: ["vehicles"],
@@ -35,6 +53,49 @@ export default function Flota() {
         .select(`*, assigned_branch:branches!vehicles_assigned_branch_id_fkey(name, code)`)
         .eq("is_active", true)
         .order("plate", { ascending: true });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: categories } = useQuery({
+    queryKey: ["vehicle-usage-categories"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("vehicle_usage_categories").select("id, name").eq("is_active", true).order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: usages } = useQuery({
+    queryKey: ["vehicle-usages", filterVehicle, filterCategory],
+    queryFn: async () => {
+      let q = supabase
+        .from("vehicle_usages")
+        .select(`
+          *,
+          vehicle:vehicles(plate, nickname),
+          category:vehicle_usage_categories(name),
+          driver:drivers(user_id, profile:profiles!drivers_user_id_fkey(full_name))
+        `)
+        .order("started_at", { ascending: false })
+        .limit(50);
+      if (filterVehicle) q = q.eq("vehicle_id", filterVehicle);
+      if (filterCategory) q = q.eq("category_id", filterCategory);
+      const { data, error } = await q;
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: fuelRecords } = useQuery({
+    queryKey: ["fuel-records"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("fuel_records")
+        .select(`*, vehicle:vehicles(plate, nickname)`)
+        .order("date", { ascending: false })
+        .limit(50);
       if (error) throw error;
       return data;
     },
@@ -71,7 +132,7 @@ export default function Flota() {
     },
   });
 
-  const { data: vehicleDetail } = useQuery({
+  const { data: vehicleMaintHistory } = useQuery({
     queryKey: ["vehicle-detail", detailVehicleId],
     enabled: !!detailVehicleId,
     queryFn: async () => {
@@ -91,7 +152,6 @@ export default function Flota() {
   const maintCount = vehicles?.filter(v => v.status === "maintenance").length || 0;
   const totalVehicles = vehicles?.length || 0;
 
-  const upcomingMaint = maintenance?.filter(m => m.status === "scheduled" && m.scheduled_date && new Date(m.scheduled_date) >= new Date()) || [];
   const overdueVtv = vehicles?.filter(v => v.vtv_expiry && new Date(v.vtv_expiry) < new Date()) || [];
   const overdueInsurance = vehicles?.filter(v => v.insurance_expiry && new Date(v.insurance_expiry) < new Date()) || [];
 
@@ -99,40 +159,46 @@ export default function Flota() {
 
   return (
     <motion.div className="space-y-6" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-      <div>
-        <h1 className="font-display text-2xl font-bold text-foreground">Gestión de Flota</h1>
-        <p className="text-muted-foreground mt-1">Vehículos, mantenimiento preventivo, préstamos y estado operativo</p>
+      <div className="flex items-start justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="font-display text-2xl font-bold text-foreground">Control de Móviles</h1>
+          <p className="text-muted-foreground mt-1">Vehículos, usos, combustible, mantenimiento y documentación</p>
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          <Button size="sm" variant="outline" onClick={() => setUsageFormOpen(true)} className="gap-2">
+            <Route className="h-4 w-4" /> Registrar uso
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => setFuelFormOpen(true)} className="gap-2">
+            <Fuel className="h-4 w-4" /> Cargar combustible
+          </Button>
+          {isPrivileged && (
+            <Button size="sm" onClick={() => { setVehicleEditing(null); setVehicleFormOpen(true); }} className="gap-2">
+              <Plus className="h-4 w-4" /> Nuevo vehículo
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <Card className="glass-card">
-          <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground uppercase">Disponibles</p>
-            <p className="text-2xl font-display font-bold text-accent">{availableCount}/{totalVehicles}</p>
-          </CardContent>
-        </Card>
-        <Card className="glass-card">
-          <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground uppercase">En ruta</p>
-            <p className="text-2xl font-display font-bold text-primary">{inUseCount}</p>
-          </CardContent>
-        </Card>
-        <Card className="glass-card">
-          <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground uppercase">En mantenimiento</p>
-            <p className="text-2xl font-display font-bold text-secondary">{maintCount}</p>
-          </CardContent>
-        </Card>
-        <Card className="glass-card">
-          <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground uppercase">Alertas</p>
-            <p className="text-2xl font-display font-bold text-destructive">{overdueVtv.length + overdueInsurance.length}</p>
-          </CardContent>
-        </Card>
+        <Card className="glass-card"><CardContent className="p-4">
+          <p className="text-xs text-muted-foreground uppercase">Disponibles</p>
+          <p className="text-2xl font-display font-bold text-accent">{availableCount}/{totalVehicles}</p>
+        </CardContent></Card>
+        <Card className="glass-card"><CardContent className="p-4">
+          <p className="text-xs text-muted-foreground uppercase">En ruta</p>
+          <p className="text-2xl font-display font-bold text-primary">{inUseCount}</p>
+        </CardContent></Card>
+        <Card className="glass-card"><CardContent className="p-4">
+          <p className="text-xs text-muted-foreground uppercase">En mantenimiento</p>
+          <p className="text-2xl font-display font-bold text-secondary">{maintCount}</p>
+        </CardContent></Card>
+        <Card className="glass-card"><CardContent className="p-4">
+          <p className="text-xs text-muted-foreground uppercase">Alertas</p>
+          <p className="text-2xl font-display font-bold text-destructive">{overdueVtv.length + overdueInsurance.length}</p>
+        </CardContent></Card>
       </div>
 
-      {/* Document alerts */}
       {(overdueVtv.length > 0 || overdueInsurance.length > 0) && (
         <Card className="glass-card border-destructive/30">
           <CardHeader className="pb-2">
@@ -158,10 +224,15 @@ export default function Flota() {
       )}
 
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="vehiculos" className="gap-2 text-xs"><Truck className="h-3.5 w-3.5" /> Vehículos</TabsTrigger>
-          <TabsTrigger value="mantenimiento" className="gap-2 text-xs"><Wrench className="h-3.5 w-3.5" /> Mantenimiento</TabsTrigger>
-          <TabsTrigger value="prestamos" className="gap-2 text-xs"><ArrowRightLeft className="h-3.5 w-3.5" /> Préstamos</TabsTrigger>
+        <TabsList className="flex w-full overflow-x-auto">
+          <TabsTrigger value="vehiculos" className="gap-1 text-xs"><Truck className="h-3.5 w-3.5" /> Vehículos</TabsTrigger>
+          <TabsTrigger value="usos" className="gap-1 text-xs"><Route className="h-3.5 w-3.5" /> Usos</TabsTrigger>
+          <TabsTrigger value="combustible" className="gap-1 text-xs"><Fuel className="h-3.5 w-3.5" /> Combustible</TabsTrigger>
+          <TabsTrigger value="mantenimiento" className="gap-1 text-xs"><Wrench className="h-3.5 w-3.5" /> Mantenimiento</TabsTrigger>
+          <TabsTrigger value="prestamos" className="gap-1 text-xs"><ArrowRightLeft className="h-3.5 w-3.5" /> Préstamos</TabsTrigger>
+          {isPrivileged && (
+            <TabsTrigger value="config" className="gap-1 text-xs"><Settings className="h-3.5 w-3.5" /> Configuración</TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="vehiculos" className="mt-4">
@@ -174,30 +245,35 @@ export default function Flota() {
                   {vehicles.map((v: any) => {
                     const statusCfg = VEHICLE_STATUS_LABELS[v.status] || VEHICLE_STATUS_LABELS.available;
                     return (
-                      <div key={v.id}
-                        className="p-4 hover:bg-muted/20 transition-colors cursor-pointer"
-                        onClick={() => setDetailVehicleId(v.id)}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <Truck className="h-4 w-4 text-muted-foreground" />
-                            <div>
-                              <span className="font-mono font-bold text-sm">{v.plate}</span>
-                              <span className="text-muted-foreground text-xs ml-2">
+                      <div key={v.id} className="p-4 hover:bg-muted/20 transition-colors">
+                        <div className="flex items-center justify-between gap-3 flex-wrap">
+                          <button className="flex items-center gap-3 text-left flex-1 min-w-0" onClick={() => setDetailVehicleId(v.id)}>
+                            <Truck className="h-4 w-4 text-muted-foreground shrink-0" />
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-mono font-bold text-sm">{v.plate}</span>
+                                {v.nickname && <span className="text-xs text-primary">"{v.nickname}"</span>}
+                              </div>
+                              <span className="text-muted-foreground text-xs">
                                 {v.brand} {v.model} {v.year ? `(${v.year})` : ""}
                               </span>
                             </div>
-                          </div>
+                          </button>
                           <div className="flex items-center gap-2">
                             {v.assigned_branch && (
                               <span className="text-xs text-muted-foreground">{(v.assigned_branch as any).code}</span>
                             )}
                             {v.current_mileage > 0 && (
                               <span className="text-xs text-muted-foreground flex items-center gap-0.5">
-                                <Gauge className="h-3 w-3" /> {v.current_mileage.toLocaleString()} km
+                                <Gauge className="h-3 w-3" /> {v.current_mileage.toLocaleString("de-DE")} km
                               </span>
                             )}
                             <Badge className={`text-xs ${statusCfg.color}`}>{statusCfg.label}</Badge>
+                            {isPrivileged && (
+                              <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); setVehicleEditing(v); setVehicleFormOpen(true); }}>
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -207,88 +283,161 @@ export default function Flota() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="usos" className="mt-4 space-y-3">
+          <div className="flex gap-2 flex-wrap">
+            <Select value={filterVehicle || "__all"} onValueChange={(v) => setFilterVehicle(v === "__all" ? "" : v)}>
+              <SelectTrigger className="w-48"><SelectValue placeholder="Todos los vehículos" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all">Todos los vehículos</SelectItem>
+                {vehicles?.map((v: any) => <SelectItem key={v.id} value={v.id}>{v.plate}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={filterCategory || "__all"} onValueChange={(v) => setFilterCategory(v === "__all" ? "" : v)}>
+              <SelectTrigger className="w-48"><SelectValue placeholder="Todas las categorías" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all">Todas las categorías</SelectItem>
+                {categories?.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <Card className="glass-card"><CardContent className="p-0">
+            {!usages?.length ? (
+              <div className="p-8 text-center text-muted-foreground">Sin usos registrados</div>
+            ) : (
+              <div className="divide-y divide-border/50">
+                {usages.map((u: any) => (
+                  <div key={u.id} className="p-4">
+                    <div className="flex items-start justify-between gap-2 flex-wrap">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-mono font-semibold text-sm">{u.vehicle?.plate}</span>
+                          {u.category?.name && <Badge variant="outline" className="text-xs">{u.category.name}</Badge>}
+                        </div>
+                        {u.destination && <p className="text-sm mt-0.5">{u.destination}</p>}
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {u.driver?.profile?.full_name || u.driver_name_text || "—"} · {new Date(u.started_at).toLocaleString("es-PY")}
+                        </p>
+                      </div>
+                      <div className="text-right text-xs">
+                        <p className="text-muted-foreground">{u.start_mileage?.toLocaleString("de-DE")} → {u.end_mileage?.toLocaleString("de-DE") || "—"}</p>
+                        {u.km_traveled > 0 && <p className="font-semibold text-primary">{u.km_traveled.toLocaleString("de-DE")} km</p>}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent></Card>
+        </TabsContent>
+
+        <TabsContent value="combustible" className="mt-4">
+          <Card className="glass-card"><CardContent className="p-0">
+            {!fuelRecords?.length ? (
+              <div className="p-8 text-center text-muted-foreground">Sin cargas registradas</div>
+            ) : (
+              <div className="divide-y divide-border/50">
+                {fuelRecords.map((f: any) => {
+                  const kmpl = f.computed_efficiency_kmpl ? Number(f.computed_efficiency_kmpl) : null;
+                  return (
+                    <div key={f.id} className="p-4">
+                      <div className="flex items-start justify-between gap-2 flex-wrap">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-mono font-semibold text-sm">{f.vehicle?.plate}</span>
+                            <span className="text-xs text-muted-foreground">{new Date(f.date).toLocaleDateString("es-PY")}</span>
+                          </div>
+                          <p className="text-sm mt-1">
+                            {Number(f.liters).toLocaleString("de-DE")} L · ₲ {Number(f.total_amount).toLocaleString("de-DE")}
+                            {f.price_per_liter && <span className="text-muted-foreground"> ({Number(f.price_per_liter).toLocaleString("de-DE")}/L)</span>}
+                          </p>
+                          {f.mileage_at_fill && <p className="text-xs text-muted-foreground">Km: {Number(f.mileage_at_fill).toLocaleString("de-DE")}</p>}
+                        </div>
+                        {kmpl !== null && (
+                          <Badge variant="outline" className="text-xs">{kmpl.toFixed(2)} km/L</Badge>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent></Card>
         </TabsContent>
 
         <TabsContent value="mantenimiento" className="mt-4">
-          <Card className="glass-card">
-            <CardContent className="p-0">
-              {!maintenance?.length ? (
-                <div className="p-8 text-center text-muted-foreground">Sin registros de mantenimiento</div>
-              ) : (
-                <div className="divide-y divide-border/50">
-                  {maintenance.map((m: any) => {
-                    const mCfg = MAINT_STATUS_LABELS[m.status] || MAINT_STATUS_LABELS.scheduled;
-                    return (
-                      <div key={m.id} className="p-4">
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="font-mono font-semibold text-sm">{(m.vehicle as any)?.plate_number}</span>
-                              <Badge variant="outline" className="text-xs">{m.maintenance_type}</Badge>
-                            </div>
-                            <p className="text-sm">{m.description}</p>
-                            <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                              {m.scheduled_date && (
-                                <span className="flex items-center gap-1">
-                                  <Calendar className="h-3 w-3" />
-                                  {new Date(m.scheduled_date).toLocaleDateString("es-PY")}
-                                </span>
-                              )}
-                              {m.provider && <span>{m.provider}</span>}
-                              {m.cost && <span>₲ {Number(m.cost).toLocaleString("es-PY")}</span>}
-                            </div>
-                          </div>
-                          <Badge className={`text-xs ${mCfg.color}`}>{mCfg.label}</Badge>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="prestamos" className="mt-4">
-          <Card className="glass-card">
-            <CardContent className="p-0">
-              {!loans?.length ? (
-                <div className="p-8 text-center text-muted-foreground">Sin préstamos registrados</div>
-              ) : (
-                <div className="divide-y divide-border/50">
-                  {loans.map((l: any) => (
-                    <div key={l.id} className="p-4">
+          <Card className="glass-card"><CardContent className="p-0">
+            {!maintenance?.length ? (
+              <div className="p-8 text-center text-muted-foreground">Sin registros de mantenimiento</div>
+            ) : (
+              <div className="divide-y divide-border/50">
+                {maintenance.map((m: any) => {
+                  const mCfg = MAINT_STATUS_LABELS[m.status] || MAINT_STATUS_LABELS.scheduled;
+                  return (
+                    <div key={m.id} className="p-4">
                       <div className="flex items-start justify-between">
                         <div>
                           <div className="flex items-center gap-2 mb-1">
-                            <span className="font-mono font-semibold text-sm">{(l.vehicle as any)?.plate_number}</span>
-                            <span className="text-xs text-muted-foreground">
-                              {(l.lending_branch as any)?.code} → {(l.borrowing_branch as any)?.code}
-                            </span>
+                            <span className="font-mono font-semibold text-sm">{(m.vehicle as any)?.plate_number}</span>
+                            <Badge variant="outline" className="text-xs">{m.maintenance_type}</Badge>
                           </div>
-                          {l.reason && <p className="text-sm text-muted-foreground">{l.reason}</p>}
-                          <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                            {l.start_date && <span>Desde: {new Date(l.start_date).toLocaleDateString("es-PY")}</span>}
-                            {l.expected_return_date && <span>Retorno: {new Date(l.expected_return_date).toLocaleDateString("es-PY")}</span>}
+                          <p className="text-sm">{m.description}</p>
+                          <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
+                            {m.scheduled_date && <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{new Date(m.scheduled_date).toLocaleDateString("es-PY")}</span>}
+                            {m.provider && <span>{m.provider}</span>}
+                            {m.cost && <span>₲ {Number(m.cost).toLocaleString("de-DE")}</span>}
                           </div>
                         </div>
-                        <Badge variant="outline" className="text-xs capitalize">{l.status}</Badge>
+                        <Badge className={`text-xs ${mCfg.color}`}>{mCfg.label}</Badge>
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent></Card>
         </TabsContent>
+
+        <TabsContent value="prestamos" className="mt-4">
+          <Card className="glass-card"><CardContent className="p-0">
+            {!loans?.length ? (
+              <div className="p-8 text-center text-muted-foreground">Sin préstamos registrados</div>
+            ) : (
+              <div className="divide-y divide-border/50">
+                {loans.map((l: any) => (
+                  <div key={l.id} className="p-4">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-mono font-semibold text-sm">{(l.vehicle as any)?.plate_number}</span>
+                          <span className="text-xs text-muted-foreground">{(l.lending_branch as any)?.code} → {(l.borrowing_branch as any)?.code}</span>
+                        </div>
+                        {l.reason && <p className="text-sm text-muted-foreground">{l.reason}</p>}
+                      </div>
+                      <Badge variant="outline" className="text-xs capitalize">{l.status}</Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent></Card>
+        </TabsContent>
+
+        {isPrivileged && (
+          <TabsContent value="config" className="mt-4">
+            <UsageCategoryManager />
+          </TabsContent>
+        )}
       </Tabs>
 
       {/* Vehicle detail dialog */}
       <Dialog open={!!detailVehicleId} onOpenChange={(o) => !o && setDetailVehicleId(null)}>
-        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-display">
               {selectedVehicle?.plate} — {selectedVehicle?.brand} {selectedVehicle?.model}
+              {selectedVehicle?.nickname && <span className="text-primary ml-2">"{selectedVehicle.nickname}"</span>}
             </DialogTitle>
           </DialogHeader>
           {selectedVehicle && (
@@ -296,7 +445,7 @@ export default function Flota() {
               <div className="grid grid-cols-2 gap-3">
                 <div className="p-3 rounded-lg bg-muted/30">
                   <p className="text-xs text-muted-foreground">Kilometraje</p>
-                  <p className="font-mono font-bold">{selectedVehicle.current_mileage?.toLocaleString() || 0} km</p>
+                  <p className="font-mono font-bold">{selectedVehicle.current_mileage?.toLocaleString("de-DE") || 0} km</p>
                 </div>
                 <div className="p-3 rounded-lg bg-muted/30">
                   <p className="text-xs text-muted-foreground">Estado</p>
@@ -318,11 +467,18 @@ export default function Flota() {
                 </div>
               </div>
 
-              {vehicleDetail && vehicleDetail.length > 0 && (
+              <div>
+                <h4 className="text-xs font-semibold text-muted-foreground uppercase mb-2 flex items-center gap-2">
+                  <Images className="h-3.5 w-3.5" /> Galería de fotos
+                </h4>
+                <VehiclePhotoGallery vehicleId={selectedVehicle.id} />
+              </div>
+
+              {vehicleMaintHistory && vehicleMaintHistory.length > 0 && (
                 <div>
                   <h4 className="text-xs font-semibold text-muted-foreground uppercase mb-2">Historial de mantenimiento</h4>
                   <div className="space-y-1">
-                    {vehicleDetail.map((m: any) => (
+                    {vehicleMaintHistory.map((m: any) => (
                       <div key={m.id} className="flex justify-between text-sm p-2 bg-muted/20 rounded">
                         <div>
                           <span className="font-medium">{m.maintenance_type}</span>
@@ -340,6 +496,10 @@ export default function Flota() {
           )}
         </DialogContent>
       </Dialog>
+
+      {vehicleFormOpen && <VehicleForm open={vehicleFormOpen} onOpenChange={setVehicleFormOpen} initial={vehicleEditing} />}
+      {usageFormOpen && <VehicleUsageForm open={usageFormOpen} onOpenChange={setUsageFormOpen} />}
+      {fuelFormOpen && <FuelRecordForm open={fuelFormOpen} onOpenChange={setFuelFormOpen} />}
     </motion.div>
   );
 }
