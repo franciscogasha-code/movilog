@@ -15,10 +15,12 @@ const ALLOWED_TYPES = [
 interface FileUploadProps {
   bucket: string;
   folder?: string;
-  onUpload: (url: string) => void;
+  onUpload: (value: string) => void;
   currentUrl?: string | null;
   label?: string;
   accept?: string;
+  /** If true, the bucket is private: store the storage path (not the URL) and preview with a signed URL. */
+  signed?: boolean;
 }
 
 export function FileUpload({
@@ -28,6 +30,7 @@ export function FileUpload({
   currentUrl,
   label = "Subir archivo",
   accept = "image/*,.pdf",
+  signed = false,
 }: FileUploadProps) {
   const [uploading, setUploading] = useState(false);
   const [preview, setPreview] = useState<string | null>(currentUrl || null);
@@ -58,13 +61,18 @@ export function FileUpload({
 
       if (error) throw error;
 
-      const { data: urlData } = supabase.storage
-        .from(bucket)
-        .getPublicUrl(path);
-
-      const url = urlData.publicUrl;
-      setPreview(url);
-      onUpload(url);
+      if (signed) {
+        const { data: signedData, error: signErr } = await supabase.storage
+          .from(bucket)
+          .createSignedUrl(path, 3600);
+        if (signErr) throw signErr;
+        setPreview(signedData.signedUrl);
+        onUpload(path);
+      } else {
+        const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(path);
+        setPreview(urlData.publicUrl);
+        onUpload(urlData.publicUrl);
+      }
       toast.success("Archivo subido correctamente");
     } catch (err: any) {
       toast.error(err.message || "Error al subir archivo");
