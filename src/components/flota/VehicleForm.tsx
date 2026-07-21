@@ -71,7 +71,7 @@ export function VehicleForm({
         brand: f.brand?.trim() || null,
         model: f.model?.trim() || null,
         year: f.year ? Number(f.year) : null,
-        status: f.status,
+        status: f.status as "available" | "in_route" | "maintenance" | "out_of_service",
         assigned_branch_id: f.assigned_branch_id || null,
         current_mileage: f.current_mileage ? Number(f.current_mileage) : 0,
         vtv_expiry: f.vtv_expiry || null,
