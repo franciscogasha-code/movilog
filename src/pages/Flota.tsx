@@ -173,7 +173,7 @@ export default function Flota() {
         </div>
         <div className="flex gap-2 flex-wrap">
           <Button size="sm" variant="outline" onClick={() => setUsageFormOpen(true)} className="gap-2">
-            <Route className="h-4 w-4" /> Registrar uso
+            <Route className="h-4 w-4" /> Iniciar viaje
           </Button>
           <Button size="sm" variant="outline" onClick={() => setFuelFormOpen(true)} className="gap-2">
             <Fuel className="h-4 w-4" /> Cargar combustible
