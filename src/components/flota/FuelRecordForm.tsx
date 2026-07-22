@@ -22,11 +22,9 @@ export function FuelRecordForm({
   presetVehicleId?: string | null;
 }) {
   const qc = useQueryClient();
-  const { user, isOwner, hasRole } = useAuth();
-  const isPrivileged = isOwner || hasRole("admin") || hasRole("supervisor");
+  const { user, profile } = useAuth();
 
   const [vehicleId, setVehicleId] = useState<string>(presetVehicleId ?? "");
-  const [driverId, setDriverId] = useState<string>("");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [mileage, setMileage] = useState<string>("");
   const [liters, setLiters] = useState<string>("");
@@ -48,18 +46,6 @@ export function FuelRecordForm({
     },
   });
 
-  const { data: drivers } = useQuery({
-    queryKey: ["drivers-active"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("drivers")
-        .select("id, user_id, profile:profiles!drivers_user_id_fkey(full_name)")
-        .eq("is_active", true);
-      if (error) throw error;
-      return data;
-    },
-  });
-
   const { data: myDriver } = useQuery({
     queryKey: ["my-driver", user?.id],
     enabled: !!user?.id,
@@ -69,7 +55,7 @@ export function FuelRecordForm({
     },
   });
 
-  useEffect(() => { if (!driverId && myDriver?.id && !isPrivileged) setDriverId(myDriver.id); }, [myDriver, isPrivileged, driverId]);
+  const driverId = myDriver?.id ?? "";
 
   // Bidirectional total ↔ per-liter
   useEffect(() => {
