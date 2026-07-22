@@ -231,15 +231,25 @@ export default function Flota() {
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="flex w-full overflow-x-auto">
+          {isPrivileged && (
+            <TabsTrigger value="reportes" className="gap-1 text-xs"><BarChart3 className="h-3.5 w-3.5" /> Reportes</TabsTrigger>
+          )}
           <TabsTrigger value="vehiculos" className="gap-1 text-xs"><Truck className="h-3.5 w-3.5" /> Vehículos</TabsTrigger>
           <TabsTrigger value="usos" className="gap-1 text-xs"><Route className="h-3.5 w-3.5" /> Usos</TabsTrigger>
           <TabsTrigger value="combustible" className="gap-1 text-xs"><Fuel className="h-3.5 w-3.5" /> Combustible</TabsTrigger>
           <TabsTrigger value="mantenimiento" className="gap-1 text-xs"><Wrench className="h-3.5 w-3.5" /> Mantenimiento</TabsTrigger>
+          <TabsTrigger value="multas" className="gap-1 text-xs"><Receipt className="h-3.5 w-3.5" /> Multas</TabsTrigger>
           <TabsTrigger value="prestamos" className="gap-1 text-xs"><ArrowRightLeft className="h-3.5 w-3.5" /> Préstamos</TabsTrigger>
           {isPrivileged && (
             <TabsTrigger value="config" className="gap-1 text-xs"><Settings className="h-3.5 w-3.5" /> Configuración</TabsTrigger>
           )}
         </TabsList>
+
+        {isPrivileged && (
+          <TabsContent value="reportes" className="mt-4">
+            <FleetDashboard />
+          </TabsContent>
+        )}
 
         <TabsContent value="vehiculos" className="mt-4">
           <Card className="glass-card">
