@@ -1,91 +1,95 @@
-# Módulo Control de Móviles — Fase 1
+# Módulo Flota — Fase 2
 
-Reemplaza la página `/flota` (hoy read-only) por un módulo completo con CRUD de vehículos, categorías configurables, registro de uso genérico (paralelo a `trips`), carga de combustible con fotos, y galería. Mantenimientos programados, multas y dashboard con gráficos quedan para Fase 2.
+Completa el módulo `/flota` agregando **Dashboard analítico**, **Mantenimientos programados con alertas** y **Multas / infracciones**. Reutiliza la infraestructura de Fase 1 (bucket `vehicle-photos`, `SignedImg`, patrones de forms, RLS por rol).
 
 ## Alcance funcional
 
-1. **Vehículos** — CRUD completo (alta, edición, baja lógica). Campos ya existentes + apodo interno. Estado: Disponible / En uso / En mantenimiento / Fuera de servicio. Documentación: seguro y VTV con vencimientos y alertas visuales (ya existen).
-2. **Categorías de uso** — Tabla configurable (admin/supervisor): entre sucursales, a proveedor, a cliente, trámites, otro. Editable desde la UI.
-3. **Registro de uso** — Nueva tabla `vehicle_usages` **paralela** a `trips` (no toca la lógica logística existente). Campos: vehículo, chofer (usuario o texto libre), categoría, destino, km inicial/final, km recorridos (calculado), pedido/envío opcional, fecha-hora inicio/fin, fotos odómetro inicial/final, observaciones. Validaciones: km_inicial ≥ último km registrado del vehículo (soft-warning), alerta si km_recorridos > 2× promedio histórico.
-4. **Combustible** — Extender formulario existente (`fuel_records` ya existe) con: foto surtidor/comprobante, cálculo automático precio total ↔ precio/litro, rendimiento km/L entre cargas, alerta si rendimiento cae > 20% vs promedio del vehículo. Historial por vehículo.
-5. **Galería** — Vista por vehículo con todas las fotos (odómetro + combustible) ordenadas por fecha.
-6. **Actualización de kilometraje** — Trigger que actualiza `vehicles.current_mileage` con el mayor km registrado entre `vehicle_usages`, `fuel_records` y `trips`.
+### 1. Dashboard de Flota (tab nuevo "Reportes")
+Vista ejecutiva con filtros globales: rango de fechas (últimos 30/90/365 días o custom) y vehículo (todos / uno).
 
-## Cambios de base de datos
+**KPIs superiores (cards):**
+- Km recorridos totales (suma `vehicle_usages` + `trips`).
+- Litros cargados y gasto total en ₲.
+- Rendimiento promedio flota (km/L).
+- Costo por km (₲/km).
+- Vehículos activos vs total.
 
-**Nuevas tablas:**
-- `vehicle_usage_categories` — id, name, description, is_active, created_at
-- `vehicle_usages` — id, vehicle_id, driver_id (nullable FK a `drivers`), driver_name_text (fallback), category_id, destination, start_mileage, end_mileage, km_traveled (generated), linked_request_id (nullable FK a `branch_requests`), started_at, ended_at, start_odometer_photo_url, end_odometer_photo_url, notes, created_by, created_at, updated_at
+**Gráficos (Recharts):**
+- Evolución de rendimiento km/L por vehículo (line chart, multi-serie).
+- Gasto mensual de combustible (bar chart apilado por vehículo).
+- Uso por categoría (pie/donut de `vehicle_usage_categories`).
+- Top 5 vehículos por km recorridos (horizontal bar).
 
-**Modificaciones:**
-- `vehicles`: agregar `nickname` (text, nullable).
-- `fuel_records`: agregar `computed_efficiency_kmpl` (numeric, calculado por trigger contra la carga anterior).
+**Tabla comparativa por vehículo:** km totales, litros, gasto, km/L, ₲/km, último uso, alertas activas.
 
-**Storage:**
-- Bucket privado `vehicle-photos` con RLS: chofer puede subir para su vehículo, admin/supervisor/owner todo.
+### 2. Mantenimientos programados
+Extiende `vehicle_maintenance` (ya existe) con: `scheduled_km`, `scheduled_date`, `alert_km_threshold` (default 500), `alert_days_threshold` (default 7), `recurrence_km` y `recurrence_days` (para programar el próximo automáticamente al completar).
 
-**RLS y GRANTs (siguiendo el patrón del proyecto):**
-- `vehicle_usage_categories`: SELECT authenticated; INSERT/UPDATE/DELETE solo admin/supervisor/owner.
-- `vehicle_usages`: SELECT authenticated con branch filter vía vehículo asignado o participación del chofer; INSERT si `driver_id` corresponde al `auth.uid()` **o** rol admin/supervisor/owner; UPDATE/DELETE admin/supervisor/owner.
-- `fuel_records`: endurecer las policies actuales (`USING (true)`) al mismo criterio.
-- Todas con `GRANT` explícito a `authenticated` y `service_role`.
+- **CRUD** desde el tab "Mantenimiento" con form completo (tipo, taller, costo, fechas, km, recurrencia).
+- **Alertas visuales** en la lista de vehículos: badge amarillo si `current_mileage >= scheduled_km - threshold` o `scheduled_date - hoy <= days_threshold`; rojo si vencido.
+- **Auto-programación**: al marcar `completed`, si tiene recurrencia, se inserta el siguiente registro.
+- **Panel "Próximos mantenimientos"** en el Dashboard (7 días o 500 km).
 
-**Funciones/triggers:**
-- `fn_recompute_vehicle_mileage(vehicle_id)` — actualiza `vehicles.current_mileage`.
-- Trigger `AFTER INSERT/UPDATE` en `vehicle_usages` y `fuel_records` que llama a la función.
-- Trigger en `fuel_records` que calcula `computed_efficiency_kmpl` usando el registro anterior del vehículo.
+### 3. Multas / infracciones (nueva tabla `vehicle_fines`)
+Campos: `vehicle_id`, `driver_id` (opcional), `fine_number`, `issued_at`, `location`, `infraction_type`, `amount`, `due_date`, `status` (pending/paid/appealed/cancelled), `paid_at`, `paid_by`, `receipt_photo_url`, `notes`.
+
+- **Nuevo tab "Multas"** con lista filtrable + form de alta.
+- Cálculo automático de **vencidas** (rojo si `due_date < hoy AND status='pending'`).
+- Subida de foto del recibo al bucket `vehicle-photos` (subcarpeta `fines/`).
+- Panel "Multas pendientes" en Dashboard con total adeudado.
+
+### 4. Cron de alertas diario
+Edge Function `fleet-daily-alerts` programada con `pg_cron` a las 07:00. Genera entradas en `ai_anomalies` (área `logistics`) para:
+- Mantenimientos próximos a vencer (fecha o km).
+- Mantenimientos vencidos.
+- Multas pendientes vencidas.
+- VTV o seguro próximos a vencer (< 15 días) — reutiliza `insurance_expiry` / `vtv_expiry` ya existentes en `vehicles`.
+
+## Cambios de base de datos (una sola migración)
+
+**Nueva tabla `vehicle_fines`** con GRANTs, RLS (SELECT authenticated, INSERT/UPDATE/DELETE admin/supervisor/owner o driver dueño del vehículo asignado) y trigger `updated_at`.
+
+**Alter `vehicle_maintenance`** — agregar `scheduled_km`, `alert_km_threshold`, `alert_days_threshold`, `recurrence_km`, `recurrence_days`, `parent_maintenance_id`.
+
+**Función `fn_maintenance_autoschedule`** — trigger `AFTER UPDATE` en `vehicle_maintenance`: si pasa a `completed` y tiene recurrencia, inserta próximo registro.
+
+**Vista `v_fleet_kpis_by_vehicle`** — agrega km, litros, gasto y km/L por vehículo por mes (materializada opcional; empezamos con view normal).
 
 ## Cambios de frontend
 
-**Ruta:** `/flota` se reemplaza por el nuevo módulo (misma URL, se conserva navegación existente).
+**Componentes nuevos bajo `src/components/flota/`:**
+- `FleetDashboard.tsx` — orquestador de KPIs + gráficos + filtros.
+- `MaintenanceForm.tsx` — alta/edición de mantenimiento programado.
+- `FineForm.tsx` — alta/edición de multa.
+- `FinesList.tsx` — tabla filtrable de multas.
+- `MaintenanceAlertsBadge.tsx` — badge reutilizable para lista de vehículos.
 
-**Estructura de tabs:**
-```text
-/flota
-├── Vehículos      → lista + botón "Nuevo vehículo" + modal detalle con historial completo
-├── Usos           → tabla filtrable por vehículo/categoría/fecha + botón "Registrar uso"
-├── Combustible    → historial + botón "Registrar carga" + panel rendimiento por vehículo
-├── Mantenimiento  → tal como está hoy (sin cambios)
-├── Préstamos      → tal como está hoy (sin cambios)
-└── Configuración  → CRUD categorías (visible solo admin/supervisor/owner)
-```
+**Cambios en `src/pages/Flota.tsx`:**
+- Nuevos tabs: `Reportes` (primero) y `Multas`.
+- Tab `Mantenimiento` deja de ser read-only: agrega botón "Nuevo mantenimiento" + edición.
+- En la lista de vehículos, insertar `MaintenanceAlertsBadge`.
 
-**Componentes nuevos:**
-- `src/components/flota/VehicleForm.tsx` — alta/edición de vehículo.
-- `src/components/flota/VehicleUsageForm.tsx` — registro de uso con validaciones de km y `FileUpload` para fotos odómetro.
-- `src/components/flota/FuelRecordForm.tsx` — carga de combustible con foto y cálculo bidireccional precio total ↔ precio/litro.
-- `src/components/flota/UsageCategoryManager.tsx` — CRUD categorías.
-- `src/components/flota/VehiclePhotoGallery.tsx` — galería agrupada por fecha.
+**Edge Function nueva:** `supabase/functions/fleet-daily-alerts/index.ts` + cron con `pg_cron` (SQL de agenda va vía tool insert, no migration, porque incluye anon key).
 
-**Reutilizamos:** `FileUpload` (ya existe, subir a bucket nuevo), `useUserBranchFilter`, patrones de `Dialog` y `Card` del proyecto, tipografía Space Grotesk/Inter, `.toLocaleString("de-DE")` para ₲/km, español paraguayo.
+## Permisos
 
-## Permisos (roles existentes)
-
-| Acción                                    | Chofer (propio vehículo) | Admin / Supervisor / Owner |
-|-------------------------------------------|:------------------------:|:--------------------------:|
-| Registrar uso                             | ✅                        | ✅                          |
-| Registrar carga combustible               | ✅                        | ✅                          |
-| Ver historial / galería del vehículo      | ✅                        | ✅                          |
-| CRUD vehículos                            | ❌                        | ✅                          |
-| CRUD categorías                           | ❌                        | ✅                          |
-| Editar/eliminar usos y cargas ajenas      | ❌                        | ✅                          |
-
-## Fuera de alcance (Fase 2, ya acordado)
-
-- Mantenimientos programados con alertas por km/fecha.
-- Multas/infracciones.
-- Dashboard con Recharts (rendimiento evolución, costo/km, uso por categoría).
-- Cron de alertas.
+| Acción | Chofer (vehículo propio) | Admin / Supervisor / Owner |
+|---|:-:|:-:|
+| Ver dashboard | ❌ | ✅ |
+| Ver multas del vehículo | ✅ | ✅ |
+| CRUD multas | ❌ | ✅ |
+| Marcar multa pagada + subir recibo | ✅ (propia) | ✅ |
+| CRUD mantenimientos | ❌ | ✅ |
+| Marcar mantenimiento completado | ✅ | ✅ |
 
 ## Entregables
 
-1. Una migración SQL con: 2 tablas nuevas + 2 alteraciones + triggers + policies + grants + seed de 5 categorías por defecto + bucket privado con policies.
-2. 5 componentes nuevos bajo `src/components/flota/`.
-3. Rewrite de `src/pages/Flota.tsx` con la nueva estructura de tabs.
-4. QA manual: crear vehículo, registrar 2 usos consecutivos (validar km), registrar carga y verificar rendimiento calculado, subir fotos y visualizar en galería, editar categoría, verificar bloqueo a chofer no propietario.
+1. Migración SQL con tabla `vehicle_fines`, alters de `vehicle_maintenance`, view `v_fleet_kpis_by_vehicle`, función de auto-programación, GRANTs y policies.
+2. 5 componentes nuevos + rewrite parcial de `Flota.tsx`.
+3. Edge Function `fleet-daily-alerts` + cron agendado.
+4. QA manual: crear mantenimiento con recurrencia y completar (verificar próximo), crear multa vencida (verificar badge rojo), verificar dashboard con datos reales, verificar alertas cron.
 
-## Notas técnicas
-
-- No se toca la lógica de `trips` ni `fn_driver_action`; los usos genéricos son entidad independiente.
-- El dashboard de la Fase 2 podrá unir `trips + vehicle_usages + fuel_records + vehicle_maintenance` en una vista SQL sin tocar los flujos.
-- `vehicle_usages.linked_request_id` es solo trazabilidad; no dispara ningún cambio en el pedido.
+## Fuera de alcance
+- Integración con proveedor de multas oficial.
+- Exportación PDF/Excel del dashboard (queda para Fase 3 si se pide).
+- Firma digital de comprobantes.
