@@ -11,13 +11,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  Truck, Wrench, ArrowRightLeft, AlertTriangle, Calendar, Gauge, Plus, Fuel, Route, Settings, Images, Pencil,
+  Truck, Wrench, ArrowRightLeft, AlertTriangle, Calendar, Gauge, Plus, Fuel, Route, Settings, Images, Pencil, BarChart3, Receipt,
 } from "lucide-react";
 import { VehicleForm, type VehicleFormValues } from "@/components/flota/VehicleForm";
 import { VehicleUsageForm } from "@/components/flota/VehicleUsageForm";
 import { FuelRecordForm } from "@/components/flota/FuelRecordForm";
 import { UsageCategoryManager } from "@/components/flota/UsageCategoryManager";
 import { VehiclePhotoGallery } from "@/components/flota/VehiclePhotoGallery";
+import { MaintenanceForm } from "@/components/flota/MaintenanceForm";
+import { MaintenanceAlertsBadge } from "@/components/flota/MaintenanceAlertsBadge";
+import { FinesList } from "@/components/flota/FinesList";
+import { FleetDashboard } from "@/components/flota/FleetDashboard";
 
 const VEHICLE_STATUS_LABELS: Record<string, { label: string; color: string }> = {
   available: { label: "Disponible", color: "bg-accent/10 text-accent" },
@@ -36,12 +40,14 @@ export default function Flota() {
   const { isOwner, hasRole } = useAuth();
   const isPrivileged = isOwner || hasRole("admin") || hasRole("supervisor");
 
-  const [tab, setTab] = useState("vehiculos");
+  const [tab, setTab] = useState(isPrivileged ? "reportes" : "vehiculos");
   const [detailVehicleId, setDetailVehicleId] = useState<string | null>(null);
   const [vehicleFormOpen, setVehicleFormOpen] = useState(false);
   const [vehicleEditing, setVehicleEditing] = useState<Partial<VehicleFormValues> | null>(null);
   const [usageFormOpen, setUsageFormOpen] = useState(false);
   const [fuelFormOpen, setFuelFormOpen] = useState(false);
+  const [maintFormOpen, setMaintFormOpen] = useState(false);
+  const [maintEditing, setMaintEditing] = useState<any>(null);
   const [filterVehicle, setFilterVehicle] = useState<string>("");
   const [filterCategory, setFilterCategory] = useState<string>("");
 
@@ -225,15 +231,25 @@ export default function Flota() {
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="flex w-full overflow-x-auto">
+          {isPrivileged && (
+            <TabsTrigger value="reportes" className="gap-1 text-xs"><BarChart3 className="h-3.5 w-3.5" /> Reportes</TabsTrigger>
+          )}
           <TabsTrigger value="vehiculos" className="gap-1 text-xs"><Truck className="h-3.5 w-3.5" /> Vehículos</TabsTrigger>
           <TabsTrigger value="usos" className="gap-1 text-xs"><Route className="h-3.5 w-3.5" /> Usos</TabsTrigger>
           <TabsTrigger value="combustible" className="gap-1 text-xs"><Fuel className="h-3.5 w-3.5" /> Combustible</TabsTrigger>
           <TabsTrigger value="mantenimiento" className="gap-1 text-xs"><Wrench className="h-3.5 w-3.5" /> Mantenimiento</TabsTrigger>
+          <TabsTrigger value="multas" className="gap-1 text-xs"><Receipt className="h-3.5 w-3.5" /> Multas</TabsTrigger>
           <TabsTrigger value="prestamos" className="gap-1 text-xs"><ArrowRightLeft className="h-3.5 w-3.5" /> Préstamos</TabsTrigger>
           {isPrivileged && (
             <TabsTrigger value="config" className="gap-1 text-xs"><Settings className="h-3.5 w-3.5" /> Configuración</TabsTrigger>
           )}
         </TabsList>
+
+        {isPrivileged && (
+          <TabsContent value="reportes" className="mt-4">
+            <FleetDashboard />
+          </TabsContent>
+        )}
 
         <TabsContent value="vehiculos" className="mt-4">
           <Card className="glass-card">
@@ -269,6 +285,7 @@ export default function Flota() {
                               </span>
                             )}
                             <Badge className={`text-xs ${statusCfg.color}`}>{statusCfg.label}</Badge>
+                            <MaintenanceAlertsBadge vehicleId={v.id} currentMileage={v.current_mileage || 0} />
                             {isPrivileged && (
                               <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); setVehicleEditing(v); setVehicleFormOpen(true); }}>
                                 <Pencil className="h-3.5 w-3.5" />
@@ -366,7 +383,14 @@ export default function Flota() {
           </CardContent></Card>
         </TabsContent>
 
-        <TabsContent value="mantenimiento" className="mt-4">
+        <TabsContent value="mantenimiento" className="mt-4 space-y-3">
+          {isPrivileged && (
+            <div className="flex justify-end">
+              <Button size="sm" onClick={() => { setMaintEditing(null); setMaintFormOpen(true); }} className="gap-2">
+                <Plus className="h-4 w-4" /> Nuevo mantenimiento
+              </Button>
+            </div>
+          )}
           <Card className="glass-card"><CardContent className="p-0">
             {!maintenance?.length ? (
               <div className="p-8 text-center text-muted-foreground">Sin registros de mantenimiento</div>
@@ -376,20 +400,31 @@ export default function Flota() {
                   const mCfg = MAINT_STATUS_LABELS[m.status] || MAINT_STATUS_LABELS.scheduled;
                   return (
                     <div key={m.id} className="p-4">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <div className="flex items-center gap-2 mb-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
                             <span className="font-mono font-semibold text-sm">{(m.vehicle as any)?.plate_number}</span>
                             <Badge variant="outline" className="text-xs">{m.maintenance_type}</Badge>
+                            {(m.recurrence_km || m.recurrence_days) && (
+                              <Badge variant="outline" className="text-xs">Recurrente</Badge>
+                            )}
                           </div>
                           <p className="text-sm">{m.description}</p>
                           <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
                             {m.scheduled_date && <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{new Date(m.scheduled_date).toLocaleDateString("es-PY")}</span>}
+                            {m.scheduled_km && <span className="flex items-center gap-1"><Gauge className="h-3 w-3" />{Number(m.scheduled_km).toLocaleString("de-DE")} km</span>}
                             {m.provider && <span>{m.provider}</span>}
                             {m.cost && <span>₲ {Number(m.cost).toLocaleString("de-DE")}</span>}
                           </div>
                         </div>
-                        <Badge className={`text-xs ${mCfg.color}`}>{mCfg.label}</Badge>
+                        <div className="flex items-center gap-2">
+                          <Badge className={`text-xs ${mCfg.color}`}>{mCfg.label}</Badge>
+                          {isPrivileged && (
+                            <Button size="icon" variant="ghost" onClick={() => { setMaintEditing(m); setMaintFormOpen(true); }}>
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );
@@ -398,6 +433,11 @@ export default function Flota() {
             )}
           </CardContent></Card>
         </TabsContent>
+
+        <TabsContent value="multas" className="mt-4">
+          <FinesList canEdit={isPrivileged} />
+        </TabsContent>
+
 
         <TabsContent value="prestamos" className="mt-4">
           <Card className="glass-card"><CardContent className="p-0">
@@ -500,6 +540,7 @@ export default function Flota() {
       {vehicleFormOpen && <VehicleForm open={vehicleFormOpen} onOpenChange={setVehicleFormOpen} initial={vehicleEditing} />}
       {usageFormOpen && <VehicleUsageForm open={usageFormOpen} onOpenChange={setUsageFormOpen} />}
       {fuelFormOpen && <FuelRecordForm open={fuelFormOpen} onOpenChange={setFuelFormOpen} />}
+      {maintFormOpen && <MaintenanceForm open={maintFormOpen} onOpenChange={setMaintFormOpen} initial={maintEditing} />}
     </motion.div>
   );
 }
