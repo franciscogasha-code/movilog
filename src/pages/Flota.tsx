@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { VehicleForm, type VehicleFormValues } from "@/components/flota/VehicleForm";
 import { VehicleUsageForm } from "@/components/flota/VehicleUsageForm";
+import { OpenTripsSection } from "@/components/flota/OpenTripsSection";
 import { FuelRecordForm } from "@/components/flota/FuelRecordForm";
 import { UsageCategoryManager } from "@/components/flota/UsageCategoryManager";
 import { VehiclePhotoGallery } from "@/components/flota/VehiclePhotoGallery";
