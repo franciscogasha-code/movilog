@@ -40,12 +40,14 @@ export default function Flota() {
   const { isOwner, hasRole } = useAuth();
   const isPrivileged = isOwner || hasRole("admin") || hasRole("supervisor");
 
-  const [tab, setTab] = useState("vehiculos");
+  const [tab, setTab] = useState(isPrivileged ? "reportes" : "vehiculos");
   const [detailVehicleId, setDetailVehicleId] = useState<string | null>(null);
   const [vehicleFormOpen, setVehicleFormOpen] = useState(false);
   const [vehicleEditing, setVehicleEditing] = useState<Partial<VehicleFormValues> | null>(null);
   const [usageFormOpen, setUsageFormOpen] = useState(false);
   const [fuelFormOpen, setFuelFormOpen] = useState(false);
+  const [maintFormOpen, setMaintFormOpen] = useState(false);
+  const [maintEditing, setMaintEditing] = useState<any>(null);
   const [filterVehicle, setFilterVehicle] = useState<string>("");
   const [filterCategory, setFilterCategory] = useState<string>("");
 
