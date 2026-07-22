@@ -230,6 +230,8 @@ export default function Flota() {
         </Card>
       )}
 
+      <OpenTripsSection />
+
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="flex w-full overflow-x-auto">
           {isPrivileged && (
