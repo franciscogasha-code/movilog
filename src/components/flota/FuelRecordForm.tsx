@@ -151,14 +151,18 @@ export function FuelRecordForm({
             </div>
             <div>
               <Label>Chofer *</Label>
-              <Select value={driverId} onValueChange={setDriverId}>
-                <SelectTrigger><SelectValue placeholder="Chofer..." /></SelectTrigger>
-                <SelectContent>
-                  {drivers?.map((d: any) => (
-                    <SelectItem key={d.id} value={d.id}>{d.profile?.full_name || "Chofer"}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Input value={profile?.full_name ?? ""} readOnly disabled />
+              <p className="text-xs text-muted-foreground mt-1">
+                {driverId ? "Se asigna al usuario en sesión" : "El usuario en sesión no está registrado como chofer"}
+              </p>
+            </div>
+            <div>
+              <Label>Fecha *</Label>
+              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            </div>
+            <div>
+              <Label>Km al momento *</Label>
+              <Input type="number" value={mileage} onChange={(e) => setMileage(e.target.value)} />
             </div>
             <div>
               <Label>Fecha</Label>
