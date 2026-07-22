@@ -22,23 +22,33 @@ export function VehicleUsageForm({
   presetVehicleId?: string | null;
 }) {
   const qc = useQueryClient();
-  const { user, isOwner, hasRole } = useAuth();
-  const isPrivileged = isOwner || hasRole("admin") || hasRole("supervisor");
+  const { user, profile } = useAuth();
 
   const [vehicleId, setVehicleId] = useState<string>(presetVehicleId ?? "");
-  const [driverId, setDriverId] = useState<string>("");
-  const [driverNameText, setDriverNameText] = useState<string>("");
   const [categoryId, setCategoryId] = useState<string>("");
   const [destination, setDestination] = useState("");
   const [startMileage, setStartMileage] = useState<string>("");
   const [endMileage, setEndMileage] = useState<string>("");
-  const [startedAt, setStartedAt] = useState<string>(() => new Date().toISOString().slice(0, 16));
+  const [startedAt, setStartedAt] = useState<string>("");
   const [endedAt, setEndedAt] = useState<string>("");
   const [startPhoto, setStartPhoto] = useState<string>("");
   const [endPhoto, setEndPhoto] = useState<string>("");
   const [notes, setNotes] = useState("");
 
   useEffect(() => { if (presetVehicleId) setVehicleId(presetVehicleId); }, [presetVehicleId]);
+
+  // Auto-fill start/end datetime when odometer photos are uploaded
+  useEffect(() => {
+    if (startPhoto && !startedAt) {
+      setStartedAt(new Date().toISOString().slice(0, 16));
+    }
+  }, [startPhoto, startedAt]);
+
+  useEffect(() => {
+    if (endPhoto && !endedAt) {
+      setEndedAt(new Date().toISOString().slice(0, 16));
+    }
+  }, [endPhoto, endedAt]);
 
   const { data: vehicles } = useQuery({
     queryKey: ["vehicles-active"],
@@ -58,18 +68,6 @@ export function VehicleUsageForm({
     },
   });
 
-  const { data: drivers } = useQuery({
-    queryKey: ["drivers-active"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("drivers")
-        .select("id, user_id, profile:profiles!drivers_user_id_fkey(full_name)")
-        .eq("is_active", true);
-      if (error) throw error;
-      return data;
-    },
-  });
-
   const { data: myDriver } = useQuery({
     queryKey: ["my-driver", user?.id],
     enabled: !!user?.id,
@@ -78,9 +76,6 @@ export function VehicleUsageForm({
       return data;
     },
   });
-
-  // Default driver: current user if is driver
-  useEffect(() => { if (!driverId && myDriver?.id && !isPrivileged) setDriverId(myDriver.id); }, [myDriver, isPrivileged, driverId]);
 
   const { data: lastUsage } = useQuery({
     queryKey: ["last-vehicle-usage", vehicleId],
@@ -120,20 +115,26 @@ export function VehicleUsageForm({
   const submit = useMutation({
     mutationFn: async () => {
       if (!vehicleId) throw new Error("Seleccioná un vehículo");
+      if (!categoryId) throw new Error("La categoría es obligatoria");
+      if (!destination.trim()) throw new Error("El destino es obligatorio");
       if (!startMileage) throw new Error("Kilometraje inicial requerido");
-      if (!driverId && !driverNameText.trim()) throw new Error("Indicá el chofer (usuario o nombre)");
+      if (!endMileage) throw new Error("Kilometraje final requerido");
+      if (!startPhoto) throw new Error("Foto del odómetro inicial requerida");
+      if (!endPhoto) throw new Error("Foto del odómetro final requerida");
+      if (!startedAt) throw new Error("Fecha de inicio requerida");
+      if (!endedAt) throw new Error("Fecha de fin requerida");
       const payload: any = {
         vehicle_id: vehicleId,
-        driver_id: driverId || null,
-        driver_name_text: driverId ? null : driverNameText.trim() || null,
-        category_id: categoryId || null,
-        destination: destination.trim() || null,
+        driver_id: myDriver?.id ?? null,
+        driver_name_text: myDriver?.id ? null : (profile?.full_name ?? null),
+        category_id: categoryId,
+        destination: destination.trim(),
         start_mileage: startNum,
-        end_mileage: endMileage ? endNum : null,
+        end_mileage: endNum,
         started_at: new Date(startedAt).toISOString(),
-        ended_at: endedAt ? new Date(endedAt).toISOString() : null,
-        start_odometer_photo_path: startPhoto || null,
-        end_odometer_photo_path: endPhoto || null,
+        ended_at: new Date(endedAt).toISOString(),
+        start_odometer_photo_path: startPhoto,
+        end_odometer_photo_path: endPhoto,
         notes: notes.trim() || null,
         created_by: user?.id ?? null,
       };
@@ -147,7 +148,9 @@ export function VehicleUsageForm({
       toast.success("Uso registrado");
       onOpenChange(false);
       // reset
-      setEndMileage(""); setStartMileage(""); setDestination(""); setNotes(""); setStartPhoto(""); setEndPhoto("");
+      setEndMileage(""); setStartMileage(""); setDestination(""); setNotes("");
+      setStartPhoto(""); setEndPhoto(""); setStartedAt(""); setEndedAt("");
+      setCategoryId("");
     },
     onError: (e: any) => toast.error(e.message || "Error"),
   });
@@ -177,25 +180,15 @@ export function VehicleUsageForm({
             </div>
 
             <div>
-              <Label>Chofer</Label>
-              <Select value={driverId || "__text"} onValueChange={(v) => setDriverId(v === "__text" ? "" : v)}>
-                <SelectTrigger><SelectValue placeholder="Elegir chofer..." /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__text">Otro (nombre libre)</SelectItem>
-                  {drivers?.map((d: any) => (
-                    <SelectItem key={d.id} value={d.id}>{d.profile?.full_name || "Chofer"}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {!driverId && (
-                <Input className="mt-1" placeholder="Nombre del chofer" value={driverNameText} onChange={(e) => setDriverNameText(e.target.value)} />
-              )}
+              <Label>Chofer *</Label>
+              <Input value={profile?.full_name ?? ""} readOnly disabled />
+              <p className="text-xs text-muted-foreground mt-1">Se asigna automáticamente al usuario en sesión</p>
             </div>
 
             <div>
-              <Label>Categoría</Label>
+              <Label>Categoría *</Label>
               <Select value={categoryId} onValueChange={setCategoryId}>
-                <SelectTrigger><SelectValue placeholder="Sin categoría" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Seleccionar categoría" /></SelectTrigger>
                 <SelectContent>
                   {cats?.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                 </SelectContent>
@@ -203,7 +196,7 @@ export function VehicleUsageForm({
             </div>
 
             <div>
-              <Label>Destino</Label>
+              <Label>Destino *</Label>
               <Input value={destination} onChange={(e) => setDestination(e.target.value)} placeholder="A dónde va" />
             </div>
 
@@ -218,7 +211,7 @@ export function VehicleUsageForm({
             </div>
 
             <div>
-              <Label>Km final</Label>
+              <Label>Km final *</Label>
               <Input type="number" value={endMileage} onChange={(e) => setEndMileage(e.target.value)} />
               {kmRecorridos !== null && (
                 <p className="text-xs text-muted-foreground mt-1">Recorridos: {kmRecorridos.toLocaleString("de-DE")} km</p>
@@ -231,27 +224,29 @@ export function VehicleUsageForm({
             </div>
 
             <div>
-              <Label>Inicio</Label>
-              <Input type="datetime-local" value={startedAt} onChange={(e) => setStartedAt(e.target.value)} />
+              <Label>Foto odómetro inicial *</Label>
+              <FileUpload bucket="vehicle-photos" folder={`usages/${vehicleId || "unknown"}/start`} signed onUpload={setStartPhoto} />
+              <p className="text-xs text-muted-foreground mt-1">La fecha de inicio se completa al subir la foto</p>
             </div>
             <div>
-              <Label>Fin</Label>
-              <Input type="datetime-local" value={endedAt} onChange={(e) => setEndedAt(e.target.value)} />
+              <Label>Foto odómetro final *</Label>
+              <FileUpload bucket="vehicle-photos" folder={`usages/${vehicleId || "unknown"}/end`} signed onUpload={setEndPhoto} />
+              <p className="text-xs text-muted-foreground mt-1">La fecha de fin se completa al subir la foto</p>
             </div>
 
             <div>
-              <Label>Foto odómetro inicial</Label>
-              <FileUpload bucket="vehicle-photos" folder={`usages/${vehicleId || "unknown"}/start`} signed onUpload={setStartPhoto} />
+              <Label>Inicio *</Label>
+              <Input type="datetime-local" value={startedAt} onChange={(e) => setStartedAt(e.target.value)} readOnly disabled />
             </div>
             <div>
-              <Label>Foto odómetro final</Label>
-              <FileUpload bucket="vehicle-photos" folder={`usages/${vehicleId || "unknown"}/end`} signed onUpload={setEndPhoto} />
+              <Label>Fin *</Label>
+              <Input type="datetime-local" value={endedAt} onChange={(e) => setEndedAt(e.target.value)} readOnly disabled />
             </div>
           </div>
 
           <div>
             <Label>Observaciones</Label>
-            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} />
+            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Opcional" />
           </div>
         </div>
 
