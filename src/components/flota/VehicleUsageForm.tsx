@@ -119,6 +119,7 @@ export function VehicleUsageForm({
       if (!destination.trim()) throw new Error("El destino es obligatorio");
       if (!startMileage) throw new Error("Kilometraje inicial requerido");
       if (!endMileage) throw new Error("Kilometraje final requerido");
+      if (endNum < startNum) throw new Error("El km final debe ser mayor o igual al km inicial");
       if (!startPhoto) throw new Error("Foto del odómetro inicial requerida");
       if (!endPhoto) throw new Error("Foto del odómetro final requerida");
       if (!startedAt) throw new Error("Fecha de inicio requerida");
@@ -213,7 +214,12 @@ export function VehicleUsageForm({
             <div>
               <Label>Km final *</Label>
               <Input type="number" value={endMileage} onChange={(e) => setEndMileage(e.target.value)} />
-              {kmRecorridos !== null && (
+              {endMileage && startMileage && endNum < startNum && (
+                <p className="text-xs text-destructive flex items-center gap-1 mt-1">
+                  <AlertTriangle className="h-3 w-3" /> El km final debe ser mayor o igual al inicial
+                </p>
+              )}
+              {kmRecorridos !== null && endNum >= startNum && (
                 <p className="text-xs text-muted-foreground mt-1">Recorridos: {kmRecorridos.toLocaleString("de-DE")} km</p>
               )}
               {warnHigh && (
