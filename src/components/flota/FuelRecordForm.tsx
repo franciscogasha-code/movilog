@@ -22,11 +22,9 @@ export function FuelRecordForm({
   presetVehicleId?: string | null;
 }) {
   const qc = useQueryClient();
-  const { user, isOwner, hasRole } = useAuth();
-  const isPrivileged = isOwner || hasRole("admin") || hasRole("supervisor");
+  const { user, profile } = useAuth();
 
   const [vehicleId, setVehicleId] = useState<string>(presetVehicleId ?? "");
-  const [driverId, setDriverId] = useState<string>("");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [mileage, setMileage] = useState<string>("");
   const [liters, setLiters] = useState<string>("");
@@ -48,18 +46,6 @@ export function FuelRecordForm({
     },
   });
 
-  const { data: drivers } = useQuery({
-    queryKey: ["drivers-active"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("drivers")
-        .select("id, user_id, profile:profiles!drivers_user_id_fkey(full_name)")
-        .eq("is_active", true);
-      if (error) throw error;
-      return data;
-    },
-  });
-
   const { data: myDriver } = useQuery({
     queryKey: ["my-driver", user?.id],
     enabled: !!user?.id,
@@ -69,7 +55,7 @@ export function FuelRecordForm({
     },
   });
 
-  useEffect(() => { if (!driverId && myDriver?.id && !isPrivileged) setDriverId(myDriver.id); }, [myDriver, isPrivileged, driverId]);
+  const driverId = myDriver?.id ?? "";
 
   // Bidirectional total ↔ per-liter
   useEffect(() => {
@@ -109,19 +95,24 @@ export function FuelRecordForm({
   const submit = useMutation({
     mutationFn: async () => {
       if (!vehicleId) throw new Error("Vehículo requerido");
-      if (!driverId) throw new Error("Chofer requerido");
+      if (!driverId) throw new Error("El usuario en sesión no está registrado como chofer");
+      if (!date) throw new Error("Fecha requerida");
+      if (!mileage || Number(mileage) <= 0) throw new Error("Km al momento requerido");
       if (!liters || Number(liters) <= 0) throw new Error("Litros requeridos");
+      if (!stationName.trim()) throw new Error("Estación requerida");
+      if (!pricePerLiter || Number(pricePerLiter) <= 0) throw new Error("Precio por litro requerido");
       if (!totalAmount || Number(totalAmount) <= 0) throw new Error("Precio total requerido");
+      if (!receiptPath) throw new Error("Foto del comprobante requerida");
       const payload: any = {
         vehicle_id: vehicleId,
         driver_id: driverId,
         date,
         liters: Number(liters),
-        price_per_liter: pricePerLiter ? Number(pricePerLiter) : null,
+        price_per_liter: Number(pricePerLiter),
         total_amount: Number(totalAmount),
-        mileage_at_fill: mileage ? Number(mileage) : null,
-        station_name: stationName.trim() || null,
-        receipt_photo_url: receiptPath || null,
+        mileage_at_fill: Number(mileage),
+        station_name: stationName.trim(),
+        receipt_photo_url: receiptPath,
         notes: notes.trim() || null,
       };
       const { error } = await supabase.from("fuel_records").insert(payload);
@@ -160,21 +151,17 @@ export function FuelRecordForm({
             </div>
             <div>
               <Label>Chofer *</Label>
-              <Select value={driverId} onValueChange={setDriverId}>
-                <SelectTrigger><SelectValue placeholder="Chofer..." /></SelectTrigger>
-                <SelectContent>
-                  {drivers?.map((d: any) => (
-                    <SelectItem key={d.id} value={d.id}>{d.profile?.full_name || "Chofer"}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Input value={profile?.full_name ?? ""} readOnly disabled />
+              <p className="text-xs text-muted-foreground mt-1">
+                {driverId ? "Se asigna al usuario en sesión" : "El usuario en sesión no está registrado como chofer"}
+              </p>
             </div>
             <div>
-              <Label>Fecha</Label>
+              <Label>Fecha *</Label>
               <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
             </div>
             <div>
-              <Label>Km al momento</Label>
+              <Label>Km al momento *</Label>
               <Input type="number" value={mileage} onChange={(e) => setMileage(e.target.value)} />
             </div>
             <div>
@@ -182,11 +169,11 @@ export function FuelRecordForm({
               <Input type="number" step="0.01" value={liters} onChange={(e) => setLiters(e.target.value)} />
             </div>
             <div>
-              <Label>Estación</Label>
+              <Label>Estación *</Label>
               <Input value={stationName} onChange={(e) => setStationName(e.target.value)} />
             </div>
             <div>
-              <Label>₲ por litro</Label>
+              <Label>₲ por litro *</Label>
               <Input type="number" value={pricePerLiter} onChange={(e) => { setLastEditWasTotal(false); setPricePerLiter(e.target.value); }} />
             </div>
             <div>
@@ -196,7 +183,7 @@ export function FuelRecordForm({
           </div>
 
           <div>
-            <Label>Foto comprobante / surtidor</Label>
+            <Label>Foto comprobante / surtidor *</Label>
             <FileUpload bucket="vehicle-photos" folder={`fuel/${vehicleId || "unknown"}`} signed onUpload={setReceiptPath} />
           </div>
 
