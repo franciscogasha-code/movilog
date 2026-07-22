@@ -181,8 +181,9 @@ export function FineForm({ open, onOpenChange, initial }: Props) {
                 <FileUpload
                   bucket="vehicle-photos"
                   folder="fines"
-                  value={form.receipt_photo_url}
-                  onChange={(url) => setForm({ ...form, receipt_photo_url: url })}
+                  signed
+                  currentUrl={form.receipt_photo_url}
+                  onUpload={(url) => setForm({ ...form, receipt_photo_url: url })}
                   accept="image/*"
                 />
               </div>
