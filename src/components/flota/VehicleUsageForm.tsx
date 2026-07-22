@@ -119,6 +119,7 @@ export function VehicleUsageForm({
       if (!destination.trim()) throw new Error("El destino es obligatorio");
       if (!startMileage) throw new Error("Kilometraje inicial requerido");
       if (!endMileage) throw new Error("Kilometraje final requerido");
+      if (endNum < startNum) throw new Error("El km final debe ser mayor o igual al km inicial");
       if (!startPhoto) throw new Error("Foto del odómetro inicial requerida");
       if (!endPhoto) throw new Error("Foto del odómetro final requerida");
       if (!startedAt) throw new Error("Fecha de inicio requerida");
