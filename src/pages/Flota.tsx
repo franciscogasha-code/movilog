@@ -11,13 +11,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  Truck, Wrench, ArrowRightLeft, AlertTriangle, Calendar, Gauge, Plus, Fuel, Route, Settings, Images, Pencil,
+  Truck, Wrench, ArrowRightLeft, AlertTriangle, Calendar, Gauge, Plus, Fuel, Route, Settings, Images, Pencil, BarChart3, Receipt,
 } from "lucide-react";
 import { VehicleForm, type VehicleFormValues } from "@/components/flota/VehicleForm";
 import { VehicleUsageForm } from "@/components/flota/VehicleUsageForm";
 import { FuelRecordForm } from "@/components/flota/FuelRecordForm";
 import { UsageCategoryManager } from "@/components/flota/UsageCategoryManager";
 import { VehiclePhotoGallery } from "@/components/flota/VehiclePhotoGallery";
+import { MaintenanceForm } from "@/components/flota/MaintenanceForm";
+import { MaintenanceAlertsBadge } from "@/components/flota/MaintenanceAlertsBadge";
+import { FinesList } from "@/components/flota/FinesList";
+import { FleetDashboard } from "@/components/flota/FleetDashboard";
 
 const VEHICLE_STATUS_LABELS: Record<string, { label: string; color: string }> = {
   available: { label: "Disponible", color: "bg-accent/10 text-accent" },
