@@ -1,0 +1,1 @@
+ALTER VIEW public.v_fleet_kpis_by_vehicle SET (security_invoker = on);
