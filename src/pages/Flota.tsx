@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { VehicleForm, type VehicleFormValues } from "@/components/flota/VehicleForm";
 import { VehicleUsageForm } from "@/components/flota/VehicleUsageForm";
+import { OpenTripsSection } from "@/components/flota/OpenTripsSection";
 import { FuelRecordForm } from "@/components/flota/FuelRecordForm";
 import { UsageCategoryManager } from "@/components/flota/UsageCategoryManager";
 import { VehiclePhotoGallery } from "@/components/flota/VehiclePhotoGallery";
@@ -172,7 +173,7 @@ export default function Flota() {
         </div>
         <div className="flex gap-2 flex-wrap">
           <Button size="sm" variant="outline" onClick={() => setUsageFormOpen(true)} className="gap-2">
-            <Route className="h-4 w-4" /> Registrar uso
+            <Route className="h-4 w-4" /> Iniciar viaje
           </Button>
           <Button size="sm" variant="outline" onClick={() => setFuelFormOpen(true)} className="gap-2">
             <Fuel className="h-4 w-4" /> Cargar combustible
@@ -228,6 +229,8 @@ export default function Flota() {
           </CardContent>
         </Card>
       )}
+
+      <OpenTripsSection />
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="flex w-full overflow-x-auto">

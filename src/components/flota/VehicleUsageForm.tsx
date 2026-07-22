@@ -28,27 +28,17 @@ export function VehicleUsageForm({
   const [categoryId, setCategoryId] = useState<string>("");
   const [destination, setDestination] = useState("");
   const [startMileage, setStartMileage] = useState<string>("");
-  const [endMileage, setEndMileage] = useState<string>("");
   const [startedAt, setStartedAt] = useState<string>("");
-  const [endedAt, setEndedAt] = useState<string>("");
   const [startPhoto, setStartPhoto] = useState<string>("");
-  const [endPhoto, setEndPhoto] = useState<string>("");
   const [notes, setNotes] = useState("");
 
   useEffect(() => { if (presetVehicleId) setVehicleId(presetVehicleId); }, [presetVehicleId]);
 
-  // Auto-fill start/end datetime when odometer photos are uploaded
   useEffect(() => {
     if (startPhoto && !startedAt) {
       setStartedAt(new Date().toISOString().slice(0, 16));
     }
   }, [startPhoto, startedAt]);
-
-  useEffect(() => {
-    if (endPhoto && !endedAt) {
-      setEndedAt(new Date().toISOString().slice(0, 16));
-    }
-  }, [endPhoto, endedAt]);
 
   const { data: vehicles } = useQuery({
     queryKey: ["vehicles-active"],
@@ -77,53 +67,56 @@ export function VehicleUsageForm({
     },
   });
 
+  const { data: openTrip } = useQuery({
+    queryKey: ["vehicle-open-trip", vehicleId],
+    enabled: !!vehicleId,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("vehicle_usages")
+        .select("id, started_at, start_mileage")
+        .eq("vehicle_id", vehicleId)
+        .eq("status", "open")
+        .maybeSingle();
+      return data;
+    },
+  });
+
   const { data: lastUsage } = useQuery({
     queryKey: ["last-vehicle-usage", vehicleId],
     enabled: !!vehicleId,
     queryFn: async () => {
       const { data } = await supabase
         .from("vehicle_usages")
-        .select("end_mileage, start_mileage, km_traveled")
+        .select("end_mileage, start_mileage")
         .eq("vehicle_id", vehicleId)
         .order("started_at", { ascending: false })
-        .limit(20);
-      return data ?? [];
+        .limit(1)
+        .maybeSingle();
+      return data;
     },
   });
 
   const lastKm = useMemo(() => {
-    if (!lastUsage?.length) {
-      const v = vehicles?.find((x: any) => x.id === vehicleId);
-      return v?.current_mileage ?? null;
-    }
-    return lastUsage[0]?.end_mileage ?? lastUsage[0]?.start_mileage ?? null;
+    if (lastUsage) return lastUsage.end_mileage ?? lastUsage.start_mileage ?? null;
+    const v = vehicles?.find((x: any) => x.id === vehicleId);
+    return v?.current_mileage ?? null;
   }, [lastUsage, vehicles, vehicleId]);
 
-  const avgKm = useMemo(() => {
-    const arr = (lastUsage ?? []).map((u: any) => u.km_traveled).filter((n: number) => n > 0);
-    if (!arr.length) return null;
-    return arr.reduce((a: number, b: number) => a + b, 0) / arr.length;
-  }, [lastUsage]);
-
   const startNum = Number(startMileage);
-  const endNum = Number(endMileage);
-  const kmRecorridos = endMileage && startMileage ? Math.max(0, endNum - startNum) : null;
-
   const warnStart = lastKm !== null && startMileage && startNum < lastKm;
-  const warnHigh = avgKm !== null && kmRecorridos !== null && kmRecorridos > avgKm * 2 && avgKm > 0;
+
+  const canSubmit = !!vehicleId && !!categoryId && !!destination.trim()
+    && !!startMileage && !!startPhoto && !!startedAt && !openTrip;
 
   const submit = useMutation({
     mutationFn: async () => {
       if (!vehicleId) throw new Error("Seleccioná un vehículo");
+      if (openTrip) throw new Error("Este vehículo ya tiene un viaje abierto. Terminalo antes de iniciar otro.");
       if (!categoryId) throw new Error("La categoría es obligatoria");
       if (!destination.trim()) throw new Error("El destino es obligatorio");
       if (!startMileage) throw new Error("Kilometraje inicial requerido");
-      if (!endMileage) throw new Error("Kilometraje final requerido");
-      if (endNum < startNum) throw new Error("El km final debe ser mayor o igual al km inicial");
       if (!startPhoto) throw new Error("Foto del odómetro inicial requerida");
-      if (!endPhoto) throw new Error("Foto del odómetro final requerida");
       if (!startedAt) throw new Error("Fecha de inicio requerida");
-      if (!endedAt) throw new Error("Fecha de fin requerida");
       const payload: any = {
         vehicle_id: vehicleId,
         driver_id: myDriver?.id ?? null,
@@ -131,12 +124,10 @@ export function VehicleUsageForm({
         category_id: categoryId,
         destination: destination.trim(),
         start_mileage: startNum,
-        end_mileage: endNum,
         started_at: new Date(startedAt).toISOString(),
-        ended_at: new Date(endedAt).toISOString(),
         start_odometer_photo_path: startPhoto,
-        end_odometer_photo_path: endPhoto,
         notes: notes.trim() || null,
+        status: "open",
         created_by: user?.id ?? null,
       };
       const { error } = await supabase.from("vehicle_usages").insert(payload);
@@ -144,14 +135,13 @@ export function VehicleUsageForm({
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["vehicle-usages"] });
+      qc.invalidateQueries({ queryKey: ["vehicle-open-trips"] });
       qc.invalidateQueries({ queryKey: ["vehicles"] });
       qc.invalidateQueries({ queryKey: ["vehicles-active"] });
-      toast.success("Uso registrado");
+      toast.success("Viaje iniciado");
       onOpenChange(false);
-      // reset
-      setEndMileage(""); setStartMileage(""); setDestination(""); setNotes("");
-      setStartPhoto(""); setEndPhoto(""); setStartedAt(""); setEndedAt("");
-      setCategoryId("");
+      setStartMileage(""); setDestination(""); setNotes("");
+      setStartPhoto(""); setStartedAt(""); setCategoryId("");
     },
     onError: (e: any) => toast.error(e.message || "Error"),
   });
@@ -160,7 +150,7 @@ export function VehicleUsageForm({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="font-display">Registrar uso de vehículo</DialogTitle>
+          <DialogTitle className="font-display">Iniciar viaje</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-3">
@@ -178,12 +168,17 @@ export function VehicleUsageForm({
                 </SelectContent>
               </Select>
               {lastKm !== null && <p className="text-xs text-muted-foreground mt-1">Último km registrado: {lastKm.toLocaleString("de-DE")}</p>}
+              {openTrip && (
+                <p className="text-xs text-destructive flex items-center gap-1 mt-1">
+                  <AlertTriangle className="h-3 w-3" /> Este vehículo ya tiene un viaje abierto. Terminalo primero.
+                </p>
+              )}
             </div>
 
             <div>
               <Label>Chofer *</Label>
               <Input value={profile?.full_name ?? ""} readOnly disabled />
-              <p className="text-xs text-muted-foreground mt-1">Se asigna automáticamente al usuario en sesión</p>
+              <p className="text-xs text-muted-foreground mt-1">Se asigna al usuario en sesión</p>
             </div>
 
             <div>
@@ -212,41 +207,14 @@ export function VehicleUsageForm({
             </div>
 
             <div>
-              <Label>Km final *</Label>
-              <Input type="number" value={endMileage} onChange={(e) => setEndMileage(e.target.value)} />
-              {endMileage && startMileage && endNum < startNum && (
-                <p className="text-xs text-destructive flex items-center gap-1 mt-1">
-                  <AlertTriangle className="h-3 w-3" /> El km final debe ser mayor o igual al inicial
-                </p>
-              )}
-              {kmRecorridos !== null && endNum >= startNum && (
-                <p className="text-xs text-muted-foreground mt-1">Recorridos: {kmRecorridos.toLocaleString("de-DE")} km</p>
-              )}
-              {warnHigh && (
-                <p className="text-xs text-secondary flex items-center gap-1 mt-1">
-                  <AlertTriangle className="h-3 w-3" /> Recorrido inusualmente alto vs promedio ({Math.round(avgKm!).toLocaleString("de-DE")})
-                </p>
-              )}
-            </div>
-
-            <div>
               <Label>Foto odómetro inicial *</Label>
               <FileUpload bucket="vehicle-photos" folder={`usages/${vehicleId || "unknown"}/start`} signed onUpload={setStartPhoto} />
               <p className="text-xs text-muted-foreground mt-1">La fecha de inicio se completa al subir la foto</p>
             </div>
-            <div>
-              <Label>Foto odómetro final *</Label>
-              <FileUpload bucket="vehicle-photos" folder={`usages/${vehicleId || "unknown"}/end`} signed onUpload={setEndPhoto} />
-              <p className="text-xs text-muted-foreground mt-1">La fecha de fin se completa al subir la foto</p>
-            </div>
 
-            <div>
+            <div className="sm:col-span-2">
               <Label>Inicio *</Label>
               <Input type="datetime-local" value={startedAt} onChange={(e) => setStartedAt(e.target.value)} readOnly disabled />
-            </div>
-            <div>
-              <Label>Fin *</Label>
-              <Input type="datetime-local" value={endedAt} onChange={(e) => setEndedAt(e.target.value)} readOnly disabled />
             </div>
           </div>
 
@@ -258,8 +226,8 @@ export function VehicleUsageForm({
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button onClick={() => submit.mutate()} disabled={submit.isPending}>
-            {submit.isPending ? "Guardando..." : "Registrar uso"}
+          <Button onClick={() => submit.mutate()} disabled={submit.isPending || !canSubmit}>
+            {submit.isPending ? "Guardando..." : "Iniciar viaje"}
           </Button>
         </DialogFooter>
       </DialogContent>
