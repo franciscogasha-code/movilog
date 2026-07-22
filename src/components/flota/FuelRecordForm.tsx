@@ -165,23 +165,15 @@ export function FuelRecordForm({
               <Input type="number" value={mileage} onChange={(e) => setMileage(e.target.value)} />
             </div>
             <div>
-              <Label>Fecha</Label>
-              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-            </div>
-            <div>
-              <Label>Km al momento</Label>
-              <Input type="number" value={mileage} onChange={(e) => setMileage(e.target.value)} />
-            </div>
-            <div>
               <Label>Litros *</Label>
               <Input type="number" step="0.01" value={liters} onChange={(e) => setLiters(e.target.value)} />
             </div>
             <div>
-              <Label>Estación</Label>
+              <Label>Estación *</Label>
               <Input value={stationName} onChange={(e) => setStationName(e.target.value)} />
             </div>
             <div>
-              <Label>₲ por litro</Label>
+              <Label>₲ por litro *</Label>
               <Input type="number" value={pricePerLiter} onChange={(e) => { setLastEditWasTotal(false); setPricePerLiter(e.target.value); }} />
             </div>
             <div>
