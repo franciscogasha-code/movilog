@@ -183,7 +183,7 @@ export function FuelRecordForm({
           </div>
 
           <div>
-            <Label>Foto comprobante / surtidor</Label>
+            <Label>Foto comprobante / surtidor *</Label>
             <FileUpload bucket="vehicle-photos" folder={`fuel/${vehicleId || "unknown"}`} signed onUpload={setReceiptPath} />
           </div>
 
