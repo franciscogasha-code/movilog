@@ -2990,6 +2990,8 @@ export type Database = {
       vehicle_usages: {
         Row: {
           category_id: string | null
+          closed_at: string | null
+          closed_by: string | null
           created_at: string
           created_by: string | null
           destination: string | null
@@ -3005,11 +3007,14 @@ export type Database = {
           start_mileage: number
           start_odometer_photo_path: string | null
           started_at: string
+          status: string
           updated_at: string
           vehicle_id: string
         }
         Insert: {
           category_id?: string | null
+          closed_at?: string | null
+          closed_by?: string | null
           created_at?: string
           created_by?: string | null
           destination?: string | null
@@ -3025,11 +3030,14 @@ export type Database = {
           start_mileage: number
           start_odometer_photo_path?: string | null
           started_at?: string
+          status?: string
           updated_at?: string
           vehicle_id: string
         }
         Update: {
           category_id?: string | null
+          closed_at?: string | null
+          closed_by?: string | null
           created_at?: string
           created_by?: string | null
           destination?: string | null
@@ -3045,6 +3053,7 @@ export type Database = {
           start_mileage?: number
           start_odometer_photo_path?: string | null
           started_at?: string
+          status?: string
           updated_at?: string
           vehicle_id?: string
         }
