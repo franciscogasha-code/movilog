@@ -383,7 +383,14 @@ export default function Flota() {
           </CardContent></Card>
         </TabsContent>
 
-        <TabsContent value="mantenimiento" className="mt-4">
+        <TabsContent value="mantenimiento" className="mt-4 space-y-3">
+          {isPrivileged && (
+            <div className="flex justify-end">
+              <Button size="sm" onClick={() => { setMaintEditing(null); setMaintFormOpen(true); }} className="gap-2">
+                <Plus className="h-4 w-4" /> Nuevo mantenimiento
+              </Button>
+            </div>
+          )}
           <Card className="glass-card"><CardContent className="p-0">
             {!maintenance?.length ? (
               <div className="p-8 text-center text-muted-foreground">Sin registros de mantenimiento</div>
@@ -393,20 +400,31 @@ export default function Flota() {
                   const mCfg = MAINT_STATUS_LABELS[m.status] || MAINT_STATUS_LABELS.scheduled;
                   return (
                     <div key={m.id} className="p-4">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <div className="flex items-center gap-2 mb-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
                             <span className="font-mono font-semibold text-sm">{(m.vehicle as any)?.plate_number}</span>
                             <Badge variant="outline" className="text-xs">{m.maintenance_type}</Badge>
+                            {(m.recurrence_km || m.recurrence_days) && (
+                              <Badge variant="outline" className="text-xs">Recurrente</Badge>
+                            )}
                           </div>
                           <p className="text-sm">{m.description}</p>
                           <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
                             {m.scheduled_date && <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{new Date(m.scheduled_date).toLocaleDateString("es-PY")}</span>}
+                            {m.scheduled_km && <span className="flex items-center gap-1"><Gauge className="h-3 w-3" />{Number(m.scheduled_km).toLocaleString("de-DE")} km</span>}
                             {m.provider && <span>{m.provider}</span>}
                             {m.cost && <span>₲ {Number(m.cost).toLocaleString("de-DE")}</span>}
                           </div>
                         </div>
-                        <Badge className={`text-xs ${mCfg.color}`}>{mCfg.label}</Badge>
+                        <div className="flex items-center gap-2">
+                          <Badge className={`text-xs ${mCfg.color}`}>{mCfg.label}</Badge>
+                          {isPrivileged && (
+                            <Button size="icon" variant="ghost" onClick={() => { setMaintEditing(m); setMaintFormOpen(true); }}>
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );
@@ -415,6 +433,11 @@ export default function Flota() {
             )}
           </CardContent></Card>
         </TabsContent>
+
+        <TabsContent value="multas" className="mt-4">
+          <FinesList canEdit={isPrivileged} />
+        </TabsContent>
+
 
         <TabsContent value="prestamos" className="mt-4">
           <Card className="glass-card"><CardContent className="p-0">
