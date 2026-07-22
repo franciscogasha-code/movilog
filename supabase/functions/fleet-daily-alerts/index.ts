@@ -100,6 +100,26 @@ Deno.serve(async (req) => {
     }
   }
 
+  // Open trips > 24h (viaje sin cerrar)
+  const cutoff = new Date(today.getTime() - 24 * 3_600_000).toISOString();
+  const { data: openTrips } = await supabase
+    .from("vehicle_usages")
+    .select("id, started_at, destination, vehicle:vehicles(plate)")
+    .eq("status", "open")
+    .lt("started_at", cutoff);
+  for (const t of openTrips ?? []) {
+    const plate = (t.vehicle as any)?.plate ?? "—";
+    const hours = Math.floor((today.getTime() - new Date(t.started_at).getTime()) / 3_600_000);
+    await push(
+      "trip_open_overdue",
+      `Viaje abierto +24h — ${plate}`,
+      `Sin cerrar hace ${hours}h${t.destination ? ` · destino: ${t.destination}` : ""}`,
+      "warning",
+      { type: "vehicle_usage", id: t.id }
+    );
+  }
+
+
   return new Response(JSON.stringify({ ok: true, created: created.length }), {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
