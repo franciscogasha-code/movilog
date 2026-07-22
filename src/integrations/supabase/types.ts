@@ -1253,6 +1253,13 @@ export type Database = {
             foreignKeyName: "drivers_assigned_vehicle_id_fkey"
             columns: ["assigned_vehicle_id"]
             isOneToOne: false
+            referencedRelation: "v_fleet_kpis_by_vehicle"
+            referencedColumns: ["vehicle_id"]
+          },
+          {
+            foreignKeyName: "drivers_assigned_vehicle_id_fkey"
+            columns: ["assigned_vehicle_id"]
+            isOneToOne: false
             referencedRelation: "vehicles"
             referencedColumns: ["id"]
           },
@@ -1324,6 +1331,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "trips"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fuel_records_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "v_fleet_kpis_by_vehicle"
+            referencedColumns: ["vehicle_id"]
           },
           {
             foreignKeyName: "fuel_records_vehicle_id_fkey"
@@ -2608,6 +2622,13 @@ export type Database = {
             foreignKeyName: "trips_vehicle_id_fkey"
             columns: ["vehicle_id"]
             isOneToOne: false
+            referencedRelation: "v_fleet_kpis_by_vehicle"
+            referencedColumns: ["vehicle_id"]
+          },
+          {
+            foreignKeyName: "trips_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
             referencedRelation: "vehicles"
             referencedColumns: ["id"]
           },
@@ -2673,6 +2694,88 @@ export type Database = {
             columns: ["branch_id"]
             isOneToOne: false
             referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vehicle_fines: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string | null
+          driver_id: string | null
+          due_date: string | null
+          fine_number: string | null
+          id: string
+          infraction_type: string
+          issued_at: string
+          location: string | null
+          notes: string | null
+          paid_at: string | null
+          paid_by: string | null
+          receipt_photo_url: string | null
+          status: Database["public"]["Enums"]["fine_status"]
+          updated_at: string
+          vehicle_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by?: string | null
+          driver_id?: string | null
+          due_date?: string | null
+          fine_number?: string | null
+          id?: string
+          infraction_type: string
+          issued_at: string
+          location?: string | null
+          notes?: string | null
+          paid_at?: string | null
+          paid_by?: string | null
+          receipt_photo_url?: string | null
+          status?: Database["public"]["Enums"]["fine_status"]
+          updated_at?: string
+          vehicle_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string | null
+          driver_id?: string | null
+          due_date?: string | null
+          fine_number?: string | null
+          id?: string
+          infraction_type?: string
+          issued_at?: string
+          location?: string | null
+          notes?: string | null
+          paid_at?: string | null
+          paid_by?: string | null
+          receipt_photo_url?: string | null
+          status?: Database["public"]["Enums"]["fine_status"]
+          updated_at?: string
+          vehicle_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicle_fines_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
+            referencedRelation: "drivers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vehicle_fines_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "v_fleet_kpis_by_vehicle"
+            referencedColumns: ["vehicle_id"]
+          },
+          {
+            foreignKeyName: "vehicle_fines_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
             referencedColumns: ["id"]
           },
         ]
@@ -2751,6 +2854,13 @@ export type Database = {
             foreignKeyName: "vehicle_loans_vehicle_id_fkey"
             columns: ["vehicle_id"]
             isOneToOne: false
+            referencedRelation: "v_fleet_kpis_by_vehicle"
+            referencedColumns: ["vehicle_id"]
+          },
+          {
+            foreignKeyName: "vehicle_loans_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
             referencedRelation: "vehicles"
             referencedColumns: ["id"]
           },
@@ -2758,6 +2868,8 @@ export type Database = {
       }
       vehicle_maintenance: {
         Row: {
+          alert_days_threshold: number | null
+          alert_km_threshold: number | null
           completed_date: string | null
           cost: number | null
           created_at: string
@@ -2768,13 +2880,19 @@ export type Database = {
           next_maintenance_date: string | null
           next_maintenance_mileage: number | null
           notes: string | null
+          parent_maintenance_id: string | null
           provider: string | null
+          recurrence_days: number | null
+          recurrence_km: number | null
           scheduled_date: string | null
+          scheduled_km: number | null
           status: string | null
           updated_at: string
           vehicle_id: string
         }
         Insert: {
+          alert_days_threshold?: number | null
+          alert_km_threshold?: number | null
           completed_date?: string | null
           cost?: number | null
           created_at?: string
@@ -2785,13 +2903,19 @@ export type Database = {
           next_maintenance_date?: string | null
           next_maintenance_mileage?: number | null
           notes?: string | null
+          parent_maintenance_id?: string | null
           provider?: string | null
+          recurrence_days?: number | null
+          recurrence_km?: number | null
           scheduled_date?: string | null
+          scheduled_km?: number | null
           status?: string | null
           updated_at?: string
           vehicle_id: string
         }
         Update: {
+          alert_days_threshold?: number | null
+          alert_km_threshold?: number | null
           completed_date?: string | null
           cost?: number | null
           created_at?: string
@@ -2802,13 +2926,31 @@ export type Database = {
           next_maintenance_date?: string | null
           next_maintenance_mileage?: number | null
           notes?: string | null
+          parent_maintenance_id?: string | null
           provider?: string | null
+          recurrence_days?: number | null
+          recurrence_km?: number | null
           scheduled_date?: string | null
+          scheduled_km?: number | null
           status?: string | null
           updated_at?: string
           vehicle_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "vehicle_maintenance_parent_maintenance_id_fkey"
+            columns: ["parent_maintenance_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_maintenance"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vehicle_maintenance_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "v_fleet_kpis_by_vehicle"
+            referencedColumns: ["vehicle_id"]
+          },
           {
             foreignKeyName: "vehicle_maintenance_vehicle_id_fkey"
             columns: ["vehicle_id"]
@@ -2932,6 +3074,13 @@ export type Database = {
             foreignKeyName: "vehicle_usages_vehicle_id_fkey"
             columns: ["vehicle_id"]
             isOneToOne: false
+            referencedRelation: "v_fleet_kpis_by_vehicle"
+            referencedColumns: ["vehicle_id"]
+          },
+          {
+            foreignKeyName: "vehicle_usages_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
             referencedRelation: "vehicles"
             referencedColumns: ["id"]
           },
@@ -3001,6 +3150,19 @@ export type Database = {
       }
     }
     Views: {
+      v_fleet_kpis_by_vehicle: {
+        Row: {
+          avg_kmpl: number | null
+          km: number | null
+          liters: number | null
+          month: string | null
+          nickname: string | null
+          plate: string | null
+          spent: number | null
+          vehicle_id: string | null
+        }
+        Relationships: []
+      }
       v_pedidos_integridad: {
         Row: {
           created_at: string | null
@@ -3261,6 +3423,7 @@ export type Database = {
         | "transport"
         | "reception"
         | "closure"
+      fine_status: "pending" | "paid" | "appealed" | "cancelled"
       fulfillment_status:
         | "pending"
         | "picking"
@@ -3575,6 +3738,7 @@ export const Constants = {
         "reception",
         "closure",
       ],
+      fine_status: ["pending", "paid", "appealed", "cancelled"],
       fulfillment_status: [
         "pending",
         "picking",
