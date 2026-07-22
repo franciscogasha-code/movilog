@@ -285,6 +285,7 @@ export default function Flota() {
                               </span>
                             )}
                             <Badge className={`text-xs ${statusCfg.color}`}>{statusCfg.label}</Badge>
+                            <MaintenanceAlertsBadge vehicleId={v.id} currentMileage={v.current_mileage || 0} />
                             {isPrivileged && (
                               <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); setVehicleEditing(v); setVehicleFormOpen(true); }}>
                                 <Pencil className="h-3.5 w-3.5" />
