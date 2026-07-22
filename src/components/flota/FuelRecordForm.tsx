@@ -95,19 +95,24 @@ export function FuelRecordForm({
   const submit = useMutation({
     mutationFn: async () => {
       if (!vehicleId) throw new Error("Vehículo requerido");
-      if (!driverId) throw new Error("Chofer requerido");
+      if (!driverId) throw new Error("El usuario en sesión no está registrado como chofer");
+      if (!date) throw new Error("Fecha requerida");
+      if (!mileage || Number(mileage) <= 0) throw new Error("Km al momento requerido");
       if (!liters || Number(liters) <= 0) throw new Error("Litros requeridos");
+      if (!stationName.trim()) throw new Error("Estación requerida");
+      if (!pricePerLiter || Number(pricePerLiter) <= 0) throw new Error("Precio por litro requerido");
       if (!totalAmount || Number(totalAmount) <= 0) throw new Error("Precio total requerido");
+      if (!receiptPath) throw new Error("Foto del comprobante requerida");
       const payload: any = {
         vehicle_id: vehicleId,
         driver_id: driverId,
         date,
         liters: Number(liters),
-        price_per_liter: pricePerLiter ? Number(pricePerLiter) : null,
+        price_per_liter: Number(pricePerLiter),
         total_amount: Number(totalAmount),
-        mileage_at_fill: mileage ? Number(mileage) : null,
-        station_name: stationName.trim() || null,
-        receipt_photo_url: receiptPath || null,
+        mileage_at_fill: Number(mileage),
+        station_name: stationName.trim(),
+        receipt_photo_url: receiptPath,
         notes: notes.trim() || null,
       };
       const { error } = await supabase.from("fuel_records").insert(payload);
