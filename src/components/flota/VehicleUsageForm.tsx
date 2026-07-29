@@ -37,7 +37,7 @@ export function VehicleUsageForm({
 
   useEffect(() => {
     if (startPhoto && !startedAt) {
-      setStartedAt(new Date().toISOString().slice(0, 16));
+      setStartedAt(toLocalDatetimeInput());
     }
   }, [startPhoto, startedAt]);
 
