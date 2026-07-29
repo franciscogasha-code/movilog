@@ -137,6 +137,7 @@ export function VehicleUsageForm({
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["vehicle-usages"] });
       qc.invalidateQueries({ queryKey: ["vehicle-open-trips"] });
+      qc.invalidateQueries({ queryKey: ["vehicle-open-trips-ids"] });
       qc.invalidateQueries({ queryKey: ["vehicles"] });
       qc.invalidateQueries({ queryKey: ["vehicles-active"] });
       toast.success("Viaje iniciado");
