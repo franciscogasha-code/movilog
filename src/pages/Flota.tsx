@@ -46,6 +46,7 @@ export default function Flota() {
   const [vehicleFormOpen, setVehicleFormOpen] = useState(false);
   const [vehicleEditing, setVehicleEditing] = useState<Partial<VehicleFormValues> | null>(null);
   const [usageFormOpen, setUsageFormOpen] = useState(false);
+  const [openTripsModalOpen, setOpenTripsModalOpen] = useState(false);
   const [fuelFormOpen, setFuelFormOpen] = useState(false);
   const [maintFormOpen, setMaintFormOpen] = useState(false);
   const [maintEditing, setMaintEditing] = useState<any>(null);
