@@ -32,10 +32,10 @@ export function OpenTripsSection({
         .from("vehicle_usages")
         .select(`
           id, vehicle_id, start_mileage, started_at, destination,
-          driver_id, driver_name_text,
+          driver_id, driver_name_text, created_by,
           vehicle:vehicles(plate, nickname),
           category:vehicle_usage_categories(name),
-          driver:drivers(user_id, profile:profiles!drivers_user_id_fkey(full_name))
+          driver:drivers(user_id)
         `)
         .eq("status", "open")
         .order("started_at", { ascending: true });
