@@ -175,10 +175,29 @@ export function FuelRecordForm({
             </div>
             <div>
               <Label>Chofer *</Label>
-              <Input value={profile?.full_name ?? ""} readOnly disabled />
-              <p className="text-xs text-muted-foreground mt-1">
-                {driverId ? "Se asigna al usuario en sesión" : "El usuario en sesión no está registrado como chofer"}
-              </p>
+              {myDriver?.id ? (
+                <>
+                  <Input value={profile?.full_name ?? ""} readOnly disabled />
+                  <p className="text-xs text-muted-foreground mt-1">Se asigna al usuario en sesión</p>
+                </>
+              ) : canPickDriver ? (
+                <>
+                  <Select value={selectedDriverId} onValueChange={setSelectedDriverId}>
+                    <SelectTrigger><SelectValue placeholder="Seleccionar chofer..." /></SelectTrigger>
+                    <SelectContent>
+                      {allDrivers?.map((d) => (
+                        <SelectItem key={d.id} value={d.id}>{d.full_name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">Carga administrativa: seleccioná el chofer real</p>
+                </>
+              ) : (
+                <>
+                  <Input value={profile?.full_name ?? ""} readOnly disabled />
+                  <p className="text-xs text-destructive mt-1">El usuario en sesión no está registrado como chofer</p>
+                </>
+              )}
             </div>
             <div>
               <Label>Fecha *</Label>
