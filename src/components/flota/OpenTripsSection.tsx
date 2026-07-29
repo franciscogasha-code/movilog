@@ -32,10 +32,10 @@ export function OpenTripsSection({
         .from("vehicle_usages")
         .select(`
           id, vehicle_id, start_mileage, started_at, destination,
-          driver_id, driver_name_text,
+          driver_id, driver_name_text, created_by,
           vehicle:vehicles(plate, nickname),
           category:vehicle_usage_categories(name),
-          driver:drivers(user_id, profile:profiles!drivers_user_id_fkey(full_name))
+          driver:drivers(user_id)
         `)
         .eq("status", "open")
         .order("started_at", { ascending: true });
@@ -50,7 +50,7 @@ export function OpenTripsSection({
     const hours = (Date.now() - startedAt.getTime()) / 3_600_000;
     const overdue = hours > 24;
     const driverUserId = t.driver?.user_id;
-    const canClose = isPrivileged || (driverUserId && driverUserId === user?.id);
+    const canClose = isPrivileged || (driverUserId && driverUserId === user?.id) || (t.created_by && t.created_by === user?.id);
 
     return (
       <div key={t.id} className="p-3 flex items-center justify-between gap-3 flex-wrap">
@@ -67,7 +67,7 @@ export function OpenTripsSection({
           {t.destination && <p className="text-sm mt-0.5">{t.destination}</p>}
           <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
             <Clock className="h-3 w-3" />
-            {t.driver?.profile?.full_name || t.driver_name_text || "—"} ·
+            {t.driver_name_text || "—"} ·
             inicio {startedAt.toLocaleString("es-PY")} · km {t.start_mileage?.toLocaleString("de-DE")}
           </p>
         </div>

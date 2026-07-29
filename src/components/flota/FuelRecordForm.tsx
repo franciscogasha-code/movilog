@@ -119,7 +119,7 @@ export function FuelRecordForm({
   const submit = useMutation({
     mutationFn: async () => {
       if (!vehicleId) throw new Error("Vehículo requerido");
-      if (!driverId) throw new Error(canPickDriver ? "Seleccioná el chofer" : "El usuario en sesión no está registrado como chofer");
+      if (!driverId) throw new Error("Tu usuario no está registrado como chofer");
       if (!date) throw new Error("Fecha requerida");
       if (!mileage || Number(mileage) <= 0) throw new Error("Km al momento requerido");
       if (!liters || Number(liters) <= 0) throw new Error("Litros requeridos");
@@ -175,28 +175,11 @@ export function FuelRecordForm({
             </div>
             <div>
               <Label>Chofer *</Label>
+              <Input value={profile?.full_name ?? ""} readOnly disabled />
               {myDriver?.id ? (
-                <>
-                  <Input value={profile?.full_name ?? ""} readOnly disabled />
-                  <p className="text-xs text-muted-foreground mt-1">Se asigna al usuario en sesión</p>
-                </>
-              ) : canPickDriver ? (
-                <>
-                  <Select value={selectedDriverId} onValueChange={setSelectedDriverId}>
-                    <SelectTrigger><SelectValue placeholder="Seleccionar chofer..." /></SelectTrigger>
-                    <SelectContent>
-                      {allDrivers?.map((d) => (
-                        <SelectItem key={d.id} value={d.id}>{d.full_name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground mt-1">Carga administrativa: seleccioná el chofer real</p>
-                </>
+                <p className="text-xs text-muted-foreground mt-1">Se asigna al usuario en sesión</p>
               ) : (
-                <>
-                  <Input value={profile?.full_name ?? ""} readOnly disabled />
-                  <p className="text-xs text-destructive mt-1">El usuario en sesión no está registrado como chofer</p>
-                </>
+                <p className="text-xs text-destructive mt-1">Tu usuario no está registrado como chofer. Pedí al administrador que te habilite.</p>
               )}
             </div>
             <div>
