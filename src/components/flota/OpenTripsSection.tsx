@@ -50,7 +50,7 @@ export function OpenTripsSection({
     const hours = (Date.now() - startedAt.getTime()) / 3_600_000;
     const overdue = hours > 24;
     const driverUserId = t.driver?.user_id;
-    const canClose = isPrivileged || (driverUserId && driverUserId === user?.id);
+    const canClose = isPrivileged || (driverUserId && driverUserId === user?.id) || (t.created_by && t.created_by === user?.id);
 
     return (
       <div key={t.id} className="p-3 flex items-center justify-between gap-3 flex-wrap">
