@@ -67,6 +67,19 @@ export default function Flota() {
     },
   });
 
+  const { data: openTripVehicleIds } = useQuery({
+    queryKey: ["vehicle-open-trips-ids"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("vehicle_usages")
+        .select("vehicle_id")
+        .eq("status", "open");
+      if (error) throw error;
+      return new Set((data || []).map((r: any) => r.vehicle_id));
+    },
+    refetchInterval: 60_000,
+  });
+
   const { data: categories } = useQuery({
     queryKey: ["vehicle-usage-categories"],
     queryFn: async () => {
