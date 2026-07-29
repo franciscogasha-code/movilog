@@ -169,8 +169,10 @@ export default function Flota() {
     },
   });
 
-  const availableCount = vehicles?.filter(v => v.status === "available").length || 0;
-  const inUseCount = vehicles?.filter(v => v.status === "in_route").length || 0;
+  const inTripSet = openTripVehicleIds ?? new Set<string>();
+  const effectiveStatus = (v: any) => (inTripSet.has(v.id) && v.status !== "maintenance" && v.status !== "out_of_service") ? "in_trip" : v.status;
+  const availableCount = vehicles?.filter(v => effectiveStatus(v) === "available").length || 0;
+  const inUseCount = vehicles?.filter(v => { const s = effectiveStatus(v); return s === "in_route" || s === "in_trip"; }).length || 0;
   const maintCount = vehicles?.filter(v => v.status === "maintenance").length || 0;
   const totalVehicles = vehicles?.length || 0;
 
