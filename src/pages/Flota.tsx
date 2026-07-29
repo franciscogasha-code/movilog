@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  Truck, Wrench, ArrowRightLeft, AlertTriangle, Calendar, Gauge, Plus, Fuel, Route, Settings, Images, Pencil, BarChart3, Receipt,
+  Truck, Wrench, ArrowRightLeft, AlertTriangle, Calendar, Gauge, Plus, Fuel, Route, Settings, Images, Pencil, BarChart3, Receipt, Flag,
 } from "lucide-react";
 import { VehicleForm, type VehicleFormValues } from "@/components/flota/VehicleForm";
 import { VehicleUsageForm } from "@/components/flota/VehicleUsageForm";
@@ -46,6 +46,7 @@ export default function Flota() {
   const [vehicleFormOpen, setVehicleFormOpen] = useState(false);
   const [vehicleEditing, setVehicleEditing] = useState<Partial<VehicleFormValues> | null>(null);
   const [usageFormOpen, setUsageFormOpen] = useState(false);
+  const [openTripsModalOpen, setOpenTripsModalOpen] = useState(false);
   const [fuelFormOpen, setFuelFormOpen] = useState(false);
   const [maintFormOpen, setMaintFormOpen] = useState(false);
   const [maintEditing, setMaintEditing] = useState<any>(null);
@@ -174,6 +175,9 @@ export default function Flota() {
         <div className="flex gap-2 flex-wrap">
           <Button size="sm" variant="outline" onClick={() => setUsageFormOpen(true)} className="gap-2">
             <Route className="h-4 w-4" /> Iniciar viaje
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => setOpenTripsModalOpen(true)} className="gap-2">
+            <Flag className="h-4 w-4" /> Terminar viaje
           </Button>
           <Button size="sm" variant="outline" onClick={() => setFuelFormOpen(true)} className="gap-2">
             <Fuel className="h-4 w-4" /> Cargar combustible
@@ -542,6 +546,7 @@ export default function Flota() {
 
       {vehicleFormOpen && <VehicleForm open={vehicleFormOpen} onOpenChange={setVehicleFormOpen} initial={vehicleEditing} />}
       {usageFormOpen && <VehicleUsageForm open={usageFormOpen} onOpenChange={setUsageFormOpen} />}
+      <OpenTripsSection asModal modalOpen={openTripsModalOpen} onModalOpenChange={setOpenTripsModalOpen} />
       {fuelFormOpen && <FuelRecordForm open={fuelFormOpen} onOpenChange={setFuelFormOpen} />}
       {maintFormOpen && <MaintenanceForm open={maintFormOpen} onOpenChange={setMaintFormOpen} initial={maintEditing} />}
     </motion.div>
