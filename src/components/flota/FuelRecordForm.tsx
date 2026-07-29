@@ -22,7 +22,8 @@ export function FuelRecordForm({
   presetVehicleId?: string | null;
 }) {
   const qc = useQueryClient();
-  const { user, profile } = useAuth();
+  const { user, profile, hasRole } = useAuth();
+  const canPickDriver = hasRole("admin") || hasRole("supervisor") || hasRole("owner");
 
   const [vehicleId, setVehicleId] = useState<string>(presetVehicleId ?? "");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -34,6 +35,7 @@ export function FuelRecordForm({
   const [receiptPath, setReceiptPath] = useState("");
   const [notes, setNotes] = useState("");
   const [lastEditWasTotal, setLastEditWasTotal] = useState(false);
+  const [selectedDriverId, setSelectedDriverId] = useState<string>("");
 
   useEffect(() => { if (presetVehicleId) setVehicleId(presetVehicleId); }, [presetVehicleId]);
 
@@ -50,12 +52,27 @@ export function FuelRecordForm({
     queryKey: ["my-driver", user?.id],
     enabled: !!user?.id,
     queryFn: async () => {
-      const { data } = await supabase.from("drivers").select("id").eq("user_id", user!.id).maybeSingle();
+      const { data } = await supabase.from("drivers").select("id, full_name").eq("user_id", user!.id).maybeSingle();
       return data;
     },
   });
 
-  const driverId = myDriver?.id ?? "";
+  const { data: allDrivers } = useQuery({
+    queryKey: ["drivers-active-list"],
+    enabled: canPickDriver,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("drivers").select("id, full_name").eq("is_active", true).order("full_name");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  // Default driver: own if exists, otherwise empty (admin must choose)
+  useEffect(() => {
+    if (!selectedDriverId && myDriver?.id) setSelectedDriverId(myDriver.id);
+  }, [myDriver?.id, selectedDriverId]);
+
+  const driverId = selectedDriverId;
 
   // Bidirectional total ↔ per-liter
   useEffect(() => {
