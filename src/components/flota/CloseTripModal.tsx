@@ -42,7 +42,7 @@ export function CloseTripModal({
   }, [open]);
 
   useEffect(() => {
-    if (endPhoto && !endedAt) setEndedAt(new Date().toISOString().slice(0, 16));
+    if (endPhoto && !endedAt) setEndedAt(toLocalDatetimeInput());
   }, [endPhoto, endedAt]);
 
   const endNum = Number(endMileage);
