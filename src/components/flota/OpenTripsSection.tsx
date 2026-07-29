@@ -67,7 +67,7 @@ export function OpenTripsSection({
           {t.destination && <p className="text-sm mt-0.5">{t.destination}</p>}
           <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
             <Clock className="h-3 w-3" />
-            {t.driver?.profile?.full_name || t.driver_name_text || "—"} ·
+            {t.driver_name_text || "—"} ·
             inicio {startedAt.toLocaleString("es-PY")} · km {t.start_mileage?.toLocaleString("de-DE")}
           </p>
         </div>
