@@ -546,6 +546,7 @@ export default function Flota() {
 
       {vehicleFormOpen && <VehicleForm open={vehicleFormOpen} onOpenChange={setVehicleFormOpen} initial={vehicleEditing} />}
       {usageFormOpen && <VehicleUsageForm open={usageFormOpen} onOpenChange={setUsageFormOpen} />}
+      <OpenTripsSection asModal modalOpen={openTripsModalOpen} onModalOpenChange={setOpenTripsModalOpen} />
       {fuelFormOpen && <FuelRecordForm open={fuelFormOpen} onOpenChange={setFuelFormOpen} />}
       {maintFormOpen && <MaintenanceForm open={maintFormOpen} onOpenChange={setMaintFormOpen} initial={maintEditing} />}
     </motion.div>
