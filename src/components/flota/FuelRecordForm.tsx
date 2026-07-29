@@ -22,7 +22,8 @@ export function FuelRecordForm({
   presetVehicleId?: string | null;
 }) {
   const qc = useQueryClient();
-  const { user, profile } = useAuth();
+  const { user, profile, hasRole } = useAuth();
+  const canPickDriver = hasRole("admin") || hasRole("supervisor") || hasRole("owner");
 
   const [vehicleId, setVehicleId] = useState<string>(presetVehicleId ?? "");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -34,6 +35,7 @@ export function FuelRecordForm({
   const [receiptPath, setReceiptPath] = useState("");
   const [notes, setNotes] = useState("");
   const [lastEditWasTotal, setLastEditWasTotal] = useState(false);
+  const [selectedDriverId, setSelectedDriverId] = useState<string>("");
 
   useEffect(() => { if (presetVehicleId) setVehicleId(presetVehicleId); }, [presetVehicleId]);
 
@@ -55,7 +57,29 @@ export function FuelRecordForm({
     },
   });
 
-  const driverId = myDriver?.id ?? "";
+  const { data: allDrivers } = useQuery({
+    queryKey: ["drivers-active-list"],
+    enabled: canPickDriver,
+    queryFn: async () => {
+      const { data: drvs, error } = await supabase.from("drivers").select("id, user_id").eq("is_active", true);
+      if (error) throw error;
+      const ids = (drvs ?? []).map((d) => d.user_id).filter(Boolean);
+      const { data: profs } = ids.length
+        ? await supabase.from("profiles").select("id, full_name").in("id", ids)
+        : { data: [] as any[] };
+      const nameById = new Map((profs ?? []).map((p: any) => [p.id, p.full_name]));
+      return (drvs ?? [])
+        .map((d) => ({ id: d.id, full_name: nameById.get(d.user_id) ?? "Sin nombre" }))
+        .sort((a, b) => a.full_name.localeCompare(b.full_name));
+    },
+  });
+
+  // Default driver: own if exists, otherwise empty (admin must choose)
+  useEffect(() => {
+    if (!selectedDriverId && myDriver?.id) setSelectedDriverId(myDriver.id);
+  }, [myDriver?.id, selectedDriverId]);
+
+  const driverId = selectedDriverId;
 
   // Bidirectional total ↔ per-liter
   useEffect(() => {
@@ -95,7 +119,7 @@ export function FuelRecordForm({
   const submit = useMutation({
     mutationFn: async () => {
       if (!vehicleId) throw new Error("Vehículo requerido");
-      if (!driverId) throw new Error("El usuario en sesión no está registrado como chofer");
+      if (!driverId) throw new Error(canPickDriver ? "Seleccioná el chofer" : "El usuario en sesión no está registrado como chofer");
       if (!date) throw new Error("Fecha requerida");
       if (!mileage || Number(mileage) <= 0) throw new Error("Km al momento requerido");
       if (!liters || Number(liters) <= 0) throw new Error("Litros requeridos");
@@ -151,10 +175,29 @@ export function FuelRecordForm({
             </div>
             <div>
               <Label>Chofer *</Label>
-              <Input value={profile?.full_name ?? ""} readOnly disabled />
-              <p className="text-xs text-muted-foreground mt-1">
-                {driverId ? "Se asigna al usuario en sesión" : "El usuario en sesión no está registrado como chofer"}
-              </p>
+              {myDriver?.id ? (
+                <>
+                  <Input value={profile?.full_name ?? ""} readOnly disabled />
+                  <p className="text-xs text-muted-foreground mt-1">Se asigna al usuario en sesión</p>
+                </>
+              ) : canPickDriver ? (
+                <>
+                  <Select value={selectedDriverId} onValueChange={setSelectedDriverId}>
+                    <SelectTrigger><SelectValue placeholder="Seleccionar chofer..." /></SelectTrigger>
+                    <SelectContent>
+                      {allDrivers?.map((d) => (
+                        <SelectItem key={d.id} value={d.id}>{d.full_name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">Carga administrativa: seleccioná el chofer real</p>
+                </>
+              ) : (
+                <>
+                  <Input value={profile?.full_name ?? ""} readOnly disabled />
+                  <p className="text-xs text-destructive mt-1">El usuario en sesión no está registrado como chofer</p>
+                </>
+              )}
             </div>
             <div>
               <Label>Fecha *</Label>
