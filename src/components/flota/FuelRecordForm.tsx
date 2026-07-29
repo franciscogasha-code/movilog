@@ -52,7 +52,7 @@ export function FuelRecordForm({
     queryKey: ["my-driver", user?.id],
     enabled: !!user?.id,
     queryFn: async () => {
-      const { data } = await supabase.from("drivers").select("id, full_name").eq("user_id", user!.id).maybeSingle();
+      const { data } = await supabase.from("drivers").select("id").eq("user_id", user!.id).maybeSingle();
       return data;
     },
   });
@@ -61,9 +61,16 @@ export function FuelRecordForm({
     queryKey: ["drivers-active-list"],
     enabled: canPickDriver,
     queryFn: async () => {
-      const { data, error } = await supabase.from("drivers").select("id, full_name").eq("is_active", true).order("full_name");
+      const { data: drvs, error } = await supabase.from("drivers").select("id, user_id").eq("is_active", true);
       if (error) throw error;
-      return data ?? [];
+      const ids = (drvs ?? []).map((d) => d.user_id).filter(Boolean);
+      const { data: profs } = ids.length
+        ? await supabase.from("profiles").select("id, full_name").in("id", ids)
+        : { data: [] as any[] };
+      const nameById = new Map((profs ?? []).map((p: any) => [p.id, p.full_name]));
+      return (drvs ?? [])
+        .map((d) => ({ id: d.id, full_name: nameById.get(d.user_id) ?? "Sin nombre" }))
+        .sort((a, b) => a.full_name.localeCompare(b.full_name));
     },
   });
 
