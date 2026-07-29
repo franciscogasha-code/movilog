@@ -183,13 +183,9 @@ export function FuelRecordForm({
               </Select>
             </div>
             <div>
-              <Label>Chofer *</Label>
+              <Label>Cargado por *</Label>
               <Input value={profile?.full_name ?? ""} readOnly disabled />
-              {myDriver?.id ? (
-                <p className="text-xs text-muted-foreground mt-1">Se asigna al usuario en sesión</p>
-              ) : (
-                <p className="text-xs text-destructive mt-1">Tu usuario no está registrado como chofer. Pedí al administrador que te habilite.</p>
-              )}
+              <p className="text-xs text-muted-foreground mt-1">Queda registrado con el usuario en sesión</p>
             </div>
             <div>
               <Label>Fecha *</Label>
