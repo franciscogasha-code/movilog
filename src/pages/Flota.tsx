@@ -27,6 +27,7 @@ import { FleetDashboard } from "@/components/flota/FleetDashboard";
 const VEHICLE_STATUS_LABELS: Record<string, { label: string; color: string }> = {
   available: { label: "Disponible", color: "bg-accent/10 text-accent" },
   in_route: { label: "En ruta", color: "bg-primary/10 text-primary" },
+  in_trip: { label: "En viaje", color: "bg-primary/10 text-primary" },
   maintenance: { label: "En mantenimiento", color: "bg-secondary/10 text-secondary" },
   out_of_service: { label: "Fuera de servicio", color: "bg-destructive/10 text-destructive" },
 };
