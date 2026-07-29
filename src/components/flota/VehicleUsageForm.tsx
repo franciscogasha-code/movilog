@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { FileUpload } from "@/components/shared/FileUpload";
 import { toast } from "sonner";
 import { AlertTriangle } from "lucide-react";
+import { toLocalDatetimeInput } from "@/lib/datetime-local";
 
 export function VehicleUsageForm({
   open,
@@ -36,7 +37,7 @@ export function VehicleUsageForm({
 
   useEffect(() => {
     if (startPhoto && !startedAt) {
-      setStartedAt(new Date().toISOString().slice(0, 16));
+      setStartedAt(toLocalDatetimeInput());
     }
   }, [startPhoto, startedAt]);
 
@@ -136,6 +137,7 @@ export function VehicleUsageForm({
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["vehicle-usages"] });
       qc.invalidateQueries({ queryKey: ["vehicle-open-trips"] });
+      qc.invalidateQueries({ queryKey: ["vehicle-open-trips-ids"] });
       qc.invalidateQueries({ queryKey: ["vehicles"] });
       qc.invalidateQueries({ queryKey: ["vehicles-active"] });
       toast.success("Viaje iniciado");

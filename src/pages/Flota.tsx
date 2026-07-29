@@ -27,6 +27,7 @@ import { FleetDashboard } from "@/components/flota/FleetDashboard";
 const VEHICLE_STATUS_LABELS: Record<string, { label: string; color: string }> = {
   available: { label: "Disponible", color: "bg-accent/10 text-accent" },
   in_route: { label: "En ruta", color: "bg-primary/10 text-primary" },
+  in_trip: { label: "En viaje", color: "bg-primary/10 text-primary" },
   maintenance: { label: "En mantenimiento", color: "bg-secondary/10 text-secondary" },
   out_of_service: { label: "Fuera de servicio", color: "bg-destructive/10 text-destructive" },
 };
@@ -64,6 +65,19 @@ export default function Flota() {
       if (error) throw error;
       return data;
     },
+  });
+
+  const { data: openTripVehicleIds } = useQuery({
+    queryKey: ["vehicle-open-trips-ids"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("vehicle_usages")
+        .select("vehicle_id")
+        .eq("status", "open");
+      if (error) throw error;
+      return new Set((data || []).map((r: any) => r.vehicle_id));
+    },
+    refetchInterval: 60_000,
   });
 
   const { data: categories } = useQuery({
@@ -155,8 +169,10 @@ export default function Flota() {
     },
   });
 
-  const availableCount = vehicles?.filter(v => v.status === "available").length || 0;
-  const inUseCount = vehicles?.filter(v => v.status === "in_route").length || 0;
+  const inTripSet = openTripVehicleIds ?? new Set<string>();
+  const effectiveStatus = (v: any) => (inTripSet.has(v.id) && v.status !== "maintenance" && v.status !== "out_of_service") ? "in_trip" : v.status;
+  const availableCount = vehicles?.filter(v => effectiveStatus(v) === "available").length || 0;
+  const inUseCount = vehicles?.filter(v => { const s = effectiveStatus(v); return s === "in_route" || s === "in_trip"; }).length || 0;
   const maintCount = vehicles?.filter(v => v.status === "maintenance").length || 0;
   const totalVehicles = vehicles?.length || 0;
 
@@ -197,7 +213,7 @@ export default function Flota() {
           <p className="text-2xl font-display font-bold text-accent">{availableCount}/{totalVehicles}</p>
         </CardContent></Card>
         <Card className="glass-card"><CardContent className="p-4">
-          <p className="text-xs text-muted-foreground uppercase">En ruta</p>
+          <p className="text-xs text-muted-foreground uppercase">En ruta / viaje</p>
           <p className="text-2xl font-display font-bold text-primary">{inUseCount}</p>
         </CardContent></Card>
         <Card className="glass-card"><CardContent className="p-4">
@@ -266,7 +282,7 @@ export default function Flota() {
               ) : (
                 <div className="divide-y divide-border/50">
                   {vehicles.map((v: any) => {
-                    const statusCfg = VEHICLE_STATUS_LABELS[v.status] || VEHICLE_STATUS_LABELS.available;
+                    const statusCfg = VEHICLE_STATUS_LABELS[effectiveStatus(v)] || VEHICLE_STATUS_LABELS.available;
                     return (
                       <div key={v.id} className="p-4 hover:bg-muted/20 transition-colors">
                         <div className="flex items-center justify-between gap-3 flex-wrap">
