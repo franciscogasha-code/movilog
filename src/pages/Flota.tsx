@@ -282,7 +282,7 @@ export default function Flota() {
               ) : (
                 <div className="divide-y divide-border/50">
                   {vehicles.map((v: any) => {
-                    const statusCfg = VEHICLE_STATUS_LABELS[v.status] || VEHICLE_STATUS_LABELS.available;
+                    const statusCfg = VEHICLE_STATUS_LABELS[effectiveStatus(v)] || VEHICLE_STATUS_LABELS.available;
                     return (
                       <div key={v.id} className="p-4 hover:bg-muted/20 transition-colors">
                         <div className="flex items-center justify-between gap-3 flex-wrap">
