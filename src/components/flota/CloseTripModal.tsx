@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { FileUpload } from "@/components/shared/FileUpload";
 import { toast } from "sonner";
 import { AlertTriangle } from "lucide-react";
+import { toLocalDatetimeInput } from "@/lib/datetime-local";
 
 export function CloseTripModal({
   open,
