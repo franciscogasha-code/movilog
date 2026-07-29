@@ -119,7 +119,7 @@ export function FuelRecordForm({
   const submit = useMutation({
     mutationFn: async () => {
       if (!vehicleId) throw new Error("Vehículo requerido");
-      if (!driverId) throw new Error("Tu usuario no está registrado como chofer");
+      if (!user?.id) throw new Error("Sesión no válida");
       if (!date) throw new Error("Fecha requerida");
       if (!mileage || Number(mileage) <= 0) throw new Error("Km al momento requerido");
       if (!liters || Number(liters) <= 0) throw new Error("Litros requeridos");
@@ -127,9 +127,18 @@ export function FuelRecordForm({
       if (!pricePerLiter || Number(pricePerLiter) <= 0) throw new Error("Precio por litro requerido");
       if (!totalAmount || Number(totalAmount) <= 0) throw new Error("Precio total requerido");
       if (!receiptPath) throw new Error("Foto del comprobante requerida");
+
+      let effectiveDriverId = driverId;
+      if (!effectiveDriverId) {
+        const { data: ensured, error: ensErr } = await supabase.rpc("fn_ensure_driver_for_user", { _user_id: user.id });
+        if (ensErr) throw ensErr;
+        effectiveDriverId = ensured as unknown as string;
+      }
+      if (!effectiveDriverId) throw new Error("No se pudo asociar tu usuario a un registro de chofer");
+
       const payload: any = {
         vehicle_id: vehicleId,
-        driver_id: driverId,
+        driver_id: effectiveDriverId,
         date,
         liters: Number(liters),
         price_per_liter: Number(pricePerLiter),
@@ -174,13 +183,9 @@ export function FuelRecordForm({
               </Select>
             </div>
             <div>
-              <Label>Chofer *</Label>
+              <Label>Cargado por *</Label>
               <Input value={profile?.full_name ?? ""} readOnly disabled />
-              {myDriver?.id ? (
-                <p className="text-xs text-muted-foreground mt-1">Se asigna al usuario en sesión</p>
-              ) : (
-                <p className="text-xs text-destructive mt-1">Tu usuario no está registrado como chofer. Pedí al administrador que te habilite.</p>
-              )}
+              <p className="text-xs text-muted-foreground mt-1">Queda registrado con el usuario en sesión</p>
             </div>
             <div>
               <Label>Fecha *</Label>
