@@ -176,6 +176,9 @@ export default function Flota() {
           <Button size="sm" variant="outline" onClick={() => setUsageFormOpen(true)} className="gap-2">
             <Route className="h-4 w-4" /> Iniciar viaje
           </Button>
+          <Button size="sm" variant="outline" onClick={() => setOpenTripsModalOpen(true)} className="gap-2">
+            <Flag className="h-4 w-4" /> Terminar viaje
+          </Button>
           <Button size="sm" variant="outline" onClick={() => setFuelFormOpen(true)} className="gap-2">
             <Fuel className="h-4 w-4" /> Cargar combustible
           </Button>
