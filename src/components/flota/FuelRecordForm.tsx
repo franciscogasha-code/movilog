@@ -119,7 +119,7 @@ export function FuelRecordForm({
   const submit = useMutation({
     mutationFn: async () => {
       if (!vehicleId) throw new Error("Vehículo requerido");
-      if (!driverId) throw new Error("El usuario en sesión no está registrado como chofer");
+      if (!driverId) throw new Error(canPickDriver ? "Seleccioná el chofer" : "El usuario en sesión no está registrado como chofer");
       if (!date) throw new Error("Fecha requerida");
       if (!mileage || Number(mileage) <= 0) throw new Error("Km al momento requerido");
       if (!liters || Number(liters) <= 0) throw new Error("Litros requeridos");
