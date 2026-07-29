@@ -213,7 +213,7 @@ export default function Flota() {
           <p className="text-2xl font-display font-bold text-accent">{availableCount}/{totalVehicles}</p>
         </CardContent></Card>
         <Card className="glass-card"><CardContent className="p-4">
-          <p className="text-xs text-muted-foreground uppercase">En ruta</p>
+          <p className="text-xs text-muted-foreground uppercase">En ruta / viaje</p>
           <p className="text-2xl font-display font-bold text-primary">{inUseCount}</p>
         </CardContent></Card>
         <Card className="glass-card"><CardContent className="p-4">
