@@ -78,6 +78,7 @@ export function SolicitudCreateForm({
   const [items, setItems] = useState<SelectedItem[]>([]);
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
   const [splitPanelOpen, setSplitPanelOpen] = useState<string | null>(null);
+  const [showExcelImport, setShowExcelImport] = useState(false);
 
   // Step 3: Origin — single source (mono-origin mode only)
   const [sourceBranchId, setSourceBranchId] = useState("");
