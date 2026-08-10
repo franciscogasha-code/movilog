@@ -11,12 +11,13 @@ import { ProductCard } from "@/components/shared/ProductCard";
 import { BranchSelector, useAutoDetectBranch } from "@/components/shared/BranchSelector";
 import { useBranches } from "@/hooks/use-branches";
 import { useLiveStock, revalidateLiveStock } from "@/hooks/use-live-stock";
-import { Plus, Trash2, Package, ChevronDown, ChevronUp, AlertTriangle, XCircle, Loader2, Split } from "lucide-react";
+import { Plus, Trash2, Package, ChevronDown, ChevronUp, AlertTriangle, XCircle, Loader2, Split, FileSpreadsheet } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { ContextBanner, type EffectiveOriginMode } from "./ContextBanner";
 import { DemandAlert } from "./DemandAlert";
 import { SplitOriginPanel, type OriginSplit } from "./SplitOriginPanel";
+import { ExcelImport } from "./ExcelImport";
 import { LogisticsFieldsForm } from "./LogisticsFieldsForm";
 import {
   type RequestType,
@@ -77,6 +78,7 @@ export function SolicitudCreateForm({
   const [items, setItems] = useState<SelectedItem[]>([]);
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
   const [splitPanelOpen, setSplitPanelOpen] = useState<string | null>(null);
+  const [showExcelImport, setShowExcelImport] = useState(false);
 
   // Step 3: Origin — single source (mono-origin mode only)
   const [sourceBranchId, setSourceBranchId] = useState("");
@@ -325,6 +327,38 @@ export function SolicitudCreateForm({
     setItems(prev => [{ product, quantity: 1, sourceBranchId: autoSource }, ...prev]);
     setExpandedProduct(product.id);
   };
+
+  /**
+   * Carga masiva desde Excel (solo Pre-Venta Online).
+   * No altera reglas de negocio: solo puebla la lista de items.
+   * Producto nuevo -> se agrega; producto existente -> se suma la cantidad.
+   */
+  const handleExcelItems = (imported: { product: ProductResult; quantity: number }[]) => {
+    if (!imported.length) return;
+    let added = 0;
+    let merged = 0;
+    setItems(prev => {
+      const next = [...prev];
+      for (const { product, quantity } of imported) {
+        const idx = next.findIndex(i => i.product.id === product.id);
+        if (idx >= 0) {
+          next[idx] = { ...next[idx], quantity: (next[idx].quantity || 0) + quantity };
+          merged++;
+        } else {
+          next.unshift({ product, quantity });
+          added++;
+        }
+      }
+      return next;
+    });
+    setExpandedProduct(null);
+    setShowExcelImport(false);
+    toast.success(
+      `${added} producto(s) agregado(s)${merged ? ` · ${merged} actualizado(s)` : ""}`
+    );
+  };
+
+
 
   const removeProduct = (productId: string) => {
     setItems(prev => prev.filter(i => i.product.id !== productId));
@@ -1031,7 +1065,30 @@ export function SolicitudCreateForm({
       {/* STEP 2: Products */}
       <div className="space-y-3">
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">2. Productos</h3>
+
+        {isPreSale && (
+          <div className="border border-border rounded-lg">
+            <button
+              type="button"
+              onClick={() => setShowExcelImport(v => !v)}
+              className="w-full flex items-center justify-between gap-2 px-3 py-2 text-sm font-medium hover:bg-muted/30 transition-colors"
+            >
+              <span className="flex items-center gap-2">
+                <FileSpreadsheet className="h-4 w-4 text-muted-foreground" />
+                Importar desde Excel
+              </span>
+              {showExcelImport ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </button>
+            {showExcelImport && (
+              <div className="p-3 border-t border-border">
+                <ExcelImport onConfirm={handleExcelItems} />
+              </div>
+            )}
+          </div>
+        )}
+
         <ProductSearch onSelect={addProduct} excludeIds={items.map(i => i.product.id)} />
+
 
         {items.length > 0 ? (
           <div className="space-y-2">
