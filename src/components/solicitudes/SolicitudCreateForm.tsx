@@ -17,6 +17,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { ContextBanner, type EffectiveOriginMode } from "./ContextBanner";
 import { DemandAlert } from "./DemandAlert";
 import { SplitOriginPanel, type OriginSplit } from "./SplitOriginPanel";
+import { ExcelImport } from "./ExcelImport";
 import { LogisticsFieldsForm } from "./LogisticsFieldsForm";
 import {
   type RequestType,
