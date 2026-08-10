@@ -327,6 +327,38 @@ export function SolicitudCreateForm({
     setExpandedProduct(product.id);
   };
 
+  /**
+   * Carga masiva desde Excel (solo Pre-Venta Online).
+   * No altera reglas de negocio: solo puebla la lista de items.
+   * Producto nuevo -> se agrega; producto existente -> se suma la cantidad.
+   */
+  const handleExcelItems = (imported: { product: ProductResult; quantity: number }[]) => {
+    if (!imported.length) return;
+    let added = 0;
+    let merged = 0;
+    setItems(prev => {
+      const next = [...prev];
+      for (const { product, quantity } of imported) {
+        const idx = next.findIndex(i => i.product.id === product.id);
+        if (idx >= 0) {
+          next[idx] = { ...next[idx], quantity: (next[idx].quantity || 0) + quantity };
+          merged++;
+        } else {
+          next.unshift({ product, quantity });
+          added++;
+        }
+      }
+      return next;
+    });
+    setExpandedProduct(null);
+    setShowExcelImport(false);
+    toast.success(
+      `${added} producto(s) agregado(s)${merged ? ` · ${merged} actualizado(s)` : ""}`
+    );
+  };
+
+
+
   const removeProduct = (productId: string) => {
     setItems(prev => prev.filter(i => i.product.id !== productId));
     if (expandedProduct === productId) setExpandedProduct(null);
