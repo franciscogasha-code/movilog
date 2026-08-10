@@ -1065,7 +1065,30 @@ export function SolicitudCreateForm({
       {/* STEP 2: Products */}
       <div className="space-y-3">
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">2. Productos</h3>
+
+        {isPreSale && (
+          <div className="border border-border rounded-lg">
+            <button
+              type="button"
+              onClick={() => setShowExcelImport(v => !v)}
+              className="w-full flex items-center justify-between gap-2 px-3 py-2 text-sm font-medium hover:bg-muted/30 transition-colors"
+            >
+              <span className="flex items-center gap-2">
+                <FileSpreadsheet className="h-4 w-4 text-muted-foreground" />
+                Importar desde Excel
+              </span>
+              {showExcelImport ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </button>
+            {showExcelImport && (
+              <div className="p-3 border-t border-border">
+                <ExcelImport onConfirm={handleExcelItems} />
+              </div>
+            )}
+          </div>
+        )}
+
         <ProductSearch onSelect={addProduct} excludeIds={items.map(i => i.product.id)} />
+
 
         {items.length > 0 ? (
           <div className="space-y-2">
