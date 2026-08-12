@@ -42,9 +42,18 @@ Pantallas:
 - **Revalidación al confirmar**: si un precio o stock cambió respecto de lo que vio el vendedor, se avisa antes de cerrar la pre-venta (no bloquea, informa).
 
 ## Trazabilidad desde el cierre
-- La pre-venta queda con vendedor, cliente, sucursal y canal registrados.
+- La pre-venta queda con vendedor, cliente, sucursal, canal y (si hubo visita abierta) la visita asociada.
 - El vendedor ve en "Mis pedidos" el estado operativo real en cada etapa, sin acceso al resto de módulos.
 - Nada del ciclo actual de preparación/logística se modifica.
+
+## Geolocalización y control de visitas
+- **Check-in en el cliente**: el vendedor abre la visita desde la ficha del cliente; se guarda fecha/hora y coordenadas del dispositivo.
+- **Validación de cercanía**: si el cliente tiene coordenadas registradas, se calcula la distancia; fuera del radio configurado (por defecto 300 m) la visita queda marcada "fuera de radio" con motivo obligatorio. Es advertencia, no bloqueo.
+- **Check-out**: cierra la visita con hora, coordenadas y resultado: pedido cerrado, cotización enviada, sin compra, cliente ausente, otro (con nota).
+- **Vinculación**: toda pre-venta o catálogo PDF generado durante una visita abierta queda asociado a esa visita.
+- **Agenda y ruta del día**: lista de clientes a visitar, con mapa y ordenamiento por cercanía.
+- **Panel supervisor**: visitas por vendedor y día, duración, tasa de conversión (visitas → pre-ventas), clientes sin visitar en X días, mapa de puntos de check-in.
+- **Privacidad**: sólo se registra la ubicación en el momento del check-in/check-out, nunca rastreo continuo en segundo plano. Si el vendedor niega el permiso de ubicación, la visita se registra igual como "sin ubicación".
 
 ## Alcance por fases
 
@@ -53,35 +62,46 @@ Pantallas:
 - Cartera de clientes (BIMS + alta manual), catálogo, ficha, carrito, confirmación.
 - Cierre creando Pre-Venta Online con el flujo existente.
 
-**Fase 2 — Precio por cliente y en vivo**
+**Fase 2 — Precio por cliente y PDF de catálogo**
 - Resolución de lista de precios por cliente, escalas por cantidad, revalidación al confirmar.
+- Selección múltiple en el catálogo, generación y compartición del PDF, registro de envíos.
 
-**Fase 3 — Offline básico**
-- Catálogo e imágenes cacheados, carrito y borradores persistidos en el dispositivo, cola de envío que sincroniza al recuperar conexión, indicador de estado.
+**Fase 3 — Visitas y geolocalización**
+- Check-in/check-out, validación de radio, resultado de visita, agenda del día con mapa.
+- Panel de supervisión de visitas y conversión.
 
-**Fase 4 — Seguimiento del vendedor**
+**Fase 4 — Offline básico**
+- Catálogo e imágenes cacheados, carrito, borradores y visitas persistidos en el dispositivo, cola de envío que sincroniza al recuperar conexión, indicador de estado.
+
+**Fase 5 — Seguimiento del vendedor**
 - "Mis pedidos" con estado operativo, historial por cliente y reordenar pedido anterior.
 
 ## Detalle técnico
 
 Base de datos (una migración por fase):
-- `sales_customers`: espejo local de contactos BIMS (`bims_contact_id`, nombre, RUC, dirección, teléfono, `price_list_id`, `is_active`) + clientes creados en MoviLog (`created_by`, `source`).
+- `sales_customers`: espejo local de contactos BIMS (`bims_contact_id`, nombre, RUC, dirección, teléfono, `price_list_id`, `is_active`, `latitude`, `longitude`) + clientes creados en MoviLog (`created_by`, `source`).
 - `salesperson_customers`: asignación vendedor ↔ cliente (cartera).
 - `sales_carts` / `sales_cart_items`: borradores del vendedor (permite "Guardar pedido" y offline sync idempotente por `client_uuid`).
-- Nuevo valor de rol `salesperson` en `app_role`; RLS: el vendedor sólo ve su cartera, sus carritos y sus pre-ventas.
+- `sales_catalog_shares`: registro de PDFs generados (vendedor, cliente, visita, productos incluidos, si incluía precios, fecha).
+- `sales_visits`: `salesperson_id`, `customer_id`, `check_in_at`, `check_in_lat/lng`, `check_out_at`, `check_out_lat/lng`, `distance_m`, `out_of_radius`, `outcome`, `notes`, `client_uuid` para idempotencia offline.
+- Nuevo valor de rol `salesperson` en `app_role`; RLS: el vendedor sólo ve su cartera, sus carritos, sus visitas y sus pre-ventas; supervisor/admin ven todo según su alcance de sucursal.
 - GRANTs explícitos en cada tabla nueva + RLS estricta (sin `USING (true)`).
 
 Backend:
 - Extender `bims-proxy` con `sync-contacts` (usa el `get-contacts` que ya existe) y sincronización de listas de precios; cron diario + botón manual en Sincronización BIMS.
 - Reusar `bims-stock-live` para stock y precio en vivo (chunks de 20).
+- Cálculo de distancia y marcado `out_of_radius` en trigger de base, no en el cliente, para que no sea manipulable.
 
 Frontend:
 - Nueva ruta `/ventas` con layout mobile-first (viewport tablet/celular), entrada en el sidebar sólo para rol vendedor/admin.
-- Componentes nuevos en `src/components/ventas/`: `ClientePicker`, `CatalogoGrid`, `CategoriaNav`, `ProductoFicha`, `CarritoPanel`, `ConfirmarVenta`, `MisPedidosVendedor`.
+- Componentes nuevos en `src/components/ventas/`: `ClientePicker`, `CatalogoGrid`, `CategoriaNav`, `ProductoFicha`, `CarritoPanel`, `ConfirmarVenta`, `MisPedidosVendedor`, `CatalogoPdfPanel`, `VisitaCheckIn`, `AgendaVisitas`.
+- PDF de catálogo con jsPDF + autoTable reutilizando `src/lib/pre-sale-pdf.ts` (branding, footer institucional) y `src/lib/pdf-image.ts` para las fotos; compartición con `navigator.share` y fallback a descarga.
+- Mapa y ordenamiento por cercanía con el conector de mapas ya disponible en la plataforma; ubicación puntual vía `navigator.geolocation`.
 - El cierre reutiliza exactamente la lógica de creación de `pre_sale_online` que hoy vive en `SolicitudCreateForm` (se extrae a un helper compartido, sin cambiar reglas de negocio ni validaciones).
-- Offline: React Query con persistencia en IndexedDB + service worker para imágenes; carrito en almacenamiento local con reconciliación al reconectar.
+- Offline: React Query con persistencia en IndexedDB + service worker para imágenes; carrito y visitas en almacenamiento local con reconciliación al reconectar.
 
 ## Fuera de alcance inicial
 - Cobranzas o pagos dentro del módulo de ventas.
 - Comisiones y objetivos de venta por vendedor.
-- Geolocalización o control de visitas.
+- Rastreo continuo de ubicación en segundo plano.
+
