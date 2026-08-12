@@ -21,11 +21,19 @@ Inicio Ventas → Elegir cliente (cartera BIMS o nuevo)
 
 Pantallas:
 1. **Mis clientes** — buscador de cartera, últimos visitados, botón "Cliente nuevo".
-2. **Catálogo** — grilla con foto, código, descripción, precio y chip de stock; navegación por categorías; toggle "Stock disponible"; filtros por marca y subcategoría; escaneo de código de barras con la cámara.
+2. **Catálogo** — grilla con foto, código, descripción, precio y chip de stock; navegación por categorías; toggle "Stock disponible"; filtros por marca y subcategoría; escaneo de código de barras con la cámara. Modo selección múltiple (tildes por producto) para armar una lista y **generar PDF**.
 3. **Ficha de producto** — galería, descripción, stock por almacén, precio del cliente, escalas por cantidad, selector de cantidad, "Agregar al carrito".
 4. **Carrito** — ítems con +/−, edición de cantidad, total, notas, "Guardar pedido" (borrador) y "Enviar pedido".
 5. **Confirmar** — cliente, forma de pago, moneda, tipo de envío, total, notas, "Confirmar".
 6. **Mis pedidos** — lista de pre-ventas del vendedor con su estado real (preparación, tránsito, entregado), es decir la trazabilidad completa.
+7. **Visitas** — check-in/check-out en el cliente, mapa de clientes cercanos y agenda del día.
+
+## Catálogo en PDF para enviar al cliente
+- En el catálogo, el vendedor tilda los productos que quiere mostrar y toca "Generar PDF".
+- El PDF sale con marca SANSEI (mismo estándar del PDF de Pre-Venta): logo, datos del cliente si hay uno seleccionado, y por producto foto, código, descripción, precio del cliente y escalas por cantidad. Opción de mostrar u ocultar precios.
+- Se descarga en el dispositivo y se comparte por WhatsApp, mail o lo que el vendedor prefiera (botón "Compartir" nativo cuando el dispositivo lo soporta).
+- Queda registrado qué catálogo se envió a qué cliente y cuándo, para seguimiento comercial.
+
 
 ## Datos vivos de BIMS
 - **Catálogo base**: sigue viniendo de la sincronización actual de `products` (rápido, buscable, con imágenes).
