@@ -1,30 +1,79 @@
-# Carga de productos por Excel en Pre-Venta
+# Módulo Ventas (Catálogo Vendedor) — reemplazo de Vector
 
-## Qué se quiere
-Hoy en "Nuevo Pedido → Pre-Venta Online" los productos se cargan uno por uno con el buscador. Cuando el cliente manda su pedido en un Excel, hay que tipear todo a mano.
+## Objetivo
+Dar al vendedor externo un módulo de catálogo con fotos, carrito y cierre de pre-venta desde tablet/celular, con datos vivos de BIMS (precios, listas por cliente, stock, nuevos ingresos), que termine creando una **Pre-Venta Online** con el flujo operativo que ya existe en MoviLog.
 
-La idea: poder adjuntar ese Excel y que los productos se carguen automáticamente en el pedido, igual que ya funciona en Reposición Administrativa.
+## Decisiones tomadas
+- Clientes: cartera desde BIMS + posibilidad de cargar cliente nuevo a mano.
+- Precios: lista de precios por cliente (BIMS), más escalas por cantidad.
+- Offline básico: catálogo cacheado y carrito local, sincroniza al recuperar señal.
+- Cierre: crea una Pre-Venta Online existente (`pre_sale_online`), sin cambiar reglas ni el flujo de preparación.
 
-## Cómo va a funcionar
-1. En el bloque "2. Productos" del formulario de pedido aparece un panel plegable **"Importar desde Excel"**, arriba del buscador.
-2. Se descarga la plantilla (mismas columnas ya existentes: `id`, `codigo`, `codigo_secundario`, `descripcion`, `cantidad`).
-3. Al subir el archivo se muestra la vista previa con el estado de cada fila: correcto, duplicado agrupado, no encontrado, cantidad inválida.
-4. Al confirmar, los productos válidos se agregan a la lista de ítems del pedido. Desde ahí se siguen editando normalmente (cantidad, origen, quitar).
-   - Si un producto del Excel ya estaba cargado, se suma la cantidad en vez de duplicarlo.
-   - Las filas no encontradas quedan marcadas y no se agregan; se cargan a mano si hace falta.
-5. El resto del flujo (validación de stock, orígenes, confirmación) queda exactamente igual.
+## Cómo lo va a usar el vendedor
+```text
+Inicio Ventas → Elegir cliente (cartera BIMS o nuevo)
+   → Catálogo (categorías, buscador, filtros marca/subcategoría, "solo con stock")
+   → Ficha de producto (fotos, precio del cliente, escalas, stock por depósito)
+   → Carrito (editar cantidad, quitar, total)
+   → Confirmar (forma de pago, tipo de envío, notas)
+   → Pre-Venta creada → sigue el flujo operativo actual de MoviLog
+```
 
-Se habilita para Pre-Venta Online y también para los demás tipos de pedido del mismo formulario (misma lista de productos), salvo que prefieras limitarlo solo a pre-venta.
+Pantallas:
+1. **Mis clientes** — buscador de cartera, últimos visitados, botón "Cliente nuevo".
+2. **Catálogo** — grilla con foto, código, descripción, precio y chip de stock; navegación por categorías; toggle "Stock disponible"; filtros por marca y subcategoría; escaneo de código de barras con la cámara.
+3. **Ficha de producto** — galería, descripción, stock por almacén, precio del cliente, escalas por cantidad, selector de cantidad, "Agregar al carrito".
+4. **Carrito** — ítems con +/−, edición de cantidad, total, notas, "Guardar pedido" (borrador) y "Enviar pedido".
+5. **Confirmar** — cliente, forma de pago, moneda, tipo de envío, total, notas, "Confirmar".
+6. **Mis pedidos** — lista de pre-ventas del vendedor con su estado real (preparación, tránsito, entregado), es decir la trazabilidad completa.
+
+## Datos vivos de BIMS
+- **Catálogo base**: sigue viniendo de la sincronización actual de `products` (rápido, buscable, con imágenes).
+- **Stock y precio en vivo**: al abrir la ficha y al confirmar el carrito se consulta BIMS en vivo (mismo mecanismo de `bims-stock-live`), con indicador "Stock en vivo / sincronizado".
+- **Lista de precios del cliente**: se resuelve con la lista asignada al contacto en BIMS aplicada sobre los precios ya sincronizados del producto.
+- **Revalidación al confirmar**: si un precio o stock cambió respecto de lo que vio el vendedor, se avisa antes de cerrar la pre-venta (no bloquea, informa).
+
+## Trazabilidad desde el cierre
+- La pre-venta queda con vendedor, cliente, sucursal y canal registrados.
+- El vendedor ve en "Mis pedidos" el estado operativo real en cada etapa, sin acceso al resto de módulos.
+- Nada del ciclo actual de preparación/logística se modifica.
+
+## Alcance por fases
+
+**Fase 1 — Catálogo y venta (núcleo)**
+- Rol vendedor y módulo `/ventas` con acceso restringido.
+- Cartera de clientes (BIMS + alta manual), catálogo, ficha, carrito, confirmación.
+- Cierre creando Pre-Venta Online con el flujo existente.
+
+**Fase 2 — Precio por cliente y en vivo**
+- Resolución de lista de precios por cliente, escalas por cantidad, revalidación al confirmar.
+
+**Fase 3 — Offline básico**
+- Catálogo e imágenes cacheados, carrito y borradores persistidos en el dispositivo, cola de envío que sincroniza al recuperar conexión, indicador de estado.
+
+**Fase 4 — Seguimiento del vendedor**
+- "Mis pedidos" con estado operativo, historial por cliente y reordenar pedido anterior.
 
 ## Detalle técnico
-- Reutilizar `src/components/solicitudes/ExcelImport.tsx` sin cambios de parsing/matching (ya resuelve id BIMS, código y código de barras contra `products`).
-- En `src/components/solicitudes/SolicitudCreateForm.tsx`:
-  - Importar `ExcelImport` y renderizarlo dentro de la sección "2. Productos" (antes de `<ProductSearch />`, línea ~1034), dentro de un colapsable para no romper el layout actual.
-  - Nuevo handler `handleExcelItems(items)` que hace merge sobre el estado `items`: producto nuevo → se agrega con `sourceBranchId` auto (misma lógica que `addProduct`); producto existente → se suma la cantidad.
-  - Toast resumen: "N productos agregados, M ya existentes actualizados, K no encontrados".
-  - No se persiste el archivo Excel (a diferencia de reposición administrativa, que lo guarda); solo se usa para poblar los ítems. Si querés guardar el adjunto en el pedido, se agrega en una segunda iteración.
-- Sin cambios de base de datos ni de reglas de negocio.
 
-## Fuera de alcance
-- Guardar el archivo original adjunto al pedido.
-- Importar datos de cliente (nombre, teléfono) desde el Excel.
+Base de datos (una migración por fase):
+- `sales_customers`: espejo local de contactos BIMS (`bims_contact_id`, nombre, RUC, dirección, teléfono, `price_list_id`, `is_active`) + clientes creados en MoviLog (`created_by`, `source`).
+- `salesperson_customers`: asignación vendedor ↔ cliente (cartera).
+- `sales_carts` / `sales_cart_items`: borradores del vendedor (permite "Guardar pedido" y offline sync idempotente por `client_uuid`).
+- Nuevo valor de rol `salesperson` en `app_role`; RLS: el vendedor sólo ve su cartera, sus carritos y sus pre-ventas.
+- GRANTs explícitos en cada tabla nueva + RLS estricta (sin `USING (true)`).
+
+Backend:
+- Extender `bims-proxy` con `sync-contacts` (usa el `get-contacts` que ya existe) y sincronización de listas de precios; cron diario + botón manual en Sincronización BIMS.
+- Reusar `bims-stock-live` para stock y precio en vivo (chunks de 20).
+
+Frontend:
+- Nueva ruta `/ventas` con layout mobile-first (viewport tablet/celular), entrada en el sidebar sólo para rol vendedor/admin.
+- Componentes nuevos en `src/components/ventas/`: `ClientePicker`, `CatalogoGrid`, `CategoriaNav`, `ProductoFicha`, `CarritoPanel`, `ConfirmarVenta`, `MisPedidosVendedor`.
+- El cierre reutiliza exactamente la lógica de creación de `pre_sale_online` que hoy vive en `SolicitudCreateForm` (se extrae a un helper compartido, sin cambiar reglas de negocio ni validaciones).
+- Offline: React Query con persistencia en IndexedDB + service worker para imágenes; carrito en almacenamiento local con reconciliación al reconectar.
+
+## Fuera de alcance inicial
+- Cobranzas o pagos dentro del módulo de ventas.
+- Comisiones y objetivos de venta por vendedor.
+- Geolocalización o control de visitas.
