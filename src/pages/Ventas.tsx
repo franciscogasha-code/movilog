@@ -247,6 +247,10 @@ export default function Ventas() {
         onUpdateNotes={updateNotes}
         onRemove={removeItem}
         onConfirm={handleConfirm}
+        onSelectCustomer={() => {
+          setCartOpen(false);
+          setActiveTab("cliente");
+        }}
       />
 
       <ConfirmarVenta
