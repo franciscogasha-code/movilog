@@ -47,7 +47,7 @@ export default function Ventas() {
       if (!user) return [];
       const { data, error } = await supabase
         .from("branch_requests")
-        .select("id, request_number, status, created_at, client_name, total_amount")
+        .select("id, request_number, status, created_at, client_name")
         .eq("created_by", user.id)
         .eq("is_pre_sale", true)
         .order("created_at", { ascending: false })
