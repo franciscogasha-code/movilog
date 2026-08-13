@@ -2055,6 +2055,7 @@ export type Database = {
           barcode: string | null
           bims_code: string | null
           bims_warehouse_id: string | null
+          brand: string | null
           buy_price: number | null
           category: string | null
           created_at: string
@@ -2078,6 +2079,7 @@ export type Database = {
           barcode?: string | null
           bims_code?: string | null
           bims_warehouse_id?: string | null
+          brand?: string | null
           buy_price?: number | null
           category?: string | null
           created_at?: string
@@ -2101,6 +2103,7 @@ export type Database = {
           barcode?: string | null
           bims_code?: string | null
           bims_warehouse_id?: string | null
+          brand?: string | null
           buy_price?: number | null
           category?: string | null
           created_at?: string
