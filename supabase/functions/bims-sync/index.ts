@@ -230,7 +230,6 @@ async function bimsRequest(method: string, path: string): Promise<unknown> {
 }
 
 
-// BIMS no expone un campo de marca: se deriva del último token del nombre
 
 // Anomaly threshold: if more than this % of products would be deactivated, require confirmation
 const DEACTIVATION_THRESHOLD_PERCENT = 20;
