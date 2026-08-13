@@ -30,6 +30,7 @@ import Rendicion from "./pages/Rendicion";
 import Usuarios from "./pages/Usuarios";
 import SincronizacionBims from "./pages/SincronizacionBims";
 import DashboardEjecutivo from "./pages/DashboardEjecutivo";
+import Ventas from "./pages/Ventas";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
 
@@ -79,6 +80,7 @@ function ProtectedRoutes() {
         <Route path="/rendicion" element={<Rendicion />} />
         <Route path="/usuarios" element={<Usuarios />} />
         <Route path="/sincronizacion" element={<SincronizacionBims />} />
+        <Route path="/ventas" element={<Ventas />} />
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>
