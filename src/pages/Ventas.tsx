@@ -233,7 +233,8 @@ export default function Ventas() {
       {items.length > 0 && customer.name.trim() && activeTab !== "carrito" && (
         <Button
           onClick={() => setCartOpen(true)}
-          className="fixed bottom-4 right-4 z-50 rounded-full h-12 px-4 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300"
+          aria-label={`Abrir carrito: ${count} ítems, total ${total.toLocaleString("de-DE")}`}
+          className="fixed bottom-5 right-5 z-50 rounded-full h-12 px-4 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300"
           size="default"
         >
           <span className="relative inline-flex mr-2">
