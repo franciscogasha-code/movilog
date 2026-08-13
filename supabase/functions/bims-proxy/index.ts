@@ -316,19 +316,12 @@ async function bimsRequest(method: string, path: string, body?: unknown): Promis
 
 async function ensureLabelMap(): Promise<void> {
   if (Date.now() - LABEL_MAP_AT < 10 * 60 * 1000 && Object.keys(LABEL_MAP).length) return;
-  let offset = 0;
-  while (true) {
-    const payload = await bimsRequest("GET", `/labels?offset=${offset}&limit=250`) as any;
-    const items = extractArray(payload);
-    if (items.length === 0) break;
-    for (const it of items) {
-      const l = it?.Label ?? it?.label ?? it;
-      const id = l?.id != null ? String(l.id).trim() : null;
-      const name = l?.name != null ? String(l.name).trim() : null;
-      if (id && name) LABEL_MAP[id] = name.toUpperCase();
-    }
-    if (items.length < 250) break;
-    offset += 250;
+  const payload = await bimsRequest("GET", `/labels?limit=5000`) as any;
+  for (const it of extractArray(payload)) {
+    const l = it?.Label ?? it?.label ?? it;
+    const id = l?.id != null ? String(l.id).trim() : null;
+    const name = l?.name != null ? String(l.name).trim() : null;
+    if (id && name) LABEL_MAP[id] = name.toUpperCase();
   }
   LABEL_MAP_AT = Date.now();
 }
@@ -375,19 +368,14 @@ Deno.serve(async (req) => {
       case "sync-brands": {
         // Marca real en BIMS = entidad Label (campo "Marca" de la ficha)
         const labelMap: Record<string, string> = {};
-        let lOffset = 0;
-        while (true) {
-          const payload = await bimsRequest("GET", `/labels?offset=${lOffset}&limit=250`) as any;
-          const items = extractArray(payload);
-          if (items.length === 0) break;
-          for (const it of items) {
+        {
+          const payload = await bimsRequest("GET", `/labels?limit=5000`) as any;
+          for (const it of extractArray(payload)) {
             const l = it?.Label ?? it?.label ?? it;
             const id = l?.id != null ? String(l.id).trim() : null;
             const name = l?.name != null ? String(l.name).trim() : null;
             if (id && name) labelMap[id] = name.toUpperCase();
           }
-          if (items.length < 250) break;
-          lOffset += 250;
         }
 
         let offset = Number(url.searchParams.get("offset") ?? "0") || 0;

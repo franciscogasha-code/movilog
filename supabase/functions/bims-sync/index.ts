@@ -72,19 +72,12 @@ let LABEL_MAP_AT = 0;
 export async function loadLabelMap(): Promise<Record<string, string>> {
   if (Date.now() - LABEL_MAP_AT < 10 * 60 * 1000 && Object.keys(LABEL_MAP).length) return LABEL_MAP;
   const map: Record<string, string> = {};
-  let offset = 0;
-  while (true) {
-    const payload = await bimsRequest("GET", `/labels?offset=${offset}&limit=250`) as any;
-    const items = extractArray(payload);
-    if (items.length === 0) break;
-    for (const it of items) {
-      const l = it?.Label ?? it?.label ?? it;
-      const id = toText(l?.id);
-      const name = toText(l?.name);
-      if (id && name) map[id] = name.toUpperCase();
-    }
-    if (items.length < 250) break;
-    offset += 250;
+  const payload = await bimsRequest("GET", `/labels?limit=5000`) as any;
+  for (const it of extractArray(payload)) {
+    const l = it?.Label ?? it?.label ?? it;
+    const id = toText(l?.id);
+    const name = toText(l?.name);
+    if (id && name) map[id] = name.toUpperCase();
   }
   LABEL_MAP = map;
   LABEL_MAP_AT = Date.now();
