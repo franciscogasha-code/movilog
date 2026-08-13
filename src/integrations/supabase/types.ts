@@ -3569,7 +3569,12 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_own_driver: {
+        Args: { _driver_id: string; _user_id: string }
+        Returns: boolean
+      }
       is_owner: { Args: { _user_id: string }; Returns: boolean }
+      is_privileged: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
       alert_level:
