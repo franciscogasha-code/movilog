@@ -163,6 +163,18 @@ export default function Ventas() {
               </div>
             ) : (
               <div className="space-y-3">
+                {!customer.name.trim() && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle className="text-sm flex items-center gap-1">
+                      <User className="h-3.5 w-3.5" />
+                      Falta seleccionar cliente
+                    </AlertTitle>
+                    <AlertDescription className="text-xs">
+                      Seleccioná un cliente antes de confirmar el pedido. Tocá "Cliente" arriba para elegirlo.
+                    </AlertDescription>
+                  </Alert>
+                )}
                 {items.map((item) => (
                   <CartItemRow
                     key={item.productId}
