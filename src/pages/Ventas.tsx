@@ -149,7 +149,7 @@ export default function Ventas() {
           <TabsContent value="catalogo" className="mt-0">
             <CatalogoGrid
               customerPriceListId={customer.priceListId}
-              onAdd={(product) => setSelectedProduct(product)}
+              onAdd={handleAddProduct}
               cartItemIds={cartItemIds}
             />
           </TabsContent>
