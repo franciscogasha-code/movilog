@@ -1,0 +1,1 @@
+UPDATE public.products SET brand = NULL, updated_at = now() WHERE bims_label_id IS NULL AND brand IS NOT NULL;
