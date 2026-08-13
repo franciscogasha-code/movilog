@@ -200,6 +200,24 @@ export function ConfirmarVenta({
             {customer.phone && <p className="text-muted-foreground">Tel: {customer.phone}</p>}
           </div>
 
+          {(allowedBranches && allowedBranches.length > 1) && (
+            <div className="space-y-1">
+              <Label className="text-xs">Sucursal de origen *</Label>
+              <select
+                value={selectedBranchId ?? ""}
+                onChange={(e) => setSelectedBranchId(e.target.value)}
+                className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+              >
+                <option value="" disabled>Seleccionar sucursal</option>
+                {allowedBranches.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name} {b.code ? `(${b.code})` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <div className="space-y-2">
             <p className="text-sm font-medium">Resumen de ítems</p>
             <div className="max-h-32 overflow-y-auto text-sm space-y-1">
