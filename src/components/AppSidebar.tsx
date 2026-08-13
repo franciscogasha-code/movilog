@@ -2,7 +2,7 @@ import {
   Truck, Package, CreditCard,
   Route, LayoutDashboard, FileText, AlertTriangle, Search,
   ClipboardList, User, Tag, Bell, PackageCheck, Receipt, Users, Database,
-  LogOut, Settings,
+  LogOut, Settings, Store,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import {
@@ -18,6 +18,7 @@ type MenuItem = { title: string; url: string; icon: any; moduleKey: string };
 const mainItems: MenuItem[] = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard, moduleKey: "dashboard" },
   { title: "Dashboard Ejecutivo", url: "/ejecutivo", icon: LayoutDashboard, moduleKey: "ejecutivo" },
+  { title: "Ventas", url: "/ventas", icon: Store, moduleKey: "ventas" },
   { title: "Alertas", url: "/alertas", icon: Bell, moduleKey: "alertas" },
 ];
 

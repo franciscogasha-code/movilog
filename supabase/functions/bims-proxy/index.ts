@@ -34,6 +34,18 @@ type NormalizedProduct = {
   total_stock: number;
 };
 
+type NormalizedContact = {
+  bims_contact_id: string;
+  name: string;
+  ruc: string | null;
+  address: string | null;
+  phone: string | null;
+  email: string | null;
+  price_list_id: string | null;
+  price_list_name: string | null;
+  is_active: boolean;
+};
+
 function toText(value: unknown): string | null {
   if (value === undefined || value === null) return null;
   const normalized = String(value).trim();
@@ -53,6 +65,10 @@ function extractArray(payload: any): any[] {
   if (Array.isArray(payload?.Warehouses)) return payload.Warehouses;
   if (Array.isArray(payload?.data?.warehouses)) return payload.data.warehouses;
   if (Array.isArray(payload?.data?.Warehouses)) return payload.data.Warehouses;
+  if (Array.isArray(payload?.contacts)) return payload.contacts;
+  if (Array.isArray(payload?.Contacts)) return payload.Contacts;
+  if (Array.isArray(payload?.data?.contacts)) return payload.data.contacts;
+  if (Array.isArray(payload?.data?.Contacts)) return payload.data.Contacts;
   return [];
 }
 
@@ -158,6 +174,39 @@ function normalizeProduct(raw: any): NormalizedProduct | null {
     price_lists: priceLists,
     stock_by_warehouse: stockByWarehouse,
     total_stock: totalStock,
+  };
+}
+
+function normalizeContact(raw: any): NormalizedContact | null {
+  const item = raw?.Contact ?? raw?.contact ?? raw?.Client ?? raw?.client ?? raw;
+  const bimsId = toText(item?.id ?? item?._id ?? raw?.id ?? raw?._id);
+  if (!bimsId) return null;
+
+  const name = toText(item?.name ?? item?.nombre ?? item?.business_name ?? item?.razon_social ?? raw?.name ?? raw?.business_name);
+  if (!name) return null;
+
+  const ruc = toText(item?.ruc ?? item?.tax_id ?? item?.cuit ?? item?.document ?? raw?.ruc ?? raw?.tax_id);
+  const address = toText(item?.address ?? item?.direccion ?? raw?.address);
+  const phone = toText(item?.phone ?? item?.telefono ?? item?.mobile ?? raw?.phone);
+  const email = toText(item?.email ?? item?.correo ?? raw?.email);
+
+  const priceList = item?.PriceList ?? item?.price_list ?? item?.Price ?? raw?.price_list ?? raw?.PriceList;
+  const priceListId = toText(priceList?.id ?? priceList?.price_list_id ?? priceList?.list_id);
+  const priceListName = toText(priceList?.name ?? priceList?.nombre);
+
+  const status = toText(item?.status ?? raw?.status)?.toLowerCase();
+  const isActive = status !== "inactive" && status !== "disabled" && status !== "bloqueado";
+
+  return {
+    bims_contact_id: bimsId,
+    name,
+    ruc,
+    address,
+    phone,
+    email,
+    price_list_id: priceListId,
+    price_list_name: priceListName,
+    is_active: isActive,
   };
 }
 
@@ -299,6 +348,50 @@ Deno.serve(async (req) => {
         const page = url.searchParams.get("page") || "1";
         const limit = url.searchParams.get("limit") || "100";
         result = await bimsRequest("GET", `/contacts?page=${page}&limit=${limit}`);
+        break;
+      }
+
+      case "sync-contacts": {
+        const CONTACT_PAGE_SIZE = 250;
+        let offset = 0;
+        let totalSynced = 0;
+        let hasMore = true;
+
+        while (hasMore) {
+          const contacts = await bimsRequest("GET", `/contacts?offset=${offset}&limit=${CONTACT_PAGE_SIZE}`) as any;
+          const items = extractArray(contacts);
+
+          if (items.length === 0) {
+            hasMore = false;
+            break;
+          }
+
+          const mapped = Array.from(
+            new Map(
+              items
+                .map((contact: any) => normalizeContact(contact))
+                .filter((contact): contact is NormalizedContact => contact !== null)
+                .map((contact) => [contact.bims_contact_id, contact])
+            ).values()
+          );
+
+          if (mapped.length > 0) {
+            const { error } = await supabase.from("sales_customers").upsert(mapped, {
+              onConflict: "bims_contact_id",
+            });
+
+            if (error) {
+              throw new Error(`Contacts offset ${offset} upsert failed: ${error.message}`);
+            }
+
+            totalSynced += mapped.length;
+          }
+
+          offset += CONTACT_PAGE_SIZE;
+          if (items.length < CONTACT_PAGE_SIZE) hasMore = false;
+        }
+
+        result = { success: true, synced: totalSynced };
         break;
       }
 
