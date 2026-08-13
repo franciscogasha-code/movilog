@@ -157,27 +157,13 @@ function normalizeProduct(raw: any): NormalizedProduct | null {
   const category = toText(raw?.Ptype?.name ?? raw?.ptype?.name ?? item?.category ?? item?.group ?? raw?.category ?? raw?.group);
 
 
-// BIMS no expone marca: se deriva del último token del nombre del producto.
-const BRAND_STOPWORDS = new Set(["ALTO","AMARILLA","AMARILLO","AZUL","BAJO","BEIGE","BLANCA","BLANCO","BOLSA","BRILLO","CAJA","CELESTE","CENTIMETROS","CHICA","CHICO","CLARA","CLARO","COLOR","COLORES","CORAL","CORTO","CREMA","CUADRADO","DOBLE","DORADA","DORADO","FINO","FUCSIA","GRAMOS","GRANDE","GRIS","GRUESO","JUEGO","KILO","KILOS","KRAFT","LARGO","LILA","LISO","LITRO","LITROS","LUJO","MARRON","MATE","MEDIANA","MEDIANO","MENTA","METRO","METROS","MODELO","NARANJA","NATURAL","NEGRA","NEGRO","OLIVA","OSCURA","OSCURO","PACK","PARA","PARES","PEQUENA","PEQUENO","PEQUEÑA","PEQUEÑO","PIEZAS","PLAST","PLASTICA","PLASTICO","PLATA","PLATEADA","PLATEADO","PURPURA","REDONDO","REF","ROJA","ROJO","ROLLO","ROSA","ROSADA","ROSADO","SALMON","SET","SIMPLE","SURTIDA","SURTIDAS","SURTIDO","SURTIDOS","TAPA","TEJA","TIFFANY","TIPO","TRANSP","TRANSPARENTE","TURQUESA","UNID","UNIDAD","UNIDADES","VERDE","VINO","VIOLETA"]);
-
-function deriveBrand(name: string | null | undefined): string | null {
-  if (!name) return null;
-  const tokens = String(name).toUpperCase().replace(/[/,()]/g, " ").split(/\s+/).filter(Boolean);
-  for (let i = tokens.length - 1; i >= 0 && i >= tokens.length - 3; i--) {
-    const t = tokens[i].replace(/[.\-]+$/, "");
-    if (t.length < 4) continue;
-    if (/[0-9]/.test(t)) continue;
-    if (!/^[A-ZÁÉÍÓÚÑ&.\-]+$/.test(t)) continue;
-    if (BRAND_STOPWORDS.has(t)) continue;
-    return t;
-  }
-  return null;
-}
+// Marca real de BIMS = entidad Label (campo "Marca" de la ficha de producto).
+const LABEL_MAP: Record<string, string> = {};
+let LABEL_MAP_AT = 0;
 
   // Brand
-  const brand = deriveBrand(
-    toText(item?.name ?? item?.description ?? raw?.name ?? raw?.description)
-  );
+  const labelId = toText(item?.label_id ?? raw?.label_id);
+  const brand = labelId ? LABEL_MAP[labelId] ?? null : null;
 
   // Unit
   const unit = toText(item?.um_id ?? item?.unit ?? item?.measure_unit ?? raw?.um_id ?? raw?.unit ?? raw?.measure_unit) ?? "UN";
@@ -189,6 +175,7 @@ function deriveBrand(name: string | null | undefined): string | null {
     barcode,
     category,
     brand,
+    bims_label_id: labelId,
     unit,
     is_active: enabledValue !== false && enabledValue !== 0 && enabledValue !== "0" && status !== "inactive" && status !== "disabled",
     description,
@@ -327,6 +314,25 @@ async function bimsRequest(method: string, path: string, body?: unknown): Promis
   return payload;
 }
 
+async function ensureLabelMap(): Promise<void> {
+  if (Date.now() - LABEL_MAP_AT < 10 * 60 * 1000 && Object.keys(LABEL_MAP).length) return;
+  let offset = 0;
+  while (true) {
+    const payload = await bimsRequest("GET", `/labels?offset=${offset}&limit=250`) as any;
+    const items = extractArray(payload);
+    if (items.length === 0) break;
+    for (const it of items) {
+      const l = it?.Label ?? it?.label ?? it;
+      const id = l?.id != null ? String(l.id).trim() : null;
+      const name = l?.name != null ? String(l.name).trim() : null;
+      if (id && name) LABEL_MAP[id] = name.toUpperCase();
+    }
+    if (items.length < 250) break;
+    offset += 250;
+  }
+  LABEL_MAP_AT = Date.now();
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -340,6 +346,8 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
+
+    await ensureLabelMap().catch(() => {});
 
     let result: unknown;
 
