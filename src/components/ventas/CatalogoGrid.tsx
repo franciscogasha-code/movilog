@@ -25,6 +25,9 @@ import {
 import { resolvePrice, resolveStock, formatGs, ProductRow } from "@/lib/ventas";
 import { useDebounce } from "@/hooks/use-debounce";
 import { proxyImageUrl } from "@/lib/image-utils";
+import { AvailabilityChip } from "@/components/ventas/AvailabilityChip";
+import { useSalesPresentation } from "@/contexts/SalesPresentationContext";
+
 
 type CatalogItem = {
   id: string;
