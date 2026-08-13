@@ -39,21 +39,46 @@ export function ClientePicker({
     return () => clearTimeout(t);
   }, [search]);
 
-  const { data: customers } = useQuery<CustomerRow[]>({
+  const runLocalSearch = async (term: string) => {
+    let q = supabase
+      .from("sales_customers")
+      .select("id, bims_contact_id, name, ruc, address, phone, email, price_list_id, is_active")
+      .eq("is_active", true)
+      .order("name", { ascending: true });
+    if (term) {
+      const like = `%${term}%`;
+      q = q.or(`name.ilike.${like},ruc.ilike.${like}`);
+    }
+    const { data, error } = await q.limit(50);
+    if (error) throw error;
+    return (data ?? []) as CustomerRow[];
+  };
+
+  const { data: customers, isFetching } = useQuery<CustomerRow[]>({
     queryKey: ["sales_customers", debouncedSearch, user?.id],
     queryFn: async () => {
-      let q = supabase
-        .from("sales_customers")
-        .select("id, bims_contact_id, name, ruc, address, phone, email, price_list_id, is_active")
-        .eq("is_active", true)
-        .order("name", { ascending: true });
-      if (debouncedSearch.trim()) {
-        const term = `%${debouncedSearch.trim()}%`;
-        q = q.or(`name.ilike.${term},ruc.ilike.${term}`);
+      const term = debouncedSearch.trim();
+      const local = await runLocalSearch(term);
+      if (local.length > 0 || term.length < 3) return local;
+
+      // Fallback: buscar en vivo en BIMS y guardar el contacto localmente
+
+
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/bims-proxy?action=search-contacts&q=${encodeURIComponent(term)}&limit=20`;
+      try {
+        const res = await fetch(url, {
+          headers: {
+            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+        });
+        if (!res.ok) return local;
+        const json = await res.json();
+        if (!json?.count) return local;
+      } catch {
+        return local;
       }
-      const { data, error } = await q.limit(50);
-      if (error) throw error;
-      return (data ?? []) as CustomerRow[];
+      return await runLocalSearch(term);
     },
   });
 
@@ -166,7 +191,10 @@ export function ClientePicker({
             </div>
           ) : (
             <div className="space-y-2 mt-3">
-              {(customers ?? []).length === 0 && (
+              {isFetching && (
+                <p className="text-sm text-muted-foreground text-center py-4">Buscando...</p>
+              )}
+              {!isFetching && (customers ?? []).length === 0 && (
                 <p className="text-sm text-muted-foreground text-center py-4">
                   No se encontraron clientes
                 </p>
