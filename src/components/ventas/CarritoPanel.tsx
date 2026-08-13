@@ -3,7 +3,18 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Minus, Plus, Trash2, ShoppingCart, StickyNote, TrendingDown, Check } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  Minus,
+  Plus,
+  Trash2,
+  ShoppingCart,
+  StickyNote,
+  TrendingDown,
+  Check,
+  AlertCircle,
+  User,
+} from "lucide-react";
 import { formatGs } from "@/lib/ventas";
 import { priceForQuantity, type CartItem, type CartCustomer } from "@/hooks/use-sales-cart";
 import { cn } from "@/lib/utils";
