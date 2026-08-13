@@ -4,7 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { ShoppingCart, User, Package, ListTodo } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { ShoppingCart, User, Package, ListTodo, AlertCircle } from "lucide-react";
 import { ClientePicker } from "@/components/ventas/ClientePicker";
 import { CatalogoGrid } from "@/components/ventas/CatalogoGrid";
 import { ProductoFicha } from "@/components/ventas/ProductoFicha";
@@ -162,6 +163,18 @@ export default function Ventas() {
               </div>
             ) : (
               <div className="space-y-3">
+                {!customer.name.trim() && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle className="text-sm flex items-center gap-1">
+                      <User className="h-3.5 w-3.5" />
+                      Falta seleccionar cliente
+                    </AlertTitle>
+                    <AlertDescription className="text-xs">
+                      Seleccioná un cliente antes de confirmar el pedido. Tocá "Cliente" arriba para elegirlo.
+                    </AlertDescription>
+                  </Alert>
+                )}
                 {items.map((item) => (
                   <CartItemRow
                     key={item.productId}
@@ -247,6 +260,10 @@ export default function Ventas() {
         onUpdateNotes={updateNotes}
         onRemove={removeItem}
         onConfirm={handleConfirm}
+        onSelectCustomer={() => {
+          setCartOpen(false);
+          setActiveTab("cliente");
+        }}
       />
 
       <ConfirmarVenta

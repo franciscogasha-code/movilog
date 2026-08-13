@@ -3,7 +3,18 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Minus, Plus, Trash2, ShoppingCart, StickyNote, TrendingDown, Check } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  Minus,
+  Plus,
+  Trash2,
+  ShoppingCart,
+  StickyNote,
+  TrendingDown,
+  Check,
+  AlertCircle,
+  User,
+} from "lucide-react";
 import { formatGs } from "@/lib/ventas";
 import { priceForQuantity, type CartItem, type CartCustomer } from "@/hooks/use-sales-cart";
 import { cn } from "@/lib/utils";
@@ -157,6 +168,7 @@ export function CarritoPanel({
   onUpdateNotes,
   onRemove,
   onConfirm,
+  onSelectCustomer,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -166,8 +178,10 @@ export function CarritoPanel({
   onUpdateNotes: (productId: string, notes: string) => void;
   onRemove: (productId: string) => void;
   onConfirm: () => void;
+  onSelectCustomer?: () => void;
 }) {
   const total = items.reduce((sum, i) => sum + i.quantity * i.unitPrice, 0);
+  const missingCustomer = items.length > 0 && !customer.name.trim();
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -205,13 +219,36 @@ export function CarritoPanel({
         </div>
 
         <div className="pt-4 border-t space-y-3">
+          {missingCustomer && (
+            <button
+              type="button"
+              onClick={() => {
+                onOpenChange(false);
+                onSelectCustomer?.();
+              }}
+              className="w-full text-left"
+              aria-label="Falta seleccionar cliente. Ir al paso Cliente"
+            >
+              <Alert variant="destructive" className="cursor-pointer hover:bg-destructive/5 transition-colors">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle className="text-sm flex items-center gap-1">
+                  <User className="h-3.5 w-3.5" />
+                  Falta seleccionar cliente
+                </AlertTitle>
+                <AlertDescription className="text-xs">
+                  Seleccioná un cliente antes de confirmar el pedido. Tocá aquí para ir al paso Cliente.
+                </AlertDescription>
+              </Alert>
+            </button>
+          )}
+
           <div className="flex items-center justify-between text-lg font-bold">
             <span>Total</span>
             <span>{formatGs(total)}</span>
           </div>
           <Button
             className="w-full"
-            disabled={items.length === 0 || !customer.name.trim()}
+            disabled={items.length === 0}
             onClick={() => {
               onConfirm();
               onOpenChange(false);
