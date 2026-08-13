@@ -11,7 +11,7 @@ import { ProductoFicha } from "@/components/ventas/ProductoFicha";
 import { CarritoPanel } from "@/components/ventas/CarritoPanel";
 import { ConfirmarVenta } from "@/components/ventas/ConfirmarVenta";
 import { useSalesCart } from "@/hooks/use-sales-cart";
-import { resolvePrice, ProductRow } from "@/lib/ventas";
+import { resolvePrice, getScales, ProductRow } from "@/lib/ventas";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
