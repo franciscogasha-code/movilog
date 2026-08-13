@@ -41,3 +41,22 @@ export function resolveStock(product: ProductRow): number {
 export function formatGs(amount: number): string {
   return "₲ " + Math.round(amount).toLocaleString("de-DE");
 }
+
+export type PriceScale = { min_quantity: number; price: number };
+
+export function getScales(product: ProductRow): PriceScale[] {
+  const raw = Array.isArray(product.price_scales) ? (product.price_scales as any[]) : [];
+  return raw
+    .filter((s: any) => typeof s?.min_quantity === "number" && s?.price != null)
+    .map((s: any) => ({ min_quantity: Number(s.min_quantity), price: Number(s.price) }))
+    .sort((a, b) => a.min_quantity - b.min_quantity);
+}
+
+/** Escala actualmente aplicada y la siguiente disponible según la cantidad */
+export function resolveScaleInfo(product: ProductRow, quantity: number) {
+  const scales = getScales(product);
+  const active = [...scales].reverse().find((s) => quantity >= s.min_quantity) ?? null;
+  const next = scales.find((s) => s.min_quantity > quantity) ?? null;
+  return { scales, active, next };
+}
+
