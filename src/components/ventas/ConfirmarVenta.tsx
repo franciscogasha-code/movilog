@@ -73,7 +73,7 @@ export function ConfirmarVenta({
   const createOrder = useMutation({
     mutationFn: async () => {
       if (!user) throw new Error("Sin sesión");
-      if (!profile?.default_branch_id) throw new Error("El usuario no tiene sucursal por defecto");
+      if (!selectedBranchId) throw new Error("Seleccioná la sucursal para la pre-venta");
       if (items.length === 0) throw new Error("Carrito vacío");
       if (!customer.name.trim()) throw new Error("Falta el cliente");
 
