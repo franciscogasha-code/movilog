@@ -284,6 +284,28 @@ export function ProductoFicha({
                 La cantidad supera el stock disponible ({totalStock.toLocaleString("de-DE")})
               </p>
             )}
+            {next && (
+              <div
+                key={quantity}
+                className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-sm animate-fade-in"
+              >
+                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/20">
+                  <TrendingDown className="h-3.5 w-3.5 text-primary" />
+                </div>
+                <span className="flex-1 text-primary">
+                  Agregá <strong>{next.min_quantity - quantity}</strong> más y bajás a{" "}
+                  <strong>{formatGs(next.price)}</strong> por {product.unit}
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 px-2.5 text-xs border-primary/50 text-primary hover:bg-primary/10 hover:text-primary"
+                  onClick={() => setQuantity(next.min_quantity)}
+                >
+                  Aplicar
+                </Button>
+              </div>
+            )}
             <div className="flex flex-wrap items-center gap-2">
               <div className="flex items-center gap-1">
                 <Button
