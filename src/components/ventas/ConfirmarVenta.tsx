@@ -129,7 +129,7 @@ export function ConfirmarVenta({
           sales_channel: "vendedor_externo",
           commercial_terms: `Pago: ${paymentMethod}. Notas: ${notes || "-"}`,
           notes: notes || null,
-          status: "pending",
+          status: "draft",
           created_by: user.id,
         })
         .select("id")
