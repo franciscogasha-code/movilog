@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 
-import { ImageOff, Maximize2, Minus, Plus, Radio, TrendingDown, AlertTriangle } from "lucide-react";
+import { ImageOff, Maximize2, Minus, Plus, Radio, TrendingDown, AlertTriangle, Eye } from "lucide-react";
 import {
   resolvePrice,
   resolveStock,
@@ -21,6 +21,8 @@ import { proxyImageUrl } from "@/lib/image-utils";
 import { useBranches } from "@/hooks/use-branches";
 import { useLiveStock } from "@/hooks/use-live-stock";
 import { cn } from "@/lib/utils";
+import { AvailabilityChip } from "@/components/ventas/AvailabilityChip";
+import { useSalesPresentation } from "@/contexts/SalesPresentationContext";
 
 const QUICK_STEPS = [6, 12, 24];
 
@@ -45,6 +47,32 @@ export function ProductoFicha({
   const [showAllBranches, setShowAllBranches] = useState(false);
   const [expandDesc, setExpandDesc] = useState(false);
   const [zoom, setZoom] = useState(false);
+  const { clientMode } = useSalesPresentation();
+  const [peek, setPeek] = useState(false);
+  const peekTimer = useRef<number | null>(null);
+  const pressTimer = useRef<number | null>(null);
+
+  const startPeek = () => {
+    setPeek(true);
+    if (peekTimer.current) window.clearTimeout(peekTimer.current);
+    peekTimer.current = window.setTimeout(() => setPeek(false), 5000);
+  };
+  const holdStart = () => {
+    if (!clientMode) return;
+    if (pressTimer.current) window.clearTimeout(pressTimer.current);
+    pressTimer.current = window.setTimeout(startPeek, 600);
+  };
+  const holdEnd = () => {
+    if (pressTimer.current) window.clearTimeout(pressTimer.current);
+    pressTimer.current = null;
+  };
+
+  useEffect(() => {
+    return () => {
+      if (peekTimer.current) window.clearTimeout(peekTimer.current);
+      if (pressTimer.current) window.clearTimeout(pressTimer.current);
+    };
+  }, []);
 
   const { data: branches } = useBranches();
   const { liveStock, isLive } = useLiveStock(
@@ -57,6 +85,7 @@ export function ProductoFicha({
       setShowAllBranches(false);
       setExpandDesc(false);
       setZoom(false);
+      setPeek(false);
     }
   }, [open, product?.id]);
 
@@ -88,6 +117,7 @@ export function ProductoFicha({
 
   const totalStock =
     typeof live?.total_stock === "number" ? live.total_stock : resolveStock(product);
+  const showInternal = !clientMode || peek;
   const withStock = stockRows.filter((r) => r.qty > 0);
   const visibleRows = showAllBranches ? stockRows : withStock;
 
@@ -146,10 +176,28 @@ export function ProductoFicha({
                 </button>
 
                 <div className="flex flex-wrap items-center gap-2 mt-3">
-                  <Badge variant={totalStock > 0 ? "default" : "destructive"}>
-                    Stock {totalStock.toLocaleString("de-DE")} {product.unit}
-                  </Badge>
-                  {isLive && (
+                  {showInternal ? (
+                    <Badge variant={totalStock > 0 ? "default" : "destructive"}>
+                      Stock {totalStock.toLocaleString("de-DE")} {product.unit}
+                    </Badge>
+                  ) : (
+                    <button
+                      type="button"
+                      onPointerDown={holdStart}
+                      onPointerUp={holdEnd}
+                      onPointerLeave={holdEnd}
+                      onContextMenu={(e) => e.preventDefault()}
+                      aria-label="Disponibilidad. Mantené presionado para ver el detalle interno"
+                    >
+                      <AvailabilityChip stock={totalStock} />
+                    </button>
+                  )}
+                  {peek && (
+                    <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+                      <Eye className="h-3 w-3" /> detalle interno visible 5s
+                    </span>
+                  )}
+                  {isLive && !clientMode && (
                     <Badge variant="outline" className="gap-1 text-emerald-600 border-emerald-600/40">
                       <Radio className="h-3 w-3" /> En vivo
                     </Badge>
@@ -157,9 +205,13 @@ export function ProductoFicha({
                 </div>
 
                 <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
-                  <dt className="text-muted-foreground">Código</dt>
-                  <dd className="text-right font-medium">{product.bims_code}</dd>
-                  {product.barcode && (
+                  {showInternal && (
+                    <>
+                      <dt className="text-muted-foreground">Código</dt>
+                      <dd className="text-right font-medium">{product.bims_code}</dd>
+                    </>
+                  )}
+                  {showInternal && product.barcode && (
                     <>
                       <dt className="text-muted-foreground">Código de barras</dt>
                       <dd className="text-right font-medium break-all">{product.barcode}</dd>
@@ -172,7 +224,8 @@ export function ProductoFicha({
 
               {/* Datos */}
               <div className="p-4 space-y-4">
-                {/* Stock por sucursal */}
+                {/* Stock por sucursal (dato interno) */}
+                {showInternal && (
                 <section>
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="text-sm font-semibold">Cantidad por sucursal</h3>
@@ -215,6 +268,7 @@ export function ProductoFicha({
                     </Button>
                   )}
                 </section>
+                )}
 
                 {/* Escalas */}
                 {scales.length > 0 && (
@@ -281,7 +335,9 @@ export function ProductoFicha({
             {quantity > totalStock && (
               <p className="flex items-center gap-1.5 text-xs text-amber-600">
                 <AlertTriangle className="h-3.5 w-3.5" />
-                La cantidad supera el stock disponible ({totalStock.toLocaleString("de-DE")})
+                {showInternal
+                  ? `La cantidad supera el stock disponible (${totalStock.toLocaleString("de-DE")})`
+                  : "Esa cantidad no está disponible por ahora, la confirmamos al cerrar el pedido"}
               </p>
             )}
             {next && (
