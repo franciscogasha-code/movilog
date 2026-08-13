@@ -8,23 +8,23 @@ export function resolvePrice(
   quantity: number = 1
 ): number {
   // 1. Lista de precios del cliente si existe
-  const priceLists = Array.isArray(product.price_lists) ? product.price_lists : [];
+  const priceLists = Array.isArray(product.price_lists) ? (product.price_lists as any[]) : [];
   const customerListPrice = priceLists.find(
     (p: any) => p.pricing_id === customerPriceListId || p.name === customerPriceListId
-  )?.amount;
+  )?.amount as number | undefined;
 
   if (customerListPrice != null && !isNaN(customerListPrice)) {
     return customerListPrice;
   }
 
   // 2. Escalas por cantidad
-  const scales = Array.isArray(product.price_scales) ? product.price_scales : [];
+  const scales = Array.isArray(product.price_scales) ? (product.price_scales as any[]) : [];
   const matchingScale = scales
     .filter((s: any) => typeof s.min_quantity === "number" && quantity >= s.min_quantity)
-    .sort((a: any, b: any) => b.min_quantity - a.min_quantity)[0];
+    .sort((a: any, b: any) => b.min_quantity - a.min_quantity)[0] as any;
 
-  if (matchingScale?.price != null && !isNaN(matchingScale.price)) {
-    return matchingScale.price;
+  if (matchingScale?.price != null && !isNaN(matchingScale.price as number)) {
+    return matchingScale.price as number;
   }
 
   // 3. Precio de venta base
