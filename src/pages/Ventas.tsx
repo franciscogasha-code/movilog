@@ -58,6 +58,10 @@ export default function Ventas() {
   });
 
   const handleAddProduct = (product: ProductRow, quantity: number) => {
+    if (quantity === 0) {
+      setSelectedProduct(product);
+      return;
+    }
     const price = resolvePrice(product, customer.priceListId, quantity);
     addItem({
       productId: product.id,
