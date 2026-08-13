@@ -114,8 +114,8 @@ export function ConfirmarVenta({
         .from("branch_requests")
         .insert({
           request_type: "pre_sale_online",
-          requesting_branch_id: profile.default_branch_id,
-          source_branch_id: profile.default_branch_id,
+          requesting_branch_id: selectedBranchId,
+          source_branch_id: selectedBranchId,
           delivery_target: "client",
           shipping_method: shippingMethod as any,
           shipping_cost: shippingCost ? Number(shippingCost) : null,
