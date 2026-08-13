@@ -107,19 +107,18 @@ export function ConfirmarVenta({
       if (orderError) throw orderError;
 
       // Crear ítems
-      const orderItems = items.map((item, index) => ({
+      const orderItems = items.map((item) => ({
         request_id: order.id,
         product_id: item.productId,
         quantity_requested: item.quantity,
-        unit_price: item.unitPrice,
         quantity_unfulfilled: 0,
         quantity_accepted: 0,
         quantity_picked: 0,
         quantity_received: 0,
         quantity_shipped: 0,
+        local_supply_qty: 0,
         item_purpose: "client" as const,
         notes: item.notes || null,
-        line_number: index + 1,
       }));
 
       const { error: itemsError } = await supabase.from("branch_request_items").insert(orderItems);
