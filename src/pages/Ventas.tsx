@@ -207,7 +207,7 @@ export default function Ventas() {
       </div>
 
       {/* FAB flotante de carrito */}
-      {items.length > 0 && customer.name.trim() && activeTab !== "carrito" && !cartOpen && (
+      {items.length > 0 && activeTab !== "carrito" && !cartOpen && !selectedProduct && (
         <Button
           onClick={() => setCartOpen(true)}
           aria-label={`Abrir carrito: ${count} ítems, total ${total.toLocaleString("de-DE")}`}
