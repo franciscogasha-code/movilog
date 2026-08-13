@@ -364,6 +364,24 @@ Deno.serve(async (req) => {
         break;
       }
 
+      case "probe-brands": {
+        const candidates = [
+          "/labels", "/plabels", "/brands", "/marks", "/pmarks",
+          "/productslabels", "/products_labels", "/catalogs",
+        ];
+        const found: Record<string, unknown> = {};
+        for (const path of candidates) {
+          try {
+            const r = await bimsRequest("GET", `${path}?limit=5`);
+            found[path] = r;
+          } catch (e) {
+            found[path] = `ERR: ${(e as Error).message.slice(0, 120)}`;
+          }
+        }
+        result = found;
+        break;
+      }
+
       case "get-warehouses": {
         result = await bimsRequest("GET", `/warehouses`);
         break;
