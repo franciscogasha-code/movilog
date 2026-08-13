@@ -127,10 +127,7 @@ function normalizeProduct(raw: any): (any & { _bims_active: boolean }) | null {
       sku,
       barcode,
       category: toText(raw?.Ptype?.name ?? raw?.ptype?.name ?? item?.category ?? item?.group ?? raw?.category ?? raw?.group),
-      brand: toText(
-        raw?.Brand?.name ?? raw?.brand?.name ?? raw?.Marca?.name ?? raw?.Pbrand?.name ??
-        item?.brand ?? item?.marca ?? raw?.brand ?? raw?.marca
-      ),
+      brand: deriveBrand(name),
       unit,
       is_active: isActive,
       description,
@@ -204,6 +201,34 @@ async function bimsRequest(method: string, path: string): Promise<unknown> {
   }
   if (!response.ok) throw new Error(`BIMS request failed: ${response.status}`);
   return await response.json();
+}
+
+
+// BIMS no expone un campo de marca: se deriva del último token del nombre
+// (ej. "AZUCARERO PLAST. R. 630 ERCAPLAST" -> "ERCAPLAST").
+const BRAND_STOPWORDS = new Set([
+  "GRANDE","MEDIANO","PEQUENO","PEQUEÑO","CHICO","UNIDAD","UNIDADES","JUEGO","SET",
+  "LITRO","LITROS","GRAMOS","KILO","KILOS","METRO","METROS","CENTIMETROS","PLAST",
+  "PLASTICO","SURTIDO","SURTIDOS","COLOR","COLORES","NEGRO","BLANCO","TRANSPARENTE",
+  "CON","SIN","PARA","TAPA","REF","CAJA","PACK","BOLSA","ROLLO","DOBLE","SIMPLE",
+]);
+
+export function deriveBrand(name: string | null | undefined): string | null {
+  if (!name) return null;
+  const tokens = String(name)
+    .toUpperCase()
+    .replace(/[/,()]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+  for (let i = tokens.length - 1; i >= 0 && i >= tokens.length - 2; i--) {
+    const t = tokens[i].replace(/[.\-]+$/, "");
+    if (t.length < 4) continue;
+    if (/[0-9]/.test(t)) continue;
+    if (!/^[A-ZÁÉÍÓÚÑ&.\-]+$/.test(t)) continue;
+    if (BRAND_STOPWORDS.has(t)) continue;
+    return t;
+  }
+  return null;
 }
 
 // Anomaly threshold: if more than this % of products would be deactivated, require confirmation
