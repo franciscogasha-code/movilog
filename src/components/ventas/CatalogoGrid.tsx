@@ -261,11 +261,19 @@ export function CatalogoGrid({
         <p className="text-sm text-muted-foreground text-center py-8">Cargando...</p>
       )}
 
-      {!isLoading && (products ?? []).length === 0 && (
+      {!isLoading && products.length === 0 && (
         <p className="text-sm text-muted-foreground text-center py-8">
           No se encontraron productos
         </p>
       )}
+
+      {!isLoading && products.length > 0 && (
+        <p className="text-xs text-muted-foreground">
+          Mostrando {products.length.toLocaleString("de-DE")} de{" "}
+          {totalCount.toLocaleString("de-DE")} productos
+        </p>
+      )}
+
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
         {(products ?? []).map((p) => {
