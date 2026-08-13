@@ -194,20 +194,36 @@ function normalizeContact(raw: any): NormalizedContact | null {
   const bimsId = toText(item?.id ?? item?._id ?? raw?.id ?? raw?._id);
   if (!bimsId) return null;
 
-  const name = toText(item?.name ?? item?.nombre ?? item?.business_name ?? item?.razon_social ?? raw?.name ?? raw?.business_name);
+  const composed = [toText(item?.first_name), toText(item?.last_name ?? item?.lastname)]
+    .filter(Boolean)
+    .join(" ");
+  const name = toText(
+    item?.name ?? item?.nombre ?? item?.comercial_name ?? item?.business_name ?? item?.razon_social ??
+      (composed || null) ?? raw?.name ?? raw?.business_name,
+  );
   if (!name) return null;
 
-  const ruc = toText(item?.ruc ?? item?.tax_id ?? item?.cuit ?? item?.document ?? raw?.ruc ?? raw?.tax_id);
+  // BIMS guarda el documento en document_id (+ document_dv para RUC) y el tipo en document_type
+  const documentId = toText(item?.document_id ?? item?.ruc ?? item?.tax_id ?? item?.document ?? raw?.document_id);
+  const documentDv = toText(item?.document_dv);
+  const documentType = toText(item?.document_type)?.toLowerCase();
+  const ruc = documentId
+    ? documentType === "ruc" && documentDv
+      ? `${documentId}-${documentDv}`
+      : documentId
+    : null;
+
   const address = toText(item?.address ?? item?.direccion ?? raw?.address);
-  const phone = toText(item?.phone ?? item?.telefono ?? item?.mobile ?? raw?.phone);
-  const email = toText(item?.email ?? item?.correo ?? raw?.email);
+  const phone = toText(item?.mobile ?? item?.phones ?? item?.phone ?? item?.telefono ?? raw?.phone);
+  const email = toText(item?.emails ?? item?.email ?? item?.correo ?? raw?.email);
 
   const priceList = item?.PriceList ?? item?.price_list ?? item?.Price ?? raw?.price_list ?? raw?.PriceList;
   const priceListId = toText(priceList?.id ?? priceList?.price_list_id ?? priceList?.list_id);
   const priceListName = toText(priceList?.name ?? priceList?.nombre);
 
   const status = toText(item?.status ?? raw?.status)?.toLowerCase();
-  const isActive = status !== "inactive" && status !== "disabled" && status !== "bloqueado";
+  const blocked = item?.block_sales === true || item?.enabled_sales === false;
+  const isActive = !blocked && status !== "inactive" && status !== "disabled" && status !== "bloqueado";
 
   return {
     bims_contact_id: bimsId,
@@ -432,12 +448,15 @@ Deno.serve(async (req) => {
       }
 
       case "sync-contacts": {
-        const CONTACT_PAGE_SIZE = 250;
-        let offset = 0;
+        // BIMS ignora "page" en /contacts: la paginación real es por offset
+        const CONTACT_PAGE_SIZE = Number(url.searchParams.get("limit") || "250");
+        const maxPages = Number(url.searchParams.get("max_pages") || "8");
+        let offset = Number(url.searchParams.get("offset") || "0");
         let totalSynced = 0;
+        let pagesDone = 0;
         let hasMore = true;
 
-        while (hasMore) {
+        while (hasMore && pagesDone < maxPages) {
           const contacts = await bimsRequest("GET", `/contacts?offset=${offset}&limit=${CONTACT_PAGE_SIZE}`) as any;
           const items = extractArray(contacts);
 
@@ -467,11 +486,54 @@ Deno.serve(async (req) => {
             totalSynced += mapped.length;
           }
 
+          pagesDone++;
           offset += CONTACT_PAGE_SIZE;
           if (items.length < CONTACT_PAGE_SIZE) hasMore = false;
         }
 
-        result = { success: true, synced: totalSynced };
+        result = { success: true, synced: totalSynced, next_offset: hasMore ? offset : null, has_more: hasMore };
+        break;
+      }
+
+      case "search-contacts": {
+        const term = (url.searchParams.get("q") || "").trim();
+        if (!term) throw new Error("q required");
+        const limit = Number(url.searchParams.get("limit") || "20");
+
+        const paths: string[] = [];
+        const digits = term.replace(/[^0-9]/g, "");
+        if (digits.length >= 4) {
+          paths.push(`/contacts?document_id=${encodeURIComponent(digits)}&limit=${limit}`);
+        }
+        paths.push(`/contacts?name=${encodeURIComponent(term)}&limit=${limit}`);
+
+        const found = new Map<string, NormalizedContact>();
+        for (const path of paths) {
+          try {
+            const resp = await bimsRequest("GET", path) as any;
+            const items = extractArray(resp);
+            // Descarta respuestas no filtradas (BIMS devuelve todo si ignora el parámetro)
+            const totalCount = Number(resp?.count ?? items.length);
+            if (totalCount > 2000) continue;
+            for (const item of items) {
+              const normalized = normalizeContact(item);
+              if (normalized) found.set(normalized.bims_contact_id, normalized);
+            }
+          } catch (_e) {
+            // ignoramos formatos no soportados por BIMS
+          }
+          if (found.size >= limit) break;
+        }
+
+        const contacts = Array.from(found.values()).slice(0, limit);
+        if (contacts.length > 0) {
+          const { error } = await supabase.from("sales_customers").upsert(contacts, {
+            onConflict: "bims_contact_id",
+          });
+          if (error) throw new Error(`Contacts upsert failed: ${error.message}`);
+        }
+
+        result = { success: true, count: contacts.length, contacts };
         break;
       }
 
@@ -574,6 +636,39 @@ Deno.serve(async (req) => {
         }
 
         result = { success: true, synced };
+        break;
+      }
+
+      case "test-contacts-query": {
+        const term = url.searchParams.get("q") || "3377193";
+        const results: Record<string, any> = {};
+        const formats = [
+          { name: "offset_3", path: `/contacts?offset=3&limit=3` },
+          { name: "search", path: `/contacts?search=${term}&limit=5` },
+          { name: "q", path: `/contacts?q=${term}&limit=5` },
+          { name: "term", path: `/contacts?term=${term}&limit=5` },
+          { name: "document_id", path: `/contacts?document_id=${term}&limit=5` },
+          { name: "filter_document", path: `/contacts?filter[document_id]=${term}&limit=5` },
+          { name: "livesearch", path: `/contacts/livesearch?term=${term}` },
+          { name: "search_path", path: `/contacts/search?term=${term}` },
+        ];
+        for (const fmt of formats) {
+          try {
+            const resp = await bimsRequest("GET", fmt.path) as any;
+            const items = extractArray(resp);
+            results[fmt.name] = {
+              count: resp?.count ?? "?",
+              n: items.length,
+              sample: items.slice(0, 3).map((i: any) => {
+                const c = i?.Contact ?? i;
+                return { id: c?.id, name: c?.name, doc: c?.document_id };
+              }),
+            };
+          } catch (e: any) {
+            results[fmt.name] = { error: e.message?.slice(0, 200) };
+          }
+        }
+        result = { success: true, results };
         break;
       }
 
