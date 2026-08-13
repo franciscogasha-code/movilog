@@ -18,7 +18,7 @@ export type CartCustomer = {
   email: string;
   address: string;
   ruc: string;
-  priceListId?: string | null;
+  priceListId: string | null;
 };
 
 export function useSalesCart() {
