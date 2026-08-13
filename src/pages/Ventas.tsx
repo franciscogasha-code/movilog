@@ -93,7 +93,7 @@ export default function Ventas() {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="flex-1 overflow-y-auto p-4 pb-24">
+      <div className="flex-1 overflow-y-auto p-4 pb-20">
         <div className="mb-4 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-display font-bold">Ventas</h1>
@@ -229,13 +229,24 @@ export default function Ventas() {
         </Tabs>
       </div>
 
-      {/* FAB para confirmar desde cualquier pestaña */}
+      {/* FAB flotante de carrito */}
       {items.length > 0 && customer.name.trim() && activeTab !== "carrito" && (
-        <div className="fixed bottom-4 left-4 right-4 z-50">
-          <Button className="w-full shadow-lg" size="lg" onClick={handleConfirm}>
-            Revisar y confirmar ({count} ítems / {total.toLocaleString("de-DE")})
-          </Button>
-        </div>
+        <Button
+          onClick={() => setCartOpen(true)}
+          aria-label={`Abrir carrito: ${count} ítems, total ${total.toLocaleString("de-DE")}`}
+          className="fixed bottom-5 right-5 z-[110] rounded-full h-12 px-4 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300"
+          size="default"
+        >
+          <span className="relative inline-flex mr-2">
+            <ShoppingCart className="h-5 w-5" />
+            {count > 0 && (
+              <Badge className="absolute -top-2.5 -right-2.5 h-5 w-5 flex items-center justify-center p-0 text-[10px] pointer-events-none">
+                {count}
+              </Badge>
+            )}
+          </span>
+          <span className="font-semibold text-sm">{total.toLocaleString("de-DE")}</span>
+        </Button>
       )}
 
       <ProductoFicha
