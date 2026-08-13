@@ -99,7 +99,11 @@ export function CatalogoGrid({
           const price = resolvePrice(p as ProductRow, customerPriceListId, 1);
           const inCart = cartItemIds.has(p.id);
           return (
-            <Card key={p.id} className="overflow-hidden flex flex-col">
+            <Card
+              key={p.id}
+              className="overflow-hidden flex flex-col cursor-pointer hover:border-primary/50 transition-colors"
+              onClick={() => onAdd(p as ProductRow, 0)}
+            >
               <div className="aspect-square bg-muted flex items-center justify-center relative">
                 {p.image_url ? (
                   <img
@@ -133,9 +137,13 @@ export function CatalogoGrid({
                 <Button
                   size="sm"
                   className="w-full mt-3"
-                  onClick={() => onAdd(p as ProductRow, 1)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onAdd(p as ProductRow, 1);
+                  }}
+                  disabled={stock <= 0}
                 >
-                  Agregar
+                  {stock > 0 ? "Agregar" : "Sin stock"}
                 </Button>
               </CardContent>
             </Card>
