@@ -291,7 +291,7 @@ export function ConfirmarVenta({
           <Button
             className="w-full"
             onClick={() => createOrder.mutate()}
-            disabled={createOrder.isPending}
+            disabled={createOrder.isPending || !selectedBranchId}
           >
             {createOrder.isPending ? "Creando..." : "Crear pre-venta"}
           </Button>
