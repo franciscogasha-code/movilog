@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import type { PriceScale } from "@/lib/ventas";
 
 export type CartItem = {
   productId: string;
@@ -9,6 +10,12 @@ export type CartItem = {
   quantity: number;
   unitPrice: number;
   notes: string;
+  /** Escalas por cantidad del producto (vacío si no tiene) */
+  priceScales: PriceScale[];
+  /** Precio base de venta, usado cuando ninguna escala aplica */
+  basePrice: number;
+  /** True cuando el cliente tiene lista de precios fija: no se recalcula por escalas */
+  hasFixedListPrice: boolean;
 };
 
 export type CartCustomer = {
@@ -21,6 +28,15 @@ export type CartCustomer = {
   priceListId: string | null;
 };
 
+/** Precio unitario según cantidad, respetando lista de precios fija */
+export function priceForQuantity(item: CartItem, quantity: number): number {
+  if (item.hasFixedListPrice) return item.unitPrice;
+  const scale = [...item.priceScales]
+    .filter((s) => quantity >= s.min_quantity)
+    .sort((a, b) => b.min_quantity - a.min_quantity)[0];
+  return scale?.price ?? item.basePrice;
+}
+
 export function useSalesCart() {
   const [items, setItems] = useState<CartItem[]>([]);
 
@@ -28,11 +44,12 @@ export function useSalesCart() {
     setItems((prev) => {
       const existing = prev.find((i) => i.productId === item.productId);
       if (existing) {
-        return prev.map((i) =>
-          i.productId === item.productId
-            ? { ...i, quantity: i.quantity + item.quantity, notes: item.notes || i.notes }
-            : i
-        );
+        return prev.map((i) => {
+          if (i.productId !== item.productId) return i;
+          const quantity = i.quantity + item.quantity;
+          const merged = { ...i, ...item, quantity, notes: item.notes || i.notes };
+          return { ...merged, unitPrice: priceForQuantity(merged, quantity) };
+        });
       }
       return [...prev, item];
     });
@@ -44,7 +61,11 @@ export function useSalesCart() {
       return;
     }
     setItems((prev) =>
-      prev.map((i) => (i.productId === productId ? { ...i, quantity } : i))
+      prev.map((i) =>
+        i.productId === productId
+          ? { ...i, quantity, unitPrice: priceForQuantity(i, quantity) }
+          : i
+      )
     );
   }, []);
 
