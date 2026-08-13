@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Search, ShoppingCart, ImageOff, X, ChevronsUpDown } from "lucide-react";
+import { Search, ShoppingCart, ImageOff, X, ChevronsUpDown, Check } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Command,
@@ -242,8 +242,8 @@ export function CatalogoGrid({
                   <ImageOff className="h-8 w-8 text-muted-foreground" />
                 )}
                 {inCart && (
-                  <Badge className="absolute top-2 right-2" variant="default">
-                    <ShoppingCart className="h-3 w-3 mr-1" />
+                  <Badge className="absolute top-2 right-2 gap-1" variant="secondary" aria-label="Producto en carrito">
+                    <Check className="h-3 w-3" />
                     En carrito
                   </Badge>
                 )}
