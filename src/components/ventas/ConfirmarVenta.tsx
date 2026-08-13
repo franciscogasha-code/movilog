@@ -178,6 +178,7 @@ export function ConfirmarVenta({
       onOpenChange(false);
     },
     onError: (error) => {
+      console.error("DEBUG createOrder error:", error);
       toast({
         title: "Error al crear pre-venta",
         description: error instanceof Error ? error.message : "Ocurrió un error",
