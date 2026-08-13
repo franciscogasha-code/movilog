@@ -276,7 +276,7 @@ export function CatalogoGrid({
 
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-        {(products ?? []).map((p) => {
+        {products.map((p) => {
           const stock = resolveStock(p as ProductRow);
           const price = resolvePrice(p as ProductRow, customerPriceListId, 1);
           const inCart = cartItemIds.has(p.id);
