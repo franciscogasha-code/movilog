@@ -8,10 +8,10 @@ import { ShoppingCart, User, Package, ListTodo } from "lucide-react";
 import { ClientePicker } from "@/components/ventas/ClientePicker";
 import { CatalogoGrid } from "@/components/ventas/CatalogoGrid";
 import { ProductoFicha } from "@/components/ventas/ProductoFicha";
-import { CarritoPanel } from "@/components/ventas/CarritoPanel";
+import { CarritoPanel, CartItemRow } from "@/components/ventas/CarritoPanel";
 import { ConfirmarVenta } from "@/components/ventas/ConfirmarVenta";
 import { useSalesCart } from "@/hooks/use-sales-cart";
-import { resolvePrice, ProductRow } from "@/lib/ventas";
+import { resolvePrice, getScales, ProductRow } from "@/lib/ventas";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
@@ -63,6 +63,13 @@ export default function Ventas() {
       return;
     }
     const price = resolvePrice(product, customer.priceListId, quantity);
+    const scales = getScales(product);
+    const basePrice = product.sell_price ?? price;
+    // Si el precio no proviene de escalas ni del precio base, es lista fija del cliente
+    const scalePrice = [...scales]
+      .filter((s) => quantity >= s.min_quantity)
+      .sort((a, b) => b.min_quantity - a.min_quantity)[0]?.price;
+    const hasFixedListPrice = price !== (scalePrice ?? basePrice);
     addItem({
       productId: product.id,
       code: product.bims_code,
@@ -72,6 +79,9 @@ export default function Ventas() {
       quantity,
       unitPrice: price,
       notes: "",
+      priceScales: scales,
+      basePrice,
+      hasFixedListPrice,
     });
     toast({ title: "Producto agregado", description: `${product.name} × ${quantity}` });
     setSelectedProduct(null);
@@ -163,36 +173,13 @@ export default function Ventas() {
             ) : (
               <div className="space-y-3">
                 {items.map((item) => (
-                  <div key={item.productId} className="border rounded-lg p-3 space-y-2">
-                    <div className="flex justify-between">
-                      <p className="font-medium text-sm">{item.name}</p>
-                      <Button variant="ghost" size="icon" onClick={() => removeItem(item.productId)}>
-                        <ShoppingCart className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-7 w-7"
-                        onClick={() => updateQuantity(item.productId, item.quantity - 1)}
-                      >
-                        −
-                      </Button>
-                      <span className="w-8 text-center text-sm">{item.quantity}</span>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-7 w-7"
-                        onClick={() => updateQuantity(item.productId, item.quantity + 1)}
-                      >
-                        +
-                      </Button>
-                      <span className="ml-auto font-semibold">
-                        {(item.quantity * item.unitPrice).toLocaleString("de-DE")}
-                      </span>
-                    </div>
-                  </div>
+                  <CartItemRow
+                    key={item.productId}
+                    item={item}
+                    onUpdateQuantity={updateQuantity}
+                    onUpdateNotes={updateNotes}
+                    onRemove={removeItem}
+                  />
                 ))}
                 <div className="flex items-center justify-between text-lg font-bold pt-4 border-t">
                   <span>Total</span>
