@@ -163,7 +163,7 @@ const BRAND_STOPWORDS = new Set(["ALTO","AMARILLA","AMARILLO","AZUL","BAJO","BEI
 function deriveBrand(name: string | null | undefined): string | null {
   if (!name) return null;
   const tokens = String(name).toUpperCase().replace(/[/,()]/g, " ").split(/\s+/).filter(Boolean);
-  for (let i = tokens.length - 1; i >= 0 && i >= tokens.length - 2; i--) {
+  for (let i = tokens.length - 1; i >= 0 && i >= tokens.length - 3; i--) {
     const t = tokens[i].replace(/[.\-]+$/, "");
     if (t.length < 4) continue;
     if (/[0-9]/.test(t)) continue;
