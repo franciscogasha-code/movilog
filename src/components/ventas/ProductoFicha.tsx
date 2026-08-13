@@ -8,7 +8,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
+
 import { ImageOff, Maximize2, Minus, Plus, Radio, TrendingDown, AlertTriangle } from "lucide-react";
 import {
   resolvePrice,
