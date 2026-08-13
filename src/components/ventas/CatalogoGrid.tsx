@@ -30,6 +30,8 @@ type CatalogItem = {
   id: string;
   bims_code: string;
   name: string;
+  description: string | null;
+  barcode: string | null;
   category: string | null;
   brand: string | null;
   unit: string;
