@@ -93,7 +93,7 @@ export default function Ventas() {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="flex-1 overflow-y-auto p-4 pb-24">
+      <div className="flex-1 overflow-y-auto p-4 pb-20">
         <div className="mb-4 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-display font-bold">Ventas</h1>
