@@ -41,9 +41,11 @@ export function CartItemRow({
           <Button
             variant="ghost"
             size="icon"
-            className={cn("h-8 w-8", item.notes && "text-primary")}
+            className={cn("h-8 w-8", item.notes && "text-primary", notesOpen && "bg-muted")}
             aria-label={item.notes ? "Editar nota" : "Agregar nota"}
+            aria-pressed={notesOpen}
             title={item.notes ? "Editar nota" : "Agregar nota"}
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => setNotesOpen((v) => !v)}
           >
             <StickyNote className="h-4 w-4" />
@@ -125,7 +127,10 @@ export function CartItemRow({
           placeholder="Nota del ítem..."
           value={item.notes}
           onChange={(e) => onUpdateNotes(item.productId, e.target.value)}
-          onBlur={() => setNotesOpen(false)}
+          onBlur={() => {
+            setNotesOpen(false);
+            if (item.notes && !item.notes.trim()) onUpdateNotes(item.productId, "");
+          }}
           className="text-xs min-h-[56px]"
         />
       ) : (
