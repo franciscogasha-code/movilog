@@ -168,6 +168,7 @@ export function CarritoPanel({
   onUpdateNotes,
   onRemove,
   onConfirm,
+  onSelectCustomer,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -177,8 +178,10 @@ export function CarritoPanel({
   onUpdateNotes: (productId: string, notes: string) => void;
   onRemove: (productId: string) => void;
   onConfirm: () => void;
+  onSelectCustomer?: () => void;
 }) {
   const total = items.reduce((sum, i) => sum + i.quantity * i.unitPrice, 0);
+  const missingCustomer = items.length > 0 && !customer.name.trim();
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
