@@ -3404,6 +3404,14 @@ export type Database = {
         Args: { p_reason?: string; p_trip_id: string }
         Returns: Json
       }
+      fn_catalog_facets: {
+        Args: never
+        Returns: {
+          kind: string
+          total: number
+          value: string
+        }[]
+      }
       fn_clear_for_pickup: { Args: { p_request_ids: string[] }; Returns: Json }
       fn_close_expired_consultations: { Args: never; Returns: number }
       fn_close_parent_if_complete: {

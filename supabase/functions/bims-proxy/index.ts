@@ -156,10 +156,27 @@ function normalizeProduct(raw: any): NormalizedProduct | null {
   // Category from Ptype
   const category = toText(raw?.Ptype?.name ?? raw?.ptype?.name ?? item?.category ?? item?.group ?? raw?.category ?? raw?.group);
 
+
+// BIMS no expone marca: se deriva del último token del nombre del producto.
+const BRAND_STOPWORDS = new Set(["ALTO","AMARILLA","AMARILLO","AZUL","BAJO","BEIGE","BLANCA","BLANCO","BOLSA","BRILLO","CAJA","CELESTE","CENTIMETROS","CHICA","CHICO","CLARA","CLARO","COLOR","COLORES","CORAL","CORTO","CREMA","CUADRADO","DOBLE","DORADA","DORADO","FINO","FUCSIA","GRAMOS","GRANDE","GRIS","GRUESO","JUEGO","KILO","KILOS","KRAFT","LARGO","LILA","LISO","LITRO","LITROS","LUJO","MARRON","MATE","MEDIANA","MEDIANO","MENTA","METRO","METROS","MODELO","NARANJA","NATURAL","NEGRA","NEGRO","OLIVA","OSCURA","OSCURO","PACK","PARA","PARES","PEQUENA","PEQUENO","PEQUEÑA","PEQUEÑO","PIEZAS","PLAST","PLASTICA","PLASTICO","PLATA","PLATEADA","PLATEADO","PURPURA","REDONDO","REF","ROJA","ROJO","ROLLO","ROSA","ROSADA","ROSADO","SALMON","SET","SIMPLE","SURTIDA","SURTIDAS","SURTIDO","SURTIDOS","TAPA","TEJA","TIFFANY","TIPO","TRANSP","TRANSPARENTE","TURQUESA","UNID","UNIDAD","UNIDADES","VERDE","VINO","VIOLETA"]);
+
+function deriveBrand(name: string | null | undefined): string | null {
+  if (!name) return null;
+  const tokens = String(name).toUpperCase().replace(/[/,()]/g, " ").split(/\s+/).filter(Boolean);
+  for (let i = tokens.length - 1; i >= 0 && i >= tokens.length - 3; i--) {
+    const t = tokens[i].replace(/[.\-]+$/, "");
+    if (t.length < 4) continue;
+    if (/[0-9]/.test(t)) continue;
+    if (!/^[A-ZÁÉÍÓÚÑ&.\-]+$/.test(t)) continue;
+    if (BRAND_STOPWORDS.has(t)) continue;
+    return t;
+  }
+  return null;
+}
+
   // Brand
-  const brand = toText(
-    raw?.Brand?.name ?? raw?.brand?.name ?? raw?.Marca?.name ?? raw?.Pbrand?.name ??
-    item?.brand ?? item?.marca ?? raw?.brand ?? raw?.marca
+  const brand = deriveBrand(
+    toText(item?.name ?? item?.description ?? raw?.name ?? raw?.description)
   );
 
   // Unit
