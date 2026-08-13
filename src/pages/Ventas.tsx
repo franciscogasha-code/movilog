@@ -227,7 +227,7 @@ export default function Ventas() {
           <span className="relative inline-flex mr-2">
             <ShoppingCart className="h-5 w-5" />
             {count > 0 && (
-              <Badge className="absolute -top-2.5 -right-2.5 h-5 w-5 flex items-center justify-center p-0 text-[10px] pointer-events-none">
+              <Badge className="absolute -top-2.5 -right-2.5 h-5 w-5 flex items-center justify-center p-0 text-[10px] pointer-events-none ring-2 ring-primary-foreground shadow-sm">
                 {count}
               </Badge>
             )}
