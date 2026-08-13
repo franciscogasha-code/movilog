@@ -127,6 +127,10 @@ function normalizeProduct(raw: any): (any & { _bims_active: boolean }) | null {
       sku,
       barcode,
       category: toText(raw?.Ptype?.name ?? raw?.ptype?.name ?? item?.category ?? item?.group ?? raw?.category ?? raw?.group),
+      brand: toText(
+        raw?.Brand?.name ?? raw?.brand?.name ?? raw?.Marca?.name ?? raw?.Pbrand?.name ??
+        item?.brand ?? item?.marca ?? raw?.brand ?? raw?.marca
+      ),
       unit,
       is_active: isActive,
       description,
