@@ -339,6 +339,22 @@ export function CatalogoGrid({
           );
         })}
       </div>
+
+      <div ref={sentinelRef} className="h-1" />
+
+      {isFetchingNextPage && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-64 rounded-lg bg-muted animate-pulse" />
+          ))}
+        </div>
+      )}
+
+      {!isLoading && !hasNextPage && products.length > 0 && (
+        <p className="text-xs text-muted-foreground text-center py-4">
+          No hay más productos
+        </p>
+      )}
     </div>
   );
 }
