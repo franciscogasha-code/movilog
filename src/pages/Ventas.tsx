@@ -173,36 +173,13 @@ export default function Ventas() {
             ) : (
               <div className="space-y-3">
                 {items.map((item) => (
-                  <div key={item.productId} className="border rounded-lg p-3 space-y-2">
-                    <div className="flex justify-between">
-                      <p className="font-medium text-sm">{item.name}</p>
-                      <Button variant="ghost" size="icon" onClick={() => removeItem(item.productId)}>
-                        <ShoppingCart className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-7 w-7"
-                        onClick={() => updateQuantity(item.productId, item.quantity - 1)}
-                      >
-                        −
-                      </Button>
-                      <span className="w-8 text-center text-sm">{item.quantity}</span>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-7 w-7"
-                        onClick={() => updateQuantity(item.productId, item.quantity + 1)}
-                      >
-                        +
-                      </Button>
-                      <span className="ml-auto font-semibold">
-                        {(item.quantity * item.unitPrice).toLocaleString("de-DE")}
-                      </span>
-                    </div>
-                  </div>
+                  <CartItemRow
+                    key={item.productId}
+                    item={item}
+                    onUpdateQuantity={updateQuantity}
+                    onUpdateNotes={updateNotes}
+                    onRemove={removeItem}
+                  />
                 ))}
                 <div className="flex items-center justify-between text-lg font-bold pt-4 border-t">
                   <span>Total</span>
