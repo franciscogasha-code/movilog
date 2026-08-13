@@ -31,14 +31,44 @@ export function ConfirmarVenta({
   items: CartItem[];
   onSuccess: () => void;
 }) {
-  const { user, profile } = useAuth();
+  const { user, profile, branchAccess, allowedBranchIds } = useAuth();
   const { toast } = useToast();
   const [shippingMethod, setShippingMethod] = useState<string>("own_fleet");
   const [paymentMethod, setPaymentMethod] = useState<string>("contado");
   const [notes, setNotes] = useState("");
   const [shippingCost, setShippingCost] = useState<string>("");
+  const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
 
   const total = items.reduce((sum, i) => sum + i.quantity * i.unitPrice, 0);
+
+  const { data: allowedBranches } = useQuery({
+    queryKey: ["allowed-branches", allowedBranchIds],
+    queryFn: async () => {
+      if (profile?.all_branches_access) {
+        const { data, error } = await supabase.from("branches").select("id, name, code").eq("is_active", true);
+        if (error) throw error;
+        return data ?? [];
+      }
+      if (allowedBranchIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from("branches")
+        .select("id, name, code")
+        .in("id", allowedBranchIds)
+        .eq("is_active", true);
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: open,
+  });
+
+  useEffect(() => {
+    if (!open) return;
+    if (profile?.default_branch_id) {
+      setSelectedBranchId(profile.default_branch_id);
+    } else if (allowedBranches && allowedBranches.length === 1) {
+      setSelectedBranchId(allowedBranches[0].id);
+    }
+  }, [open, profile?.default_branch_id, allowedBranches]);
 
   const createOrder = useMutation({
     mutationFn: async () => {
