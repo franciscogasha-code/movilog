@@ -2054,6 +2054,7 @@ export type Database = {
         Row: {
           barcode: string | null
           bims_code: string | null
+          bims_label_id: string | null
           bims_warehouse_id: string | null
           brand: string | null
           buy_price: number | null
@@ -2078,6 +2079,7 @@ export type Database = {
         Insert: {
           barcode?: string | null
           bims_code?: string | null
+          bims_label_id?: string | null
           bims_warehouse_id?: string | null
           brand?: string | null
           buy_price?: number | null
@@ -2102,6 +2104,7 @@ export type Database = {
         Update: {
           barcode?: string | null
           bims_code?: string | null
+          bims_label_id?: string | null
           bims_warehouse_id?: string | null
           brand?: string | null
           buy_price?: number | null
