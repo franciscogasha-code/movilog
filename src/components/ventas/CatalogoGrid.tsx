@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -80,13 +80,31 @@ export function CatalogoGrid({
     },
   });
 
-  const { data: products, isLoading } = useQuery<CatalogItem[]>({
+  const PAGE_SIZE = 48;
+  const sel = (s: string): string => s;
+
+  const {
+    data,
+    isLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
     queryKey: ["ventas-catalogo", debouncedSearch, onlyStock, category, brand],
-    queryFn: async () => {
+    initialPageParam: 0,
+    getNextPageParam: (lastPage: { rows: CatalogItem[]; count: number }, allPages) => {
+      const loaded = allPages.reduce((acc, p) => acc + p.rows.length, 0);
+      return loaded < lastPage.count ? loaded : undefined;
+    },
+    queryFn: async ({ pageParam }) => {
+      const from = pageParam as number;
       let q = supabase
         .from("products")
         .select(
-          "id, bims_code, name, description, barcode, category, brand, unit, image_url, sell_price, price_scales, price_lists, stock_by_warehouse, total_stock"
+          sel(
+            "id, bims_code, name, description, barcode, category, brand, unit, image_url, sell_price, price_scales, price_lists, stock_by_warehouse, total_stock"
+          ),
+          { count: "exact" }
         )
         .eq("is_active", true)
         .order("name", { ascending: true });
@@ -105,11 +123,36 @@ export function CatalogoGrid({
       if (brand !== "all") {
         q = q.eq("brand", brand);
       }
-      const { data, error } = await q.limit(50);
+      const { data, error, count } = await q
+        .range(from, from + PAGE_SIZE - 1)
+        .returns<CatalogItem[]>();
       if (error) throw error;
-      return (data ?? []) as CatalogItem[];
+      return { rows: data ?? [], count: count ?? 0 };
     },
   });
+
+  const products = useMemo<CatalogItem[]>(
+    () => (data?.pages ?? []).flatMap((p) => p.rows),
+    [data]
+  );
+  const totalCount = data?.pages?.[0]?.count ?? 0;
+
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && hasNextPage && !isFetchingNextPage) {
+          fetchNextPage();
+        }
+      },
+      { rootMargin: "400px" }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+
 
   return (
     <div className="space-y-4">
@@ -218,14 +261,22 @@ export function CatalogoGrid({
         <p className="text-sm text-muted-foreground text-center py-8">Cargando...</p>
       )}
 
-      {!isLoading && (products ?? []).length === 0 && (
+      {!isLoading && products.length === 0 && (
         <p className="text-sm text-muted-foreground text-center py-8">
           No se encontraron productos
         </p>
       )}
 
+      {!isLoading && products.length > 0 && (
+        <p className="text-xs text-muted-foreground">
+          Mostrando {products.length.toLocaleString("de-DE")} de{" "}
+          {totalCount.toLocaleString("de-DE")} productos
+        </p>
+      )}
+
+
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-        {(products ?? []).map((p) => {
+        {products.map((p) => {
           const stock = resolveStock(p as ProductRow);
           const price = resolvePrice(p as ProductRow, customerPriceListId, 1);
           const inCart = cartItemIds.has(p.id);
@@ -288,6 +339,22 @@ export function CatalogoGrid({
           );
         })}
       </div>
+
+      <div ref={sentinelRef} className="h-1" />
+
+      {isFetchingNextPage && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-64 rounded-lg bg-muted animate-pulse" />
+          ))}
+        </div>
+      )}
+
+      {!isLoading && !hasNextPage && products.length > 0 && (
+        <p className="text-xs text-muted-foreground text-center py-4">
+          No hay más productos
+        </p>
+      )}
     </div>
   );
 }
