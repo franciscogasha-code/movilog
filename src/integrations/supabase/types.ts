@@ -2243,6 +2243,202 @@ export type Database = {
           },
         ]
       }
+      sales_cart_items: {
+        Row: {
+          cart_id: string
+          created_at: string
+          id: string
+          notes: string | null
+          product_id: string
+          quantity: number
+          updated_at: string
+        }
+        Insert: {
+          cart_id: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          product_id: string
+          quantity: number
+          updated_at?: string
+        }
+        Update: {
+          cart_id?: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          product_id?: string
+          quantity?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_cart_items_cart_id_fkey"
+            columns: ["cart_id"]
+            isOneToOne: false
+            referencedRelation: "sales_carts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_cart_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sales_carts: {
+        Row: {
+          client_address: string | null
+          client_email: string | null
+          client_name: string | null
+          client_phone: string | null
+          client_uuid: string | null
+          created_at: string
+          customer_id: string | null
+          id: string
+          notes: string | null
+          sales_channel: string | null
+          salesperson_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          client_address?: string | null
+          client_email?: string | null
+          client_name?: string | null
+          client_phone?: string | null
+          client_uuid?: string | null
+          created_at?: string
+          customer_id?: string | null
+          id?: string
+          notes?: string | null
+          sales_channel?: string | null
+          salesperson_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          client_address?: string | null
+          client_email?: string | null
+          client_name?: string | null
+          client_phone?: string | null
+          client_uuid?: string | null
+          created_at?: string
+          customer_id?: string | null
+          id?: string
+          notes?: string | null
+          sales_channel?: string | null
+          salesperson_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_carts_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "sales_customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sales_customers: {
+        Row: {
+          address: string | null
+          bims_contact_id: string | null
+          created_at: string
+          created_by: string | null
+          email: string | null
+          id: string
+          is_active: boolean
+          latitude: number | null
+          longitude: number | null
+          name: string
+          phone: string | null
+          price_list_id: string | null
+          price_list_name: string | null
+          ruc: string | null
+          source: string
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          bims_contact_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          latitude?: number | null
+          longitude?: number | null
+          name: string
+          phone?: string | null
+          price_list_id?: string | null
+          price_list_name?: string | null
+          ruc?: string | null
+          source?: string
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          bims_contact_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          latitude?: number | null
+          longitude?: number | null
+          name?: string
+          phone?: string | null
+          price_list_id?: string | null
+          price_list_name?: string | null
+          ruc?: string | null
+          source?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      salesperson_customers: {
+        Row: {
+          assigned_at: string
+          created_at: string
+          customer_id: string
+          id: string
+          is_active: boolean
+          salesperson_id: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_at?: string
+          created_at?: string
+          customer_id: string
+          id?: string
+          is_active?: boolean
+          salesperson_id: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_at?: string
+          created_at?: string
+          customer_id?: string
+          id?: string
+          is_active?: boolean
+          salesperson_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "salesperson_customers_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "sales_customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       shipment_packages: {
         Row: {
           contact_phone: string | null
