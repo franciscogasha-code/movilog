@@ -57,7 +57,9 @@ export function CatalogoGrid({
 }) {
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search, 300);
+  const { clientMode } = useSalesPresentation();
   const [onlyStock, setOnlyStock] = useState(false);
+
   const [category, setCategory] = useState<string>("all");
   const [brand, setBrand] = useState<string>("all");
   const [brandOpen, setBrandOpen] = useState(false);
