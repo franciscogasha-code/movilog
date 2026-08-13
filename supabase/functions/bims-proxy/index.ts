@@ -390,13 +390,16 @@ Deno.serve(async (req) => {
           lOffset += 250;
         }
 
-        let offset = 0;
+        let offset = Number(url.searchParams.get("offset") ?? "0") || 0;
+        const maxPages = Number(url.searchParams.get("pages") ?? "8") || 8;
+        let pagesDone = 0;
         let updated = 0;
+        let done = false;
         const PAGE = 250;
-        while (true) {
+        while (pagesDone < maxPages) {
           const payload = await bimsRequest("GET", `/products?offset=${offset}&limit=${PAGE}`) as any;
           const items = extractArray(payload);
-          if (items.length === 0) break;
+          if (items.length === 0) { done = true; break; }
 
           const byBrand = new Map<string, { labelId: string | null; brand: string | null; codes: string[] }>();
           for (const raw of items) {
@@ -420,10 +423,11 @@ Deno.serve(async (req) => {
           }
 
           offset += PAGE;
-          if (items.length < PAGE) break;
+          pagesDone++;
+          if (items.length < PAGE) { done = true; break; }
         }
 
-        result = { success: true, labels: Object.keys(labelMap).length, products_updated: updated };
+        result = { success: true, labels: Object.keys(labelMap).length, products_updated: updated, next_offset: done ? null : offset, done };
         break;
       }
 
