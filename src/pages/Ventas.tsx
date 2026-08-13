@@ -63,6 +63,13 @@ export default function Ventas() {
       return;
     }
     const price = resolvePrice(product, customer.priceListId, quantity);
+    const scales = getScales(product);
+    const basePrice = product.sell_price ?? price;
+    // Si el precio no proviene de escalas ni del precio base, es lista fija del cliente
+    const scalePrice = [...scales]
+      .filter((s) => quantity >= s.min_quantity)
+      .sort((a, b) => b.min_quantity - a.min_quantity)[0]?.price;
+    const hasFixedListPrice = price !== (scalePrice ?? basePrice);
     addItem({
       productId: product.id,
       code: product.bims_code,
@@ -72,6 +79,9 @@ export default function Ventas() {
       quantity,
       unitPrice: price,
       notes: "",
+      priceScales: scales,
+      basePrice,
+      hasFixedListPrice,
     });
     toast({ title: "Producto agregado", description: `${product.name} × ${quantity}` });
     setSelectedProduct(null);
