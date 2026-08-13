@@ -244,7 +244,11 @@ export default function Ventas() {
         open={!!selectedProduct}
         onOpenChange={(open) => !open && setSelectedProduct(null)}
         onAdd={handleAddProduct}
+        cartQuantity={
+          items.find((i) => i.productId === selectedProduct?.id)?.quantity ?? 0
+        }
       />
+
 
       <CarritoPanel
         open={cartOpen}
