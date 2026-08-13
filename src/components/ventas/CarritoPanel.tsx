@@ -127,7 +127,10 @@ export function CartItemRow({
           placeholder="Nota del ítem..."
           value={item.notes}
           onChange={(e) => onUpdateNotes(item.productId, e.target.value)}
-          onBlur={() => setNotesOpen(false)}
+          onBlur={() => {
+            setNotesOpen(false);
+            if (item.notes && !item.notes.trim()) onUpdateNotes(item.productId, "");
+          }}
           className="text-xs min-h-[56px]"
         />
       ) : (
