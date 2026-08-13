@@ -240,23 +240,6 @@ export function ProductoFicha({
                         );
                       })}
                     </div>
-                    {next && (
-                      <div className="mt-2 flex items-center gap-2 rounded-md bg-muted/60 px-2.5 py-2 text-xs">
-                        <TrendingDown className="h-3.5 w-3.5 text-primary shrink-0" />
-                        <span className="flex-1">
-                          Agregá {next.min_quantity - quantity} más y baja a{" "}
-                          <strong>{formatGs(next.price)}</strong>
-                        </span>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-6 px-2 text-xs"
-                          onClick={() => setQuantity(next.min_quantity)}
-                        >
-                          Aplicar
-                        </Button>
-                      </div>
-                    )}
                   </section>
                 )}
 
