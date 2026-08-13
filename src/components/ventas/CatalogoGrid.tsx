@@ -5,7 +5,16 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Search, ShoppingCart, ImageOff, X } from "lucide-react";
+import { Search, ShoppingCart, ImageOff, X, ChevronsUpDown } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import {
   Select,
   SelectContent,
@@ -46,26 +55,20 @@ export function CatalogoGrid({
   const [onlyStock, setOnlyStock] = useState(false);
   const [category, setCategory] = useState<string>("all");
   const [brand, setBrand] = useState<string>("all");
+  const [brandOpen, setBrandOpen] = useState(false);
 
   const { data: facets } = useQuery({
     queryKey: ["ventas-catalogo-facets"],
     staleTime: 10 * 60 * 1000,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("products")
-        .select("category, brand")
-        .eq("is_active", true)
-        .limit(5000);
+      const { data, error } = await supabase.rpc("fn_catalog_facets");
       if (error) throw error;
-      const cats = new Set<string>();
-      const brands = new Set<string>();
-      (data ?? []).forEach((r: { category: string | null; brand: string | null }) => {
-        if (r.category?.trim()) cats.add(r.category.trim());
-        if (r.brand?.trim()) brands.add(r.brand.trim());
-      });
+      const rows = (data ?? []) as { kind: string; value: string; total: number }[];
+      const sortByName = (a: { value: string }, b: { value: string }) =>
+        a.value.localeCompare(b.value, "es");
       return {
-        categories: Array.from(cats).sort((a, b) => a.localeCompare(b, "es")),
-        brands: Array.from(brands).sort((a, b) => a.localeCompare(b, "es")),
+        categories: rows.filter((r) => r.kind === "category").sort(sortByName),
+        brands: rows.filter((r) => r.kind === "brand").sort(sortByName),
       };
     },
   });
@@ -131,31 +134,62 @@ export function CatalogoGrid({
           <SelectContent className="max-h-72">
             <SelectItem value="all">Todas las categorías</SelectItem>
             {(facets?.categories ?? []).map((c) => (
-              <SelectItem key={c} value={c}>
-                {c}
+              <SelectItem key={c.value} value={c.value}>
+                {c.value}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
 
-        <Select value={brand} onValueChange={setBrand}>
-          <SelectTrigger className="flex-1 min-w-0">
-            <SelectValue placeholder="Marca" />
-          </SelectTrigger>
-          <SelectContent className="max-h-72">
-            <SelectItem value="all">Todas las marcas</SelectItem>
-            {(facets?.brands ?? []).length === 0 && (
-              <SelectItem value="__none" disabled>
-                Sin marcas cargadas
-              </SelectItem>
-            )}
-            {(facets?.brands ?? []).map((b) => (
-              <SelectItem key={b} value={b}>
-                {b}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Popover open={brandOpen} onOpenChange={setBrandOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              role="combobox"
+              className="flex-1 min-w-0 justify-between font-normal"
+            >
+              <span className="truncate">
+                {brand === "all" ? "Marca" : brand}
+              </span>
+              <ChevronsUpDown className="h-4 w-4 opacity-50 shrink-0" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="p-0 w-[260px]" align="start">
+            <Command>
+              <CommandInput placeholder="Buscar marca..." />
+              <CommandList className="max-h-72">
+                <CommandEmpty>Sin resultados</CommandEmpty>
+                <CommandGroup>
+                  <CommandItem
+                    value="Todas las marcas"
+                    onSelect={() => {
+                      setBrand("all");
+                      setBrandOpen(false);
+                    }}
+                  >
+                    Todas las marcas
+                  </CommandItem>
+                  {(facets?.brands ?? []).map((b) => (
+                    <CommandItem
+                      key={b.value}
+                      value={b.value}
+                      onSelect={() => {
+                        setBrand(b.value);
+                        setBrandOpen(false);
+                      }}
+                    >
+                      <span className="truncate">{b.value}</span>
+                      <span className="ml-auto text-xs text-muted-foreground">
+                        {Number(b.total).toLocaleString("de-DE")}
+                      </span>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
 
         {(category !== "all" || brand !== "all") && (
           <Button
