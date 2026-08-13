@@ -66,6 +66,24 @@ function normalizeWarehouse(raw: any) {
   };
 }
 
+let LABEL_MAP: Record<string, string> = {};
+let LABEL_MAP_AT = 0;
+
+export async function loadLabelMap(): Promise<Record<string, string>> {
+  if (Date.now() - LABEL_MAP_AT < 10 * 60 * 1000 && Object.keys(LABEL_MAP).length) return LABEL_MAP;
+  const map: Record<string, string> = {};
+  const payload = await bimsRequest("GET", `/labels?limit=5000`) as any;
+  for (const it of extractArray(payload)) {
+    const l = it?.Label ?? it?.label ?? it;
+    const id = toText(l?.id);
+    const name = toText(l?.name);
+    if (id && name) map[id] = name.toUpperCase();
+  }
+  LABEL_MAP = map;
+  LABEL_MAP_AT = Date.now();
+  return map;
+}
+
 function normalizeProduct(raw: any): (any & { _bims_active: boolean }) | null {
   try {
     const item = raw?.Product ?? raw?.product ?? raw;
@@ -127,7 +145,8 @@ function normalizeProduct(raw: any): (any & { _bims_active: boolean }) | null {
       sku,
       barcode,
       category: toText(raw?.Ptype?.name ?? raw?.ptype?.name ?? item?.category ?? item?.group ?? raw?.category ?? raw?.group),
-      brand: deriveBrand(name),
+      bims_label_id: toText(item?.label_id ?? raw?.label_id),
+      brand: LABEL_MAP[String(toText(item?.label_id ?? raw?.label_id) ?? "")] ?? null,
       unit,
       is_active: isActive,
       description,
@@ -204,27 +223,6 @@ async function bimsRequest(method: string, path: string): Promise<unknown> {
 }
 
 
-// BIMS no expone un campo de marca: se deriva del último token del nombre
-// (ej. "AZUCARERO PLAST. R. 630 ERCAPLAST" -> "ERCAPLAST").
-const BRAND_STOPWORDS = new Set(["ALTO","AMARILLA","AMARILLO","AZUL","BAJO","BEIGE","BLANCA","BLANCO","BOLSA","BRILLO","CAJA","CELESTE","CENTIMETROS","CHICA","CHICO","CLARA","CLARO","COLOR","COLORES","CORAL","CORTO","CREMA","CUADRADO","DOBLE","DORADA","DORADO","FINO","FUCSIA","GRAMOS","GRANDE","GRIS","GRUESO","JUEGO","KILO","KILOS","KRAFT","LARGO","LILA","LISO","LITRO","LITROS","LUJO","MARRON","MATE","MEDIANA","MEDIANO","MENTA","METRO","METROS","MODELO","NARANJA","NATURAL","NEGRA","NEGRO","OLIVA","OSCURA","OSCURO","PACK","PARA","PARES","PEQUENA","PEQUENO","PEQUEÑA","PEQUEÑO","PIEZAS","PLAST","PLASTICA","PLASTICO","PLATA","PLATEADA","PLATEADO","PURPURA","REDONDO","REF","ROJA","ROJO","ROLLO","ROSA","ROSADA","ROSADO","SALMON","SET","SIMPLE","SURTIDA","SURTIDAS","SURTIDO","SURTIDOS","TAPA","TEJA","TIFFANY","TIPO","TRANSP","TRANSPARENTE","TURQUESA","UNID","UNIDAD","UNIDADES","VERDE","VINO","VIOLETA"]);
-
-export function deriveBrand(name: string | null | undefined): string | null {
-  if (!name) return null;
-  const tokens = String(name)
-    .toUpperCase()
-    .replace(/[/,()]/g, " ")
-    .split(/\s+/)
-    .filter(Boolean);
-  for (let i = tokens.length - 1; i >= 0 && i >= tokens.length - 3; i--) {
-    const t = tokens[i].replace(/[.\-]+$/, "");
-    if (t.length < 4) continue;
-    if (/[0-9]/.test(t)) continue;
-    if (!/^[A-ZÁÉÍÓÚÑ&.\-]+$/.test(t)) continue;
-    if (BRAND_STOPWORDS.has(t)) continue;
-    return t;
-  }
-  return null;
-}
 
 // Anomaly threshold: if more than this % of products would be deactivated, require confirmation
 const DEACTIVATION_THRESHOLD_PERCENT = 20;
@@ -436,6 +434,7 @@ Deno.serve(async (req) => {
       let totalInactiveSkipped = 0;
 
       try {
+        await loadLabelMap().catch(() => ({}));
         const products = await bimsRequest("GET", `/products?offset=${offset}&limit=${limit}`) as any;
         const items = extractArray(products);
         stats.total_received = items.length;
