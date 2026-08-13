@@ -22,6 +22,7 @@ type NormalizedProduct = {
   sku: string | null;
   barcode: string | null;
   category: string | null;
+  brand: string | null;
   unit: string;
   is_active: boolean;
   description: string | null;
@@ -155,6 +156,12 @@ function normalizeProduct(raw: any): NormalizedProduct | null {
   // Category from Ptype
   const category = toText(raw?.Ptype?.name ?? raw?.ptype?.name ?? item?.category ?? item?.group ?? raw?.category ?? raw?.group);
 
+  // Brand
+  const brand = toText(
+    raw?.Brand?.name ?? raw?.brand?.name ?? raw?.Marca?.name ?? raw?.Pbrand?.name ??
+    item?.brand ?? item?.marca ?? raw?.brand ?? raw?.marca
+  );
+
   // Unit
   const unit = toText(item?.um_id ?? item?.unit ?? item?.measure_unit ?? raw?.um_id ?? raw?.unit ?? raw?.measure_unit) ?? "UN";
 
@@ -164,6 +171,7 @@ function normalizeProduct(raw: any): NormalizedProduct | null {
     sku,
     barcode,
     category,
+    brand,
     unit,
     is_active: enabledValue !== false && enabledValue !== 0 && enabledValue !== "0" && status !== "inactive" && status !== "disabled",
     description,
