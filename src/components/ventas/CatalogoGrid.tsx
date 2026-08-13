@@ -79,7 +79,7 @@ export function CatalogoGrid({
       let q = supabase
         .from("products")
         .select(
-          "id, bims_code, name, category, brand, unit, image_url, sell_price, price_scales, price_lists, stock_by_warehouse, total_stock"
+          "id, bims_code, name, description, barcode, category, brand, unit, image_url, sell_price, price_scales, price_lists, stock_by_warehouse, total_stock"
         )
         .eq("is_active", true)
         .order("name", { ascending: true });
