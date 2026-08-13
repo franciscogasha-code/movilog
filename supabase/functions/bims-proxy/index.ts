@@ -364,21 +364,58 @@ Deno.serve(async (req) => {
         break;
       }
 
-      case "probe-brands": {
-        const candidates = [
-          "/labels", "/plabels", "/brands", "/marks", "/pmarks",
-          "/productslabels", "/products_labels", "/catalogs",
-        ];
-        const found: Record<string, unknown> = {};
-        for (const path of candidates) {
-          try {
-            const r = await bimsRequest("GET", `${path}?limit=5`);
-            found[path] = r;
-          } catch (e) {
-            found[path] = `ERR: ${(e as Error).message.slice(0, 120)}`;
+      case "sync-brands": {
+        // Marca real en BIMS = entidad Label (campo "Marca" de la ficha)
+        const labelMap: Record<string, string> = {};
+        let lOffset = 0;
+        while (true) {
+          const payload = await bimsRequest("GET", `/labels?offset=${lOffset}&limit=250`) as any;
+          const items = extractArray(payload);
+          if (items.length === 0) break;
+          for (const it of items) {
+            const l = it?.Label ?? it?.label ?? it;
+            const id = l?.id != null ? String(l.id).trim() : null;
+            const name = l?.name != null ? String(l.name).trim() : null;
+            if (id && name) labelMap[id] = name.toUpperCase();
           }
+          if (items.length < 250) break;
+          lOffset += 250;
         }
-        result = found;
+
+        let offset = 0;
+        let updated = 0;
+        const PAGE = 250;
+        while (true) {
+          const payload = await bimsRequest("GET", `/products?offset=${offset}&limit=${PAGE}`) as any;
+          const items = extractArray(payload);
+          if (items.length === 0) break;
+
+          const byBrand = new Map<string, { labelId: string | null; brand: string | null; codes: string[] }>();
+          for (const raw of items) {
+            const item = raw?.Product ?? raw?.product ?? raw;
+            const code = item?.id != null ? String(item.id).trim() : null;
+            if (!code) continue;
+            const labelId = item?.label_id != null ? String(item.label_id).trim() : null;
+            const brand = labelId ? labelMap[labelId] ?? null : null;
+            const key = `${labelId ?? ""}|${brand ?? ""}`;
+            if (!byBrand.has(key)) byBrand.set(key, { labelId, brand, codes: [] });
+            byBrand.get(key)!.codes.push(code);
+          }
+
+          for (const group of byBrand.values()) {
+            const { error } = await supabase
+              .from("products")
+              .update({ brand: group.brand, bims_label_id: group.labelId })
+              .in("bims_code", group.codes);
+            if (error) throw new Error(`Brand update failed: ${error.message}`);
+            updated += group.codes.length;
+          }
+
+          offset += PAGE;
+          if (items.length < PAGE) break;
+        }
+
+        result = { success: true, labels: Object.keys(labelMap).length, products_updated: updated };
         break;
       }
 

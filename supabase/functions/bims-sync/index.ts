@@ -66,6 +66,31 @@ function normalizeWarehouse(raw: any) {
   };
 }
 
+let LABEL_MAP: Record<string, string> = {};
+let LABEL_MAP_AT = 0;
+
+export async function loadLabelMap(): Promise<Record<string, string>> {
+  if (Date.now() - LABEL_MAP_AT < 10 * 60 * 1000 && Object.keys(LABEL_MAP).length) return LABEL_MAP;
+  const map: Record<string, string> = {};
+  let offset = 0;
+  while (true) {
+    const payload = await bimsRequest("GET", `/labels?offset=${offset}&limit=250`) as any;
+    const items = extractArray(payload);
+    if (items.length === 0) break;
+    for (const it of items) {
+      const l = it?.Label ?? it?.label ?? it;
+      const id = toText(l?.id);
+      const name = toText(l?.name);
+      if (id && name) map[id] = name.toUpperCase();
+    }
+    if (items.length < 250) break;
+    offset += 250;
+  }
+  LABEL_MAP = map;
+  LABEL_MAP_AT = Date.now();
+  return map;
+}
+
 function normalizeProduct(raw: any): (any & { _bims_active: boolean }) | null {
   try {
     const item = raw?.Product ?? raw?.product ?? raw;
@@ -127,7 +152,8 @@ function normalizeProduct(raw: any): (any & { _bims_active: boolean }) | null {
       sku,
       barcode,
       category: toText(raw?.Ptype?.name ?? raw?.ptype?.name ?? item?.category ?? item?.group ?? raw?.category ?? raw?.group),
-      brand: deriveBrand(name),
+      bims_label_id: toText(item?.label_id ?? raw?.label_id),
+      brand: LABEL_MAP[String(toText(item?.label_id ?? raw?.label_id) ?? "")] ?? null,
       unit,
       is_active: isActive,
       description,
@@ -436,6 +462,7 @@ Deno.serve(async (req) => {
       let totalInactiveSkipped = 0;
 
       try {
+        await loadLabelMap().catch(() => ({}));
         const products = await bimsRequest("GET", `/products?offset=${offset}&limit=${limit}`) as any;
         const items = extractArray(products);
         stats.total_received = items.length;
