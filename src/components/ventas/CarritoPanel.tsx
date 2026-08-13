@@ -248,7 +248,7 @@ export function CarritoPanel({
           </div>
           <Button
             className="w-full"
-            disabled={items.length === 0 || !customer.name.trim()}
+            disabled={items.length === 0}
             onClick={() => {
               onConfirm();
               onOpenChange(false);
