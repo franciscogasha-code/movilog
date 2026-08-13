@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ImageOff } from "lucide-react";
 import { resolvePrice, resolveStock, formatGs, ProductRow } from "@/lib/ventas";
+import { proxyImageUrl } from "@/lib/image-utils";
 
 export function ProductoFicha({
   product,
@@ -48,7 +49,7 @@ export function ProductoFicha({
         <div className="aspect-video bg-muted rounded-lg flex items-center justify-center overflow-hidden">
           {product.image_url ? (
             <img
-              src={product.image_url}
+              src={proxyImageUrl(product.image_url)}
               alt={product.name}
               className="w-full h-full object-contain"
             />

@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Search, ShoppingCart, ImageOff } from "lucide-react";
 import { resolvePrice, resolveStock, formatGs, ProductRow } from "@/lib/ventas";
 import { useDebounce } from "@/hooks/use-debounce";
+import { proxyImageUrl } from "@/lib/image-utils";
 
 type CatalogItem = {
   id: string;
@@ -107,7 +108,7 @@ export function CatalogoGrid({
               <div className="aspect-square bg-muted flex items-center justify-center relative">
                 {p.image_url ? (
                   <img
-                    src={p.image_url}
+                    src={proxyImageUrl(p.image_url)}
                     alt={p.name}
                     className="w-full h-full object-cover"
                     loading="lazy"
