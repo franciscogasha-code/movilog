@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { ShoppingCart, User, Package, ListTodo, AlertCircle } from "lucide-react";
+import { ShoppingCart, User, Package, ListTodo, AlertCircle, Eye, EyeOff } from "lucide-react";
+import { SalesPresentationProvider, useSalesPresentation } from "@/contexts/SalesPresentationContext";
 import { ClientePicker } from "@/components/ventas/ClientePicker";
 import { CatalogoGrid } from "@/components/ventas/CatalogoGrid";
 import { ProductoFicha } from "@/components/ventas/ProductoFicha";
@@ -20,7 +21,8 @@ import { es } from "date-fns/locale";
 
 const TABS = ["cliente", "catalogo", "carrito", "pedidos"] as const;
 
-export default function Ventas() {
+function VentasContent() {
+  const { clientMode, toggleClientMode } = useSalesPresentation();
   const { user } = useAuth();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<(typeof TABS)[number]>("cliente");
@@ -105,9 +107,23 @@ export default function Ventas() {
   return (
     <div className="h-full flex flex-col">
       <div className="flex-1 overflow-y-auto p-4 pb-20">
-        <div className="mb-4">
-          <h1 className="text-2xl font-display font-bold">Ventas</h1>
-          <p className="text-sm text-muted-foreground">Catálogo vendedor</p>
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-display font-bold">Ventas</h1>
+            <p className="text-sm text-muted-foreground">
+              {clientMode ? "Catálogo en modo cliente" : "Catálogo vendedor"}
+            </p>
+          </div>
+          <Button
+            variant={clientMode ? "default" : "outline"}
+            size="sm"
+            onClick={toggleClientMode}
+            aria-pressed={clientMode}
+            className="shrink-0"
+          >
+            {clientMode ? <Eye className="h-4 w-4 mr-1.5" /> : <EyeOff className="h-4 w-4 mr-1.5" />}
+            {clientMode ? "Modo cliente" : "Modo vendedor"}
+          </Button>
         </div>
 
 
@@ -278,5 +294,13 @@ export default function Ventas() {
         }}
       />
     </div>
+  );
+}
+
+export default function Ventas() {
+  return (
+    <SalesPresentationProvider>
+      <VentasContent />
+    </SalesPresentationProvider>
   );
 }

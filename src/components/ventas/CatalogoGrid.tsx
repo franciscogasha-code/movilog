@@ -25,6 +25,9 @@ import {
 import { resolvePrice, resolveStock, formatGs, ProductRow } from "@/lib/ventas";
 import { useDebounce } from "@/hooks/use-debounce";
 import { proxyImageUrl } from "@/lib/image-utils";
+import { AvailabilityChip } from "@/components/ventas/AvailabilityChip";
+import { useSalesPresentation } from "@/contexts/SalesPresentationContext";
+
 
 type CatalogItem = {
   id: string;
@@ -54,7 +57,9 @@ export function CatalogoGrid({
 }) {
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search, 300);
+  const { clientMode } = useSalesPresentation();
   const [onlyStock, setOnlyStock] = useState(false);
+
   const [category, setCategory] = useState<string>("all");
   const [brand, setBrand] = useState<string>("all");
   const [brandOpen, setBrandOpen] = useState(false);
@@ -253,13 +258,20 @@ export function CatalogoGrid({
                   {[p.brand, p.category].filter(Boolean).join(" · ") || "Sin categoría"}
                 </p>
                 <p className="text-sm font-medium line-clamp-2 flex-1">{p.name}</p>
-                <p className="text-xs text-muted-foreground mt-1">Código: {p.bims_code}</p>
-                <div className="flex items-center justify-between mt-2">
+                {!clientMode && (
+                  <p className="text-xs text-muted-foreground mt-1">Código: {p.bims_code}</p>
+                )}
+                <div className="flex items-center justify-between gap-1 mt-2">
                   <span className="text-sm font-bold text-primary">{formatGs(price)}</span>
-                  <span className={`text-xs ${stock > 0 ? "text-green-600" : "text-destructive"}`}>
-                    Stock {stock.toLocaleString("de-DE")}
-                  </span>
+                  {clientMode ? (
+                    <AvailabilityChip stock={stock} size="sm" />
+                  ) : (
+                    <span className={`text-xs ${stock > 0 ? "text-green-600" : "text-destructive"}`}>
+                      Stock {stock.toLocaleString("de-DE")}
+                    </span>
+                  )}
                 </div>
+
                 <Button
                   size="sm"
                   className="w-full mt-3"
