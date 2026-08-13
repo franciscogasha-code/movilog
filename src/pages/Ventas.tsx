@@ -8,7 +8,7 @@ import { ShoppingCart, User, Package, ListTodo } from "lucide-react";
 import { ClientePicker } from "@/components/ventas/ClientePicker";
 import { CatalogoGrid } from "@/components/ventas/CatalogoGrid";
 import { ProductoFicha } from "@/components/ventas/ProductoFicha";
-import { CarritoPanel } from "@/components/ventas/CarritoPanel";
+import { CarritoPanel, CartItemRow } from "@/components/ventas/CarritoPanel";
 import { ConfirmarVenta } from "@/components/ventas/ConfirmarVenta";
 import { useSalesCart } from "@/hooks/use-sales-cart";
 import { resolvePrice, getScales, ProductRow } from "@/lib/ventas";
