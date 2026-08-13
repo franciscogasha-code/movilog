@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
@@ -31,18 +31,25 @@ export function ClientePicker({
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [isManual, setIsManual] = useState(false);
 
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
   const { data: customers } = useQuery<CustomerRow[]>({
-    queryKey: ["sales_customers", search, user?.id],
+    queryKey: ["sales_customers", debouncedSearch, user?.id],
     queryFn: async () => {
       let q = supabase
         .from("sales_customers")
         .select("id, bims_contact_id, name, ruc, address, phone, email, price_list_id, is_active")
         .eq("is_active", true)
         .order("name", { ascending: true });
-      if (search.trim()) {
-        q = q.ilike("name", `%${search.trim()}%`);
+      if (debouncedSearch.trim()) {
+        const term = `%${debouncedSearch.trim()}%`;
+        q = q.or(`name.ilike.${term},ruc.ilike.${term}`);
       }
       const { data, error } = await q.limit(50);
       if (error) throw error;
@@ -102,7 +109,7 @@ export function ClientePicker({
             <div className="relative flex-1">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Buscar cliente..."
+                placeholder="Buscar por nombre, razón social o RUC..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-9"
