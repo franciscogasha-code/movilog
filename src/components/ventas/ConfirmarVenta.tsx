@@ -110,8 +110,14 @@ export function ConfirmarVenta({
       const orderItems = items.map((item, index) => ({
         request_id: order.id,
         product_id: item.productId,
-        quantity: item.quantity,
+        quantity_requested: item.quantity,
         unit_price: item.unitPrice,
+        quantity_unfulfilled: 0,
+        quantity_accepted: 0,
+        quantity_picked: 0,
+        quantity_received: 0,
+        quantity_shipped: 0,
+        item_purpose: "client" as const,
         notes: item.notes || null,
         line_number: index + 1,
       }));
