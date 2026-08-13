@@ -104,21 +104,11 @@ export default function Ventas() {
   return (
     <div className="h-full flex flex-col">
       <div className="flex-1 overflow-y-auto p-4 pb-20">
-        <div className="mb-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-display font-bold">Ventas</h1>
-            <p className="text-sm text-muted-foreground">Catálogo vendedor</p>
-          </div>
-          <Button variant="outline" size="sm" onClick={() => setCartOpen(true)} className="relative">
-            <ShoppingCart className="h-4 w-4 mr-1" />
-            Carrito
-            {count > 0 && (
-              <Badge className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center p-0 text-[10px]">
-                {count}
-              </Badge>
-            )}
-          </Button>
+        <div className="mb-4">
+          <h1 className="text-2xl font-display font-bold">Ventas</h1>
+          <p className="text-sm text-muted-foreground">Catálogo vendedor</p>
         </div>
+
 
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
           <TabsList className="w-full grid grid-cols-4 mb-4">
@@ -217,7 +207,7 @@ export default function Ventas() {
       </div>
 
       {/* FAB flotante de carrito */}
-      {items.length > 0 && customer.name.trim() && activeTab !== "carrito" && !cartOpen && (
+      {items.length > 0 && activeTab !== "carrito" && !cartOpen && !selectedProduct && (
         <Button
           onClick={() => setCartOpen(true)}
           aria-label={`Abrir carrito: ${count} ítems, total ${total.toLocaleString("de-DE")}`}
