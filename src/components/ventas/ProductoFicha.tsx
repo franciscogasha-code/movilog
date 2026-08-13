@@ -287,25 +287,29 @@ export function ProductoFicha({
             {next && (
               <div
                 key={quantity}
-                className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-sm animate-fade-in"
+                className="flex flex-wrap items-center gap-2 rounded-lg border-2 border-amber-500 bg-amber-500/15 px-3 py-2 text-sm animate-fade-in shadow-[0_0_0_3px_hsl(var(--background)),0_6px_18px_-6px_rgba(245,158,11,0.6)]"
               >
-                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/20">
-                  <TrendingDown className="h-3.5 w-3.5 text-primary" />
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-500 animate-pulse">
+                  <TrendingDown className="h-4 w-4 text-white" />
                 </div>
-                <span className="flex-1 text-primary">
+                <span className="flex-1 min-w-[180px] text-amber-900 dark:text-amber-200">
                   Agregá <strong>{next.min_quantity - quantity}</strong> más y bajás a{" "}
                   <strong>{formatGs(next.price)}</strong> por {product.unit}
+                  {" · "}
+                  <strong className="text-amber-700 dark:text-amber-300">
+                    ahorrás {formatGs((unitPrice - next.price) * next.min_quantity)}
+                  </strong>
                 </span>
                 <Button
                   size="sm"
-                  variant="outline"
-                  className="h-7 px-2.5 text-xs border-primary/50 text-primary hover:bg-primary/10 hover:text-primary"
+                  className="h-7 px-3 text-xs bg-amber-500 text-white hover:bg-amber-600"
                   onClick={() => setQuantity(next.min_quantity)}
                 >
                   Aplicar
                 </Button>
               </div>
             )}
+
             <div className="flex flex-wrap items-center gap-2">
               <div className="flex items-center gap-1">
                 <Button
