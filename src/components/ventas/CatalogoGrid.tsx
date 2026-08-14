@@ -28,6 +28,8 @@ import { useDebounce } from "@/hooks/use-debounce";
 import { proxyImageUrl } from "@/lib/image-utils";
 import { AvailabilityChip } from "@/components/ventas/AvailabilityChip";
 import { useSalesPresentation } from "@/contexts/SalesPresentationContext";
+import { useIdbState } from "@/hooks/use-idb-state";
+import { idbGet, idbSet } from "@/lib/offline-store";
 
 
 type CatalogItem = {
@@ -47,6 +49,20 @@ type CatalogItem = {
   total_stock: number | null;
 };
 
+type CatalogViewState = {
+  search: string;
+  onlyStock: boolean;
+  category: string;
+  brand: string;
+};
+
+const DEFAULT_VIEW: CatalogViewState = {
+  search: "",
+  onlyStock: false,
+  category: "all",
+  brand: "all",
+};
+
 export function CatalogoGrid({
   customerPriceListId,
   onAdd,
@@ -57,6 +73,7 @@ export function CatalogoGrid({
   onSelectManyIds,
   onClearSelection,
   onGeneratePdf,
+  stateKey = "sales-catalog",
 }: {
   customerPriceListId?: string | null;
   onAdd: (product: ProductRow, quantity: number) => void;
@@ -67,16 +84,28 @@ export function CatalogoGrid({
   onSelectManyIds?: (ids: string[]) => void;
   onClearSelection?: () => void;
   onGeneratePdf?: () => void;
+  /** Clave para recordar filtros, páginas cargadas y scroll por usuario */
+  stateKey?: string;
 }) {
-  const [search, setSearch] = useState("");
+  const [view, setView, viewHydrated] = useIdbState<CatalogViewState>(
+    `${stateKey}-view`,
+    DEFAULT_VIEW
+  );
+  const search = view.search;
+  const onlyStock = view.onlyStock;
+  const category = view.category;
+  const brand = view.brand;
+  const patchView = (patch: Partial<CatalogViewState>) =>
+    setView((prev) => ({ ...prev, ...patch }));
+  const setSearch = (v: string) => patchView({ search: v });
+  const setOnlyStock = (v: boolean) => patchView({ onlyStock: v });
+  const setCategory = (v: string) => patchView({ category: v });
+  const setBrand = (v: string) => patchView({ brand: v });
+
   const debouncedSearch = useDebounce(search, 300);
   const { clientMode } = useSalesPresentation();
-  const [onlyStock, setOnlyStock] = useState(false);
   const [selectingAll, setSelectingAll] = useState(false);
   const [selectAllDone, setSelectAllDone] = useState(0);
-
-  const [category, setCategory] = useState<string>("all");
-  const [brand, setBrand] = useState<string>("all");
   const [brandOpen, setBrandOpen] = useState(false);
 
   const { data: facets } = useQuery({
@@ -120,6 +149,7 @@ export function CatalogoGrid({
     isFetchingNextPage,
   } = useInfiniteQuery({
     queryKey: ["ventas-catalogo", debouncedSearch, onlyStock, category, brand],
+    enabled: viewHydrated,
     initialPageParam: 0,
     getNextPageParam: (lastPage: { rows: CatalogItem[]; count: number }, allPages) => {
       const loaded = allPages.reduce((acc, p) => acc + p.rows.length, 0);
@@ -167,6 +197,86 @@ export function CatalogoGrid({
     return () => io.disconnect();
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
+  /* ---------- Recordar páginas cargadas y posición de scroll ---------- */
+  const scrollStateKey = `${stateKey}-scroll`;
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const restoringRef = useRef(false);
+  const restoredRef = useRef(false);
+  const [restored, setRestored] = useState(false);
+  const pagesLoaded = data?.pages?.length ?? 0;
+
+  const getScrollEl = (): HTMLElement | null => {
+    let el = rootRef.current?.parentElement ?? null;
+    while (el) {
+      const oy = getComputedStyle(el).overflowY;
+      if ((oy === "auto" || oy === "scroll") && el.scrollHeight > el.clientHeight) return el;
+      el = el.parentElement;
+    }
+    return null;
+  };
+
+  // Restaurar: cargar las páginas que ya estaban y volver al mismo punto
+  useEffect(() => {
+    if (!viewHydrated || restoredRef.current || restoringRef.current) return;
+    if (pagesLoaded === 0) return;
+    restoringRef.current = true;
+    (async () => {
+      const saved = await idbGet<{ pages: number; scrollTop: number }>(scrollStateKey);
+      const targetPages = Math.min(saved?.pages ?? 1, 40);
+      let guard = 0;
+      while ((data?.pages?.length ?? 0) < targetPages && guard < 40) {
+        const res = await fetchNextPage();
+        guard += 1;
+        if (!res.hasNextPage) break;
+      }
+      // Reintentamos: las imágenes cambian la altura mientras cargan
+      const target = saved?.scrollTop ?? 0;
+      if (target > 0) {
+        for (let i = 0; i < 20; i++) {
+          const el = getScrollEl();
+          if (el) {
+            el.scrollTop = target;
+            if (Math.abs(el.scrollTop - target) < 8) break;
+          }
+          await new Promise((r) => setTimeout(r, 150));
+        }
+      }
+      restoredRef.current = true;
+      restoringRef.current = false;
+      setRestored(true);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewHydrated, pagesLoaded > 0, scrollStateKey]);
+
+  // Guardar páginas + scroll (con throttle simple). Nunca antes de restaurar,
+  // para no pisar la posición guardada con un scroll 0 recién montado.
+  useEffect(() => {
+    if (!viewHydrated || !restored) return;
+    const el = getScrollEl();
+    if (!el) return;
+    let timer: number | undefined;
+    const save = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        void idbSet(scrollStateKey, { pages: pagesLoaded, scrollTop: el.scrollTop });
+      }, 300);
+    };
+    el.addEventListener("scroll", save, { passive: true });
+    save();
+    return () => {
+      el.removeEventListener("scroll", save);
+      window.clearTimeout(timer);
+    };
+  }, [viewHydrated, restored, pagesLoaded, scrollStateKey]);
+
+  // Cambiar filtros reinicia el punto guardado
+  useEffect(() => {
+    if (!viewHydrated || !restoredRef.current) return;
+    void idbSet(scrollStateKey, { pages: 1, scrollTop: 0 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch, onlyStock, category, brand]);
+
+
   /** Trae TODOS los ids del filtro, paginando de a 1.000. */
   const selectAllFiltered = async () => {
     if (!onSelectManyIds) return;
@@ -195,7 +305,7 @@ export function CatalogoGrid({
 
   return (
 
-    <div className="space-y-4">
+    <div className="space-y-4" ref={rootRef}>
       <div className="flex items-center gap-2">
         <div className="relative flex-1">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
