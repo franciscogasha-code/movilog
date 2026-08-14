@@ -164,7 +164,10 @@ export function CatalogoPdfPanel({
     const controller = new AbortController();
     abortRef.current = controller;
     setProgress({ done: 0, total: products.length });
+    setImgFailures(0);
+    resetCatalogImageFailures();
     try {
+
       const out = await buildCatalogPdfParts({
         products,
         customer: customer.name.trim()
