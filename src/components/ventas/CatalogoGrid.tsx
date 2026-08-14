@@ -136,11 +136,9 @@ export function CatalogoGrid({
           )
       ).order("name", { ascending: true });
 
-      const { data, error, count } = await q
-        .range(from, from + PAGE_SIZE - 1)
-        .returns<CatalogItem[]>();
+      const { data, error, count } = await q.range(from, from + PAGE_SIZE - 1);
       if (error) throw error;
-      return { rows: data ?? [], count: count ?? 0 };
+      return { rows: (data ?? []) as CatalogItem[], count: count ?? 0 };
     },
   });
 
