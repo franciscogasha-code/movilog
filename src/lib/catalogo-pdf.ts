@@ -5,8 +5,12 @@ import { resolvePrice, getScales, ProductRow } from "@/lib/ventas";
 import { proxyImageUrl } from "@/lib/image-utils";
 import sanseiLogo from "@/assets/sansei-logo.jpg";
 
-/** Máximo de productos por catálogo (tope de seguridad). */
-export const CATALOG_PDF_MAX_ITEMS = 300;
+/** Productos por archivo PDF (cada parte). */
+export const CATALOG_PDF_PART_SIZE = 300;
+/** Tope global de productos (todas las partes juntas). */
+export const CATALOG_PDF_HARD_MAX = 600;
+/** @deprecated usar CATALOG_PDF_PART_SIZE */
+export const CATALOG_PDF_MAX_ITEMS = CATALOG_PDF_PART_SIZE;
 
 const PAGE = { W: 210, H: 297, M: 16 } as const;
 const FOOTER_RESERVED = SPACING.xl * 2 + SPACING.md; // ~34mm
@@ -35,6 +39,8 @@ export interface CatalogPdfOptions {
   showScales: boolean;
   sortBy: CatalogSort;
   note?: string | null;
+  /** Ej.: "Parte 1 de 2" — se imprime en portada y pie */
+  partLabel?: string | null;
   onProgress?: (done: number, total: number) => void;
 }
 
@@ -114,7 +120,7 @@ function fmtGs(n: number): string {
   return `Gs. ${Math.round(n).toLocaleString("de-DE")}`;
 }
 
-function drawFooter(doc: jsPDF): void {
+function drawFooter(doc: jsPDF, partLabel?: string | null): void {
   const pages = doc.getNumberOfPages();
   const lineH = SPACING.sm;
   for (let p = 1; p <= pages; p++) {
@@ -149,7 +155,8 @@ function drawFooter(doc: jsPDF): void {
     doc.setFontSize(FS.small - 1);
     doc.setTextColor(...BRAND.muted);
     doc.text("Documento no fiscal. Precios y disponibilidad sujetos a cambio.", PAGE.M, yLegal);
-    doc.text(`Página ${p} de ${pages}`, PAGE.W - PAGE.M, yLegal, { align: "right" });
+    const pageTxt = partLabel ? `${partLabel} · Página ${p} de ${pages}` : `Página ${p} de ${pages}`;
+    doc.text(pageTxt, PAGE.W - PAGE.M, yLegal, { align: "right" });
   }
 }
 
@@ -163,7 +170,7 @@ function loadLogo(): Promise<HTMLImageElement> {
   });
 }
 
-function sortProducts(products: ProductRow[], sortBy: CatalogSort, priceListId?: string | null) {
+export function sortCatalogProducts(products: ProductRow[], sortBy: CatalogSort, priceListId?: string | null) {
   const arr = [...products];
   if (sortBy === "name") {
     arr.sort((a, b) => (a.name ?? "").localeCompare(b.name ?? "", "es"));
@@ -182,11 +189,11 @@ function sortProducts(products: ProductRow[], sortBy: CatalogSort, priceListId?:
 /* ───────────────── generador ───────────────── */
 
 export async function buildCatalogPdf(opts: CatalogPdfOptions): Promise<Blob> {
-  const { showPrices, showScales, customer, salespersonName, note, onProgress } = opts;
+  const { showPrices, showScales, customer, salespersonName, note, partLabel, onProgress } = opts;
   const priceListId = customer?.priceListId ?? null;
-  const products = sortProducts(opts.products, opts.sortBy, priceListId).slice(
+  const products = sortCatalogProducts(opts.products, opts.sortBy, priceListId).slice(
     0,
-    CATALOG_PDF_MAX_ITEMS
+    CATALOG_PDF_PART_SIZE
   );
 
   const doc = new jsPDF({ unit: "mm", format: "a4" });
@@ -216,7 +223,14 @@ export async function buildCatalogPdf(opts: CatalogPdfOptions): Promise<Blob> {
     month: "2-digit",
     year: "numeric",
   });
-  doc.text(`${products.length} productos    ·    ${fecha}`, W - M, M + SPACING.md + SPACING.xs, {
+  const headerMeta = [
+    `${products.length} productos`,
+    partLabel || null,
+    fecha,
+  ]
+    .filter(Boolean)
+    .join("    ·    ");
+  doc.text(headerMeta, W - M, M + SPACING.md + SPACING.xs, {
     align: "right",
   });
 
@@ -360,11 +374,56 @@ export async function buildCatalogPdf(opts: CatalogPdfOptions): Promise<Blob> {
     }
   }
 
-  drawFooter(doc);
+  drawFooter(doc, partLabel);
   return doc.output("blob");
 }
 
-export function catalogFileName(customerName?: string | null): string {
+export interface CatalogPart {
+  blob: Blob;
+  fileName: string;
+  partIndex: number;
+  partCount: number;
+  count: number;
+}
+
+/** Divide la selección en archivos de hasta CATALOG_PDF_PART_SIZE productos. */
+export async function buildCatalogPdfParts(
+  opts: Omit<CatalogPdfOptions, "partLabel">
+): Promise<CatalogPart[]> {
+  const priceListId = opts.customer?.priceListId ?? null;
+  const all = sortCatalogProducts(opts.products, opts.sortBy, priceListId).slice(0, CATALOG_PDF_HARD_MAX);
+  const chunks: ProductRow[][] = [];
+  for (let i = 0; i < all.length; i += CATALOG_PDF_PART_SIZE) {
+    chunks.push(all.slice(i, i + CATALOG_PDF_PART_SIZE));
+  }
+  const total = all.length;
+  const partCount = Math.max(1, chunks.length);
+  const parts: CatalogPart[] = [];
+  let done = 0;
+
+  for (let i = 0; i < chunks.length; i++) {
+    const partIndex = i + 1;
+    const label = partCount > 1 ? `Parte ${partIndex} de ${partCount}` : null;
+    const base = done;
+    const blob = await buildCatalogPdf({
+      ...opts,
+      products: chunks[i],
+      partLabel: label,
+      onProgress: (d) => opts.onProgress?.(base + d, total),
+    });
+    done += chunks[i].length;
+    parts.push({
+      blob,
+      fileName: catalogFileName(opts.customer?.name, partCount > 1 ? partIndex : undefined),
+      partIndex,
+      partCount,
+      count: chunks[i].length,
+    });
+  }
+  return parts;
+}
+
+export function catalogFileName(customerName?: string | null, part?: number): string {
   const slug = (customerName ?? "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -372,5 +431,6 @@ export function catalogFileName(customerName?: string | null): string {
     .replace(/^-|-$/g, "")
     .toLowerCase();
   const date = new Date().toISOString().slice(0, 10);
-  return `catalogo-sansei${slug ? `-${slug}` : ""}-${date}.pdf`;
+  const suffix = part ? `-parte${part}` : "";
+  return `catalogo-sansei${slug ? `-${slug}` : ""}-${date}${suffix}.pdf`;
 }

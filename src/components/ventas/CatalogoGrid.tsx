@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { CATALOG_PDF_HARD_MAX } from "@/lib/catalogo-pdf";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -94,7 +95,7 @@ export function CatalogoGrid({
   });
 
   const PAGE_SIZE = 48;
-  const MAX_SELECT_ALL = 300;
+  const MAX_SELECT_ALL = CATALOG_PDF_HARD_MAX;
   const sel = (s: string): string => s;
 
   /** Aplica los filtros activos sobre un query builder de `products`. */
