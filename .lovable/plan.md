@@ -1,40 +1,42 @@
-# Catálogos de más de 600 productos
+# Catálogos grandes: sin tope de selección, con partes y estimación
 
-Hoy el tope duro es 600 productos (2 archivos de 300). Si seleccionás más, se recortan en silencio. Además, la preparación de imágenes es de a una por vez, por eso 600 ítems tardan varios minutos.
-
-## Recomendación
-
-Subir el tope a 1.500 productos (5 archivos de 300) y hacer que la generación sea mucho más rápida, en vez de dejar un límite bajo.
+De acuerdo con tu criterio. Si filtrás una marca (ej. SANSEI HM tiene 2.956 productos activos y SANSEI IMPORT. 1.525), tenés que poder seleccionar todo y que el sistema se encargue de dividir y avisar cuánto tarda.
 
 ## Qué cambia
 
-1. **Tope nuevo: 1.500 productos**
-   - Se dividen en archivos de 300 ("Parte X de Y", hasta 5 archivos).
-   - "Seleccionar todo el filtro" pasa a traer hasta 1.500.
+1. **Selección sin tope artificial**
+   - "Seleccionar todo el filtro" trae todos los productos del filtro (paginando de a 1.000 contra la base), no 600.
+   - El contador del botón muestra el total real del filtro.
 
-2. **Velocidad: precarga de imágenes en paralelo**
-   - Hoy cada foto se descarga y comprime una por una. Se pasa a 6 en simultáneo antes de dibujar las páginas.
-   - Efecto esperado: de varios minutos a menos de un minuto para 600 ítems; 1.500 queda en un rango razonable.
+2. **División automática en varios archivos**
+   - El PDF se corta cada 300 productos: 1.525 productos = 6 archivos, cada uno rotulado "Parte X de 6".
+   - El panel avisa antes de generar: cuántos archivos y cuántos productos por archivo.
 
-3. **Modo "sin fotos" para catálogos grandes**
-   - Nuevo interruptor "Incluir fotos" (activado por defecto).
-   - Si se apaga: lista compacta con código, nombre, precio y escalas. Genera en segundos y el archivo pesa poco (mejor para mandar por WhatsApp).
-   - Cuando la selección supera 600, el panel sugiere apagarlo.
+3. **Estimación de tiempo antes de generar**
+   - Cartel del tipo: "≈ 2 min · 6 archivos" (con fotos) o "≈ 10 seg · 6 archivos" (sin fotos).
+   - El cálculo usa la velocidad medida durante la generación y se ajusta mientras avanza ("faltan ≈ 1 min").
 
-4. **Aviso claro por encima del tope**
-   - Si se seleccionan más de 1.500, aviso explícito: se incluyen los primeros 1.500 según el orden elegido, con recomendación de filtrar por categoría o marca y mandar dos catálogos.
-   - Además, aviso de tiempo estimado y cantidad de archivos antes de generar.
+4. **Interruptor "Incluir fotos" + sugerencia automática**
+   - Con fotos (por defecto): catálogo visual, más pesado y más lento.
+   - Sin fotos: lista compacta (código, nombre, precio, escalas), genera en segundos y pesa poco — ideal para WhatsApp.
+   - Cuando la selección supera 500 productos, el panel sugiere apagar las fotos y muestra la comparación de tiempo/peso estimado.
 
-5. **Poder cancelar**
-   - Botón "Cancelar" mientras se preparan las imágenes, para no dejar el celular colgado si el vendedor se arrepiente.
+5. **Generación más rápida y cancelable**
+   - Las fotos pasan a prepararse de a 6 en paralelo (hoy es una por vez): baja fuerte el tiempo total.
+   - Botón "Cancelar" durante la generación, y aviso si la selección es muy grande en un celular de gama baja (más de ~1.500 con fotos).
 
-## Alternativa descartada (por ahora)
+6. **Sin recorte silencioso**
+   - Desaparece el tope duro de 600: nunca más se descartan productos sin avisar. Si algo se limita, el panel lo dice explícitamente.
 
-Generar el PDF en el servidor y mandar un link: resuelve cualquier volumen y no depende del celular, pero implica una función de backend, almacenamiento de archivos y limpieza periódica. Se puede hacer en una fase siguiente si aparecen pedidos de catálogos completos (15.000 ítems).
+## Guardas para no colgar el celular
+
+- Barra de progreso por parte ("Parte 3 de 6 · 145/300").
+- Cada archivo se entrega apenas está listo (descarga/compartir secuencial), así no se acumula todo en memoria.
+- Con más de 2.000 productos y fotos activadas, el panel pide confirmación explícita antes de arrancar.
 
 ## Detalle técnico
 
-- `src/lib/catalogo-pdf.ts`: `CATALOG_PDF_HARD_MAX` 600 → 1500; nueva etapa `prefetchImages(products, concurrency = 6)` que llena `imgCache` reportando progreso, y `getImage` pasa a leer del cache; nueva opción `showImages` con layout de lista (sin celdas de imagen) cuando está en `false`; soporte de `AbortSignal` para cancelar.
-- `src/components/ventas/CatalogoPdfPanel.tsx`: switch "Incluir fotos", aviso de partes/tiempo estimado, aviso de recorte sobre 1.500, botón cancelar durante la generación.
-- `src/components/ventas/CatalogoGrid.tsx`: `MAX_SELECT_ALL` sigue atado a `CATALOG_PDF_HARD_MAX` (queda en 1.500 automáticamente).
-- Validación: prueba en navegador con 600 y con 1.500 ítems, con y sin fotos, verificando cantidad de archivos, etiquetas "Parte X de Y" y tiempos.
+- `src/components/ventas/CatalogoGrid.tsx`: `selectAllFiltered` pagina con `.range()` de a 1.000 hasta cubrir el `count` del filtro, con progreso ("Seleccionando 2.000 de 2.956..."); se quita `MAX_SELECT_ALL`.
+- `src/lib/catalogo-pdf.ts`: se elimina `CATALOG_PDF_HARD_MAX`; se mantiene `CATALOG_PDF_PART_SIZE = 300`; nueva etapa `prefetchImages(products, { concurrency: 6, signal })` que llena `imgCache` y reporta progreso; nueva opción `showImages` con layout de lista compacta cuando es `false`; soporte de `AbortSignal`.
+- `src/components/ventas/CatalogoPdfPanel.tsx`: carga de productos por lotes de 100 sin tope; switch "Incluir fotos"; cartel de estimación (archivos + tiempo, recalculado en vivo); confirmación sobre 2.000 con fotos; botón cancelar; entrega archivo por archivo.
+- Validación en navegador: marca con ~1.525 productos, con fotos y sin fotos, verificando cantidad de archivos, rótulos "Parte X de Y", progreso, cancelación y tiempos reales.
