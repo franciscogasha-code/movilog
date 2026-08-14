@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { CATALOG_PDF_HARD_MAX } from "@/lib/catalogo-pdf";
+
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -73,6 +73,7 @@ export function CatalogoGrid({
   const { clientMode } = useSalesPresentation();
   const [onlyStock, setOnlyStock] = useState(false);
   const [selectingAll, setSelectingAll] = useState(false);
+  const [selectAllDone, setSelectAllDone] = useState(0);
 
   const [category, setCategory] = useState<string>("all");
   const [brand, setBrand] = useState<string>("all");
@@ -95,7 +96,7 @@ export function CatalogoGrid({
   });
 
   const PAGE_SIZE = 48;
-  const MAX_SELECT_ALL = CATALOG_PDF_HARD_MAX;
+  const SELECT_ALL_BATCH = 1000;
   const sel = (s: string): string => s;
 
   /** Aplica los filtros activos sobre un query builder de `products`. */
@@ -166,18 +167,27 @@ export function CatalogoGrid({
     return () => io.disconnect();
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
+  /** Trae TODOS los ids del filtro, paginando de a 1.000. */
   const selectAllFiltered = async () => {
     if (!onSelectManyIds) return;
     setSelectingAll(true);
+    setSelectAllDone(0);
     try {
-      const q = applyFilters(supabase.from("products").select("id"))
-        .order("name", { ascending: true })
-        .limit(MAX_SELECT_ALL);
-      const { data, error } = await q;
-      if (error) throw error;
-      onSelectManyIds(((data ?? []) as { id: string }[]).map((r) => r.id));
+      const ids: string[] = [];
+      for (let from = 0; ; from += SELECT_ALL_BATCH) {
+        const { data, error } = await applyFilters(supabase.from("products").select("id"))
+          .order("name", { ascending: true })
+          .range(from, from + SELECT_ALL_BATCH - 1);
+        if (error) throw error;
+        const batch = ((data ?? []) as { id: string }[]).map((r) => r.id);
+        ids.push(...batch);
+        setSelectAllDone(ids.length);
+        if (batch.length < SELECT_ALL_BATCH) break;
+      }
+      onSelectManyIds(ids);
     } finally {
       setSelectingAll(false);
+      setSelectAllDone(0);
     }
   };
 
@@ -312,8 +322,8 @@ export function CatalogoGrid({
               onClick={selectAllFiltered}
             >
               {selectingAll
-                ? "Seleccionando..."
-                : `Seleccionar todo el filtro (${Math.min(totalCount, MAX_SELECT_ALL).toLocaleString("de-DE")})`}
+                ? `Seleccionando ${selectAllDone.toLocaleString("de-DE")} de ${totalCount.toLocaleString("de-DE")}...`
+                : `Seleccionar todo el filtro (${totalCount.toLocaleString("de-DE")})`}
             </Button>
           )}
         </div>

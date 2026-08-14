@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Dialog,
@@ -20,20 +20,29 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { FileText, Share2, Download, X, AlertTriangle, ImageOff, Info } from "lucide-react";
+import { FileText, Share2, Download, X, ImageOff, Info, Zap } from "lucide-react";
 import { proxyImageUrl } from "@/lib/image-utils";
 import { formatGs, resolvePrice, ProductRow } from "@/lib/ventas";
 import {
   buildCatalogPdfParts,
   sortCatalogProducts,
+  CatalogAbortError,
   CATALOG_PDF_PART_SIZE,
-  CATALOG_PDF_HARD_MAX,
+  CATALOG_SEC_PER_ITEM_WITH_IMG,
+  CATALOG_SEC_PER_ITEM_NO_IMG,
+  CATALOG_SUGGEST_NO_IMG_FROM,
   CatalogPart,
   CatalogSort,
 } from "@/lib/catalogo-pdf";
 import { useToast } from "@/hooks/use-toast";
 
-const BATCH = 100;
+const BATCH = 200;
+
+function fmtEta(seconds: number): string {
+  if (seconds < 60) return `${Math.max(5, Math.round(seconds / 5) * 5)} seg`;
+  const min = Math.round(seconds / 60);
+  return min < 60 ? `${min} min` : `${(min / 60).toFixed(1)} h`;
+}
 
 export function CatalogoPdfPanel({
   open,
@@ -61,14 +70,27 @@ export function CatalogoPdfPanel({
   const [loading, setLoading] = useState(false);
   const [showPrices, setShowPrices] = useState(true);
   const [showScales, setShowScales] = useState(true);
+  const [showImages, setShowImages] = useState(true);
   const [sortBy, setSortBy] = useState<CatalogSort>("category");
   const [note, setNote] = useState("");
   const [progress, setProgress] = useState<{ done: number; total: number; part?: string } | null>(
     null
   );
   const [parts, setParts] = useState<CatalogPart[] | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
-  const overLimit = selectedIds.length > CATALOG_PDF_HARD_MAX;
+  // Con muchos ítems, sugerir el modo sin fotos una sola vez
+  const suggestedRef = useRef(false);
+  useEffect(() => {
+    if (!open) {
+      suggestedRef.current = false;
+      return;
+    }
+    if (!suggestedRef.current && selectedIds.length >= CATALOG_SUGGEST_NO_IMG_FROM) {
+      suggestedRef.current = true;
+      setShowImages(false);
+    }
+  }, [open, selectedIds.length]);
 
   useEffect(() => {
     if (!open) return;
@@ -76,16 +98,14 @@ export function CatalogoPdfPanel({
     (async () => {
       setLoading(true);
       try {
-        const ids = selectedIds.slice(0, CATALOG_PDF_HARD_MAX);
+        const ids = selectedIds;
         const rows: ProductRow[] = [];
         for (let i = 0; i < ids.length; i += BATCH) {
           const chunk = ids.slice(i, i + BATCH);
-          const { data, error } = await supabase
-            .from("products")
-            .select("*")
-            .in("id", chunk);
+          const { data, error } = await supabase.from("products").select("*").in("id", chunk);
           if (error) throw error;
           rows.push(...((data ?? []) as ProductRow[]));
+          if (cancelled) return;
         }
         if (!cancelled) setProducts(rows);
       } catch (e: any) {
@@ -106,6 +126,8 @@ export function CatalogoPdfPanel({
 
   useEffect(() => {
     if (!open) {
+      abortRef.current?.abort();
+      abortRef.current = null;
       setParts(null);
       setProgress(null);
     }
@@ -114,7 +136,7 @@ export function CatalogoPdfPanel({
   // invalidar PDFs ya generados si cambian las opciones
   useEffect(() => {
     setParts(null);
-  }, [products, showPrices, showScales, sortBy, note, customer.priceListId]);
+  }, [products, showPrices, showScales, showImages, sortBy, note, customer.priceListId]);
 
   const sortedPreview = useMemo(
     () => sortCatalogProducts(products, sortBy, customer.priceListId),
@@ -126,8 +148,17 @@ export function CatalogoPdfPanel({
     Math.max(0, Math.min(CATALOG_PDF_PART_SIZE, sortedPreview.length - i * CATALOG_PDF_PART_SIZE))
   );
 
-  const generate = async (): Promise<CatalogPart[] | null> => {
+  const etaSeconds =
+    sortedPreview.length *
+    (showImages ? CATALOG_SEC_PER_ITEM_WITH_IMG : CATALOG_SEC_PER_ITEM_NO_IMG);
+  const etaNoImg = sortedPreview.length * CATALOG_SEC_PER_ITEM_NO_IMG;
+
+  const generate = async (
+    onPart?: (part: CatalogPart) => void
+  ): Promise<CatalogPart[] | null> => {
     if (products.length === 0) return null;
+    const controller = new AbortController();
+    abortRef.current = controller;
     setProgress({ done: 0, total: products.length });
     try {
       const out = await buildCatalogPdfParts({
@@ -144,10 +175,13 @@ export function CatalogoPdfPanel({
         salespersonName,
         showPrices,
         showScales,
+        showImages,
         sortBy,
         note,
+        signal: controller.signal,
+        onPart,
         onProgress: (done, total) => {
-          const idx = Math.min(partCount, Math.floor((done - 1) / CATALOG_PDF_PART_SIZE) + 1);
+          const idx = Math.min(partCount, Math.floor(Math.max(0, done - 1) / CATALOG_PDF_PART_SIZE) + 1);
           setProgress({
             done,
             total,
@@ -158,48 +192,55 @@ export function CatalogoPdfPanel({
       setParts(out);
       return out;
     } catch (e: any) {
-      toast({
-        title: "Error al generar el PDF",
-        description: e?.message ?? "Intentá con menos productos",
-        variant: "destructive",
-      });
+      if (e instanceof CatalogAbortError || e?.name === "CatalogAbortError") {
+        toast({ title: "Generación cancelada" });
+      } else {
+        toast({
+          title: "Error al generar el PDF",
+          description: e?.message ?? "Probá desactivar las fotos",
+          variant: "destructive",
+        });
+      }
       return null;
     } finally {
+      abortRef.current = null;
       setProgress(null);
     }
   };
 
-  const downloadParts = (list: CatalogPart[]) => {
-    list.forEach((part, i) => {
-      setTimeout(() => {
-        const url = URL.createObjectURL(part.blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = part.fileName;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 4000);
-      }, i * 700);
-    });
+  const saveFile = (part: CatalogPart) => {
+    const url = URL.createObjectURL(part.blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = part.fileName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 8000);
   };
 
   const download = async () => {
-    const out = parts ?? (await generate());
+    if (parts?.length) {
+      parts.forEach((p, i) => setTimeout(() => saveFile(p), i * 700));
+      toast({
+        title: parts.length > 1 ? `Catálogo en ${parts.length} archivos` : "Catálogo generado",
+        description: `${products.length.toLocaleString("de-DE")} productos`,
+      });
+      return;
+    }
+    // entrega incremental: cada archivo se descarga apenas está listo
+    const out = await generate((part) => saveFile(part));
     if (!out?.length) return;
-    downloadParts(out);
     toast({
       title: out.length > 1 ? `Catálogo en ${out.length} archivos` : "Catálogo generado",
-      description: `${products.length} productos`,
+      description: `${products.length.toLocaleString("de-DE")} productos`,
     });
   };
 
   const share = async () => {
     const out = parts ?? (await generate());
     if (!out?.length) return;
-    const files = out.map(
-      (p) => new File([p.blob], p.fileName, { type: "application/pdf" })
-    );
+    const files = out.map((p) => new File([p.blob], p.fileName, { type: "application/pdf" }));
     const nav = navigator as Navigator & { canShare?: (d: any) => boolean };
     const text = customer.name ? `Catálogo para ${customer.name}` : "Catálogo SANSEI";
 
@@ -212,11 +253,10 @@ export function CatalogoPdfPanel({
       }
     }
 
-    // El dispositivo no soporta compartir varios archivos: comparto el primero y descargo el resto
     if (files.length > 1 && nav.share && nav.canShare?.({ files: [files[0]] })) {
       try {
         await nav.share({ files: [files[0]], title: "Catálogo SANSEI", text });
-        downloadParts(out.slice(1));
+        out.slice(1).forEach((p, i) => setTimeout(() => saveFile(p), i * 700));
         toast({
           title: "Compartida la Parte 1",
           description: `Las otras ${out.length - 1} parte(s) se descargaron para enviarlas aparte.`,
@@ -229,7 +269,6 @@ export function CatalogoPdfPanel({
 
     await download();
   };
-
 
   const busy = loading || progress !== null;
 
@@ -247,28 +286,40 @@ export function CatalogoPdfPanel({
           </DialogDescription>
         </DialogHeader>
 
-        {overLimit && (
-          <Alert variant="destructive">
-            <AlertTriangle className="h-4 w-4" />
+        {partCount > 1 && (
+          <Alert>
+            <Info className="h-4 w-4" />
             <AlertDescription className="text-xs">
-              Seleccionaste {selectedIds.length.toLocaleString("de-DE")} productos. El máximo es{" "}
-              {CATALOG_PDF_HARD_MAX}: se incluyen los primeros según el orden elegido. Afiná el
-              filtro por categoría o marca para no dejar productos afuera.
+              Se generarán {partCount} archivos de hasta {CATALOG_PDF_PART_SIZE} productos (
+              {partSizes.slice(0, 4).join(" + ")}
+              {partSizes.length > 4 ? " + ..." : ""}). Cada uno indica "Parte X de {partCount}".
             </AlertDescription>
           </Alert>
         )}
 
-        {!overLimit && partCount > 1 && (
+        {showImages && sortedPreview.length >= CATALOG_SUGGEST_NO_IMG_FROM && (
           <Alert>
-            <Info className="h-4 w-4" />
+            <Zap className="h-4 w-4" />
             <AlertDescription className="text-xs">
-              Se generarán {partCount} archivos ({partSizes.join(" + ")} productos). Cada uno indica
-              "Parte X de {partCount}".
+              Con fotos va a tardar ≈ {fmtEta(etaSeconds)}. Sin fotos son ≈ {fmtEta(etaNoImg)} y el
+              archivo queda mucho más liviano para WhatsApp.
             </AlertDescription>
           </Alert>
         )}
 
         <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <Label htmlFor="pdf-images" className="text-sm">
+                Incluir fotos
+              </Label>
+              <p className="text-[11px] text-muted-foreground">
+                Sin fotos: lista compacta y rápida
+              </p>
+            </div>
+            <Switch id="pdf-images" checked={showImages} onCheckedChange={setShowImages} />
+          </div>
+
           <div className="flex items-center justify-between">
             <Label htmlFor="pdf-prices" className="text-sm">
               Mostrar precios
@@ -317,49 +368,56 @@ export function CatalogoPdfPanel({
 
           <div className="space-y-2">
             <p className="text-xs font-medium text-muted-foreground">
-              Selección ({sortedPreview.length.toLocaleString("de-DE")} cargados)
+              Selección ({sortedPreview.length.toLocaleString("de-DE")} cargados) · tiempo estimado ≈{" "}
+              {fmtEta(etaSeconds)}
             </p>
             <div className="max-h-52 overflow-y-auto border rounded-md divide-y">
               {loading && <p className="text-xs text-muted-foreground p-3">Cargando productos...</p>}
               {!loading &&
-                sortedPreview.map((p, idx) => (
+                sortedPreview.slice(0, 300).map((p, idx) => (
                   <Fragment key={p.id}>
-                  {partCount > 1 && idx % CATALOG_PDF_PART_SIZE === 0 && (
-                    <div className="sticky top-0 bg-muted/80 backdrop-blur px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-primary">
-                      Parte {Math.floor(idx / CATALOG_PDF_PART_SIZE) + 1} de {partCount}
+                    {partCount > 1 && idx % CATALOG_PDF_PART_SIZE === 0 && (
+                      <div className="sticky top-0 bg-muted/80 backdrop-blur px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                        Parte {Math.floor(idx / CATALOG_PDF_PART_SIZE) + 1} de {partCount}
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2 p-2">
+                      <div className="h-9 w-9 shrink-0 rounded bg-muted flex items-center justify-center overflow-hidden">
+                        {p.image_url ? (
+                          <img
+                            src={proxyImageUrl(p.image_url)}
+                            alt={p.name}
+                            className="h-full w-full object-cover"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <ImageOff className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-medium line-clamp-1">{p.name}</p>
+                        <p className="text-[11px] text-muted-foreground">
+                          {p.bims_code} · {formatGs(resolvePrice(p, customer.priceListId, 1))}
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 shrink-0"
+                        aria-label={`Quitar ${p.name}`}
+                        onClick={() => onRemoveId(p.id)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
                     </div>
-                  )}
-                  <div className="flex items-center gap-2 p-2">
-                    <div className="h-9 w-9 shrink-0 rounded bg-muted flex items-center justify-center overflow-hidden">
-                      {p.image_url ? (
-                        <img
-                          src={proxyImageUrl(p.image_url)}
-                          alt={p.name}
-                          className="h-full w-full object-cover"
-                          loading="lazy"
-                        />
-                      ) : (
-                        <ImageOff className="h-4 w-4 text-muted-foreground" />
-                      )}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-medium line-clamp-1">{p.name}</p>
-                      <p className="text-[11px] text-muted-foreground">
-                        {p.bims_code} · {formatGs(resolvePrice(p, customer.priceListId, 1))}
-                      </p>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 shrink-0"
-                      aria-label={`Quitar ${p.name}`}
-                      onClick={() => onRemoveId(p.id)}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
                   </Fragment>
                 ))}
+              {!loading && sortedPreview.length > 300 && (
+                <p className="text-[11px] text-muted-foreground p-3">
+                  + {(sortedPreview.length - 300).toLocaleString("de-DE")} productos más (se incluyen
+                  todos en el PDF)
+                </p>
+              )}
               {!loading && sortedPreview.length === 0 && (
                 <p className="text-xs text-muted-foreground p-3">Sin productos seleccionados</p>
               )}
@@ -369,18 +427,26 @@ export function CatalogoPdfPanel({
           {progress && (
             <div className="space-y-1">
               <Progress value={(progress.done / Math.max(1, progress.total)) * 100} />
-              <p className="text-xs text-muted-foreground">
-                {progress.part ?? ""}Preparando imágenes {progress.done} / {progress.total}
-              </p>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs text-muted-foreground">
+                  {progress.part ?? ""}
+                  {showImages ? "Preparando fotos" : "Armando lista"} {progress.done} /{" "}
+                  {progress.total}
+                </p>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => abortRef.current?.abort()}
+                >
+                  Cancelar
+                </Button>
+              </div>
             </div>
           )}
 
           <div className="flex gap-2">
-            <Button
-              className="flex-1"
-              onClick={share}
-              disabled={busy || sortedPreview.length === 0}
-            >
+            <Button className="flex-1" onClick={share} disabled={busy || sortedPreview.length === 0}>
               <Share2 className="h-4 w-4 mr-1.5" />
               Compartir
             </Button>
