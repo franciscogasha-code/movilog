@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { ShoppingCart, User, Package, ListTodo, AlertCircle, Eye, EyeOff } from "lucide-react";
+import { ShoppingCart, User, Package, ListTodo, AlertCircle, Eye, EyeOff, FileText } from "lucide-react";
 import { SalesPresentationProvider, useSalesPresentation } from "@/contexts/SalesPresentationContext";
 import { ClientePicker } from "@/components/ventas/ClientePicker";
 import { CatalogoGrid } from "@/components/ventas/CatalogoGrid";
