@@ -30,33 +30,39 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-    // Verify caller identity
-    const callerClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
-    const { data: claimsData, error: claimsError } = await callerClient.auth.getClaims(
-      authHeader.replace("Bearer ", "")
-    );
-    if (claimsError || !claimsData?.claims?.sub) {
-      return new Response(JSON.stringify({ error: "Invalid token" }), {
+    const adminClient = createClient(supabaseUrl, serviceRoleKey);
+
+    // Verify caller identity (service-role validation of the bearer token)
+    const token = authHeader.replace("Bearer ", "").trim();
+    const { data: userData, error: userError } = await adminClient.auth.getUser(token);
+    if (userError || !userData?.user?.id) {
+      console.error("auth.getUser failed:", userError?.message);
+      return new Response(JSON.stringify({ error: "Sesión inválida o expirada. Volvé a iniciar sesión." }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const callerId = claimsData.claims.sub;
+    const callerId = userData.user.id;
 
     // Verify caller is admin or owner
-    const adminClient = createClient(supabaseUrl, serviceRoleKey);
-    const { data: callerRoles } = await adminClient
+    const { data: callerRoles, error: rolesError } = await adminClient
       .from("user_roles")
       .select("role")
       .eq("user_id", callerId)
       .in("role", ["admin", "owner"]);
 
+    if (rolesError) {
+      console.error("roles lookup failed:", rolesError.message);
+      return new Response(
+        JSON.stringify({ error: `No se pudieron verificar tus permisos: ${rolesError.message}` }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     if (!callerRoles || callerRoles.length === 0) {
+      console.error("caller without admin/owner role:", callerId);
       return new Response(
         JSON.stringify({ error: "Solo administradores o propietarios pueden restablecer contraseñas" }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }

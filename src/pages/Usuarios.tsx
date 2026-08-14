@@ -622,7 +622,18 @@ export default function Usuarios() {
       const res = await supabase.functions.invoke("reset-user-password", {
         body: { target_user_id: selectedProfile.user_id },
       });
-      if (res.error) throw new Error(res.error.message || "Error al restablecer");
+      if (res.error) {
+        // Surface the real server message instead of a generic "non-2xx" error
+        let detail = res.error.message || "Error al restablecer";
+        try {
+          const ctx = (res.error as any).context;
+          if (ctx && typeof ctx.json === "function") {
+            const body = await ctx.json();
+            if (body?.error) detail = body.error;
+          }
+        } catch { /* ignore parse errors */ }
+        throw new Error(detail);
+      }
       const result = res.data as { success?: boolean; temp_password?: string; error?: string };
       if (result.error) throw new Error(result.error);
       if (!result.temp_password) throw new Error("No se recibió contraseña temporal");
