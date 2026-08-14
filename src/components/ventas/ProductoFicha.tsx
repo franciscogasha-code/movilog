@@ -26,7 +26,7 @@ import { useSalesPresentation } from "@/contexts/SalesPresentationContext";
 
 const QUICK_STEPS = [6, 12, 24];
 
-type StockRow = { key: string; name: string; qty: number };
+type StockRow = { key: string; name: string; qty: number; unknown: boolean };
 
 export function ProductoFicha({
   product,
@@ -105,11 +105,18 @@ export function ProductoFicha({
       (live?.stock_by_warehouse as Record<string, number> | undefined) ??
       ((product.stock_by_warehouse as Record<string, number> | null) ?? {});
     return Object.entries(source)
-      .map(([key, value]) => ({
-        key,
-        name: branchNameByCode.get(String(key)) ?? `Depósito ${key}`,
-        qty: Number(value) || 0,
-      }))
+      .filter(([key]) => !!key && key !== "undefined" && key !== "null" && key.trim() !== "")
+      .map(([key, value]) => {
+        const known = branchNameByCode.get(String(key));
+        return {
+          key,
+          name: known ?? `Depósito ERP ${key}`,
+          qty: Number(value) || 0,
+          unknown: !known,
+        };
+      })
+      // Depósitos que no son sucursales registradas y no tienen stock: puro ruido
+      .filter((r) => !(r.unknown && r.qty <= 0))
       .sort((a, b) => b.qty - a.qty || a.name.localeCompare(b.name, "es"));
   }, [product, live, branchNameByCode]);
 
@@ -242,7 +249,14 @@ export function ProductoFicha({
                           key={row.key}
                           className="flex items-center justify-between px-3 py-1.5 text-sm"
                         >
-                          <span className="truncate pr-2">{row.name}</span>
+                          <span className="truncate pr-2 flex items-center gap-1.5 min-w-0">
+                            <span className="truncate">{row.name}</span>
+                            {row.unknown && (
+                              <Badge variant="outline" className="shrink-0 text-[10px] px-1 py-0 h-4 font-normal">
+                                depósito ERP
+                              </Badge>
+                            )}
+                          </span>
                           <span
                             className={cn(
                               "font-semibold tabular-nums",

@@ -215,7 +215,7 @@ export function ProductCard({
 
   const getWarehouseBranchName = (warehouseId: string): string => {
     const branch = branches?.find(b => b.code === warehouseId);
-    return branch?.name || `Depósito ${warehouseId}`;
+    return branch?.name || `Depósito ERP ${warehouseId}`;
   };
 
   const getBranchIdByCode = (warehouseId: string): string | null => {
@@ -224,7 +224,12 @@ export function ProductCard({
   };
 
   const filteredStockEntries = effectiveStockByWarehouse
-    ? Object.entries(effectiveStockByWarehouse).filter(([key]) => isValidWarehouseKey(key))
+    ? Object.entries(effectiveStockByWarehouse).filter(([key, value]) => {
+        if (!isValidWarehouseKey(key)) return false;
+        // Depósitos internos del ERP sin sucursal registrada y sin stock: no aportan
+        const isKnown = !!branches?.find((b) => b.code === key);
+        return isKnown || (Number(value) || 0) > 0;
+      })
     : [];
   const hasStock = filteredStockEntries.length > 0;
   const hasPrice = productSellPrice != null && productSellPrice > 0;
