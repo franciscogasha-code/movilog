@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Dialog,
@@ -20,13 +20,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { FileText, Share2, Download, X, AlertTriangle, ImageOff } from "lucide-react";
+import { FileText, Share2, Download, X, AlertTriangle, ImageOff, Info } from "lucide-react";
 import { proxyImageUrl } from "@/lib/image-utils";
 import { formatGs, resolvePrice, ProductRow } from "@/lib/ventas";
 import {
-  buildCatalogPdf,
-  catalogFileName,
-  CATALOG_PDF_MAX_ITEMS,
+  buildCatalogPdfParts,
+  sortCatalogProducts,
+  CATALOG_PDF_PART_SIZE,
+  CATALOG_PDF_HARD_MAX,
+  CatalogPart,
   CatalogSort,
 } from "@/lib/catalogo-pdf";
 import { useToast } from "@/hooks/use-toast";
@@ -61,10 +63,12 @@ export function CatalogoPdfPanel({
   const [showScales, setShowScales] = useState(true);
   const [sortBy, setSortBy] = useState<CatalogSort>("category");
   const [note, setNote] = useState("");
-  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
-  const [blob, setBlob] = useState<Blob | null>(null);
+  const [progress, setProgress] = useState<{ done: number; total: number; part?: string } | null>(
+    null
+  );
+  const [parts, setParts] = useState<CatalogPart[] | null>(null);
 
-  const overLimit = selectedIds.length > CATALOG_PDF_MAX_ITEMS;
+  const overLimit = selectedIds.length > CATALOG_PDF_HARD_MAX;
 
   useEffect(() => {
     if (!open) return;
@@ -72,7 +76,7 @@ export function CatalogoPdfPanel({
     (async () => {
       setLoading(true);
       try {
-        const ids = selectedIds.slice(0, CATALOG_PDF_MAX_ITEMS);
+        const ids = selectedIds.slice(0, CATALOG_PDF_HARD_MAX);
         const rows: ProductRow[] = [];
         for (let i = 0; i < ids.length; i += BATCH) {
           const chunk = ids.slice(i, i + BATCH);
@@ -102,18 +106,31 @@ export function CatalogoPdfPanel({
 
   useEffect(() => {
     if (!open) {
-      setBlob(null);
+      setParts(null);
       setProgress(null);
     }
   }, [open]);
 
-  const sortedPreview = useMemo(() => products, [products]);
+  // invalidar PDFs ya generados si cambian las opciones
+  useEffect(() => {
+    setParts(null);
+  }, [products, showPrices, showScales, sortBy, note, customer.priceListId]);
 
-  const generate = async (): Promise<Blob | null> => {
+  const sortedPreview = useMemo(
+    () => sortCatalogProducts(products, sortBy, customer.priceListId),
+    [products, sortBy, customer.priceListId]
+  );
+
+  const partCount = Math.max(1, Math.ceil(sortedPreview.length / CATALOG_PDF_PART_SIZE));
+  const partSizes = Array.from({ length: partCount }, (_, i) =>
+    Math.max(0, Math.min(CATALOG_PDF_PART_SIZE, sortedPreview.length - i * CATALOG_PDF_PART_SIZE))
+  );
+
+  const generate = async (): Promise<CatalogPart[] | null> => {
     if (products.length === 0) return null;
     setProgress({ done: 0, total: products.length });
     try {
-      const out = await buildCatalogPdf({
+      const out = await buildCatalogPdfParts({
         products,
         customer: customer.name.trim()
           ? {
@@ -129,9 +146,16 @@ export function CatalogoPdfPanel({
         showScales,
         sortBy,
         note,
-        onProgress: (done, total) => setProgress({ done, total }),
+        onProgress: (done, total) => {
+          const idx = Math.min(partCount, Math.floor((done - 1) / CATALOG_PDF_PART_SIZE) + 1);
+          setProgress({
+            done,
+            total,
+            part: partCount > 1 ? `Parte ${idx} de ${partCount} · ` : undefined,
+          });
+        },
       });
-      setBlob(out);
+      setParts(out);
       return out;
     } catch (e: any) {
       toast({
@@ -145,39 +169,67 @@ export function CatalogoPdfPanel({
     }
   };
 
+  const downloadParts = (list: CatalogPart[]) => {
+    list.forEach((part, i) => {
+      setTimeout(() => {
+        const url = URL.createObjectURL(part.blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = part.fileName;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 4000);
+      }, i * 700);
+    });
+  };
+
   const download = async () => {
-    const out = blob ?? (await generate());
-    if (!out) return;
-    const url = URL.createObjectURL(out);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = catalogFileName(customer.name);
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 4000);
-    toast({ title: "Catálogo generado", description: `${products.length} productos` });
+    const out = parts ?? (await generate());
+    if (!out?.length) return;
+    downloadParts(out);
+    toast({
+      title: out.length > 1 ? `Catálogo en ${out.length} archivos` : "Catálogo generado",
+      description: `${products.length} productos`,
+    });
   };
 
   const share = async () => {
-    const out = blob ?? (await generate());
-    if (!out) return;
-    const file = new File([out], catalogFileName(customer.name), { type: "application/pdf" });
+    const out = parts ?? (await generate());
+    if (!out?.length) return;
+    const files = out.map(
+      (p) => new File([p.blob], p.fileName, { type: "application/pdf" })
+    );
     const nav = navigator as Navigator & { canShare?: (d: any) => boolean };
-    if (nav.share && nav.canShare?.({ files: [file] })) {
+    const text = customer.name ? `Catálogo para ${customer.name}` : "Catálogo SANSEI";
+
+    if (nav.share && nav.canShare?.({ files })) {
       try {
-        await nav.share({
-          files: [file],
-          title: "Catálogo SANSEI",
-          text: customer.name ? `Catálogo para ${customer.name}` : "Catálogo SANSEI",
-        });
+        await nav.share({ files, title: "Catálogo SANSEI", text });
         return;
       } catch {
         /* usuario canceló o falló: caemos a descarga */
       }
     }
+
+    // El dispositivo no soporta compartir varios archivos: comparto el primero y descargo el resto
+    if (files.length > 1 && nav.share && nav.canShare?.({ files: [files[0]] })) {
+      try {
+        await nav.share({ files: [files[0]], title: "Catálogo SANSEI", text });
+        downloadParts(out.slice(1));
+        toast({
+          title: "Compartida la Parte 1",
+          description: `Las otras ${out.length - 1} parte(s) se descargaron para enviarlas aparte.`,
+        });
+        return;
+      } catch {
+        /* fallback general */
+      }
+    }
+
     await download();
   };
+
 
   const busy = loading || progress !== null;
 
@@ -199,8 +251,19 @@ export function CatalogoPdfPanel({
           <Alert variant="destructive">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription className="text-xs">
-              Seleccionaste {selectedIds.length.toLocaleString("de-DE")} productos. El catálogo
-              incluye los primeros {CATALOG_PDF_MAX_ITEMS} según el orden elegido.
+              Seleccionaste {selectedIds.length.toLocaleString("de-DE")} productos. El máximo es{" "}
+              {CATALOG_PDF_HARD_MAX}: se incluyen los primeros según el orden elegido. Afiná el
+              filtro por categoría o marca para no dejar productos afuera.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {!overLimit && partCount > 1 && (
+          <Alert>
+            <Info className="h-4 w-4" />
+            <AlertDescription className="text-xs">
+              Se generarán {partCount} archivos ({partSizes.join(" + ")} productos). Cada uno indica
+              "Parte X de {partCount}".
             </AlertDescription>
           </Alert>
         )}
@@ -259,8 +322,14 @@ export function CatalogoPdfPanel({
             <div className="max-h-52 overflow-y-auto border rounded-md divide-y">
               {loading && <p className="text-xs text-muted-foreground p-3">Cargando productos...</p>}
               {!loading &&
-                sortedPreview.map((p) => (
-                  <div key={p.id} className="flex items-center gap-2 p-2">
+                sortedPreview.map((p, idx) => (
+                  <Fragment key={p.id}>
+                  {partCount > 1 && idx % CATALOG_PDF_PART_SIZE === 0 && (
+                    <div className="sticky top-0 bg-muted/80 backdrop-blur px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                      Parte {Math.floor(idx / CATALOG_PDF_PART_SIZE) + 1} de {partCount}
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2 p-2">
                     <div className="h-9 w-9 shrink-0 rounded bg-muted flex items-center justify-center overflow-hidden">
                       {p.image_url ? (
                         <img
@@ -289,6 +358,7 @@ export function CatalogoPdfPanel({
                       <X className="h-4 w-4" />
                     </Button>
                   </div>
+                  </Fragment>
                 ))}
               {!loading && sortedPreview.length === 0 && (
                 <p className="text-xs text-muted-foreground p-3">Sin productos seleccionados</p>
@@ -300,7 +370,7 @@ export function CatalogoPdfPanel({
             <div className="space-y-1">
               <Progress value={(progress.done / Math.max(1, progress.total)) * 100} />
               <p className="text-xs text-muted-foreground">
-                Preparando imágenes {progress.done} / {progress.total}
+                {progress.part ?? ""}Preparando imágenes {progress.done} / {progress.total}
               </p>
             </div>
           )}
@@ -321,7 +391,7 @@ export function CatalogoPdfPanel({
               disabled={busy || sortedPreview.length === 0}
             >
               <Download className="h-4 w-4 mr-1.5" />
-              Descargar
+              {partCount > 1 ? `Descargar ${partCount} archivos` : "Descargar"}
             </Button>
           </div>
         </div>
