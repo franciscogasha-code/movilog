@@ -390,7 +390,9 @@ export function CatalogoPdfPanel({
                             alt={p.name}
                             className="h-full w-full object-cover"
                             loading="lazy"
+                            crossOrigin="anonymous"
                           />
+
                         ) : (
                           <ImageOff className="h-4 w-4 text-muted-foreground" />
                         )}

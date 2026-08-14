@@ -465,7 +465,9 @@ export function CatalogoGrid({
                     alt={p.name}
                     className="w-full h-full object-cover"
                     loading="lazy"
+                    crossOrigin="anonymous"
                   />
+
                 ) : (
                   <ImageOff className="h-8 w-8 text-muted-foreground" />
                 )}
