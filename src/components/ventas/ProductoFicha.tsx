@@ -105,11 +105,18 @@ export function ProductoFicha({
       (live?.stock_by_warehouse as Record<string, number> | undefined) ??
       ((product.stock_by_warehouse as Record<string, number> | null) ?? {});
     return Object.entries(source)
-      .map(([key, value]) => ({
-        key,
-        name: branchNameByCode.get(String(key)) ?? `Depósito ${key}`,
-        qty: Number(value) || 0,
-      }))
+      .filter(([key]) => !!key && key !== "undefined" && key !== "null" && key.trim() !== "")
+      .map(([key, value]) => {
+        const known = branchNameByCode.get(String(key));
+        return {
+          key,
+          name: known ?? `Depósito ERP ${key}`,
+          qty: Number(value) || 0,
+          unknown: !known,
+        };
+      })
+      // Depósitos que no son sucursales registradas y no tienen stock: puro ruido
+      .filter((r) => !(r.unknown && r.qty <= 0))
       .sort((a, b) => b.qty - a.qty || a.name.localeCompare(b.name, "es"));
   }, [product, live, branchNameByCode]);
 
