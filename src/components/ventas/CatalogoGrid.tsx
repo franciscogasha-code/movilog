@@ -165,8 +165,25 @@ export function CatalogoGrid({
     return () => io.disconnect();
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
+  const selectAllFiltered = async () => {
+    if (!onSelectManyIds) return;
+    setSelectingAll(true);
+    try {
+      const q = applyFilters(supabase.from("products").select("id"))
+        .order("name", { ascending: true })
+        .limit(MAX_SELECT_ALL);
+      const { data, error } = await q;
+      if (error) throw error;
+      onSelectManyIds(((data ?? []) as { id: string }[]).map((r) => r.id));
+    } finally {
+      setSelectingAll(false);
+    }
+  };
+
+  const selectedCount = selectedIds?.size ?? 0;
 
   return (
+
     <div className="space-y-4">
       <div className="flex items-center gap-2">
         <div className="relative flex-1">
