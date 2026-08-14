@@ -1,0 +1,1 @@
+UPDATE public.branches SET is_active = false, name = 'Depósito ERP sin identificar' WHERE id = '8b507608-798b-410f-b3f6-08a524ca7531';
