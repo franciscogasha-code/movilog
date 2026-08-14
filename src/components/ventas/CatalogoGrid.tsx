@@ -267,7 +267,7 @@ export function CatalogoGrid({
       el.removeEventListener("scroll", save);
       window.clearTimeout(timer);
     };
-  }, [viewHydrated, pagesLoaded, scrollStateKey]);
+  }, [viewHydrated, restored, pagesLoaded, scrollStateKey]);
 
   // Cambiar filtros reinicia el punto guardado
   useEffect(() => {
