@@ -10,6 +10,10 @@ import { formatGs } from "@/lib/ventas";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import type { CartItem, CartCustomer } from "@/hooks/use-sales-cart";
+import { enqueuePreSale, processEntry } from "@/lib/sales-outbox";
+import { useOnlineStatus } from "@/hooks/use-online-status";
+import { useIdbState } from "@/hooks/use-idb-state";
+import { WifiOff } from "lucide-react";
 
 const SHIPPING_METHODS = [
   { value: "own_fleet", label: "Flota propia" },
@@ -33,11 +37,14 @@ export function ConfirmarVenta({
 }) {
   const { user, profile, branchAccess, allowedBranchIds } = useAuth();
   const { toast } = useToast();
+  const online = useOnlineStatus();
   const [shippingMethod, setShippingMethod] = useState<string>("own_fleet");
   const [paymentMethod, setPaymentMethod] = useState<string>("contado");
   const [notes, setNotes] = useState("");
   const [shippingCost, setShippingCost] = useState<string>("");
   const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
+  // Última sucursal usada: queda en el dispositivo para poder cerrar pedidos sin señal
+  const [lastBranchId, setLastBranchId] = useIdbState<string | null>("ventas-last-branch", null);
 
   const total = items.reduce((sum, i) => sum + i.quantity * i.unitPrice, 0);
 
@@ -67,8 +74,12 @@ export function ConfirmarVenta({
       setSelectedBranchId(profile.default_branch_id);
     } else if (allowedBranches && allowedBranches.length === 1) {
       setSelectedBranchId(allowedBranches[0].id);
+    } else if (lastBranchId) {
+      setSelectedBranchId(lastBranchId);
+    } else if (allowedBranchIds.length === 1) {
+      setSelectedBranchId(allowedBranchIds[0]);
     }
-  }, [open, profile?.default_branch_id, allowedBranches]);
+  }, [open, profile?.default_branch_id, allowedBranches, lastBranchId, allowedBranchIds]);
 
   const createOrder = useMutation({
     mutationFn: async () => {
@@ -77,109 +88,46 @@ export function ConfirmarVenta({
       if (items.length === 0) throw new Error("Carrito vacío");
       if (!customer.name.trim()) throw new Error("Falta el cliente");
 
-      // Crear el cliente manual si no existe en sales_customers
-      let customerId = customer.id;
-      if (!customerId) {
-        const { data: existing, error: searchError } = await supabase
-          .from("sales_customers")
-          .select("id")
-          .eq("name", customer.name.trim())
-          .eq("source", "manual")
-          .maybeSingle();
-        if (searchError) throw searchError;
+      // 1) Siempre se guarda primero en el dispositivo
+      setLastBranchId(selectedBranchId);
 
-        if (existing?.id) {
-          customerId = existing.id;
-        } else {
-          const { data: created, error: createError } = await supabase
-            .from("sales_customers")
-            .insert({
-              name: customer.name.trim(),
-              ruc: customer.ruc || null,
-              phone: customer.phone || null,
-              email: customer.email || null,
-              address: customer.address || null,
-              source: "manual",
-              created_by: user.id,
-            })
-            .select("id")
-            .single();
-          if (createError) throw createError;
-          customerId = created.id;
-        }
-      }
-
-      // Crear el branch_requests como pre_sale_online
-      const { data: order, error: orderError } = await supabase
-        .from("branch_requests")
-        .insert({
-          request_type: "pre_sale_online",
-          requesting_branch_id: selectedBranchId,
-          source_branch_id: selectedBranchId,
-          delivery_target: "client",
-          shipping_method: shippingMethod as any,
-          shipping_cost: shippingCost ? Number(shippingCost) : null,
-          client_name: customer.name.trim(),
-          client_phone: customer.phone || null,
-          client_email: customer.email || null,
-          client_address: customer.address || null,
-          is_pre_sale: true,
-          pre_sale_status: "confirmed",
-          pre_sale_confirmed_at: new Date().toISOString(),
-          sales_channel: "vendedor_externo",
-          commercial_terms: `Pago: ${paymentMethod}. Notas: ${notes || "-"}`,
-          notes: notes || null,
-          status: "draft",
-          created_by: user.id,
-        })
-        .select("id")
-        .single();
-      if (orderError) throw orderError;
-
-      // Crear ítems
-      const orderItems = items.map((item) => ({
-        request_id: order.id,
-        product_id: item.productId,
-        quantity_requested: item.quantity,
-        quantity_unfulfilled: 0,
-        quantity_accepted: 0,
-        quantity_picked: 0,
-        quantity_received: 0,
-        quantity_shipped: 0,
-        local_supply_qty: 0,
-        item_purpose: "client" as const,
-        notes: item.notes || null,
-      }));
-
-      const { error: itemsError } = await supabase.from("branch_request_items").insert(orderItems);
-      if (itemsError) throw itemsError;
-
-      // Guardar borrador en sales_carts para trazabilidad del vendedor
-      await supabase.from("sales_carts").insert({
-        salesperson_id: user.id,
-        customer_id: customerId,
-        client_name: customer.name.trim(),
-        client_phone: customer.phone || null,
-        client_email: customer.email || null,
-        client_address: customer.address || null,
-        notes: notes || null,
-        sales_channel: "vendedor_externo",
-        status: "submitted",
+      const entry = await enqueuePreSale({
+        customer,
+        items,
+        branchId: selectedBranchId,
+        shippingMethod,
+        paymentMethod,
+        shippingCost: shippingCost ? Number(shippingCost) : null,
+        notes,
+        userId: user.id,
       });
 
-      return order.id;
+      // 2) Si hay señal, se intenta enviar de inmediato
+      if (!navigator.onLine) return { queued: true as const };
+      const result = await processEntry(entry);
+      if (!result.ok) return { queued: true as const, error: result.error };
+      return { queued: false as const };
     },
-    onSuccess: (orderId) => {
-      toast({
-        title: "Pre-venta creada",
-        description: `N° ${orderId.slice(0, 8)}. El pedido pasó a preparación.`,
-      });
+    onSuccess: (result) => {
+      if (result.queued) {
+        toast({
+          title: result.error ? "Pedido guardado, pendiente de envío" : "Pedido guardado sin conexión",
+          description: result.error
+            ? `No se pudo enviar ahora (${result.error}). Queda en "Pendientes de envío" y se reintenta solo.`
+            : "Se va a enviar automáticamente cuando vuelva la conexión. Podés verlo en \"Pendientes de envío\".",
+        });
+      } else {
+        toast({
+          title: "Pre-venta creada",
+          description: "El pedido pasó a preparación.",
+        });
+      }
       onSuccess();
       onOpenChange(false);
     },
     onError: (error) => {
       toast({
-        title: "Error al crear pre-venta",
+        title: "Error al confirmar",
         description: error instanceof Error ? error.message : "Ocurrió un error",
         variant: "destructive",
       });
@@ -288,12 +236,32 @@ export function ConfirmarVenta({
             <span>{formatGs(total + (Number(shippingCost) || 0))}</span>
           </div>
 
+          {!online && (
+            <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs">
+              <WifiOff className="h-4 w-4 shrink-0 mt-0.5 text-amber-500" />
+              <span>
+                Estás sin conexión. El pedido se guarda en el dispositivo y se envía solo cuando
+                vuelva la señal. No se pierde nada.
+              </span>
+            </div>
+          )}
+
+          {!selectedBranchId && (
+            <p className="text-xs text-destructive">
+              Elegí la sucursal de origen para poder guardar el pedido.
+            </p>
+          )}
+
           <Button
             className="w-full"
             onClick={() => createOrder.mutate()}
             disabled={createOrder.isPending || !selectedBranchId}
           >
-            {createOrder.isPending ? "Creando..." : "Crear pre-venta"}
+            {createOrder.isPending
+              ? "Guardando..."
+              : online
+                ? "Crear pre-venta"
+                : "Guardar pedido"}
           </Button>
         </div>
       </DialogContent>

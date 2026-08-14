@@ -1,5 +1,6 @@
-import { useState, useCallback } from "react";
+import { useCallback } from "react";
 import type { PriceScale } from "@/lib/ventas";
+import { useIdbState } from "@/hooks/use-idb-state";
 
 export type CartItem = {
   productId: string;
@@ -37,8 +38,8 @@ export function priceForQuantity(item: CartItem, quantity: number): number {
   return scale?.price ?? item.basePrice;
 }
 
-export function useSalesCart() {
-  const [items, setItems] = useState<CartItem[]>([]);
+export function useSalesCart(storageKey = "sales-cart") {
+  const [items, setItems, hydrated] = useIdbState<CartItem[]>(storageKey, []);
 
   const addItem = useCallback((item: CartItem) => {
     setItems((prev) => {
@@ -87,6 +88,7 @@ export function useSalesCart() {
 
   return {
     items,
+    hydrated,
     addItem,
     updateQuantity,
     updateNotes,
