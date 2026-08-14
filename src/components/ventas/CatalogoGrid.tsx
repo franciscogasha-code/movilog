@@ -297,10 +297,25 @@ export function CatalogoGrid({
       )}
 
       {!isLoading && products.length > 0 && (
-        <p className="text-xs text-muted-foreground">
-          Mostrando {products.length.toLocaleString("de-DE")} de{" "}
-          {totalCount.toLocaleString("de-DE")} productos
-        </p>
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <p className="text-xs text-muted-foreground">
+            Mostrando {products.length.toLocaleString("de-DE")} de{" "}
+            {totalCount.toLocaleString("de-DE")} productos
+          </p>
+          {selectionMode && onSelectManyIds && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={selectingAll}
+              onClick={selectAllFiltered}
+            >
+              {selectingAll
+                ? "Seleccionando..."
+                : `Seleccionar todo el filtro (${Math.min(totalCount, MAX_SELECT_ALL).toLocaleString("de-DE")})`}
+            </Button>
+          )}
+        </div>
       )}
 
 
@@ -309,11 +324,18 @@ export function CatalogoGrid({
           const stock = resolveStock(p as ProductRow);
           const price = resolvePrice(p as ProductRow, customerPriceListId, 1);
           const inCart = cartItemIds.has(p.id);
+          const isSelected = selectedIds?.has(p.id) ?? false;
           return (
             <Card
               key={p.id}
-              className="overflow-hidden flex flex-col cursor-pointer hover:border-primary/50 transition-colors"
-              onClick={() => onAdd(p as ProductRow, 0)}
+              className={`overflow-hidden flex flex-col cursor-pointer transition-colors ${
+                selectionMode && isSelected
+                  ? "border-primary ring-2 ring-primary/30"
+                  : "hover:border-primary/50"
+              }`}
+              onClick={() =>
+                selectionMode ? onToggleSelect?.(p.id) : onAdd(p as ProductRow, 0)
+              }
             >
               <div className="aspect-square bg-muted flex items-center justify-center relative">
                 {p.image_url ? (
@@ -326,7 +348,19 @@ export function CatalogoGrid({
                 ) : (
                   <ImageOff className="h-8 w-8 text-muted-foreground" />
                 )}
-                {inCart && (
+                {selectionMode && (
+                  <span
+                    className={`absolute top-2 left-2 h-6 w-6 rounded-md border-2 flex items-center justify-center ${
+                      isSelected
+                        ? "bg-primary border-primary text-primary-foreground"
+                        : "bg-background/90 border-muted-foreground/40"
+                    }`}
+                    aria-hidden
+                  >
+                    {isSelected && <Check className="h-4 w-4" />}
+                  </span>
+                )}
+                {inCart && !selectionMode && (
                   <Badge className="absolute top-2 right-2 gap-1" variant="secondary" aria-label="Producto en carrito">
                     <Check className="h-3 w-3" />
                     En carrito
@@ -352,12 +386,26 @@ export function CatalogoGrid({
                   )}
                 </div>
 
-                <Button
-                  size="sm"
-                  className="w-full mt-3"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onAdd(p as ProductRow, 1);
+                {selectionMode ? (
+                  <Button
+                    size="sm"
+                    variant={isSelected ? "default" : "outline"}
+                    className="w-full mt-3"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onToggleSelect?.(p.id);
+                    }}
+                  >
+                    {isSelected ? "Quitar del catálogo" : "Agregar al catálogo"}
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    className="w-full mt-3"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onAdd(p as ProductRow, 1);
+
                   }}
                   disabled={stock <= 0}
                 >
