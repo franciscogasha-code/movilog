@@ -274,7 +274,7 @@ function VentasContent() {
       </div>
 
       {/* FAB flotante de carrito */}
-      {items.length > 0 && activeTab !== "carrito" && !cartOpen && !selectedProduct && (
+      {items.length > 0 && activeTab !== "carrito" && !cartOpen && !selectedProduct && !selectionMode && (
         <Button
           onClick={() => setCartOpen(true)}
           aria-label={`Abrir carrito: ${count} ítems, total ${total.toLocaleString("de-DE")}`}
