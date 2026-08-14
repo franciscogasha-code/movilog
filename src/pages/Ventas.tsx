@@ -14,6 +14,10 @@ import { ProductoFicha } from "@/components/ventas/ProductoFicha";
 import { CarritoPanel, CartItemRow } from "@/components/ventas/CarritoPanel";
 import { ConfirmarVenta } from "@/components/ventas/ConfirmarVenta";
 import { useSalesCart } from "@/hooks/use-sales-cart";
+import { useSalesOutbox } from "@/hooks/use-sales-outbox";
+import { useIdbState } from "@/hooks/use-idb-state";
+import { EstadoConexion } from "@/components/ventas/EstadoConexion";
+import { PendientesEnvio } from "@/components/ventas/PendientesEnvio";
 import { resolvePrice, getScales, ProductRow } from "@/lib/ventas";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -35,16 +39,21 @@ function VentasContent() {
   const [pdfOpen, setPdfOpen] = useState(false);
 
   const { items, addItem, updateQuantity, updateNotes, removeItem, clearCart, total, count } =
-    useSalesCart();
+    useSalesCart(user ? `sales-cart-${user.id}` : "sales-cart");
 
-  const [customer, setCustomer] = useState({
-    name: "",
-    phone: "",
-    email: "",
-    address: "",
-    ruc: "",
-    priceListId: null as string | null,
-  });
+  const { pending, online, syncing, retryOne, discard } = useSalesOutbox();
+
+  const [customer, setCustomer] = useIdbState(
+    user ? `sales-customer-${user.id}` : "sales-customer",
+    {
+      name: "",
+      phone: "",
+      email: "",
+      address: "",
+      ruc: "",
+      priceListId: null as string | null,
+    }
+  );
 
   const cartItemIds = new Set(items.map((i) => i.productId));
 
@@ -119,6 +128,12 @@ function VentasContent() {
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            <EstadoConexion
+              online={online}
+              pendingCount={pending.length}
+              syncing={syncing}
+              onClick={() => setActiveTab("pedidos")}
+            />
             {activeTab === "catalogo" && (
               <Button
                 variant={selectionMode ? "default" : "outline"}
@@ -250,6 +265,13 @@ function VentasContent() {
           </TabsContent>
 
           <TabsContent value="pedidos" className="mt-0">
+            <PendientesEnvio
+              entries={pending}
+              syncing={syncing}
+              online={online}
+              onRetry={retryOne}
+              onDiscard={discard}
+            />
             <div className="space-y-3">
               {(preSales ?? []).length === 0 && (
                 <p className="text-sm text-muted-foreground text-center py-8">

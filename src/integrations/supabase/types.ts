@@ -344,6 +344,7 @@ export type Database = {
           client_email: string | null
           client_name: string | null
           client_phone: string | null
+          client_uuid: string | null
           closed_at: string | null
           closed_by: string | null
           commercial_terms: string | null
@@ -405,6 +406,7 @@ export type Database = {
           client_email?: string | null
           client_name?: string | null
           client_phone?: string | null
+          client_uuid?: string | null
           closed_at?: string | null
           closed_by?: string | null
           commercial_terms?: string | null
@@ -470,6 +472,7 @@ export type Database = {
           client_email?: string | null
           client_name?: string | null
           client_phone?: string | null
+          client_uuid?: string | null
           closed_at?: string | null
           closed_by?: string | null
           commercial_terms?: string | null

@@ -1,7 +1,9 @@
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient } from "@tanstack/react-query";
+import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
+import { createIdbPersister } from "@/lib/offline-store";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { AppLayout } from "@/components/AppLayout";
@@ -34,7 +36,19 @@ import Ventas from "./pages/Ventas";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // Mantener los datos en caché un día permite seguir trabajando sin señal
+      gcTime: 1000 * 60 * 60 * 24,
+      networkMode: "offlineFirst",
+    },
+    // Las mutaciones nunca se pausan: el guardado local debe ocurrir siempre
+    mutations: { networkMode: "always" },
+  },
+});
+
+const persister = createIdbPersister();
 
 function ProtectedRoutes() {
   const { user, loading, mustChangePassword } = useAuth();
@@ -128,7 +142,10 @@ function ChangePasswordRoute() {
 }
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
+  <PersistQueryClientProvider
+      client={queryClient}
+      persistOptions={{ persister, maxAge: 1000 * 60 * 60 * 24 }}
+    >
     <TooltipProvider>
       <Toaster />
       <Sonner />
@@ -151,7 +168,7 @@ const App = () => (
         </ErrorBoundary>
       </BrowserRouter>
     </TooltipProvider>
-  </QueryClientProvider>
+  </PersistQueryClientProvider>
 );
 
 export default App;
