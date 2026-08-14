@@ -249,7 +249,14 @@ export function ProductoFicha({
                           key={row.key}
                           className="flex items-center justify-between px-3 py-1.5 text-sm"
                         >
-                          <span className="truncate pr-2">{row.name}</span>
+                          <span className="truncate pr-2 flex items-center gap-1.5 min-w-0">
+                            <span className="truncate">{row.name}</span>
+                            {row.unknown && (
+                              <Badge variant="outline" className="shrink-0 text-[10px] px-1 py-0 h-4 font-normal">
+                                depósito ERP
+                              </Badge>
+                            )}
+                          </span>
                           <span
                             className={cn(
                               "font-semibold tabular-nums",
