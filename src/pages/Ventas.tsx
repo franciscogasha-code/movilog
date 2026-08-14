@@ -331,6 +331,21 @@ function VentasContent() {
           setActiveTab("pedidos");
         }}
       />
+
+      <CatalogoPdfPanel
+        open={pdfOpen}
+        onOpenChange={setPdfOpen}
+        selectedIds={Array.from(selectedIds)}
+        onRemoveId={(id) =>
+          setSelectedIds((prev) => {
+            const next = new Set(prev);
+            next.delete(id);
+            return next;
+          })
+        }
+        customer={customer}
+        salespersonName={profile?.full_name}
+      />
     </div>
   );
 }
