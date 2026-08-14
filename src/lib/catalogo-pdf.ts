@@ -5,8 +5,14 @@ import { resolvePrice, getScales, ProductRow } from "@/lib/ventas";
 import { proxyImageUrl } from "@/lib/image-utils";
 import sanseiLogo from "@/assets/sansei-logo.jpg";
 
-/** Productos por archivo PDF (cada parte). */
+/** Productos por archivo PDF (cada parte) con fotos. */
 export const CATALOG_PDF_PART_SIZE = 300;
+/** Sin fotos el archivo es liviano: entran muchos más por parte. */
+export const CATALOG_PDF_PART_SIZE_NO_IMG = 1000;
+/** Tamaño de parte según el modo elegido. */
+export function catalogPartSize(showImages: boolean): number {
+  return showImages ? CATALOG_PDF_PART_SIZE : CATALOG_PDF_PART_SIZE_NO_IMG;
+}
 /** Descarga/compresión de fotos en paralelo. */
 export const CATALOG_IMG_CONCURRENCY = 6;
 /** Segundos estimados por producto (medido en preview). */
