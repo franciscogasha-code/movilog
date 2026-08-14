@@ -187,6 +187,25 @@ function VentasContent() {
               customerPriceListId={customer.priceListId}
               onAdd={handleAddProduct}
               cartItemIds={cartItemIds}
+              selectionMode={selectionMode}
+              selectedIds={selectedIds}
+              onToggleSelect={(id) =>
+                setSelectedIds((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(id)) next.delete(id);
+                  else next.add(id);
+                  return next;
+                })
+              }
+              onSelectManyIds={(ids) =>
+                setSelectedIds((prev) => {
+                  const next = new Set(prev);
+                  ids.forEach((id) => next.add(id));
+                  return next;
+                })
+              }
+              onClearSelection={() => setSelectedIds(new Set())}
+              onGeneratePdf={() => setPdfOpen(true)}
             />
           </TabsContent>
 
