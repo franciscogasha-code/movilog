@@ -29,6 +29,9 @@ function VentasContent() {
   const [selectedProduct, setSelectedProduct] = useState<ProductRow | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [pdfOpen, setPdfOpen] = useState(false);
 
   const { items, addItem, updateQuantity, updateNotes, removeItem, clearCart, total, count } =
     useSalesCart();
