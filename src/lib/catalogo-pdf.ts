@@ -533,9 +533,10 @@ export async function buildCatalogPdfParts(
   const priceListId = opts.customer?.priceListId ?? null;
   const showImages = opts.showImages !== false;
   const all = sortCatalogProducts(opts.products, opts.sortBy, priceListId);
+  const partSize = catalogPartSize(showImages);
   const chunks: ProductRow[][] = [];
-  for (let i = 0; i < all.length; i += CATALOG_PDF_PART_SIZE) {
-    chunks.push(all.slice(i, i + CATALOG_PDF_PART_SIZE));
+  for (let i = 0; i < all.length; i += partSize) {
+    chunks.push(all.slice(i, i + partSize));
   }
   const total = all.length;
   const partCount = Math.max(1, chunks.length);
