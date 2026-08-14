@@ -28,12 +28,15 @@ import {
   sortCatalogProducts,
   CatalogAbortError,
   catalogPartSize,
+  getCatalogImageFailures,
+  resetCatalogImageFailures,
   CATALOG_SEC_PER_ITEM_WITH_IMG,
   CATALOG_SEC_PER_ITEM_NO_IMG,
   CATALOG_SUGGEST_NO_IMG_FROM,
   CatalogPart,
   CatalogSort,
 } from "@/lib/catalogo-pdf";
+
 import { useToast } from "@/hooks/use-toast";
 
 const BATCH = 200;
