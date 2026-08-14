@@ -215,7 +215,7 @@ export function ProductCard({
 
   const getWarehouseBranchName = (warehouseId: string): string => {
     const branch = branches?.find(b => b.code === warehouseId);
-    return branch?.name || `Depósito ${warehouseId}`;
+    return branch?.name || `Depósito ERP ${warehouseId}`;
   };
 
   const getBranchIdByCode = (warehouseId: string): string | null => {
