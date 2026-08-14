@@ -24,7 +24,7 @@ const TABS = ["cliente", "catalogo", "carrito", "pedidos"] as const;
 
 function VentasContent() {
   const { clientMode, toggleClientMode } = useSalesPresentation();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<(typeof TABS)[number]>("cliente");
   const [selectedProduct, setSelectedProduct] = useState<ProductRow | null>(null);
