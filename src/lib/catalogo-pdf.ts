@@ -89,38 +89,54 @@ function placeholderDataUrl(label: string): string {
   return c.toDataURL("image/jpeg", 0.7);
 }
 
-function loadImage(url: string, quality: number, timeoutMs: number): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    const t = setTimeout(() => {
-      img.src = "";
-      reject(new Error("timeout"));
-    }, timeoutMs);
-    img.onload = () => {
-      clearTimeout(t);
-      try {
-        const ratio = Math.min(IMG_MAX_PX / img.width, IMG_MAX_PX / img.height, 1);
-        const w = Math.max(1, Math.round(img.width * ratio));
-        const h = Math.max(1, Math.round(img.height * ratio));
-        const canvas = document.createElement("canvas");
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext("2d")!;
-        ctx.fillStyle = "#ffffff";
-        ctx.fillRect(0, 0, w, h);
-        ctx.drawImage(img, 0, 0, w, h);
-        resolve(canvas.toDataURL("image/jpeg", quality));
-      } catch (e) {
-        reject(e);
-      }
-    };
-    img.onerror = () => {
-      clearTimeout(t);
-      reject(new Error("load-error"));
-    };
-    img.src = url;
-  });
+/** Fotos que no se pudieron traer en la última generación. */
+let lastImageFailures = 0;
+export function getCatalogImageFailures(): number {
+  return lastImageFailures;
+}
+export function resetCatalogImageFailures(): void {
+  lastImageFailures = 0;
+}
+
+function drawToJpeg(img: HTMLImageElement, quality: number): string {
+  const ratio = Math.min(IMG_MAX_PX / img.width, IMG_MAX_PX / img.height, 1);
+  const w = Math.max(1, Math.round(img.width * ratio));
+  const h = Math.max(1, Math.round(img.height * ratio));
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d")!;
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, w, h);
+  ctx.drawImage(img, 0, 0, w, h);
+  return canvas.toDataURL("image/jpeg", quality);
+}
+
+/**
+ * Descarga la foto por fetch (CORS explícito) y la decodifica desde un blob local.
+ * Evita el canvas "contaminado" y las respuestas opacas cacheadas por el service worker.
+ */
+async function loadImage(url: string, quality: number, timeoutMs: number): Promise<string> {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  let objectUrl: string | null = null;
+  try {
+    const res = await fetch(url, { mode: "cors", credentials: "omit", signal: ctrl.signal });
+    if (!res.ok) throw new Error(`http-${res.status}`);
+    const blob = await res.blob();
+    if (!blob.size) throw new Error("empty");
+    objectUrl = URL.createObjectURL(blob);
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new Image();
+      el.onload = () => resolve(el);
+      el.onerror = () => reject(new Error("decode-error"));
+      el.src = objectUrl!;
+    });
+    return drawToJpeg(img, quality);
+  } finally {
+    clearTimeout(t);
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+  }
 }
 
 async function getImage(url: string | null | undefined, label: string): Promise<string> {
@@ -128,16 +144,19 @@ async function getImage(url: string | null | undefined, label: string): Promise<
   const src = proxyImageUrl(url);
   const hit = imgCache.get(src);
   if (hit) return hit;
-  try {
-    const data = await loadImage(src, 0.7, 5000);
-    imgCache.set(src, data);
-    return data;
-  } catch {
-    const ph = placeholderDataUrl(label);
-    imgCache.set(src, ph);
-    return ph;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const data = await loadImage(src, 0.7, 10000);
+      imgCache.set(src, data); // solo cacheamos éxitos
+      return data;
+    } catch {
+      /* reintento */
+    }
   }
+  lastImageFailures++;
+  return placeholderDataUrl(label);
 }
+
 
 /**
  * Precarga las fotos en paralelo (workers) llenando el cache.
