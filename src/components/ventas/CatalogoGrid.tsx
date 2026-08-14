@@ -50,15 +50,28 @@ export function CatalogoGrid({
   customerPriceListId,
   onAdd,
   cartItemIds,
+  selectionMode = false,
+  selectedIds,
+  onToggleSelect,
+  onSelectManyIds,
+  onClearSelection,
+  onGeneratePdf,
 }: {
   customerPriceListId?: string | null;
   onAdd: (product: ProductRow, quantity: number) => void;
   cartItemIds: Set<string>;
+  selectionMode?: boolean;
+  selectedIds?: Set<string>;
+  onToggleSelect?: (id: string) => void;
+  onSelectManyIds?: (ids: string[]) => void;
+  onClearSelection?: () => void;
+  onGeneratePdf?: () => void;
 }) {
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search, 300);
   const { clientMode } = useSalesPresentation();
   const [onlyStock, setOnlyStock] = useState(false);
+  const [selectingAll, setSelectingAll] = useState(false);
 
   const [category, setCategory] = useState<string>("all");
   const [brand, setBrand] = useState<string>("all");
@@ -81,7 +94,21 @@ export function CatalogoGrid({
   });
 
   const PAGE_SIZE = 48;
+  const MAX_SELECT_ALL = 300;
   const sel = (s: string): string => s;
+
+  /** Aplica los filtros activos sobre un query builder de `products`. */
+  const applyFilters = (q: any) => {
+    let out = q.eq("is_active", true);
+    if (debouncedSearch.trim()) {
+      const term = debouncedSearch.trim();
+      out = out.or(`name.ilike.%${term}%,bims_code.ilike.%${term}%,barcode.ilike.%${term}%`);
+    }
+    if (onlyStock) out = out.gt("total_stock", 0);
+    if (category !== "all") out = out.eq("category", category);
+    if (brand !== "all") out = out.eq("brand", brand);
+    return out;
+  };
 
   const {
     data,
@@ -98,38 +125,23 @@ export function CatalogoGrid({
     },
     queryFn: async ({ pageParam }) => {
       const from = pageParam as number;
-      let q = supabase
-        .from("products")
-        .select(
-          sel(
-            "id, bims_code, name, description, barcode, category, brand, unit, image_url, sell_price, price_scales, price_lists, stock_by_warehouse, total_stock"
-          ),
-          { count: "exact" }
-        )
-        .eq("is_active", true)
-        .order("name", { ascending: true });
+      const q = applyFilters(
+        supabase
+          .from("products")
+          .select(
+            sel(
+              "id, bims_code, name, description, barcode, category, brand, unit, image_url, sell_price, price_scales, price_lists, stock_by_warehouse, total_stock"
+            ),
+            { count: "exact" }
+          )
+      ).order("name", { ascending: true });
 
-      if (debouncedSearch.trim()) {
-        q = q.or(
-          `name.ilike.%${debouncedSearch.trim()}%,bims_code.ilike.%${debouncedSearch.trim()}%,barcode.ilike.%${debouncedSearch.trim()}%`
-        );
-      }
-      if (onlyStock) {
-        q = q.gt("total_stock", 0);
-      }
-      if (category !== "all") {
-        q = q.eq("category", category);
-      }
-      if (brand !== "all") {
-        q = q.eq("brand", brand);
-      }
-      const { data, error, count } = await q
-        .range(from, from + PAGE_SIZE - 1)
-        .returns<CatalogItem[]>();
+      const { data, error, count } = await q.range(from, from + PAGE_SIZE - 1);
       if (error) throw error;
-      return { rows: data ?? [], count: count ?? 0 };
+      return { rows: (data ?? []) as CatalogItem[], count: count ?? 0 };
     },
   });
+
 
   const products = useMemo<CatalogItem[]>(
     () => (data?.pages ?? []).flatMap((p) => p.rows),
@@ -153,8 +165,25 @@ export function CatalogoGrid({
     return () => io.disconnect();
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
+  const selectAllFiltered = async () => {
+    if (!onSelectManyIds) return;
+    setSelectingAll(true);
+    try {
+      const q = applyFilters(supabase.from("products").select("id"))
+        .order("name", { ascending: true })
+        .limit(MAX_SELECT_ALL);
+      const { data, error } = await q;
+      if (error) throw error;
+      onSelectManyIds(((data ?? []) as { id: string }[]).map((r) => r.id));
+    } finally {
+      setSelectingAll(false);
+    }
+  };
+
+  const selectedCount = selectedIds?.size ?? 0;
 
   return (
+
     <div className="space-y-4">
       <div className="flex items-center gap-2">
         <div className="relative flex-1">
@@ -268,10 +297,25 @@ export function CatalogoGrid({
       )}
 
       {!isLoading && products.length > 0 && (
-        <p className="text-xs text-muted-foreground">
-          Mostrando {products.length.toLocaleString("de-DE")} de{" "}
-          {totalCount.toLocaleString("de-DE")} productos
-        </p>
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <p className="text-xs text-muted-foreground">
+            Mostrando {products.length.toLocaleString("de-DE")} de{" "}
+            {totalCount.toLocaleString("de-DE")} productos
+          </p>
+          {selectionMode && onSelectManyIds && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={selectingAll}
+              onClick={selectAllFiltered}
+            >
+              {selectingAll
+                ? "Seleccionando..."
+                : `Seleccionar todo el filtro (${Math.min(totalCount, MAX_SELECT_ALL).toLocaleString("de-DE")})`}
+            </Button>
+          )}
+        </div>
       )}
 
 
@@ -280,11 +324,18 @@ export function CatalogoGrid({
           const stock = resolveStock(p as ProductRow);
           const price = resolvePrice(p as ProductRow, customerPriceListId, 1);
           const inCart = cartItemIds.has(p.id);
+          const isSelected = selectedIds?.has(p.id) ?? false;
           return (
             <Card
               key={p.id}
-              className="overflow-hidden flex flex-col cursor-pointer hover:border-primary/50 transition-colors"
-              onClick={() => onAdd(p as ProductRow, 0)}
+              className={`overflow-hidden flex flex-col cursor-pointer transition-colors ${
+                selectionMode && isSelected
+                  ? "border-primary ring-2 ring-primary/30"
+                  : "hover:border-primary/50"
+              }`}
+              onClick={() =>
+                selectionMode ? onToggleSelect?.(p.id) : onAdd(p as ProductRow, 0)
+              }
             >
               <div className="aspect-square bg-muted flex items-center justify-center relative">
                 {p.image_url ? (
@@ -297,7 +348,19 @@ export function CatalogoGrid({
                 ) : (
                   <ImageOff className="h-8 w-8 text-muted-foreground" />
                 )}
-                {inCart && (
+                {selectionMode && (
+                  <span
+                    className={`absolute top-2 left-2 h-6 w-6 rounded-md border-2 flex items-center justify-center ${
+                      isSelected
+                        ? "bg-primary border-primary text-primary-foreground"
+                        : "bg-background/90 border-muted-foreground/40"
+                    }`}
+                    aria-hidden
+                  >
+                    {isSelected && <Check className="h-4 w-4" />}
+                  </span>
+                )}
+                {inCart && !selectionMode && (
                   <Badge className="absolute top-2 right-2 gap-1" variant="secondary" aria-label="Producto en carrito">
                     <Check className="h-3 w-3" />
                     En carrito
@@ -323,17 +386,31 @@ export function CatalogoGrid({
                   )}
                 </div>
 
-                <Button
-                  size="sm"
-                  className="w-full mt-3"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onAdd(p as ProductRow, 1);
-                  }}
-                  disabled={stock <= 0}
-                >
-                  {stock > 0 ? "Agregar" : "Sin stock"}
-                </Button>
+                {selectionMode ? (
+                  <Button
+                    size="sm"
+                    variant={isSelected ? "default" : "outline"}
+                    className="w-full mt-3"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onToggleSelect?.(p.id);
+                    }}
+                  >
+                    {isSelected ? "Quitar del catálogo" : "Agregar al catálogo"}
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    className="w-full mt-3"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onAdd(p as ProductRow, 1);
+                    }}
+                    disabled={stock <= 0}
+                  >
+                    {stock > 0 ? "Agregar" : "Sin stock"}
+                  </Button>
+                )}
               </CardContent>
             </Card>
           );
@@ -354,6 +431,35 @@ export function CatalogoGrid({
         <p className="text-xs text-muted-foreground text-center py-4">
           No hay más productos
         </p>
+      )}
+
+      {selectionMode && (
+        <>
+          <div className="h-20" />
+          <div className="fixed bottom-0 left-0 right-0 z-40 border-t bg-background/95 backdrop-blur px-4 py-3 flex items-center gap-2">
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium">
+                {selectedCount.toLocaleString("de-DE")} seleccionados
+              </p>
+              {selectedCount > 0 && (
+                <button
+                  type="button"
+                  className="text-xs text-muted-foreground underline"
+                  onClick={() => onClearSelection?.()}
+                >
+                  Limpiar selección
+                </button>
+              )}
+            </div>
+            <Button
+              type="button"
+              disabled={selectedCount === 0}
+              onClick={() => onGeneratePdf?.()}
+            >
+              Generar PDF
+            </Button>
+          </div>
+        </>
       )}
     </div>
   );

@@ -5,10 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { ShoppingCart, User, Package, ListTodo, AlertCircle, Eye, EyeOff } from "lucide-react";
+import { ShoppingCart, User, Package, ListTodo, AlertCircle, Eye, EyeOff, FileText } from "lucide-react";
 import { SalesPresentationProvider, useSalesPresentation } from "@/contexts/SalesPresentationContext";
 import { ClientePicker } from "@/components/ventas/ClientePicker";
 import { CatalogoGrid } from "@/components/ventas/CatalogoGrid";
+import { CatalogoPdfPanel } from "@/components/ventas/CatalogoPdfPanel";
 import { ProductoFicha } from "@/components/ventas/ProductoFicha";
 import { CarritoPanel, CartItemRow } from "@/components/ventas/CarritoPanel";
 import { ConfirmarVenta } from "@/components/ventas/ConfirmarVenta";
@@ -23,12 +24,15 @@ const TABS = ["cliente", "catalogo", "carrito", "pedidos"] as const;
 
 function VentasContent() {
   const { clientMode, toggleClientMode } = useSalesPresentation();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<(typeof TABS)[number]>("cliente");
   const [selectedProduct, setSelectedProduct] = useState<ProductRow | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [pdfOpen, setPdfOpen] = useState(false);
 
   const { items, addItem, updateQuantity, updateNotes, removeItem, clearCart, total, count } =
     useSalesCart();
@@ -114,16 +118,31 @@ function VentasContent() {
               {clientMode ? "Catálogo en modo cliente" : "Catálogo vendedor"}
             </p>
           </div>
-          <Button
-            variant={clientMode ? "default" : "outline"}
-            size="sm"
-            onClick={toggleClientMode}
-            aria-pressed={clientMode}
-            className="shrink-0"
-          >
-            {clientMode ? <Eye className="h-4 w-4 mr-1.5" /> : <EyeOff className="h-4 w-4 mr-1.5" />}
-            {clientMode ? "Modo cliente" : "Modo vendedor"}
-          </Button>
+          <div className="flex items-center gap-2 shrink-0">
+            {activeTab === "catalogo" && (
+              <Button
+                variant={selectionMode ? "default" : "outline"}
+                size="sm"
+                aria-pressed={selectionMode}
+                onClick={() => {
+                  setSelectionMode((v) => !v);
+                  if (selectionMode) setSelectedIds(new Set());
+                }}
+              >
+                <FileText className="h-4 w-4 mr-1.5" />
+                {selectionMode ? "Salir" : "Catálogo PDF"}
+              </Button>
+            )}
+            <Button
+              variant={clientMode ? "default" : "outline"}
+              size="sm"
+              onClick={toggleClientMode}
+              aria-pressed={clientMode}
+            >
+              {clientMode ? <Eye className="h-4 w-4 mr-1.5" /> : <EyeOff className="h-4 w-4 mr-1.5" />}
+              {clientMode ? "Modo cliente" : "Modo vendedor"}
+            </Button>
+          </div>
         </div>
 
 
@@ -168,6 +187,25 @@ function VentasContent() {
               customerPriceListId={customer.priceListId}
               onAdd={handleAddProduct}
               cartItemIds={cartItemIds}
+              selectionMode={selectionMode}
+              selectedIds={selectedIds}
+              onToggleSelect={(id) =>
+                setSelectedIds((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(id)) next.delete(id);
+                  else next.add(id);
+                  return next;
+                })
+              }
+              onSelectManyIds={(ids) =>
+                setSelectedIds((prev) => {
+                  const next = new Set(prev);
+                  ids.forEach((id) => next.add(id));
+                  return next;
+                })
+              }
+              onClearSelection={() => setSelectedIds(new Set())}
+              onGeneratePdf={() => setPdfOpen(true)}
             />
           </TabsContent>
 
@@ -236,7 +274,7 @@ function VentasContent() {
       </div>
 
       {/* FAB flotante de carrito */}
-      {items.length > 0 && activeTab !== "carrito" && !cartOpen && !selectedProduct && (
+      {items.length > 0 && activeTab !== "carrito" && !cartOpen && !selectedProduct && !selectionMode && (
         <Button
           onClick={() => setCartOpen(true)}
           aria-label={`Abrir carrito: ${count} ítems, total ${total.toLocaleString("de-DE")}`}
@@ -292,6 +330,21 @@ function VentasContent() {
           setCustomer({ name: "", phone: "", email: "", address: "", ruc: "", priceListId: null });
           setActiveTab("pedidos");
         }}
+      />
+
+      <CatalogoPdfPanel
+        open={pdfOpen}
+        onOpenChange={setPdfOpen}
+        selectedIds={Array.from(selectedIds)}
+        onRemoveId={(id) =>
+          setSelectedIds((prev) => {
+            const next = new Set(prev);
+            next.delete(id);
+            return next;
+          })
+        }
+        customer={customer}
+        salespersonName={profile?.full_name}
       />
     </div>
   );
