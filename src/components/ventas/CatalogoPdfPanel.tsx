@@ -27,7 +27,7 @@ import {
   buildCatalogPdfParts,
   sortCatalogProducts,
   CatalogAbortError,
-  CATALOG_PDF_PART_SIZE,
+  catalogPartSize,
   CATALOG_SEC_PER_ITEM_WITH_IMG,
   CATALOG_SEC_PER_ITEM_NO_IMG,
   CATALOG_SUGGEST_NO_IMG_FROM,
@@ -143,9 +143,10 @@ export function CatalogoPdfPanel({
     [products, sortBy, customer.priceListId]
   );
 
-  const partCount = Math.max(1, Math.ceil(sortedPreview.length / CATALOG_PDF_PART_SIZE));
+  const partSize = catalogPartSize(showImages);
+  const partCount = Math.max(1, Math.ceil(sortedPreview.length / partSize));
   const partSizes = Array.from({ length: partCount }, (_, i) =>
-    Math.max(0, Math.min(CATALOG_PDF_PART_SIZE, sortedPreview.length - i * CATALOG_PDF_PART_SIZE))
+    Math.max(0, Math.min(partSize, sortedPreview.length - i * partSize))
   );
 
   const etaSeconds =
@@ -181,7 +182,7 @@ export function CatalogoPdfPanel({
         signal: controller.signal,
         onPart,
         onProgress: (done, total) => {
-          const idx = Math.min(partCount, Math.floor(Math.max(0, done - 1) / CATALOG_PDF_PART_SIZE) + 1);
+          const idx = Math.min(partCount, Math.floor(Math.max(0, done - 1) / partSize) + 1);
           setProgress({
             done,
             total,
@@ -290,7 +291,7 @@ export function CatalogoPdfPanel({
           <Alert>
             <Info className="h-4 w-4" />
             <AlertDescription className="text-xs">
-              Se generarán {partCount} archivos de hasta {CATALOG_PDF_PART_SIZE} productos (
+              Se generarán {partCount} archivos de hasta {partSize.toLocaleString("de-DE")} productos (
               {partSizes.slice(0, 4).join(" + ")}
               {partSizes.length > 4 ? " + ..." : ""}). Cada uno indica "Parte X de {partCount}".
             </AlertDescription>
@@ -376,9 +377,9 @@ export function CatalogoPdfPanel({
               {!loading &&
                 sortedPreview.slice(0, 300).map((p, idx) => (
                   <Fragment key={p.id}>
-                    {partCount > 1 && idx % CATALOG_PDF_PART_SIZE === 0 && (
+                    {partCount > 1 && idx % partSize === 0 && (
                       <div className="sticky top-0 bg-muted/80 backdrop-blur px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-primary">
-                        Parte {Math.floor(idx / CATALOG_PDF_PART_SIZE) + 1} de {partCount}
+                        Parte {Math.floor(idx / partSize) + 1} de {partCount}
                       </div>
                     )}
                     <div className="flex items-center gap-2 p-2">
