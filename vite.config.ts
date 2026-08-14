@@ -34,8 +34,10 @@ export default defineConfig(({ mode }) => ({
             options: {
               cacheName: "movilog-product-images",
               expiration: { maxEntries: 2000, maxAgeSeconds: 60 * 60 * 24 * 30 },
-              cacheableResponse: { statuses: [0, 200] },
+              cacheableResponse: { statuses: [200] },
+              fetchOptions: { mode: "cors", credentials: "omit" },
             },
+
           },
         ],
       },

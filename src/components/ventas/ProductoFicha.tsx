@@ -168,8 +168,10 @@ export function ProductoFicha({
                       <img
                         src={proxyImageUrl(product.image_url)}
                         alt={product.name}
+                        crossOrigin="anonymous"
                         className="max-w-full max-h-full w-auto h-auto object-contain p-3"
                       />
+
                       <span className="absolute bottom-2 right-2 rounded-md bg-background/85 border p-1.5 opacity-70 group-hover:opacity-100 transition-opacity">
                         <Maximize2 className="h-3.5 w-3.5" />
                       </span>
@@ -446,8 +448,10 @@ export function ProductoFicha({
             <img
               src={proxyImageUrl(product.image_url)}
               alt={product.name}
+              crossOrigin="anonymous"
               className="w-full max-h-[80vh] object-contain"
             />
+
           )}
         </DialogContent>
       </Dialog>

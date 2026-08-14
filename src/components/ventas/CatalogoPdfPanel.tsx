@@ -28,12 +28,15 @@ import {
   sortCatalogProducts,
   CatalogAbortError,
   catalogPartSize,
+  getCatalogImageFailures,
+  resetCatalogImageFailures,
   CATALOG_SEC_PER_ITEM_WITH_IMG,
   CATALOG_SEC_PER_ITEM_NO_IMG,
   CATALOG_SUGGEST_NO_IMG_FROM,
   CatalogPart,
   CatalogSort,
 } from "@/lib/catalogo-pdf";
+
 import { useToast } from "@/hooks/use-toast";
 
 const BATCH = 200;
@@ -77,6 +80,7 @@ export function CatalogoPdfPanel({
     null
   );
   const [parts, setParts] = useState<CatalogPart[] | null>(null);
+  const [imgFailures, setImgFailures] = useState(0);
   const abortRef = useRef<AbortController | null>(null);
 
   // Con muchos ítems, sugerir el modo sin fotos una sola vez
@@ -136,6 +140,7 @@ export function CatalogoPdfPanel({
   // invalidar PDFs ya generados si cambian las opciones
   useEffect(() => {
     setParts(null);
+    setImgFailures(0);
   }, [products, showPrices, showScales, showImages, sortBy, note, customer.priceListId]);
 
   const sortedPreview = useMemo(
@@ -161,7 +166,10 @@ export function CatalogoPdfPanel({
     const controller = new AbortController();
     abortRef.current = controller;
     setProgress({ done: 0, total: products.length });
+    setImgFailures(0);
+    resetCatalogImageFailures();
     try {
+
       const out = await buildCatalogPdfParts({
         products,
         customer: customer.name.trim()
@@ -191,6 +199,15 @@ export function CatalogoPdfPanel({
         },
       });
       setParts(out);
+      const failed = getCatalogImageFailures();
+      setImgFailures(failed);
+      if (failed > 0 && showImages) {
+        toast({
+          title: `${failed.toLocaleString("de-DE")} fotos no disponibles`,
+          description: "Esos productos salen con el recuadro gris. Probá generar de nuevo.",
+          variant: "destructive",
+        });
+      }
       return out;
     } catch (e: any) {
       if (e instanceof CatalogAbortError || e?.name === "CatalogAbortError") {
@@ -286,6 +303,17 @@ export function CatalogoPdfPanel({
             {customer.name ? ` · para ${customer.name}` : ""}
           </DialogDescription>
         </DialogHeader>
+
+        {imgFailures > 0 && showImages && (
+          <Alert variant="destructive">
+            <Info className="h-4 w-4" />
+            <AlertDescription className="text-xs">
+              {imgFailures.toLocaleString("de-DE")} fotos no se pudieron descargar y salieron con
+              recuadro gris. Volvé a generar o desactivá "Incluir fotos".
+            </AlertDescription>
+          </Alert>
+        )}
+
 
         {partCount > 1 && (
           <Alert>
@@ -390,7 +418,9 @@ export function CatalogoPdfPanel({
                             alt={p.name}
                             className="h-full w-full object-cover"
                             loading="lazy"
+                            crossOrigin="anonymous"
                           />
+
                         ) : (
                           <ImageOff className="h-4 w-4 text-muted-foreground" />
                         )}
