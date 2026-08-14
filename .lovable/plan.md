@@ -5,15 +5,21 @@ Hoy el módulo Ventas no tiene generación de catálogo: en el catálogo solo se
 ## Cómo lo va a usar el vendedor
 
 ```text
-Catálogo → botón "Seleccionar" → tildar productos (contador flotante)
-   → "Generar PDF" → opciones (mostrar precios sí/no, nota)
+Catálogo → filtrar (categoría / marca / búsqueda / con stock)
+   → "Seleccionar" → tildar productos o "Seleccionar todo el filtro (N)"
+   → "Generar PDF" → opciones (precios sí/no, orden, nota)
    → PDF descargado → Compartir (WhatsApp/mail) o descargar
 ```
 
+- **Filtros ya existentes** (categoría, marca, búsqueda por nombre/código/barcode, "Con stock") son la base: el vendedor primero acota, después selecciona.
 - Botón **Seleccionar** en la barra del catálogo: activa el modo selección; cada tarjeta muestra un check.
-- Barra inferior con "N seleccionados", **Limpiar** y **Generar PDF**.
-- Diálogo previo al PDF: mostrar u ocultar precios, incluir datos del cliente elegido, nota libre opcional.
-- Al generar: descarga el archivo y, si el dispositivo lo soporta, ofrece **Compartir** nativo.
+- Barra inferior con: "N seleccionados", **Seleccionar todo el filtro (N)** (trae los IDs de todo el resultado, no solo lo cargado en pantalla), **Limpiar** y **Generar PDF**.
+- La selección **se mantiene al cambiar filtros o buscar**, así se puede armar un catálogo mixto (ej.: Cocina + una marca puntual) sin perder lo ya elegido.
+- Vista **"Ver selección"**: lista compacta de lo tildado, para quitar ítems antes de generar.
+- Tope de seguridad: hasta **300 productos** por PDF (aviso claro si se supera, con opción de recortar a los primeros 300 del orden elegido).
+- Diálogo previo al PDF: mostrar u ocultar precios, orden (categoría/marca o alfabético), incluir datos del cliente elegido, nota libre opcional.
+- Al generar: barra de progreso (descarga de fotos) y luego descarga del archivo con opción de **Compartir** nativo.
+
 
 ## Contenido del PDF
 
