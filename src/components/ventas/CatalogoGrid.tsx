@@ -50,15 +50,28 @@ export function CatalogoGrid({
   customerPriceListId,
   onAdd,
   cartItemIds,
+  selectionMode = false,
+  selectedIds,
+  onToggleSelect,
+  onSelectManyIds,
+  onClearSelection,
+  onGeneratePdf,
 }: {
   customerPriceListId?: string | null;
   onAdd: (product: ProductRow, quantity: number) => void;
   cartItemIds: Set<string>;
+  selectionMode?: boolean;
+  selectedIds?: Set<string>;
+  onToggleSelect?: (id: string) => void;
+  onSelectManyIds?: (ids: string[]) => void;
+  onClearSelection?: () => void;
+  onGeneratePdf?: () => void;
 }) {
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search, 300);
   const { clientMode } = useSalesPresentation();
   const [onlyStock, setOnlyStock] = useState(false);
+  const [selectingAll, setSelectingAll] = useState(false);
 
   const [category, setCategory] = useState<string>("all");
   const [brand, setBrand] = useState<string>("all");
@@ -81,7 +94,21 @@ export function CatalogoGrid({
   });
 
   const PAGE_SIZE = 48;
+  const MAX_SELECT_ALL = 300;
   const sel = (s: string): string => s;
+
+  /** Aplica los filtros activos sobre un query builder de `products`. */
+  const applyFilters = (q: any) => {
+    let out = q.eq("is_active", true);
+    if (debouncedSearch.trim()) {
+      const term = debouncedSearch.trim();
+      out = out.or(`name.ilike.%${term}%,bims_code.ilike.%${term}%,barcode.ilike.%${term}%`);
+    }
+    if (onlyStock) out = out.gt("total_stock", 0);
+    if (category !== "all") out = out.eq("category", category);
+    if (brand !== "all") out = out.eq("brand", brand);
+    return out;
+  };
 
   const {
     data,
@@ -98,31 +125,17 @@ export function CatalogoGrid({
     },
     queryFn: async ({ pageParam }) => {
       const from = pageParam as number;
-      let q = supabase
-        .from("products")
-        .select(
-          sel(
-            "id, bims_code, name, description, barcode, category, brand, unit, image_url, sell_price, price_scales, price_lists, stock_by_warehouse, total_stock"
-          ),
-          { count: "exact" }
-        )
-        .eq("is_active", true)
-        .order("name", { ascending: true });
+      const q = applyFilters(
+        supabase
+          .from("products")
+          .select(
+            sel(
+              "id, bims_code, name, description, barcode, category, brand, unit, image_url, sell_price, price_scales, price_lists, stock_by_warehouse, total_stock"
+            ),
+            { count: "exact" }
+          )
+      ).order("name", { ascending: true });
 
-      if (debouncedSearch.trim()) {
-        q = q.or(
-          `name.ilike.%${debouncedSearch.trim()}%,bims_code.ilike.%${debouncedSearch.trim()}%,barcode.ilike.%${debouncedSearch.trim()}%`
-        );
-      }
-      if (onlyStock) {
-        q = q.gt("total_stock", 0);
-      }
-      if (category !== "all") {
-        q = q.eq("category", category);
-      }
-      if (brand !== "all") {
-        q = q.eq("brand", brand);
-      }
       const { data, error, count } = await q
         .range(from, from + PAGE_SIZE - 1)
         .returns<CatalogItem[]>();
@@ -130,6 +143,7 @@ export function CatalogoGrid({
       return { rows: data ?? [], count: count ?? 0 };
     },
   });
+
 
   const products = useMemo<CatalogItem[]>(
     () => (data?.pages ?? []).flatMap((p) => p.rows),
