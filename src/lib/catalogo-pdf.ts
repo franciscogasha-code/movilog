@@ -261,7 +261,7 @@ export async function buildCatalogPdf(opts: CatalogPdfOptions): Promise<Blob> {
   const priceListId = customer?.priceListId ?? null;
   const products = sortCatalogProducts(opts.products, opts.sortBy, priceListId).slice(
     0,
-    CATALOG_PDF_PART_SIZE
+    catalogPartSize(showImages)
   );
 
   const doc = new jsPDF({ unit: "mm", format: "a4" });
