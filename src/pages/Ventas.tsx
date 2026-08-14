@@ -118,16 +118,31 @@ function VentasContent() {
               {clientMode ? "Catálogo en modo cliente" : "Catálogo vendedor"}
             </p>
           </div>
-          <Button
-            variant={clientMode ? "default" : "outline"}
-            size="sm"
-            onClick={toggleClientMode}
-            aria-pressed={clientMode}
-            className="shrink-0"
-          >
-            {clientMode ? <Eye className="h-4 w-4 mr-1.5" /> : <EyeOff className="h-4 w-4 mr-1.5" />}
-            {clientMode ? "Modo cliente" : "Modo vendedor"}
-          </Button>
+          <div className="flex items-center gap-2 shrink-0">
+            {activeTab === "catalogo" && (
+              <Button
+                variant={selectionMode ? "default" : "outline"}
+                size="sm"
+                aria-pressed={selectionMode}
+                onClick={() => {
+                  setSelectionMode((v) => !v);
+                  if (selectionMode) setSelectedIds(new Set());
+                }}
+              >
+                <FileText className="h-4 w-4 mr-1.5" />
+                {selectionMode ? "Salir" : "Catálogo PDF"}
+              </Button>
+            )}
+            <Button
+              variant={clientMode ? "default" : "outline"}
+              size="sm"
+              onClick={toggleClientMode}
+              aria-pressed={clientMode}
+            >
+              {clientMode ? <Eye className="h-4 w-4 mr-1.5" /> : <EyeOff className="h-4 w-4 mr-1.5" />}
+              {clientMode ? "Modo cliente" : "Modo vendedor"}
+            </Button>
+          </div>
         </div>
 
 
