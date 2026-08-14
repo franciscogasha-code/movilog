@@ -405,12 +405,12 @@ export function CatalogoGrid({
                     onClick={(e) => {
                       e.stopPropagation();
                       onAdd(p as ProductRow, 1);
-
-                  }}
-                  disabled={stock <= 0}
-                >
-                  {stock > 0 ? "Agregar" : "Sin stock"}
-                </Button>
+                    }}
+                    disabled={stock <= 0}
+                  >
+                    {stock > 0 ? "Agregar" : "Sin stock"}
+                  </Button>
+                )}
               </CardContent>
             </Card>
           );
