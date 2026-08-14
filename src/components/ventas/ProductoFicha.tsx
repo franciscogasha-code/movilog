@@ -26,7 +26,7 @@ import { useSalesPresentation } from "@/contexts/SalesPresentationContext";
 
 const QUICK_STEPS = [6, 12, 24];
 
-type StockRow = { key: string; name: string; qty: number };
+type StockRow = { key: string; name: string; qty: number; unknown: boolean };
 
 export function ProductoFicha({
   product,
