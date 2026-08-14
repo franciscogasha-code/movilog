@@ -31,15 +31,18 @@ Catálogo → filtrar (categoría / marca / búsqueda / con stock)
 
 ## Detalle técnico
 
-- `src/lib/catalogo-pdf.ts`: nuevo generador con jsPDF + autoTable, reutilizando el header/footer y tokens de `src/lib/pre-sale-pdf.ts` y las miniaturas de `src/lib/pdf-image.ts` (64px, JPEG 0.6, placeholder si falla).
-- `src/components/ventas/CatalogoPdfPanel.tsx`: diálogo de opciones (precios on/off, nota) + acciones Descargar / Compartir (`navigator.share` con fallback a descarga).
-- `src/components/ventas/CatalogoGrid.tsx`: props nuevas `selectionMode`, `selectedIds`, `onToggleSelect`; checkbox por tarjeta y barra de acciones. Sin cambios en la lógica de búsqueda/paginación existente.
-- `src/pages/Ventas.tsx`: estado de selección, botón "Seleccionar" y montaje del panel PDF; pasa el cliente actual y `clientMode`.
+- `src/lib/catalogo-pdf.ts`: nuevo generador con jsPDF + autoTable, reutilizando header/footer y tokens de `src/lib/pre-sale-pdf.ts` y las miniaturas de `src/lib/pdf-image.ts` (64px, JPEG 0.6, placeholder si falla). Grilla de 3 columnas por página con foto + datos.
+- `src/components/ventas/CatalogoPdfPanel.tsx`: diálogo de opciones (precios on/off, orden, nota), lista "Ver selección" con quitar ítem, progreso y acciones Descargar / Compartir (`navigator.share` con fallback a descarga).
+- `src/components/ventas/CatalogoGrid.tsx`: props nuevas `selectionMode`, `selectedIds`, `onToggleSelect`, `onSelectAllFiltered`; checkbox por tarjeta y barra sticky de acciones. La búsqueda/paginación infinita actual (48 por página) no cambia.
+- "Seleccionar todo el filtro": consulta aparte a `products` con los mismos filtros pero `select("id")` y `limit(300)`, para no depender de lo cargado en pantalla; usa el `count` exacto ya disponible para avisar cuántos entran.
+- Los productos seleccionados que no están en memoria se traen por `in("id", ids)` en lotes de 100 al momento de generar el PDF.
+- `src/pages/Ventas.tsx`: estado de selección (Set de IDs, persistente entre filtros), botón "Seleccionar" y montaje del panel PDF; pasa el cliente actual y `clientMode`.
 - Precios en el PDF usan `resolvePrice`/`getScales` de `src/lib/ventas.ts` con la lista del cliente; formato `de-DE` con ₲.
 - Sin cambios de base de datos en esta etapa (el registro de "qué catálogo se envió a quién" queda para una fase posterior).
 
 ## Validación
 
-- Generar PDF con 1, 12 y 60 productos: revisar cortes de página, fotos y textos largos.
+- Generar PDF con 1, 12, 60 y 300 productos: cortes de página, fotos, textos largos y tiempo de generación.
+- Filtrar por categoría (ej. Cocina), usar "Seleccionar todo el filtro", cambiar a otra marca y confirmar que la selección previa se mantiene.
 - Con y sin cliente seleccionado; con precios ocultos; con Modo cliente activo.
 - Revisión visual de cada página del PDF antes de dar por cerrado.
