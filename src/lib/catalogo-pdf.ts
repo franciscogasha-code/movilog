@@ -5,12 +5,23 @@ import { resolvePrice, getScales, ProductRow } from "@/lib/ventas";
 import { proxyImageUrl } from "@/lib/image-utils";
 import sanseiLogo from "@/assets/sansei-logo.jpg";
 
-/** Productos por archivo PDF (cada parte). */
+/** Productos por archivo PDF (cada parte) con fotos. */
 export const CATALOG_PDF_PART_SIZE = 300;
-/** Tope global de productos (todas las partes juntas). */
-export const CATALOG_PDF_HARD_MAX = 600;
-/** @deprecated usar CATALOG_PDF_PART_SIZE */
-export const CATALOG_PDF_MAX_ITEMS = CATALOG_PDF_PART_SIZE;
+/** Sin fotos el archivo es liviano: entran muchos más por parte. */
+export const CATALOG_PDF_PART_SIZE_NO_IMG = 1000;
+/** Tamaño de parte según el modo elegido. */
+export function catalogPartSize(showImages: boolean): number {
+  return showImages ? CATALOG_PDF_PART_SIZE : CATALOG_PDF_PART_SIZE_NO_IMG;
+}
+/** Descarga/compresión de fotos en paralelo. */
+export const CATALOG_IMG_CONCURRENCY = 6;
+/** Segundos estimados por producto (medido en preview). */
+export const CATALOG_SEC_PER_ITEM_WITH_IMG = 0.35;
+export const CATALOG_SEC_PER_ITEM_NO_IMG = 0.01;
+/** A partir de acá conviene sugerir el modo sin fotos. */
+export const CATALOG_SUGGEST_NO_IMG_FROM = 500;
+/** A partir de acá pedimos confirmación explícita si hay fotos. */
+export const CATALOG_CONFIRM_HEAVY_FROM = 2000;
 
 const PAGE = { W: 210, H: 297, M: 16 } as const;
 const FOOTER_RESERVED = SPACING.xl * 2 + SPACING.md; // ~34mm
@@ -39,9 +50,23 @@ export interface CatalogPdfOptions {
   showScales: boolean;
   sortBy: CatalogSort;
   note?: string | null;
+  /** Incluir fotos de producto (false = lista compacta, mucho más liviana) */
+  showImages?: boolean;
   /** Ej.: "Parte 1 de 2" — se imprime en portada y pie */
   partLabel?: string | null;
   onProgress?: (done: number, total: number) => void;
+  signal?: AbortSignal;
+}
+
+export class CatalogAbortError extends Error {
+  constructor() {
+    super("cancelado");
+    this.name = "CatalogAbortError";
+  }
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) throw new CatalogAbortError();
 }
 
 /* ───────────────── imágenes ───────────────── */
@@ -112,6 +137,39 @@ async function getImage(url: string | null | undefined, label: string): Promise<
     imgCache.set(src, ph);
     return ph;
   }
+}
+
+/**
+ * Precarga las fotos en paralelo (workers) llenando el cache.
+ * Reporta progreso y respeta cancelación.
+ */
+export async function prefetchCatalogImages(
+  products: ProductRow[],
+  opts: {
+    concurrency?: number;
+    signal?: AbortSignal;
+    onProgress?: (done: number, total: number) => void;
+  } = {}
+): Promise<void> {
+  const { concurrency = CATALOG_IMG_CONCURRENCY, signal, onProgress } = opts;
+  const total = products.length;
+  let next = 0;
+  let done = 0;
+
+  const worker = async () => {
+    while (next < total) {
+      if (signal?.aborted) return;
+      const p = products[next++];
+      await getImage(p.image_url, p.bims_code ?? "");
+      done++;
+      onProgress?.(done, total);
+    }
+  };
+
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, Math.max(1, total)) }, worker)
+  );
+  throwIfAborted(signal);
 }
 
 /* ───────────────── helpers de dibujo ───────────────── */
@@ -189,11 +247,21 @@ export function sortCatalogProducts(products: ProductRow[], sortBy: CatalogSort,
 /* ───────────────── generador ───────────────── */
 
 export async function buildCatalogPdf(opts: CatalogPdfOptions): Promise<Blob> {
-  const { showPrices, showScales, customer, salespersonName, note, partLabel, onProgress } = opts;
+  const {
+    showPrices,
+    showScales,
+    customer,
+    salespersonName,
+    note,
+    partLabel,
+    onProgress,
+    signal,
+  } = opts;
+  const showImages = opts.showImages !== false;
   const priceListId = customer?.priceListId ?? null;
   const products = sortCatalogProducts(opts.products, opts.sortBy, priceListId).slice(
     0,
-    CATALOG_PDF_PART_SIZE
+    catalogPartSize(showImages)
   );
 
   const doc = new jsPDF({ unit: "mm", format: "a4" });
@@ -282,10 +350,79 @@ export async function buildCatalogPdf(opts: CatalogPdfOptions): Promise<Blob> {
 
   y += SPACING.xs;
 
+  // ═══ Lista compacta (sin fotos) ═══
+  if (!showImages) {
+    const ROW_H = SPACING.md + SPACING.xs;
+    for (let i = 0; i < products.length; i++) {
+      throwIfAborted(signal);
+      const p = products[i];
+      onProgress?.(i + 1, products.length);
+
+      if (y + ROW_H > PAGE.H - FOOTER_RESERVED) {
+        doc.addPage();
+        y = M;
+      }
+
+      if (i % 2 === 1) {
+        doc.setFillColor(246, 247, 249);
+        doc.rect(M, y - SPACING.xs, W - M * 2, ROW_H, "F");
+      }
+
+      const priceTxt = showPrices ? fmtGs(resolvePrice(p, priceListId, 1)) : "";
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(FS.small);
+      const priceW = priceTxt ? doc.getTextWidth(priceTxt) + SPACING.sm : 0;
+
+      doc.setTextColor(...BRAND.ink);
+      const nameTxt =
+        doc.splitTextToSize(p.name ?? "", W - M * 2 - priceW - 2)[0] ?? "";
+      doc.text(nameTxt, M, y + SPACING.xs);
+
+      if (priceTxt) {
+        doc.setTextColor(...BRAND.primary);
+        doc.text(priceTxt, W - M, y + SPACING.xs, { align: "right" });
+      }
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(FS.small - 2);
+      doc.setTextColor(...BRAND.muted);
+      const scales =
+        showPrices && showScales
+          ? getScales(p)
+              .filter((s) => s.min_quantity > 1)
+              .slice(0, 2)
+              .map((s) => `${s.min_quantity}+ ${fmtGs(s.price)}`)
+              .join("   ")
+          : "";
+      const sub = [
+        `Cód. ${p.bims_code ?? "—"}`,
+        [p.brand, p.category].filter(Boolean).join(" · ") || null,
+        scales || null,
+      ]
+        .filter(Boolean)
+        .join("  ·  ");
+      doc.text(
+        doc.splitTextToSize(sub, W - M * 2)[0] ?? "",
+        M,
+        y + SPACING.xs + SPACING.sm - 1
+      );
+
+      doc.setDrawColor(...BRAND.line);
+      doc.setLineWidth(0.1);
+      doc.line(M, y + ROW_H - SPACING.xs, W - M, y + ROW_H - SPACING.xs);
+
+      y += ROW_H;
+    }
+
+    drawFooter(doc, partLabel);
+    return doc.output("blob");
+  }
+
   // ═══ Grilla de productos ═══
   let col = 0;
 
   for (let i = 0; i < products.length; i++) {
+    throwIfAborted(signal);
     const p = products[i];
     const img = await getImage(p.image_url, p.bims_code ?? "");
     onProgress?.(i + 1, products.length);
@@ -386,15 +523,20 @@ export interface CatalogPart {
   count: number;
 }
 
-/** Divide la selección en archivos de hasta CATALOG_PDF_PART_SIZE productos. */
+/** Divide la selección en archivos de hasta CATALOG_PDF_PART_SIZE productos (sin tope global). */
 export async function buildCatalogPdfParts(
-  opts: Omit<CatalogPdfOptions, "partLabel">
+  opts: Omit<CatalogPdfOptions, "partLabel"> & {
+    /** Se llama apenas cada archivo está listo (entrega incremental). */
+    onPart?: (part: CatalogPart) => void | Promise<void>;
+  }
 ): Promise<CatalogPart[]> {
   const priceListId = opts.customer?.priceListId ?? null;
-  const all = sortCatalogProducts(opts.products, opts.sortBy, priceListId).slice(0, CATALOG_PDF_HARD_MAX);
+  const showImages = opts.showImages !== false;
+  const all = sortCatalogProducts(opts.products, opts.sortBy, priceListId);
+  const partSize = catalogPartSize(showImages);
   const chunks: ProductRow[][] = [];
-  for (let i = 0; i < all.length; i += CATALOG_PDF_PART_SIZE) {
-    chunks.push(all.slice(i, i + CATALOG_PDF_PART_SIZE));
+  for (let i = 0; i < all.length; i += partSize) {
+    chunks.push(all.slice(i, i + partSize));
   }
   const total = all.length;
   const partCount = Math.max(1, chunks.length);
@@ -402,23 +544,36 @@ export async function buildCatalogPdfParts(
   let done = 0;
 
   for (let i = 0; i < chunks.length; i++) {
+    throwIfAborted(opts.signal);
     const partIndex = i + 1;
     const label = partCount > 1 ? `Parte ${partIndex} de ${partCount}` : null;
     const base = done;
+
+    if (showImages) {
+      // Fotos en paralelo: llena el cache antes de dibujar.
+      await prefetchCatalogImages(chunks[i], {
+        signal: opts.signal,
+        onProgress: (d) => opts.onProgress?.(base + d, total),
+      });
+    }
+
     const blob = await buildCatalogPdf({
       ...opts,
       products: chunks[i],
       partLabel: label,
-      onProgress: (d) => opts.onProgress?.(base + d, total),
+      onProgress: showImages ? undefined : (d) => opts.onProgress?.(base + d, total),
     });
     done += chunks[i].length;
-    parts.push({
+    opts.onProgress?.(done, total);
+    const part: CatalogPart = {
       blob,
       fileName: catalogFileName(opts.customer?.name, partCount > 1 ? partIndex : undefined),
       partIndex,
       partCount,
       count: chunks[i].length,
-    });
+    };
+    parts.push(part);
+    await opts.onPart?.(part);
   }
   return parts;
 }
