@@ -80,6 +80,7 @@ export function CatalogoPdfPanel({
     null
   );
   const [parts, setParts] = useState<CatalogPart[] | null>(null);
+  const [imgFailures, setImgFailures] = useState(0);
   const abortRef = useRef<AbortController | null>(null);
 
   // Con muchos ítems, sugerir el modo sin fotos una sola vez
