@@ -432,6 +432,35 @@ export function CatalogoGrid({
           No hay más productos
         </p>
       )}
+
+      {selectionMode && (
+        <>
+          <div className="h-20" />
+          <div className="fixed bottom-0 left-0 right-0 z-40 border-t bg-background/95 backdrop-blur px-4 py-3 flex items-center gap-2">
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium">
+                {selectedCount.toLocaleString("de-DE")} seleccionados
+              </p>
+              {selectedCount > 0 && (
+                <button
+                  type="button"
+                  className="text-xs text-muted-foreground underline"
+                  onClick={() => onClearSelection?.()}
+                >
+                  Limpiar selección
+                </button>
+              )}
+            </div>
+            <Button
+              type="button"
+              disabled={selectedCount === 0}
+              onClick={() => onGeneratePdf?.()}
+            >
+              Generar PDF
+            </Button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
