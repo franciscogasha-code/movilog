@@ -140,6 +140,7 @@ export function CatalogoPdfPanel({
   // invalidar PDFs ya generados si cambian las opciones
   useEffect(() => {
     setParts(null);
+    setImgFailures(0);
   }, [products, showPrices, showScales, showImages, sortBy, note, customer.priceListId]);
 
   const sortedPreview = useMemo(
@@ -302,6 +303,17 @@ export function CatalogoPdfPanel({
             {customer.name ? ` · para ${customer.name}` : ""}
           </DialogDescription>
         </DialogHeader>
+
+        {imgFailures > 0 && showImages && (
+          <Alert variant="destructive">
+            <Info className="h-4 w-4" />
+            <AlertDescription className="text-xs">
+              {imgFailures.toLocaleString("de-DE")} fotos no se pudieron descargar y salieron con
+              recuadro gris. Volvé a generar o desactivá "Incluir fotos".
+            </AlertDescription>
+          </Alert>
+        )}
+
 
         {partCount > 1 && (
           <Alert>
