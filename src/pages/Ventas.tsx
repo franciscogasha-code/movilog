@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -26,34 +26,57 @@ import { es } from "date-fns/locale";
 
 const TABS = ["cliente", "catalogo", "carrito", "pedidos"] as const;
 
-function VentasContent() {
+function VentasContent({ userId }: { userId: string }) {
   const { clientMode, toggleClientMode } = useSalesPresentation();
   const { user, profile } = useAuth();
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState<(typeof TABS)[number]>("cliente");
+  const [activeTab, setActiveTab] = useIdbState<(typeof TABS)[number]>(
+    `sales-tab-${userId}`,
+    "cliente"
+  );
   const [selectedProduct, setSelectedProduct] = useState<ProductRow | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
-  const [selectionMode, setSelectionMode] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectionMode, setSelectionMode] = useIdbState<boolean>(
+    `sales-selection-mode-${userId}`,
+    false
+  );
+  const [selectedIdList, setSelectedIdList] = useIdbState<string[]>(
+    `sales-selected-ids-${userId}`,
+    []
+  );
+  const selectedIds = useMemo(() => new Set(selectedIdList), [selectedIdList]);
+  const setSelectedIds = (updater: (prev: Set<string>) => Set<string>) =>
+    setSelectedIdList((prev) => Array.from(updater(new Set(prev))));
   const [pdfOpen, setPdfOpen] = useState(false);
 
-  const { items, addItem, updateQuantity, updateNotes, removeItem, clearCart, total, count } =
-    useSalesCart(user ? `sales-cart-${user.id}` : "sales-cart");
+  const { items, hydrated: cartHydrated, addItem, updateQuantity, updateNotes, removeItem, clearCart, total, count } =
+    useSalesCart(`sales-cart-${userId}`);
 
   const { pending, online, syncing, retryOne, discard } = useSalesOutbox();
 
-  const [customer, setCustomer] = useIdbState(
-    user ? `sales-customer-${user.id}` : "sales-customer",
-    {
-      name: "",
-      phone: "",
-      email: "",
-      address: "",
-      ruc: "",
-      priceListId: null as string | null,
+  const [customer, setCustomer] = useIdbState(`sales-customer-${userId}`, {
+    name: "",
+    phone: "",
+    email: "",
+    address: "",
+    ruc: "",
+    priceListId: null as string | null,
+  });
+
+  // Aviso único al recuperar una carga en curso tras recargar la app
+  const restoreNotified = useRef(false);
+  useEffect(() => {
+    if (!cartHydrated || restoreNotified.current) return;
+    restoreNotified.current = true;
+    if (items.length > 0) {
+      toast({
+        title: "Se recuperó tu carga en curso",
+        description: `${items.length} producto(s) en el carrito`,
+      });
     }
-  );
+  }, [cartHydrated, items.length, toast]);
+
 
   const cartItemIds = new Set(items.map((i) => i.productId));
 
@@ -140,9 +163,11 @@ function VentasContent() {
                 size="sm"
                 aria-pressed={selectionMode}
                 onClick={() => {
-                  setSelectionMode((v) => !v);
-                  if (selectionMode) setSelectedIds(new Set());
+                  const wasOn = selectionMode;
+                  setSelectionMode(!wasOn);
+                  if (wasOn) setSelectedIdList([]);
                 }}
+
               >
                 <FileText className="h-4 w-4 mr-1.5" />
                 {selectionMode ? "Salir" : "Catálogo PDF"}
@@ -199,6 +224,7 @@ function VentasContent() {
 
           <TabsContent value="catalogo" className="mt-0">
             <CatalogoGrid
+              stateKey={`sales-catalog-${userId}`}
               customerPriceListId={customer.priceListId}
               onAdd={handleAddProduct}
               cartItemIds={cartItemIds}
@@ -219,7 +245,7 @@ function VentasContent() {
                   return next;
                 })
               }
-              onClearSelection={() => setSelectedIds(new Set())}
+              onClearSelection={() => setSelectedIdList([])}
               onGeneratePdf={() => setPdfOpen(true)}
             />
           </TabsContent>
@@ -373,9 +399,19 @@ function VentasContent() {
 }
 
 export default function Ventas() {
+  const { user, loading } = useAuth();
+  // Montamos recién con la sesión resuelta: así el carrito siempre usa la
+  // clave del usuario y nunca se pisa un guardado bueno con estado vacío.
+  if (loading || !user) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <p className="text-sm text-muted-foreground">Cargando ventas...</p>
+      </div>
+    );
+  }
   return (
     <SalesPresentationProvider>
-      <VentasContent />
+      <VentasContent userId={user.id} />
     </SalesPresentationProvider>
   );
 }
