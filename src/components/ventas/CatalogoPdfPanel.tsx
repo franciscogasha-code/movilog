@@ -198,6 +198,15 @@ export function CatalogoPdfPanel({
         },
       });
       setParts(out);
+      const failed = getCatalogImageFailures();
+      setImgFailures(failed);
+      if (failed > 0 && showImages) {
+        toast({
+          title: `${failed.toLocaleString("de-DE")} fotos no disponibles`,
+          description: "Esos productos salen con el recuadro gris. Probá generar de nuevo.",
+          variant: "destructive",
+        });
+      }
       return out;
     } catch (e: any) {
       if (e instanceof CatalogAbortError || e?.name === "CatalogAbortError") {
