@@ -984,9 +984,6 @@ export default function Solicitudes() {
                             <td className="px-3 py-2.5 font-mono font-semibold whitespace-nowrap">#{r.request_number}</td>
                             <td className="px-3 py-2.5 max-w-[260px]">
                               <div className="font-medium truncate">{r.client_name || "—"}</div>
-                              {r.client_phone && (
-                                <div className="text-[11px] text-muted-foreground truncate">{r.client_phone}</div>
-                              )}
                             </td>
                             <td className="px-3 py-2.5 text-xs capitalize text-muted-foreground">
                               {r.sales_channel || "—"}

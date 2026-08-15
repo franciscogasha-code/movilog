@@ -28,6 +28,7 @@ import {
   shouldShowClientFields,
   validateShippingMethod,
 } from "@/lib/business-rules";
+import { REQUEST_COLUMNS, fetchRequestClientContact } from "@/lib/branch-requests-query";
 
 /**
  * FormRequestType integra Pre-Venta Online como variante comercial del mismo
@@ -251,7 +252,7 @@ export function SolicitudCreateForm({
       try {
         const { data: req, error } = await supabase
           .from("branch_requests")
-          .select("*")
+          .select(REQUEST_COLUMNS)
           .eq("id", editingPreSaleId)
           .eq("is_pre_sale", true)
           .single();
@@ -265,8 +266,9 @@ export function SolicitudCreateForm({
         setClientName(req.client_name ?? "");
         setClientAddress(req.client_address ?? "");
         setSalesChannel((req as any).sales_channel ?? "whatsapp");
-        setClientPhone((req as any).client_phone ?? "");
-        setClientEmail((req as any).client_email ?? "");
+        const contact = await fetchRequestClientContact(editingPreSaleId);
+        setClientPhone(contact.client_phone ?? "");
+        setClientEmail(contact.client_email ?? "");
         setNotes(req.notes ?? "");
         setCommercialTerms(((req as any).commercial_terms ?? "") || "");
         setWasConfirmed(((req as any).pre_sale_status ?? "draft") === "confirmed");
@@ -748,7 +750,7 @@ export function SolicitudCreateForm({
             created_by: user.id,
             status: "pending" as any,
           })
-          .select()
+          .select("id, request_number")
           .single();
         if (parentErr) throw parentErr;
 
@@ -779,7 +781,7 @@ export function SolicitudCreateForm({
                 notes: notes || null,
                 created_by: user.id,
               })
-              .select()
+              .select("id, request_number")
               .single();
             if (error) throw error;
 
@@ -852,7 +854,7 @@ export function SolicitudCreateForm({
             ...(operationalResponsibleId ? { operational_responsible_id: operationalResponsibleId } : {}),
             created_by: user.id,
           })
-          .select()
+          .select("id, request_number")
           .single();
         if (error) throw error;
 
