@@ -11,11 +11,14 @@ Este documento describe la totalidad de MoviLog: qué hace cada módulo, por qu�
 ## Índice
 
 **Parte I — Contexto y Arquitectura**
+
 - Qué es MoviLog
 - Mapa de módulos
 - Ciclo de vida de un pedido
 - Roles operativos
+
 **Parte II — Módulos**
+
 - Panel Operativo Unificado
 - Dashboard Ejecutivo
 - Consultas de Disponibilidad
@@ -41,7 +44,9 @@ Este documento describe la totalidad de MoviLog: qué hace cada módulo, por qu�
 - Sincronización con BIMS
 - Modelo de Seguridad
 - Arquitectura y Convenciones Técnicas
+
 **Parte III — Anexos Técnicos**
+
 - Anexo A — Diccionario de tablas
 - Anexo B — Tipos enumerados
 - Anexo C — Funciones de base de datos
