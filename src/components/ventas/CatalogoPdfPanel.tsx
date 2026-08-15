@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
@@ -20,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { FileText, Share2, Download, X, ImageOff, Info, Zap } from "lucide-react";
+import { FileText, Share2, Download, X, ImageOff, Info, Zap, Save, FolderOpen, Trash2, RefreshCw } from "lucide-react";
 import { proxyImageUrl } from "@/lib/image-utils";
 import { formatGs, resolvePrice, ProductRow } from "@/lib/ventas";
 import {
@@ -29,7 +30,10 @@ import {
   CatalogAbortError,
   catalogPartSize,
   getCatalogImageFailures,
+  getCatalogImageReport,
   resetCatalogImageFailures,
+  CatalogImageQualityError,
+  CatalogImageReport,
   CATALOG_SEC_PER_ITEM_WITH_IMG,
   CATALOG_SEC_PER_ITEM_NO_IMG,
   CATALOG_SUGGEST_NO_IMG_FROM,
@@ -54,6 +58,9 @@ export function CatalogoPdfPanel({
   onRemoveId,
   customer,
   salespersonName,
+  userId,
+  onRestoreIds,
+  onClearSelection,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -67,6 +74,9 @@ export function CatalogoPdfPanel({
     priceListId: string | null;
   };
   salespersonName?: string | null;
+  userId: string;
+  onRestoreIds: (ids: string[]) => void;
+  onClearSelection: () => void;
 }) {
   const { toast } = useToast();
   const [products, setProducts] = useState<ProductRow[]>([]);
@@ -81,7 +91,70 @@ export function CatalogoPdfPanel({
   );
   const [parts, setParts] = useState<CatalogPart[] | null>(null);
   const [imgFailures, setImgFailures] = useState(0);
+  const [imageReport, setImageReport] = useState<CatalogImageReport | null>(null);
+  const [allowFailures, setAllowFailures] = useState(false);
+  const [draftName, setDraftName] = useState("");
+  const [drafts, setDrafts] = useState<Array<{ id: string; name: string; product_ids: string[]; updated_at: string }>>([]);
+  const [draftBusy, setDraftBusy] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+
+  const loadDrafts = async () => {
+    const { data, error } = await supabase
+      .from("sales_catalog_drafts")
+      .select("id, name, product_ids, updated_at")
+      .eq("user_id", userId)
+      .order("updated_at", { ascending: false });
+    if (error) throw error;
+    setDrafts((data ?? []).map((draft) => ({
+      id: draft.id,
+      name: draft.name,
+      product_ids: draft.product_ids ?? [],
+      updated_at: draft.updated_at,
+    })));
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    void loadDrafts().catch(() => {
+      toast({ title: "No se pudieron cargar los borradores", variant: "destructive" });
+    });
+  }, [open, userId]);
+
+  const saveDraft = async (name = draftName.trim() || `Catálogo ${new Date().toLocaleDateString("es-PY")}`) => {
+    if (selectedIds.length === 0) return;
+    setDraftBusy(true);
+    try {
+      const existing = drafts.find((draft) => draft.name.toLocaleLowerCase() === name.toLocaleLowerCase());
+      const payload = {
+        user_id: userId,
+        name,
+        product_ids: selectedIds,
+        customer,
+        filters: {},
+        pdf_options: { showPrices, showScales, showImages, sortBy, note },
+      };
+      const result = existing
+        ? await supabase.from("sales_catalog_drafts").update(payload).eq("id", existing.id)
+        : await supabase.from("sales_catalog_drafts").insert(payload);
+      if (result.error) throw result.error;
+      setDraftName("");
+      await loadDrafts();
+      toast({ title: "Selección guardada", description: `${selectedIds.length.toLocaleString("de-DE")} productos` });
+    } catch (error) {
+      toast({ title: "No se pudo guardar", description: error instanceof Error ? error.message : "Intentá de nuevo", variant: "destructive" });
+    } finally {
+      setDraftBusy(false);
+    }
+  };
+
+  const deleteDraft = async (id: string) => {
+    const { error } = await supabase.from("sales_catalog_drafts").delete().eq("id", id);
+    if (error) {
+      toast({ title: "No se pudo borrar el borrador", variant: "destructive" });
+      return;
+    }
+    await loadDrafts();
+  };
 
   // Con muchos ítems, sugerir el modo sin fotos una sola vez
   const suggestedRef = useRef(false);
@@ -141,6 +214,8 @@ export function CatalogoPdfPanel({
   useEffect(() => {
     setParts(null);
     setImgFailures(0);
+    setImageReport(null);
+    setAllowFailures(false);
   }, [products, showPrices, showScales, showImages, sortBy, note, customer.priceListId]);
 
   const sortedPreview = useMemo(
@@ -168,6 +243,8 @@ export function CatalogoPdfPanel({
     setProgress({ done: 0, total: products.length });
     setImgFailures(0);
     resetCatalogImageFailures();
+    // Autoguardado: la selección queda recuperable aunque se cierre la app durante la generación.
+    await saveDraft(`Autoguardado catálogo`);
     try {
 
       const out = await buildCatalogPdfParts({
@@ -187,6 +264,7 @@ export function CatalogoPdfPanel({
         showImages,
         sortBy,
         note,
+        allowImageFailures: allowFailures,
         signal: controller.signal,
         onPart,
         onProgress: (done, total) => {
@@ -201,6 +279,7 @@ export function CatalogoPdfPanel({
       setParts(out);
       const failed = getCatalogImageFailures();
       setImgFailures(failed);
+      setImageReport(getCatalogImageReport());
       if (failed > 0 && showImages) {
         toast({
           title: `${failed.toLocaleString("de-DE")} fotos no disponibles`,
@@ -212,6 +291,15 @@ export function CatalogoPdfPanel({
     } catch (e: any) {
       if (e instanceof CatalogAbortError || e?.name === "CatalogAbortError") {
         toast({ title: "Generación cancelada" });
+      } else if (e instanceof CatalogImageQualityError || e?.name === "CatalogImageQualityError") {
+        const report = (e as CatalogImageQualityError).report;
+        setImageReport(report);
+        setImgFailures(report.failed.length);
+        toast({
+          title: "PDF detenido para cuidar la calidad",
+          description: `${report.failed.length.toLocaleString("de-DE")} fotos fallaron. Reintentá o generá sin fotos.`,
+          variant: "destructive",
+        });
       } else {
         toast({
           title: "Error al generar el PDF",
@@ -308,10 +396,24 @@ export function CatalogoPdfPanel({
           <Alert variant="destructive">
             <Info className="h-4 w-4" />
             <AlertDescription className="text-xs">
-              {imgFailures.toLocaleString("de-DE")} fotos no se pudieron descargar y salieron con
-              recuadro gris. Volvé a generar o desactivá "Incluir fotos".
+              El PDF no se descargó: {imgFailures.toLocaleString("de-DE")} fotos tuvieron una falla técnica.
+              Reintentá; si persiste, generá sin fotos.
             </AlertDescription>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <Button size="sm" variant="outline" onClick={() => { setParts(null); setAllowFailures(false); void generate(); }} disabled={busy}>
+                <RefreshCw className="h-3.5 w-3.5 mr-1" /> Reintentar
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setShowImages(false)} disabled={busy}>
+                <ImageOff className="h-3.5 w-3.5 mr-1" /> Generar sin fotos
+              </Button>
+            </div>
           </Alert>
+        )}
+
+        {imageReport && showImages && (
+          <p className="text-xs text-muted-foreground">
+            {imageReport.ready.toLocaleString("de-DE")} fotos listas · {imageReport.missingSource.toLocaleString("de-DE")} productos sin foto de origen
+          </p>
         )}
 
 
@@ -337,6 +439,38 @@ export function CatalogoPdfPanel({
         )}
 
         <div className="space-y-4">
+          <div className="space-y-2 border rounded-md p-3">
+            <div className="flex items-center gap-2">
+              <Input
+                value={draftName}
+                onChange={(event) => setDraftName(event.target.value)}
+                placeholder="Nombre del borrador"
+                maxLength={120}
+              />
+              <Button type="button" size="icon" variant="outline" onClick={() => void saveDraft()} disabled={draftBusy || selectedIds.length === 0} aria-label="Guardar selección">
+                <Save className="h-4 w-4" />
+              </Button>
+            </div>
+            {drafts.length > 0 && (
+              <div className="max-h-28 overflow-y-auto divide-y">
+                {drafts.map((draft) => (
+                  <div key={draft.id} className="flex items-center gap-2 py-1.5">
+                    <Button type="button" variant="ghost" size="sm" className="min-w-0 flex-1 justify-start" onClick={() => onRestoreIds(draft.product_ids)}>
+                      <FolderOpen className="h-3.5 w-3.5 mr-1.5 shrink-0" />
+                      <span className="truncate">{draft.name}</span>
+                      <span className="ml-auto text-[10px] text-muted-foreground">{draft.product_ids.length.toLocaleString("de-DE")}</span>
+                    </Button>
+                    <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => void deleteDraft(draft.id)} aria-label={`Borrar ${draft.name}`}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <Button type="button" variant="ghost" size="sm" className="w-full text-muted-foreground" onClick={onClearSelection} disabled={selectedIds.length === 0}>
+              <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Limpiar selección actual
+            </Button>
+          </div>
           <div className="flex items-center justify-between">
             <div>
               <Label htmlFor="pdf-images" className="text-sm">
