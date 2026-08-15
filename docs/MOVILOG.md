@@ -8,6 +8,49 @@ Este documento describe la totalidad de MoviLog: qué hace cada módulo, por qu�
 
 ---
 
+## Índice
+
+**Parte I — Contexto y Arquitectura**
+- Qué es MoviLog
+- Mapa de módulos
+- Ciclo de vida de un pedido
+- Roles operativos
+**Parte II — Módulos**
+- Panel Operativo Unificado
+- Dashboard Ejecutivo
+- Consultas de Disponibilidad
+- Alertas y Excepciones
+- Solicitudes y Pedidos
+- Cumplimiento (Ejecución Física)
+- Ruteo y viajes
+- App del Chofer
+- Distribución (Mayorista)
+- Etiquetas y bultos
+- Recepción física
+- Incidencias
+- Documentos (Trazabilidad documental)
+- Notas transversales del dominio
+- Ventas — Catálogo del Vendedor
+- Catálogo PDF para el Cliente
+- Trabajo sin Conexión (Offline)
+- Flota y Control de Móviles
+- Rendición
+- Cobranzas
+- Stock Comprometido y Stock Especial
+- Usuarios, Roles y Accesos
+- Sincronización con BIMS
+- Modelo de Seguridad
+- Arquitectura y Convenciones Técnicas
+**Parte III — Anexos Técnicos**
+- Anexo A — Diccionario de tablas
+- Anexo B — Tipos enumerados
+- Anexo C — Funciones de base de datos
+- Anexo D — Edge functions
+- Anexo E — Convenciones del proyecto
+- Anexo F — Módulos en fase futura
+
+---
+
 # Parte I — Contexto y Arquitectura
 
 ## Qué es MoviLog
