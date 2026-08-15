@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { REQUEST_COLUMNS, fetchRequestClientContact } from "@/lib/branch-requests-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -43,12 +44,18 @@ export function PreSaleDetail({ requestId, onUpdate }: { requestId: string; onUp
     queryFn: async () => {
       const { data, error } = await supabase
         .from("branch_requests")
-        .select(`*, requesting_branch:branches!branch_requests_requesting_branch_id_fkey(name, code)`)
+        .select(`${REQUEST_COLUMNS}, requesting_branch:branches!branch_requests_requesting_branch_id_fkey(name, code)`)
         .eq("id", requestId)
         .single();
       if (error) throw error;
       return data;
     },
+  });
+
+  const { data: clientContact } = useQuery({
+    queryKey: ["pre-sale-contact", requestId],
+    enabled: !!requestId,
+    queryFn: () => fetchRequestClientContact(requestId),
   });
 
   const createdBy = (request as any)?.created_by ?? null;
@@ -109,8 +116,8 @@ export function PreSaleDetail({ requestId, onUpdate }: { requestId: string; onUp
       await generatePreSalePdf({
         request_number: request.request_number,
         client_name: request.client_name,
-        client_phone: (request as any).client_phone,
-        client_email: (request as any).client_email,
+        client_phone: clientContact?.client_phone ?? null,
+        client_email: clientContact?.client_email ?? null,
         client_address: request.client_address,
         notes: request.notes,
         commercial_terms: (request as any).commercial_terms,
@@ -244,8 +251,8 @@ export function PreSaleDetail({ requestId, onUpdate }: { requestId: string; onUp
       <Card>
         <CardContent className="p-3 space-y-1 text-sm">
           <div><span className="text-muted-foreground">Cliente:</span> <span className="font-medium">{request.client_name}</span></div>
-          {(request as any).client_phone && <div><span className="text-muted-foreground">Tel:</span> {(request as any).client_phone}</div>}
-          {(request as any).client_email && <div><span className="text-muted-foreground">Email:</span> {(request as any).client_email}</div>}
+          {clientContact?.client_phone && <div><span className="text-muted-foreground">Tel:</span> {clientContact.client_phone}</div>}
+          {clientContact?.client_email && <div><span className="text-muted-foreground">Email:</span> {clientContact.client_email}</div>}
           {request.client_address && <div><span className="text-muted-foreground">Dirección:</span> {request.client_address}</div>}
           {(request as any).sales_channel && <div><span className="text-muted-foreground">Canal:</span> <span className="capitalize">{(request as any).sales_channel}</span></div>}
         </CardContent>
@@ -384,7 +391,7 @@ export function PreSaleDetail({ requestId, onUpdate }: { requestId: string; onUp
 
             <div className="rounded-md border border-border bg-muted/40 p-2.5 text-xs space-y-1">
               <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">Resumen heredado (solo lectura)</div>
-              <div><span className="text-muted-foreground">Cliente:</span> {request.client_name} · {(request as any).client_phone ?? "—"}</div>
+              <div><span className="text-muted-foreground">Cliente:</span> {request.client_name} · {clientContact?.client_phone ?? "—"}</div>
               {request.client_address && <div><span className="text-muted-foreground">Dirección:</span> {request.client_address}</div>}
               <div><span className="text-muted-foreground">Productos:</span> {items.length} ítem(s) · {(items as any[]).reduce((a:number,it:any)=>a+Number(it.quantity_requested||0),0)} unidades</div>
               {((request as any).commercial_terms?.trim()) && (
