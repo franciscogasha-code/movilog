@@ -22,6 +22,15 @@ const baseProduct = (overrides: Partial<ProductRow>): ProductRow => ({
   price_lists: null,
   stock_by_warehouse: null,
   total_stock: 0,
+  bims_label_id: null,
+  bims_warehouse_id: null,
+  buy_price: null,
+  created_at: "2026-08-15T00:00:00Z",
+  is_active: true,
+  sku: null,
+  updated_at: "2026-08-15T00:00:00Z",
+  volume_cm3: null,
+  weight_kg: null,
   ...overrides,
 });
 
