@@ -112,6 +112,22 @@ function drawToJpeg(img: HTMLImageElement, quality: number): string {
   return canvas.toDataURL("image/jpeg", quality);
 }
 
+function decodeBlob(blob: Blob): Promise<HTMLImageElement> {
+  const objectUrl = URL.createObjectURL(blob);
+  return new Promise((resolve, reject) => {
+    const el = new Image();
+    el.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(el);
+    };
+    el.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("decode-error"));
+    };
+    el.src = objectUrl;
+  });
+}
+
 /**
  * Descarga la foto por fetch (CORS explícito) y la decodifica desde un blob local.
  * Evita el canvas "contaminado" y las respuestas opacas cacheadas por el service worker.
@@ -119,23 +135,23 @@ function drawToJpeg(img: HTMLImageElement, quality: number): string {
 async function loadImage(url: string, quality: number, timeoutMs: number): Promise<string> {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
-  let objectUrl: string | null = null;
   try {
-    const res = await fetch(url, { mode: "cors", credentials: "omit", signal: ctrl.signal });
+    // cache: "reload" obliga a revalidar y evita respuestas opacas que hayan
+    // quedado en instalaciones anteriores del PWA con la misma URL.
+    const res = await fetch(url, {
+      mode: "cors",
+      credentials: "omit",
+      cache: "reload",
+      signal: ctrl.signal,
+    });
     if (!res.ok) throw new Error(`http-${res.status}`);
     const blob = await res.blob();
     if (!blob.size) throw new Error("empty");
-    objectUrl = URL.createObjectURL(blob);
-    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const el = new Image();
-      el.onload = () => resolve(el);
-      el.onerror = () => reject(new Error("decode-error"));
-      el.src = objectUrl!;
-    });
+    if (!blob.type.startsWith("image/")) throw new Error("not-image");
+    const img = await decodeBlob(blob);
     return drawToJpeg(img, quality);
   } finally {
     clearTimeout(t);
-    if (objectUrl) URL.revokeObjectURL(objectUrl);
   }
 }
 

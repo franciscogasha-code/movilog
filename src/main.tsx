@@ -1,11 +1,8 @@
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
-import { registerSW } from "virtual:pwa-register";
+import { registerAppServiceWorker } from "@/lib/register-app-sw";
 
-// Service worker: permite abrir la app y ver el catálogo cacheado sin señal
-if (import.meta.env.PROD) {
-  registerSW({ immediate: true });
-}
+void registerAppServiceWorker();
 
 createRoot(document.getElementById("root")!).render(<App />);

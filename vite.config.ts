@@ -18,6 +18,7 @@ export default defineConfig(({ mode }) => ({
     mode === "development" && componentTagger(),
     VitePWA({
       registerType: "autoUpdate",
+      injectRegister: null,
       manifest: false,
       includeAssets: ["favicon.ico", "icon-192.png", "icon-512.png"],
       workbox: {
@@ -26,13 +27,21 @@ export default defineConfig(({ mode }) => ({
         navigateFallbackDenylist: [/^\/functions\//],
         runtimeCaching: [
           {
+            urlPattern: ({ request }) => request.mode === "navigate",
+            handler: "NetworkFirst",
+            options: {
+              cacheName: "movilog-pages",
+              networkTimeoutSeconds: 5,
+            },
+          },
+          {
             // Fotos de producto (proxy BIMS y storage)
             urlPattern: ({ url }) =>
               url.pathname.includes("/bims-image-proxy") ||
               url.pathname.includes("/storage/v1/object"),
             handler: "CacheFirst",
             options: {
-              cacheName: "movilog-product-images",
+              cacheName: "movilog-product-images-v2",
               expiration: { maxEntries: 2000, maxAgeSeconds: 60 * 60 * 24 * 30 },
               cacheableResponse: { statuses: [200] },
               fetchOptions: { mode: "cors", credentials: "omit" },
