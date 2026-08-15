@@ -37,7 +37,8 @@ export default defineConfig(({ mode }) => ({
           {
             // Fotos de producto (proxy BIMS y storage)
             urlPattern: ({ url }) =>
-              url.pathname.includes("/bims-image-proxy") ||
+              (url.pathname.includes("/bims-image-proxy") &&
+                url.searchParams.get("mode") !== "pdf") ||
               url.pathname.includes("/storage/v1/object"),
             handler: "CacheFirst",
             options: {
