@@ -576,10 +576,9 @@ export function CatalogoGrid({
             </div>
             <Button
               type="button"
-              disabled={selectedCount === 0}
               onClick={() => onGeneratePdf?.()}
             >
-              Generar PDF
+              {selectedCount === 0 ? "Abrir borradores" : "Generar PDF"}
             </Button>
           </div>
         </>
