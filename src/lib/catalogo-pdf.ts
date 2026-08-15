@@ -58,6 +58,8 @@ export interface CatalogPdfOptions {
   signal?: AbortSignal;
   /** Identificador único por generación para evitar cachés viejas del PWA. */
   imageRequestId?: string;
+  /** Permite continuar solo cuando el operador aceptó fallas individuales. */
+  allowImageFailures?: boolean;
 }
 
 export class CatalogAbortError extends Error {
@@ -699,11 +701,14 @@ export async function buildCatalogPdfParts(
 
     if (showImages) {
       // Fotos en paralelo: llena el cache antes de dibujar.
-      await prefetchCatalogImages(chunks[i], {
+      const report = await prefetchCatalogImages(chunks[i], {
         signal: opts.signal,
         imageRequestId,
         onProgress: (d) => opts.onProgress?.(base + d, total),
       });
+      if (report.failed.length > 0 && !opts.allowImageFailures) {
+        throw new CatalogImageQualityError(report);
+      }
     }
 
     const blob = await buildCatalogPdf({
