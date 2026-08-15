@@ -76,6 +76,21 @@ function throwIfAborted(signal?: AbortSignal): void {
 const IMG_MAX_PX = 320;
 const imgCache = new Map<string, string>();
 
+export type CatalogImageFailureStage = "fetch" | "http" | "mime" | "signature" | "decode" | "canvas";
+export interface CatalogImageFailure {
+  productId: string;
+  code: string;
+  stage: CatalogImageFailureStage;
+  detail: string;
+}
+export interface CatalogImageReport {
+  ready: number;
+  missingSource: number;
+  failed: CatalogImageFailure[];
+}
+
+let lastImageReport: CatalogImageReport = { ready: 0, missingSource: 0, failed: [] };
+
 function placeholderDataUrl(label: string): string {
   const c = document.createElement("canvas");
   c.width = IMG_MAX_PX;
@@ -91,16 +106,21 @@ function placeholderDataUrl(label: string): string {
   return c.toDataURL("image/jpeg", 0.7);
 }
 
-/** Fotos que no se pudieron traer en la última generación. */
-let lastImageFailures = 0;
 export function getCatalogImageFailures(): number {
-  return lastImageFailures;
+  return lastImageReport.failed.length;
+}
+export function getCatalogImageReport(): CatalogImageReport {
+  return {
+    ready: lastImageReport.ready,
+    missingSource: lastImageReport.missingSource,
+    failed: [...lastImageReport.failed],
+  };
 }
 export function resetCatalogImageFailures(): void {
-  lastImageFailures = 0;
+  lastImageReport = { ready: 0, missingSource: 0, failed: [] };
 }
 
-function drawToJpeg(img: HTMLImageElement, quality: number): string {
+function drawToJpeg(img: CanvasImageSource & { width: number; height: number }, quality: number): string {
   const ratio = Math.min(IMG_MAX_PX / img.width, IMG_MAX_PX / img.height, 1);
   const w = Math.max(1, Math.round(img.width * ratio));
   const h = Math.max(1, Math.round(img.height * ratio));
@@ -110,21 +130,58 @@ function drawToJpeg(img: HTMLImageElement, quality: number): string {
   const ctx = canvas.getContext("2d")!;
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, w, h);
-  ctx.drawImage(img, 0, 0, w, h);
-  return canvas.toDataURL("image/jpeg", quality);
+  try {
+    ctx.drawImage(img, 0, 0, w, h);
+    return canvas.toDataURL("image/jpeg", quality);
+  } catch {
+    throw new CatalogImagePipelineError("canvas", "canvas-export");
+  }
 }
 
-function decodeBlob(blob: Blob): Promise<HTMLImageElement> {
+class CatalogImagePipelineError extends Error {
+  constructor(public readonly stage: CatalogImageFailureStage, detail: string) {
+    super(detail);
+    this.name = "CatalogImagePipelineError";
+  }
+}
+
+export class CatalogImageQualityError extends Error {
+  constructor(public readonly report: CatalogImageReport) {
+    super(`${report.failed.length} fotos no pudieron prepararse`);
+    this.name = "CatalogImageQualityError";
+  }
+}
+
+async function hasImageSignature(blob: Blob): Promise<boolean> {
+  const bytes = new Uint8Array(await blob.slice(0, 12).arrayBuffer());
+  const jpeg = bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  const png = bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47;
+  const gif = bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46;
+  const webp = bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50;
+  return jpeg || png || gif || webp;
+}
+
+function decodeBlobFallback(blob: Blob): Promise<HTMLImageElement> {
   const objectUrl = URL.createObjectURL(blob);
   return new Promise((resolve, reject) => {
     const el = new Image();
     el.onload = () => {
-      URL.revokeObjectURL(objectUrl);
-      resolve(el);
+      try {
+        // Dibujamos antes de revocar: Safari puede liberar los bytes al revocar.
+        const data = drawToJpeg(el, 0.72);
+        URL.revokeObjectURL(objectUrl);
+        const decoded = new Image();
+        decoded.onload = () => resolve(decoded);
+        decoded.onerror = () => reject(new CatalogImagePipelineError("decode", "data-url-decode"));
+        decoded.src = data;
+      } catch (error) {
+        URL.revokeObjectURL(objectUrl);
+        reject(error);
+      }
     };
     el.onerror = () => {
       URL.revokeObjectURL(objectUrl);
-      reject(new Error("decode-error"));
+      reject(new CatalogImagePipelineError("decode", "blob-decode"));
     };
     el.src = objectUrl;
   });
@@ -140,17 +197,38 @@ async function loadImage(url: string, quality: number, timeoutMs: number): Promi
   try {
     // cache: "reload" obliga a revalidar y evita respuestas opacas que hayan
     // quedado en instalaciones anteriores del PWA con la misma URL.
-    const res = await fetch(url, {
+    let res: Response;
+    try {
+      res = await fetch(url, {
       mode: "cors",
       credentials: "omit",
-      cache: "reload",
+      cache: "no-store",
       signal: ctrl.signal,
-    });
-    if (!res.ok) throw new Error(`http-${res.status}`);
+      });
+    } catch (error) {
+      throw new CatalogImagePipelineError("fetch", error instanceof Error ? error.name : "network");
+    }
+    if (!res.ok) throw new CatalogImagePipelineError("http", String(res.status));
     const blob = await res.blob();
-    if (!blob.size) throw new Error("empty");
-    if (!blob.type.startsWith("image/")) throw new Error("not-image");
-    const img = await decodeBlob(blob);
+    if (!blob.size) throw new CatalogImagePipelineError("mime", "empty");
+    if (!blob.type.toLowerCase().startsWith("image/")) {
+      throw new CatalogImagePipelineError("mime", blob.type || "unknown");
+    }
+    if (!(await hasImageSignature(blob))) {
+      throw new CatalogImagePipelineError("signature", "unsupported-or-invalid");
+    }
+    if (typeof createImageBitmap === "function") {
+      try {
+        const bitmap = await createImageBitmap(blob);
+        const data = drawToJpeg(bitmap, quality);
+        bitmap.close();
+        return data;
+      } catch (error) {
+        if (error instanceof CatalogImagePipelineError) throw error;
+        throw new CatalogImagePipelineError("decode", "image-bitmap");
+      }
+    }
+    const img = await decodeBlobFallback(blob);
     return drawToJpeg(img, quality);
   } finally {
     clearTimeout(t);
@@ -160,12 +238,13 @@ async function loadImage(url: string, quality: number, timeoutMs: number): Promi
 async function getImage(
   url: string | null | undefined,
   label: string,
-  imageRequestId?: string
+  imageRequestId?: string,
+  failureContext?: { productId: string; code: string },
 ): Promise<string> {
   if (!url) return placeholderDataUrl(label);
   // Los catálogos deben pedir una copia fresca por generación. Esto evita que
   // instalaciones antiguas del PWA entreguen respuestas opacas ya cacheadas.
-  const src = proxyImageUrl(url, imageRequestId);
+  const src = proxyImageUrl(url, imageRequestId, "pdf");
   const hit = imgCache.get(src);
   if (hit) return hit;
   for (let attempt = 0; attempt < 2; attempt++) {
@@ -173,11 +252,20 @@ async function getImage(
       const data = await loadImage(src, 0.7, 10000);
       imgCache.set(src, data); // solo cacheamos éxitos
       return data;
-    } catch {
-      /* reintento */
+    } catch (error) {
+      if (attempt === 1 && failureContext) {
+        const pipelineError = error instanceof CatalogImagePipelineError
+          ? error
+          : new CatalogImagePipelineError("fetch", "unknown");
+        lastImageReport.failed.push({
+          ...failureContext,
+          stage: pipelineError.stage,
+          detail: pipelineError.message,
+        });
+      }
+      if (attempt === 0) await new Promise((resolve) => setTimeout(resolve, 250));
     }
   }
-  lastImageFailures++;
   return placeholderDataUrl(label);
 }
 
@@ -194,17 +282,31 @@ export async function prefetchCatalogImages(
     onProgress?: (done: number, total: number) => void;
     imageRequestId?: string;
   } = {}
-): Promise<void> {
-  const { concurrency = CATALOG_IMG_CONCURRENCY, signal, onProgress, imageRequestId } = opts;
+): Promise<CatalogImageReport> {
+  const mobileConcurrency = typeof navigator !== "undefined" && /Android|iPhone|iPad/i.test(navigator.userAgent) ? 3 : CATALOG_IMG_CONCURRENCY;
+  const { concurrency = mobileConcurrency, signal, onProgress, imageRequestId } = opts;
   const total = products.length;
   let next = 0;
   let done = 0;
+  lastImageReport = {
+    ready: 0,
+    missingSource: products.filter((product) => !product.image_url).length,
+    failed: [],
+  };
 
   const worker = async () => {
     while (next < total) {
       if (signal?.aborted) return;
       const p = products[next++];
-      await getImage(p.image_url, p.bims_code ?? "", imageRequestId);
+      if (p.image_url) {
+        await getImage(p.image_url, p.bims_code ?? "", imageRequestId, {
+          productId: p.id,
+          code: p.bims_code ?? "",
+        });
+        if (!lastImageReport.failed.some((failure) => failure.productId === p.id)) {
+          lastImageReport.ready++;
+        }
+      }
       done++;
       onProgress?.(done, total);
     }
@@ -214,6 +316,7 @@ export async function prefetchCatalogImages(
     Array.from({ length: Math.min(concurrency, Math.max(1, total)) }, worker)
   );
   throwIfAborted(signal);
+  return getCatalogImageReport();
 }
 
 /* ───────────────── helpers de dibujo ───────────────── */
