@@ -46,6 +46,16 @@ describe("pipeline de fotos del catálogo", () => {
   });
 
   it("registra la etapa MIME después de dos intentos", async () => {
+    const canvasContext = {
+      fillStyle: "",
+      font: "",
+      textAlign: "center",
+      textBaseline: "middle",
+      fillRect: vi.fn(),
+      fillText: vi.fn(),
+    };
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(canvasContext as unknown as CanvasRenderingContext2D);
+    vi.spyOn(HTMLCanvasElement.prototype, "toDataURL").mockReturnValue("data:image/jpeg;base64,placeholder");
     const fetchMock = vi.fn().mockResolvedValue(
       new Response("no es una imagen", {
         status: 200,
