@@ -2353,6 +2353,42 @@ export type Database = {
           },
         ]
       }
+      sales_catalog_drafts: {
+        Row: {
+          created_at: string
+          customer: Json
+          filters: Json
+          id: string
+          name: string
+          pdf_options: Json
+          product_ids: string[]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          customer?: Json
+          filters?: Json
+          id?: string
+          name: string
+          pdf_options?: Json
+          product_ids?: string[]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          customer?: Json
+          filters?: Json
+          id?: string
+          name?: string
+          pdf_options?: Json
+          product_ids?: string[]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       sales_customers: {
         Row: {
           address: string | null
