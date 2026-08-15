@@ -56,12 +56,11 @@ describe("pipeline de fotos del catálogo", () => {
     };
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(canvasContext as unknown as CanvasRenderingContext2D);
     vi.spyOn(HTMLCanvasElement.prototype, "toDataURL").mockReturnValue("data:image/jpeg;base64,placeholder");
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response("no es una imagen", {
-        status: 200,
-        headers: { "content-type": "text/plain" },
-      }),
-    );
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      blob: async () => new Blob(["no es una imagen"], { type: "text/plain" }),
+    });
     vi.stubGlobal("fetch", fetchMock);
 
     const report = await prefetchCatalogImages([
