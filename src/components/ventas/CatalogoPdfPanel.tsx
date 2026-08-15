@@ -243,9 +243,9 @@ export function CatalogoPdfPanel({
     setProgress({ done: 0, total: products.length });
     setImgFailures(0);
     resetCatalogImageFailures();
-    // Autoguardado: la selección queda recuperable aunque se cierre la app durante la generación.
-    await saveDraft(`Autoguardado catálogo`);
     try {
+      // Autoguardado: la selección queda recuperable aunque se cierre la app durante la generación.
+      await saveDraft("Autoguardado catálogo");
 
       const out = await buildCatalogPdfParts({
         products,
@@ -334,9 +334,11 @@ export function CatalogoPdfPanel({
       });
       return;
     }
-    // entrega incremental: cada archivo se descarga apenas está listo
-    const out = await generate((part) => saveFile(part));
+    // Generamos todas las partes primero. La compuerta de calidad evita que se
+    // descargue una parte antes de detectar fallas de imagen en otra.
+    const out = await generate();
     if (!out?.length) return;
+    out.forEach((part, index) => setTimeout(() => saveFile(part), index * 700));
     toast({
       title: out.length > 1 ? `Catálogo en ${out.length} archivos` : "Catálogo generado",
       description: `${products.length.toLocaleString("de-DE")} productos`,
