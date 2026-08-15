@@ -3438,6 +3438,18 @@ export type Database = {
         }
         Returns: Json
       }
+      fn_can_access_fulfillment: {
+        Args: { _fulfillment_id: string; _user_id: string }
+        Returns: boolean
+      }
+      fn_can_access_inventory: {
+        Args: { _inventory_id: string; _user_id: string }
+        Returns: boolean
+      }
+      fn_can_access_request: {
+        Args: { _request_id: string; _user_id: string }
+        Returns: boolean
+      }
       fn_can_view_consultation: {
         Args: { _consultation_id: string; _user_id: string }
         Returns: boolean
@@ -3498,6 +3510,13 @@ export type Database = {
         Returns: Json
       }
       fn_ensure_driver_for_user: { Args: { _user_id: string }; Returns: string }
+      fn_get_request_client_contact: {
+        Args: { p_request_id: string }
+        Returns: {
+          client_email: string
+          client_phone: string
+        }[]
+      }
       fn_get_trip_detail: {
         Args: { p_trip_id: string }
         Returns: {
@@ -3532,6 +3551,7 @@ export type Database = {
           trip_id: string
         }[]
       }
+      fn_is_fleet_manager: { Args: { _user_id: string }; Returns: boolean }
       fn_is_parent_request: { Args: { p_request_id: string }; Returns: boolean }
       fn_recalculate_flow_type: {
         Args: { p_request_id: string }
