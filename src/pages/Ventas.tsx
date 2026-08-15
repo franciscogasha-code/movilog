@@ -163,9 +163,7 @@ function VentasContent({ userId }: { userId: string }) {
                 size="sm"
                 aria-pressed={selectionMode}
                 onClick={() => {
-                  const wasOn = selectionMode;
-                  setSelectionMode(!wasOn);
-                  if (wasOn) setSelectedIdList([]);
+                  setSelectionMode(!selectionMode);
                 }}
 
               >
@@ -393,6 +391,13 @@ function VentasContent({ userId }: { userId: string }) {
         }
         customer={customer}
         salespersonName={profile?.full_name}
+        userId={userId}
+        onRestoreIds={(ids) => {
+          setSelectedIdList(ids);
+          setSelectionMode(true);
+          setActiveTab("catalogo");
+        }}
+        onClearSelection={() => setSelectedIdList([])}
       />
     </div>
   );

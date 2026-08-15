@@ -10,6 +10,7 @@ Deno.serve(async (req) => {
 
   const url = new URL(req.url);
   const imageUrl = url.searchParams.get("url");
+  const pdfMode = url.searchParams.get("mode") === "pdf";
 
   if (!imageUrl) {
     return new Response(JSON.stringify({ error: "Missing 'url' parameter" }), {
@@ -48,6 +49,12 @@ Deno.serve(async (req) => {
     }
 
     const contentType = response.headers.get("content-type") || "image/png";
+    if (!contentType.toLowerCase().startsWith("image/")) {
+      return new Response(JSON.stringify({ error: "Upstream did not return an image" }), {
+        status: 502,
+        headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "no-store" },
+      });
+    }
     const body = await response.arrayBuffer();
 
     return new Response(body, {
@@ -55,7 +62,10 @@ Deno.serve(async (req) => {
       headers: {
         ...corsHeaders,
         "Content-Type": contentType,
-        "Cache-Control": "public, max-age=86400, s-maxage=86400",
+        "Cache-Control": pdfMode
+          ? "no-store, no-cache, must-revalidate"
+          : "public, max-age=86400, s-maxage=86400",
+        "X-Content-Type-Options": "nosniff",
       },
     });
   } catch (err) {
