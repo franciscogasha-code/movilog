@@ -56,6 +56,8 @@ export interface CatalogPdfOptions {
   partLabel?: string | null;
   onProgress?: (done: number, total: number) => void;
   signal?: AbortSignal;
+  /** Identificador único por generación para evitar cachés viejas del PWA. */
+  imageRequestId?: string;
 }
 
 export class CatalogAbortError extends Error {
@@ -155,9 +157,15 @@ async function loadImage(url: string, quality: number, timeoutMs: number): Promi
   }
 }
 
-async function getImage(url: string | null | undefined, label: string): Promise<string> {
+async function getImage(
+  url: string | null | undefined,
+  label: string,
+  imageRequestId?: string
+): Promise<string> {
   if (!url) return placeholderDataUrl(label);
-  const src = proxyImageUrl(url);
+  // Los catálogos deben pedir una copia fresca por generación. Esto evita que
+  // instalaciones antiguas del PWA entreguen respuestas opacas ya cacheadas.
+  const src = proxyImageUrl(url, imageRequestId);
   const hit = imgCache.get(src);
   if (hit) return hit;
   for (let attempt = 0; attempt < 2; attempt++) {
@@ -184,9 +192,10 @@ export async function prefetchCatalogImages(
     concurrency?: number;
     signal?: AbortSignal;
     onProgress?: (done: number, total: number) => void;
+    imageRequestId?: string;
   } = {}
 ): Promise<void> {
-  const { concurrency = CATALOG_IMG_CONCURRENCY, signal, onProgress } = opts;
+  const { concurrency = CATALOG_IMG_CONCURRENCY, signal, onProgress, imageRequestId } = opts;
   const total = products.length;
   let next = 0;
   let done = 0;
@@ -195,7 +204,7 @@ export async function prefetchCatalogImages(
     while (next < total) {
       if (signal?.aborted) return;
       const p = products[next++];
-      await getImage(p.image_url, p.bims_code ?? "");
+      await getImage(p.image_url, p.bims_code ?? "", imageRequestId);
       done++;
       onProgress?.(done, total);
     }
@@ -459,7 +468,7 @@ export async function buildCatalogPdf(opts: CatalogPdfOptions): Promise<Blob> {
   for (let i = 0; i < products.length; i++) {
     throwIfAborted(signal);
     const p = products[i];
-    const img = await getImage(p.image_url, p.bims_code ?? "");
+    const img = await getImage(p.image_url, p.bims_code ?? "", opts.imageRequestId);
     onProgress?.(i + 1, products.length);
 
     if (col === 0 && y + CARD_H > PAGE.H - FOOTER_RESERVED) {
@@ -577,6 +586,7 @@ export async function buildCatalogPdfParts(
   const partCount = Math.max(1, chunks.length);
   const parts: CatalogPart[] = [];
   let done = 0;
+  const imageRequestId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 
   for (let i = 0; i < chunks.length; i++) {
     throwIfAborted(opts.signal);
@@ -588,6 +598,7 @@ export async function buildCatalogPdfParts(
       // Fotos en paralelo: llena el cache antes de dibujar.
       await prefetchCatalogImages(chunks[i], {
         signal: opts.signal,
+        imageRequestId,
         onProgress: (d) => opts.onProgress?.(base + d, total),
       });
     }
@@ -596,6 +607,7 @@ export async function buildCatalogPdfParts(
       ...opts,
       products: chunks[i],
       partLabel: label,
+      imageRequestId,
       onProgress: showImages ? undefined : (d) => opts.onProgress?.(base + d, total),
     });
     done += chunks[i].length;
