@@ -1,4 +1,4 @@
-# Paso 1 — Preparar el repo para Claude Code local
+# [APROBADO] Paso 1 — Preparar el repo para Claude Code local
 
 Claude Code corre en tu máquina, así que no hay que invitar a nadie: alcanza con tener el repo privado en GitHub y clonarlo localmente. Lo que falta es dejar el repo listo para que Claude trabaje bien y sin riesgo.
 
