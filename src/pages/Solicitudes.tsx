@@ -29,6 +29,7 @@ import { useBranches } from "@/hooks/use-branches";
 import { usePaginatedQuery } from "@/hooks/use-paginated-query";
 import { PaginationBar } from "@/components/shared/PaginationBar";
 import { cn } from "@/lib/utils";
+import { REQUEST_COLUMNS } from "@/lib/branch-requests-query";
 
 /**
  * MÓDULO PEDIDOS — Bandeja operativa
@@ -308,7 +309,10 @@ export default function Solicitudes() {
       let query: any = supabase
         .from("branch_requests")
         .select(
-          `*,
+          // IMPORTANTE: no usar `*`. `authenticated` tiene GRANT por columna
+          // (client_phone / client_email quedan fuera por PII), y `select=*`
+          // se resuelve a nivel tabla → "permission denied for table branch_requests".
+          `${REQUEST_COLUMNS},
            requesting_branch:branches!branch_requests_requesting_branch_id_fkey(name, code),
            source_branch:branches!branch_requests_source_branch_id_fkey(name, code),
            parent:parent_request_id(id, request_number, is_pre_sale, created_from_presale_id)${
