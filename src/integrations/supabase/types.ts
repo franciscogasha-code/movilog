@@ -253,6 +253,35 @@ export type Database = {
           },
         ]
       }
+      branch_request_client_contacts: {
+        Row: {
+          client_email: string | null
+          client_phone: string | null
+          request_id: string
+          updated_at: string
+        }
+        Insert: {
+          client_email?: string | null
+          client_phone?: string | null
+          request_id: string
+          updated_at?: string
+        }
+        Update: {
+          client_email?: string | null
+          client_phone?: string | null
+          request_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "branch_request_client_contacts_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: true
+            referencedRelation: "branch_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       branch_request_items: {
         Row: {
           client_address: string | null
