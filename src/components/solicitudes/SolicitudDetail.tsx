@@ -24,6 +24,7 @@ import { CommercialBackedBadge, isCommercialBackedChild } from "@/components/sol
 import { SupplyResolutionPanel } from "@/components/solicitudes/SupplyResolutionPanel";
 import { StartOperationModal } from "@/components/solicitudes/StartOperationModal";
 import { useNavigate } from "react-router-dom";
+import { REQUEST_COLUMNS } from "@/lib/branch-requests-query";
 
 // Small helper to resolve operational responsible name
 function OperationalResponsibleName({ userId }: { userId: string }) {
