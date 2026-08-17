@@ -191,19 +191,19 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
   const { data: request, isLoading } = useQuery({
     queryKey: ["branch-request-detail", requestId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // No usar `*`: PII con GRANT por columna → permission denied (ver branch-requests-query.ts)
+      const { data, error } = await (supabase
         .from("branch_requests")
-        // No usar `*`: PII con GRANT por columna → permission denied (ver branch-requests-query.ts)
-        .select(`
-          ${REQUEST_COLUMNS},
-          requesting_branch:branches!branch_requests_requesting_branch_id_fkey(name, code, logistic_group),
-          source_branch:branches!branch_requests_source_branch_id_fkey(name, code, logistic_group, is_central_warehouse),
-          parent:parent_request_id(id, request_number, is_pre_sale, created_from_presale_id)
-        `)
+        .select(
+          `${REQUEST_COLUMNS},
+           requesting_branch:branches!branch_requests_requesting_branch_id_fkey(name, code, logistic_group),
+           source_branch:branches!branch_requests_source_branch_id_fkey(name, code, logistic_group, is_central_warehouse),
+           parent:parent_request_id(id, request_number, is_pre_sale, created_from_presale_id)` as any,
+        )
         .eq("id", requestId)
-        .single();
+        .single() as any);
       if (error) throw error;
-      return data;
+      return data as any;
     },
   });
 
