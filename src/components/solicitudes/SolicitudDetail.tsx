@@ -193,8 +193,9 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
     queryFn: async () => {
       const { data, error } = await supabase
         .from("branch_requests")
+        // No usar `*`: PII con GRANT por columna → permission denied (ver branch-requests-query.ts)
         .select(`
-          *,
+          ${REQUEST_COLUMNS},
           requesting_branch:branches!branch_requests_requesting_branch_id_fkey(name, code, logistic_group),
           source_branch:branches!branch_requests_source_branch_id_fkey(name, code, logistic_group, is_central_warehouse),
           parent:parent_request_id(id, request_number, is_pre_sale, created_from_presale_id)
