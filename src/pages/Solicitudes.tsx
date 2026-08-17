@@ -29,6 +29,7 @@ import { useBranches } from "@/hooks/use-branches";
 import { usePaginatedQuery } from "@/hooks/use-paginated-query";
 import { PaginationBar } from "@/components/shared/PaginationBar";
 import { cn } from "@/lib/utils";
+import { REQUEST_COLUMNS } from "@/lib/branch-requests-query";
 
 /**
  * MÓDULO PEDIDOS — Bandeja operativa
