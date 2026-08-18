@@ -459,18 +459,8 @@ export function CatalogoGrid({
               }
             >
               <div className="aspect-square bg-muted flex items-center justify-center relative">
-                {p.image_url ? (
-                  <img
-                    src={proxyImageUrl(p.image_url)}
-                    alt={p.name}
-                    className="w-full h-full object-cover"
-                    loading="lazy"
-                    crossOrigin="anonymous"
-                  />
+                <ProductImage url={p.image_url} alt={p.name} />
 
-                ) : (
-                  <ImageOff className="h-8 w-8 text-muted-foreground" />
-                )}
                 {selectionMode && (
                   <span
                     className={`absolute top-2 left-2 h-6 w-6 rounded-md border-2 flex items-center justify-center ${
