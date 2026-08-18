@@ -79,6 +79,54 @@ function VentasContent({ userId }: { userId: string }) {
     }
   }, [cartHydrated, items.length, toast]);
 
+  // Respaldo automático de la selección de catálogo en el servidor
+  useSelectionAutosave({
+    userId,
+    selectedIds: selectedIdList,
+    customer,
+    enabled: selectionHydrated,
+  });
+
+  // Si el respaldo local se perdió, recuperamos la última selección del servidor
+  const recoveryChecked = useRef(false);
+  useEffect(() => {
+    if (!selectionHydrated || recoveryChecked.current) return;
+    recoveryChecked.current = true;
+    if (selectedIdList.length > 0) return;
+    void (async () => {
+      const { data } = await supabase
+        .from("sales_catalog_drafts")
+        .select("id, name, product_ids, updated_at")
+        .eq("user_id", userId)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const ids = (data?.product_ids ?? []) as string[];
+      if (ids.length === 0) return;
+      toast({
+        title: "Tenés una selección guardada",
+        description: `${ids.length.toLocaleString("de-DE")} productos${
+          data?.name && data.name !== AUTOSAVE_DRAFT_NAME ? ` — ${data.name}` : ""
+        }. Tocá para recuperarla.`,
+        action: (
+          <ToastAction
+            altText="Recuperar selección"
+            onClick={() => {
+              setSelectedIdList(ids);
+              setSelectionMode(true);
+              setActiveTab("catalogo");
+            }}
+          >
+            Recuperar
+          </ToastAction>
+        ),
+      });
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectionHydrated]);
+
+
+
 
   const cartItemIds = new Set(items.map((i) => i.productId));
 
