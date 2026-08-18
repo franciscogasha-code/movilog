@@ -1,7 +1,7 @@
 const BIMS_IMAGE_HOST = "190.128.128.182";
 // Cambiar esta versión cuando cambie la estrategia CORS/cache de las imágenes.
 // Evita que un service worker instalado reutilice respuestas opacas antiguas.
-const BIMS_IMAGE_CACHE_VERSION = "2";
+const BIMS_IMAGE_CACHE_VERSION = "3";
 
 /** Route BIMS HTTP images through our edge function proxy for HTTPS. */
 export function proxyImageUrl(

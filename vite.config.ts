@@ -42,7 +42,7 @@ export default defineConfig(({ mode }) => ({
               url.pathname.includes("/storage/v1/object"),
             handler: "CacheFirst",
             options: {
-              cacheName: "movilog-product-images-v2",
+              cacheName: "movilog-product-images-v3",
               expiration: { maxEntries: 2000, maxAgeSeconds: 60 * 60 * 24 * 30 },
               cacheableResponse: { statuses: [200] },
               fetchOptions: { mode: "cors", credentials: "omit" },
