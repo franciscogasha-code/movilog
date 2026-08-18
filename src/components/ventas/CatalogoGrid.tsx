@@ -98,7 +98,6 @@ export function CatalogoGrid({
   const patchView = (patch: Partial<CatalogViewState>) =>
     setView((prev) => ({ ...prev, ...patch }));
   const setOnlyStock = (v: boolean) => patchView({ onlyStock: v });
-  const setOnlyStock = (v: boolean) => patchView({ onlyStock: v });
   const setCategory = (v: string) => patchView({ category: v });
   const setBrand = (v: string) => patchView({ brand: v });
 
