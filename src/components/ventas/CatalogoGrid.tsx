@@ -51,14 +51,12 @@ type CatalogItem = {
 };
 
 type CatalogViewState = {
-  search: string;
   onlyStock: boolean;
   category: string;
   brand: string;
 };
 
 const DEFAULT_VIEW: CatalogViewState = {
-  search: "",
   onlyStock: false,
   category: "all",
   brand: "all",
@@ -92,13 +90,13 @@ export function CatalogoGrid({
     `${stateKey}-view`,
     DEFAULT_VIEW
   );
-  const search = view.search;
+  // La búsqueda NO se persiste: siempre arranca vacía en cada ingreso.
+  const [search, setSearch] = useState("");
   const onlyStock = view.onlyStock;
   const category = view.category;
   const brand = view.brand;
   const patchView = (patch: Partial<CatalogViewState>) =>
     setView((prev) => ({ ...prev, ...patch }));
-  const setSearch = (v: string) => patchView({ search: v });
   const setOnlyStock = (v: boolean) => patchView({ onlyStock: v });
   const setCategory = (v: string) => patchView({ category: v });
   const setBrand = (v: string) => patchView({ brand: v });
@@ -314,8 +312,18 @@ export function CatalogoGrid({
             placeholder="Buscar producto..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
+            className="pl-9 pr-9"
           />
+          {search && (
+            <button
+              type="button"
+              aria-label="Limpiar búsqueda"
+              onClick={() => setSearch("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
         </div>
         <Button
           type="button"
