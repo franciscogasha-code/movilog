@@ -335,25 +335,8 @@ function VentasContent({ userId }: { userId: string }) {
               onRetry={retryOne}
               onDiscard={discard}
             />
-            <div className="space-y-3">
-              {(preSales ?? []).length === 0 && (
-                <p className="text-sm text-muted-foreground text-center py-8">
-                  Aún no tenés pre-ventas registradas
-                </p>
-              )}
-              {(preSales ?? []).map((order: any) => (
-                <div key={order.id} className="border rounded-lg p-3">
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-sm">Pedido #{order.request_number}</span>
-                    <Badge variant="outline">{order.status}</Badge>
-                  </div>
-                  <p className="text-sm text-muted-foreground">{order.client_name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {formatDistanceToNow(new Date(order.created_at), { addSuffix: true, locale: es })}
-                  </p>
-                </div>
-              ))}
-            </div>
+            <PreSalesList userId={userId} salespersonName={profile?.full_name} />
+
           </TabsContent>
         </Tabs>
       </div>
