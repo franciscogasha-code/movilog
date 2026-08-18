@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Search, ShoppingCart, ImageOff, X, ChevronsUpDown, Check } from "lucide-react";
+import { Search, ShoppingCart, X, ChevronsUpDown, Check } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Command,
@@ -25,7 +25,6 @@ import {
 } from "@/components/ui/select";
 import { resolvePrice, resolveStock, formatGs, ProductRow } from "@/lib/ventas";
 import { useDebounce } from "@/hooks/use-debounce";
-import { proxyImageUrl } from "@/lib/image-utils";
 import { ProductImage } from "./ProductImage";
 
 import { AvailabilityChip } from "@/components/ventas/AvailabilityChip";
