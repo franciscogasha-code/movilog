@@ -90,13 +90,14 @@ export function CatalogoGrid({
     `${stateKey}-view`,
     DEFAULT_VIEW
   );
-  const search = view.search;
+  // La búsqueda NO se persiste: siempre arranca vacía en cada ingreso.
+  const [search, setSearch] = useState("");
   const onlyStock = view.onlyStock;
   const category = view.category;
   const brand = view.brand;
   const patchView = (patch: Partial<CatalogViewState>) =>
     setView((prev) => ({ ...prev, ...patch }));
-  const setSearch = (v: string) => patchView({ search: v });
+  const setOnlyStock = (v: boolean) => patchView({ onlyStock: v });
   const setOnlyStock = (v: boolean) => patchView({ onlyStock: v });
   const setCategory = (v: string) => patchView({ category: v });
   const setBrand = (v: string) => patchView({ brand: v });
