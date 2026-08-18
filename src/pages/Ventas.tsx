@@ -21,6 +21,8 @@ import { useIdbState } from "@/hooks/use-idb-state";
 import { useSelectionAutosave } from "@/hooks/use-selection-autosave";
 import { EstadoConexion } from "@/components/ventas/EstadoConexion";
 import { PendientesEnvio } from "@/components/ventas/PendientesEnvio";
+import { PreSalesList } from "@/components/ventas/PreSalesList";
+
 import { resolvePrice, getScales, ProductRow } from "@/lib/ventas";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -104,21 +106,8 @@ function VentasContent({ userId }: { userId: string }) {
 
   const cartItemIds = new Set(items.map((i) => i.productId));
 
-  const { data: preSales } = useQuery({
-    queryKey: ["sales_pre_sales", user?.id],
-    queryFn: async () => {
-      if (!user) return [];
-      const { data, error } = await supabase
-        .from("branch_requests")
-        .select("id, request_number, status, created_at, client_name")
-        .eq("created_by", user.id)
-        .eq("is_pre_sale", true)
-        .order("created_at", { ascending: false })
-        .limit(30);
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
+
+
 
   const handleAddProduct = (product: ProductRow, quantity: number) => {
     if (quantity === 0) {
@@ -335,25 +324,8 @@ function VentasContent({ userId }: { userId: string }) {
               onRetry={retryOne}
               onDiscard={discard}
             />
-            <div className="space-y-3">
-              {(preSales ?? []).length === 0 && (
-                <p className="text-sm text-muted-foreground text-center py-8">
-                  Aún no tenés pre-ventas registradas
-                </p>
-              )}
-              {(preSales ?? []).map((order: any) => (
-                <div key={order.id} className="border rounded-lg p-3">
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-sm">Pedido #{order.request_number}</span>
-                    <Badge variant="outline">{order.status}</Badge>
-                  </div>
-                  <p className="text-sm text-muted-foreground">{order.client_name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {formatDistanceToNow(new Date(order.created_at), { addSuffix: true, locale: es })}
-                  </p>
-                </div>
-              ))}
-            </div>
+            <PreSalesList userId={userId} salespersonName={profile?.full_name} />
+
           </TabsContent>
         </Tabs>
       </div>
