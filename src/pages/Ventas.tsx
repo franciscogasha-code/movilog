@@ -42,7 +42,7 @@ function VentasContent({ userId }: { userId: string }) {
     `sales-selection-mode-${userId}`,
     false
   );
-  const [selectedIdList, setSelectedIdList] = useIdbState<string[]>(
+  const [selectedIdList, setSelectedIdList, selectionHydrated] = useIdbState<string[]>(
     `sales-selected-ids-${userId}`,
     []
   );
@@ -50,6 +50,7 @@ function VentasContent({ userId }: { userId: string }) {
   const setSelectedIds = (updater: (prev: Set<string>) => Set<string>) =>
     setSelectedIdList((prev) => Array.from(updater(new Set(prev))));
   const [pdfOpen, setPdfOpen] = useState(false);
+
 
   const { items, hydrated: cartHydrated, addItem, updateQuantity, updateNotes, removeItem, clearCart, total, count } =
     useSalesCart(`sales-cart-${userId}`);
