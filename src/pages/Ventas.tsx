@@ -16,6 +16,7 @@ import { ConfirmarVenta } from "@/components/ventas/ConfirmarVenta";
 import { useSalesCart } from "@/hooks/use-sales-cart";
 import { useSalesOutbox } from "@/hooks/use-sales-outbox";
 import { useIdbState } from "@/hooks/use-idb-state";
+import { useSelectionAutosave, AUTOSAVE_DRAFT_NAME } from "@/hooks/use-selection-autosave";
 import { EstadoConexion } from "@/components/ventas/EstadoConexion";
 import { PendientesEnvio } from "@/components/ventas/PendientesEnvio";
 import { resolvePrice, getScales, ProductRow } from "@/lib/ventas";
