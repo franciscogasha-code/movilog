@@ -51,14 +51,12 @@ type CatalogItem = {
 };
 
 type CatalogViewState = {
-  search: string;
   onlyStock: boolean;
   category: string;
   brand: string;
 };
 
 const DEFAULT_VIEW: CatalogViewState = {
-  search: "",
   onlyStock: false,
   category: "all",
   brand: "all",
