@@ -16,11 +16,13 @@ import { ConfirmarVenta } from "@/components/ventas/ConfirmarVenta";
 import { useSalesCart } from "@/hooks/use-sales-cart";
 import { useSalesOutbox } from "@/hooks/use-sales-outbox";
 import { useIdbState } from "@/hooks/use-idb-state";
+import { useSelectionAutosave, AUTOSAVE_DRAFT_NAME } from "@/hooks/use-selection-autosave";
 import { EstadoConexion } from "@/components/ventas/EstadoConexion";
 import { PendientesEnvio } from "@/components/ventas/PendientesEnvio";
 import { resolvePrice, getScales, ProductRow } from "@/lib/ventas";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { ToastAction } from "@/components/ui/toast";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -41,7 +43,7 @@ function VentasContent({ userId }: { userId: string }) {
     `sales-selection-mode-${userId}`,
     false
   );
-  const [selectedIdList, setSelectedIdList] = useIdbState<string[]>(
+  const [selectedIdList, setSelectedIdList, selectionHydrated] = useIdbState<string[]>(
     `sales-selected-ids-${userId}`,
     []
   );
@@ -49,6 +51,7 @@ function VentasContent({ userId }: { userId: string }) {
   const setSelectedIds = (updater: (prev: Set<string>) => Set<string>) =>
     setSelectedIdList((prev) => Array.from(updater(new Set(prev))));
   const [pdfOpen, setPdfOpen] = useState(false);
+
 
   const { items, hydrated: cartHydrated, addItem, updateQuantity, updateNotes, removeItem, clearCart, total, count } =
     useSalesCart(`sales-cart-${userId}`);
@@ -76,6 +79,54 @@ function VentasContent({ userId }: { userId: string }) {
       });
     }
   }, [cartHydrated, items.length, toast]);
+
+  // Respaldo automático de la selección de catálogo en el servidor
+  useSelectionAutosave({
+    userId,
+    selectedIds: selectedIdList,
+    customer,
+    enabled: selectionHydrated,
+  });
+
+  // Si el respaldo local se perdió, recuperamos la última selección del servidor
+  const recoveryChecked = useRef(false);
+  useEffect(() => {
+    if (!selectionHydrated || recoveryChecked.current) return;
+    recoveryChecked.current = true;
+    if (selectedIdList.length > 0) return;
+    void (async () => {
+      const { data } = await supabase
+        .from("sales_catalog_drafts")
+        .select("id, name, product_ids, updated_at")
+        .eq("user_id", userId)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const ids = (data?.product_ids ?? []) as string[];
+      if (ids.length === 0) return;
+      toast({
+        title: "Tenés una selección guardada",
+        description: `${ids.length.toLocaleString("de-DE")} productos${
+          data?.name && data.name !== AUTOSAVE_DRAFT_NAME ? ` — ${data.name}` : ""
+        }. Tocá para recuperarla.`,
+        action: (
+          <ToastAction
+            altText="Recuperar selección"
+            onClick={() => {
+              setSelectedIdList(ids);
+              setSelectionMode(true);
+              setActiveTab("catalogo");
+            }}
+          >
+            Recuperar
+          </ToastAction>
+        ),
+      });
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectionHydrated]);
+
+
 
 
   const cartItemIds = new Set(items.map((i) => i.productId));
