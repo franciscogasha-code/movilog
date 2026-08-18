@@ -24,7 +24,6 @@ import { PendientesEnvio } from "@/components/ventas/PendientesEnvio";
 import { resolvePrice, getScales, ProductRow } from "@/lib/ventas";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { ToastAction } from "@/components/ui/toast";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 
