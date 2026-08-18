@@ -10,6 +10,8 @@ import { SalesPresentationProvider, useSalesPresentation } from "@/contexts/Sale
 import { ClientePicker } from "@/components/ventas/ClientePicker";
 import { CatalogoGrid } from "@/components/ventas/CatalogoGrid";
 import { CatalogoPdfPanel } from "@/components/ventas/CatalogoPdfPanel";
+import { SeleccionesGuardadas } from "@/components/ventas/SeleccionesGuardadas";
+
 import { ProductoFicha } from "@/components/ventas/ProductoFicha";
 import { CarritoPanel, CartItemRow } from "@/components/ventas/CarritoPanel";
 import { ConfirmarVenta } from "@/components/ventas/ConfirmarVenta";
