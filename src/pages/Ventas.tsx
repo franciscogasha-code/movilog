@@ -272,7 +272,22 @@ function VentasContent({ userId }: { userId: string }) {
           </TabsContent>
 
           <TabsContent value="catalogo" className="mt-0">
+            <div className="flex justify-end mb-2">
+              <SeleccionesGuardadas
+                userId={userId}
+                currentIds={selectedIdList}
+                onReplace={(ids) => {
+                  setSelectedIdList(ids);
+                  setSelectionMode(true);
+                }}
+                onMerge={(ids) => {
+                  setSelectedIdList((prev) => Array.from(new Set([...prev, ...ids])));
+                  setSelectionMode(true);
+                }}
+              />
+            </div>
             <CatalogoGrid
+
               stateKey={`sales-catalog-${userId}`}
               customerPriceListId={customer.priceListId}
               onAdd={handleAddProduct}
