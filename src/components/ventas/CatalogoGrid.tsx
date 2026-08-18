@@ -561,7 +561,7 @@ export function CatalogoGrid({
           <div className="fixed bottom-0 left-0 right-0 z-40 border-t bg-background/95 backdrop-blur px-4 py-3 flex items-center gap-2">
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium">
-                {selectedCount.toLocaleString("de-DE")} seleccionados
+                {selectedCount.toLocaleString("de-DE")} seleccionados para PDF
               </p>
               {selectedCount > 0 && (
                 <button
@@ -573,11 +573,22 @@ export function CatalogoGrid({
                 </button>
               )}
             </div>
+            {selectedCount > 0 && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => onClearSelection?.()}
+              >
+                Limpiar
+              </Button>
+            )}
             <Button
               type="button"
               onClick={() => onGeneratePdf?.()}
+              disabled={selectedCount === 0}
             >
-              {selectedCount === 0 ? "Abrir borradores" : "Generar PDF"}
+              {selectedCount === 0 ? "Ver borradores" : "Generar PDF"}
             </Button>
           </div>
         </>
