@@ -89,42 +89,14 @@ function VentasContent({ userId }: { userId: string }) {
     enabled: selectionHydrated,
   });
 
-  // Si el respaldo local se perdió, recuperamos la última selección del servidor
+  // La selección local ya se hidrata desde useIdbState. No mostramos recuperación
+  // automática de borradores del servidor: el usuario las carga manualmente desde
+  // "Selecciones guardadas" o el panel de PDF, evitando que un borrador reemplace
+  // silenciosamente la selección en curso.
   const recoveryChecked = useRef(false);
   useEffect(() => {
     if (!selectionHydrated || recoveryChecked.current) return;
     recoveryChecked.current = true;
-    if (selectedIdList.length > 0) return;
-    void (async () => {
-      const { data } = await supabase
-        .from("sales_catalog_drafts")
-        .select("id, name, product_ids, updated_at")
-        .eq("user_id", userId)
-        .order("updated_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      const ids = (data?.product_ids ?? []) as string[];
-      if (ids.length === 0) return;
-      toast({
-        title: "Tenés una selección guardada",
-        description: `${ids.length.toLocaleString("de-DE")} productos${
-          data?.name && data.name !== AUTOSAVE_DRAFT_NAME ? ` — ${data.name}` : ""
-        }. Tocá para recuperarla.`,
-        action: (
-          <ToastAction
-            altText="Recuperar selección"
-            onClick={() => {
-              setSelectedIdList(ids);
-              setSelectionMode(true);
-              setActiveTab("catalogo");
-            }}
-          >
-            Recuperar
-          </ToastAction>
-        ),
-      });
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectionHydrated]);
 
 
