@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Search, ShoppingCart, ImageOff, X, ChevronsUpDown, Check } from "lucide-react";
+import { Search, ShoppingCart, X, ChevronsUpDown, Check } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Command,
@@ -25,7 +25,8 @@ import {
 } from "@/components/ui/select";
 import { resolvePrice, resolveStock, formatGs, ProductRow } from "@/lib/ventas";
 import { useDebounce } from "@/hooks/use-debounce";
-import { proxyImageUrl } from "@/lib/image-utils";
+import { ProductImage } from "./ProductImage";
+
 import { AvailabilityChip } from "@/components/ventas/AvailabilityChip";
 import { useSalesPresentation } from "@/contexts/SalesPresentationContext";
 import { useIdbState } from "@/hooks/use-idb-state";
@@ -459,18 +460,8 @@ export function CatalogoGrid({
               }
             >
               <div className="aspect-square bg-muted flex items-center justify-center relative">
-                {p.image_url ? (
-                  <img
-                    src={proxyImageUrl(p.image_url)}
-                    alt={p.name}
-                    className="w-full h-full object-cover"
-                    loading="lazy"
-                    crossOrigin="anonymous"
-                  />
+                <ProductImage url={p.image_url} alt={p.name} />
 
-                ) : (
-                  <ImageOff className="h-8 w-8 text-muted-foreground" />
-                )}
                 {selectionMode && (
                   <span
                     className={`absolute top-2 left-2 h-6 w-6 rounded-md border-2 flex items-center justify-center ${
