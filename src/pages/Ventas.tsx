@@ -106,21 +106,8 @@ function VentasContent({ userId }: { userId: string }) {
 
   const cartItemIds = new Set(items.map((i) => i.productId));
 
-  const { data: preSales } = useQuery({
-    queryKey: ["sales_pre_sales", user?.id],
-    queryFn: async () => {
-      if (!user) return [];
-      const { data, error } = await supabase
-        .from("branch_requests")
-        .select("id, request_number, status, created_at, client_name")
-        .eq("created_by", user.id)
-        .eq("is_pre_sale", true)
-        .order("created_at", { ascending: false })
-        .limit(30);
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
+
+
 
   const handleAddProduct = (product: ProductRow, quantity: number) => {
     if (quantity === 0) {
