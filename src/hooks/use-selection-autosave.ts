@@ -2,14 +2,22 @@ import { useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 export const AUTOSAVE_DRAFT_NAME = "Autoguardado catálogo";
+const AUTOSAVE_PREFIX = "Autoguardado catálogo";
+const MAX_AUTOSAVES = 6;
+
+function autosaveName() {
+  const d = new Date();
+  const fecha = d.toLocaleDateString("es-PY", { day: "2-digit", month: "2-digit" });
+  const hora = d.toLocaleTimeString("es-PY", { hour: "2-digit", minute: "2-digit" });
+  return `${AUTOSAVE_PREFIX} ${fecha} ${hora}`;
+}
 
 /**
  * Respaldo automático de la selección de catálogo en el servidor.
  *
- * El respaldo local (IndexedDB) se pierde si el vendedor limpia el navegador,
- * usa otro dispositivo o el navegador descarta el almacenamiento. Este hook
- * guarda la selección en `sales_catalog_drafts` de forma continua para que
- * siempre se pueda recuperar desde "Catálogo PDF" → borradores.
+ * Cada sesión de trabajo genera SU PROPIO borrador (no se pisa el anterior),
+ * conservando hasta 6 autoguardados históricos. Así, cargar o cambiar de
+ * selección nunca destruye el trabajo previo de otro cliente.
  */
 export function useSelectionAutosave({
   userId,
@@ -34,39 +42,43 @@ export function useSelectionAutosave({
 
     const timer = window.setTimeout(async () => {
       try {
-        if (!draftIdRef.current) {
-          const { data } = await supabase
-            .from("sales_catalog_drafts")
-            .select("id")
-            .eq("user_id", userId)
-            .eq("name", AUTOSAVE_DRAFT_NAME)
-            .maybeSingle();
-          draftIdRef.current = data?.id ?? null;
-        }
-
         const payload = {
           user_id: userId,
-          name: AUTOSAVE_DRAFT_NAME,
           product_ids: selectedIds,
           customer: (customer ?? {}) as never,
         };
 
-        const res = draftIdRef.current
-          ? await supabase
-              .from("sales_catalog_drafts")
-              .update(payload)
-              .eq("id", draftIdRef.current)
-          : await supabase
-              .from("sales_catalog_drafts")
-              .insert(payload)
-              .select("id")
-              .maybeSingle();
+        if (draftIdRef.current) {
+          const { error } = await supabase
+            .from("sales_catalog_drafts")
+            .update(payload)
+            .eq("id", draftIdRef.current);
+          if (!error) lastSaved.current = signature;
+          return;
+        }
 
-        if (!res.error) {
-          if (!draftIdRef.current && res.data && "id" in (res.data as { id?: string })) {
-            draftIdRef.current = (res.data as { id: string }).id;
-          }
+        // Nueva sesión: creamos un autoguardado propio y podamos los más viejos
+        const { data, error } = await supabase
+          .from("sales_catalog_drafts")
+          .insert({ ...payload, name: autosaveName() })
+          .select("id")
+          .maybeSingle();
+
+        if (!error && data?.id) {
+          draftIdRef.current = data.id;
           lastSaved.current = signature;
+
+          const { data: previos } = await supabase
+            .from("sales_catalog_drafts")
+            .select("id, name, updated_at")
+            .eq("user_id", userId)
+            .like("name", `${AUTOSAVE_PREFIX}%`)
+            .order("updated_at", { ascending: false });
+
+          const sobrantes = (previos ?? []).slice(MAX_AUTOSAVES).map((d) => d.id);
+          if (sobrantes.length > 0) {
+            await supabase.from("sales_catalog_drafts").delete().in("id", sobrantes);
+          }
         }
       } catch {
         // Sin conexión: el respaldo local sigue vigente y reintentamos al próximo cambio
@@ -76,3 +88,4 @@ export function useSelectionAutosave({
     return () => window.clearTimeout(timer);
   }, [enabled, userId, selectedIds, customer]);
 }
+
