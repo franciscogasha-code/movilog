@@ -27,7 +27,13 @@ const CHANNEL_LABELS: Record<string, string> = {
   local: "Local",
   online: "Online",
   phone: "Teléfono",
+  vendedor_externo: "Vendedor externo",
+  vendedor: "Vendedor",
 };
+
+function channelLabel(v: string) {
+  return CHANNEL_LABELS[v] ?? v.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+}
 
 type PreSaleRow = {
   id: string;
@@ -199,7 +205,7 @@ export function PreSalesList({
 
         {rows.map((order) => {
           const state = PRE_SALE_STATE[order.pre_sale_status ?? "draft"] ?? PRE_SALE_STATE.draft;
-          const channel = order.sales_channel ? CHANNEL_LABELS[order.sales_channel] ?? order.sales_channel : null;
+          const channel = order.sales_channel ? channelLabel(order.sales_channel) : null;
           const canConvert = (order.pre_sale_status ?? "draft") === "confirmed" && !order.converted_to_request_id;
           return (
             <div
