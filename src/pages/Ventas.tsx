@@ -21,6 +21,8 @@ import { useIdbState } from "@/hooks/use-idb-state";
 import { useSelectionAutosave } from "@/hooks/use-selection-autosave";
 import { EstadoConexion } from "@/components/ventas/EstadoConexion";
 import { PendientesEnvio } from "@/components/ventas/PendientesEnvio";
+import { PreSalesList } from "@/components/ventas/PreSalesList";
+
 import { resolvePrice, getScales, ProductRow } from "@/lib/ventas";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
