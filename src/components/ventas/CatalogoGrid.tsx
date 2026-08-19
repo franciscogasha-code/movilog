@@ -303,7 +303,58 @@ export function CatalogoGrid({
     }
   };
 
+  /* ---------- Stock en vivo (BIMS) de los productos visibles ---------- */
+  const MAX_LIVE_CODES = 40;
+  const [visibleCodes, setVisibleCodes] = useState<string[]>([]);
+  const visibleSetRef = useRef<Set<string>>(new Set());
+  const elCodeRef = useRef<WeakMap<Element, string>>(new WeakMap());
+  const flushTimerRef = useRef<number | undefined>(undefined);
+  const visObserverRef = useRef<IntersectionObserver | null>(null);
+
+  useEffect(() => {
+    const io = new IntersectionObserver(
+      (entries) => {
+        let changed = false;
+        for (const e of entries) {
+          const code = elCodeRef.current.get(e.target);
+          if (!code) continue;
+          if (e.isIntersecting) {
+            if (!visibleSetRef.current.has(code)) {
+              visibleSetRef.current.add(code);
+              changed = true;
+            }
+          } else if (visibleSetRef.current.delete(code)) {
+            changed = true;
+          }
+        }
+        if (!changed) return;
+        window.clearTimeout(flushTimerRef.current);
+        flushTimerRef.current = window.setTimeout(() => {
+          const next = [...visibleSetRef.current].slice(0, MAX_LIVE_CODES).sort();
+          setVisibleCodes((prev) =>
+            prev.length === next.length && prev.every((c, i) => c === next[i]) ? prev : next
+          );
+        }, 500);
+      },
+      { rootMargin: "0px" }
+    );
+    visObserverRef.current = io;
+    return () => {
+      io.disconnect();
+      window.clearTimeout(flushTimerRef.current);
+    };
+  }, []);
+
+  const registerCard = (code: string | null) => (el: HTMLDivElement | null) => {
+    if (!el || !code || !visObserverRef.current) return;
+    elCodeRef.current.set(el, code);
+    visObserverRef.current.observe(el);
+  };
+
+  const { liveStock, isLoadingStock, isLive } = useLiveStock(visibleCodes);
+
   const selectedCount = selectedIds?.size ?? 0;
+
 
   return (
 
