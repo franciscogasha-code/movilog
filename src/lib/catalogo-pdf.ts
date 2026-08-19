@@ -243,7 +243,7 @@ async function getImage(
   imageRequestId?: string,
   failureContext?: { productId: string; code: string },
 ): Promise<string> {
-  if (!url) return placeholderDataUrl(label);
+  if (!url || !hasImageFileName(url)) return placeholderDataUrl(label);
   // Los catálogos deben pedir una copia fresca por generación. Esto evita que
   // instalaciones antiguas del PWA entreguen respuestas opacas ya cacheadas.
   const src = proxyImageUrl(url, imageRequestId, "pdf");
