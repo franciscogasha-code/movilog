@@ -1,48 +1,41 @@
-# Selección de catálogo que no se pierde al refrescar
+# Catálogo PDF: que siempre termine y no se pierda la selección
 
-Objetivo: que la selección de productos para el catálogo PDF sobreviva a cualquier refresco, recarga automática del preview, cambio de pestaña o corte de sesión, sin tener que volver a tildar nada.
+Dos problemas distintos, con causas ya verificadas en el código.
 
-## Qué se sabe hoy (verificado en el código)
+## Problema 1 — El PDF no se genera (397 productos)
 
-- La selección se guarda en IndexedDB con la clave `sales-selected-ids-<usuario>` mediante el hook de estado persistido.
-- Ese hook guarda por efecto (después del render) y, al montar, **reemplaza** el estado en memoria por lo leído del disco.
-- La pantalla de Ventas se desmonta y vuelve a montar cada vez que la sesión pasa por "cargando" (muestra "Cargando ventas..."), volviendo el estado a vacío hasta que termina la lectura.
-- Existe un autoguardado en el servidor (hasta 6 respaldos), pero hoy **no se usa nunca automáticamente** para recuperar: solo se carga a mano.
-- No hay ninguna expiración de 24 h activa en el código actual.
+Verificado en `src/lib/catalogo-pdf.ts`: hay una "compuerta de calidad" que **aborta todo el PDF si falla una sola foto** (`if (report.failed.length > 0 && !allowImageFailures) throw`). En paralelo, los errores del preview muestran que el proxy de fotos devuelve 404/502 para productos que no tienen imagen cargada en BIMS. Con 397 productos es casi seguro que alguna falle, así que la generación muere siempre: la barra de progreso desaparece (se limpia al terminar con error) y no baja ningún archivo.
 
-Causa probable (aún no confirmada con evidencia en vivo): entre el remontaje y la lectura del disco hay una ventana donde los tildes que hace el usuario no se guardan y luego son pisados por el valor viejo leído; y si la lectura falla o devuelve vacío, la selección queda en cero. La primera tarea del trabajo es confirmarlo con una prueba real antes de tocar la lógica.
+Cambios:
+- **Tolerancia por defecto**: las fotos que fallan salen con recuadro gris y el PDF **se genera igual**. Nada de abortar por una foto.
+- Umbral de aviso: si fallan más del 20% de las fotos, se avisa en pantalla con opción de "Reintentar fotos" o "Generar sin fotos", pero el archivo ya está listo para descargar.
+- **Resultado siempre visible**: al terminar (con o sin fallas) queda un bloque fijo con "Parte 1 · descargar", "Parte 2 · descargar" y "Compartir", en lugar de depender de un toast que se va solo.
+- **Barra de progreso persistente**: mostrar etapa (Preparando fotos / Armando PDF / Listo), parte actual y contador; no se oculta hasta que hay archivos o un error explicado en pantalla (no solo toast).
+- Saltar de entrada los productos sin `image_url` (hoy generan pedidos al proxy que devuelven 404 y suman tiempo).
 
-## Plan
+## Problema 2 — La selección se pierde al refrescar
 
-### 1. Confirmar el comportamiento (sin cambios funcionales)
-- Reproducir en el navegador: seleccionar productos, forzar refresco, y registrar qué queda guardado en IndexedDB en cada paso.
-- Verificar si el remontaje por sesión es lo que borra, o si la escritura nunca llega al disco.
+Verificado: la selección vive en IndexedDB (`sales-selected-ids-<usuario>`) y se guarda por efecto después del render; al montar, **reemplaza** el estado por lo leído. Además la pantalla de Ventas se desmonta cada vez que la sesión pasa por "Cargando ventas...".
 
-### 2. Guardado a prueba de refrescos
-- Guardar la selección **en el mismo momento del clic** (escritura directa), no en un efecto posterior.
-- Espejo inmediato en almacenamiento local del navegador, que es sincrónico, para que ni un cierre abrupto pierda el último tilde.
-- Regla de seguridad: nunca sobrescribir una selección guardada no vacía con una selección vacía, salvo que el usuario toque explícitamente "Limpiar".
-
-### 3. Recuperación sin pisar trabajo
-- Al montar, si el estado en memoria ya tiene tildes y el disco tiene otros, **unir** ambos en lugar de reemplazar.
-- Volver a leer el disco al recuperar foco de la pestaña, por si otra pestaña o un refresco modificó algo.
-
-### 4. Red de seguridad visible
-- Barra permanente en modo selección: "N productos seleccionados" con acción "Recuperar última selección" que trae el autoguardado más reciente del servidor y lo suma a lo actual.
-- Aviso claro y no intrusivo cuando la selección se restauró desde respaldo.
-
-### 5. Validación antes de declarar cerrado
-- Prueba end-to-end: seleccionar productos, refrescar 3 veces seguidas, cambiar de pestaña, cerrar y reabrir; la cuenta de seleccionados debe mantenerse idéntica.
-- Prueba de sesión: forzar el estado "Cargando ventas..." y verificar que no se pierde nada.
-- Prueba de "Limpiar": debe seguir vaciando de verdad.
+Cambios:
+- Guardar en el mismo momento del clic (escritura directa) y espejo sincrónico en almacenamiento local del navegador.
+- Nunca sobrescribir una selección guardada no vacía con una vacía, salvo "Limpiar" explícito.
+- Al montar, **unir** lo que hay en memoria con lo guardado en vez de reemplazar.
+- No desmontar Ventas cuando la sesión se revalida.
+- Barra fija en modo selección: "N seleccionados" + "Recuperar última selección" (trae el autoguardado del servidor, ej. el borrador de Sofia Bernal, y lo suma).
 
 ## Detalle técnico
 
-- `src/hooks/use-idb-state.ts`: agregar escritura imperativa (`setAndPersist`), espejo en `localStorage` para lectura sincrónica inicial, y política de merge configurable en la hidratación en lugar del reemplazo actual.
-- `src/pages/Ventas.tsx`: la selección (`sales-selected-ids-<uid>`) usa la escritura imperativa; el vaciado solo por acción explícita del usuario.
-- `src/components/ventas/CatalogoGrid.tsx`: barra de estado de selección con contador y botón de recuperación.
-- `src/hooks/use-selection-autosave.ts`: exponer una función para leer el último autoguardado del usuario y usarla en la recuperación manual.
-- Evitar el desmontaje innecesario de `VentasContent` cuando la sesión se revalida (mantener montado si ya hubo un usuario resuelto).
+- `src/lib/catalogo-pdf.ts`: `allowImageFailures` pasa a ser el comportamiento por defecto; `CatalogImageQualityError` se reserva para el caso extremo (0 fotos obtenidas). Filtrar productos sin `image_url` antes del prefetch. Reportar por etapa en `onProgress` (fase + parte).
+- `src/components/ventas/CatalogoPdfPanel.tsx`: panel de resultado persistente con las partes generadas y sus botones; barra de progreso con fase; errores mostrados en el panel, no solo por toast.
+- `src/hooks/use-idb-state.ts`: escritura imperativa, espejo en `localStorage`, hidratación con merge opcional.
+- `src/pages/Ventas.tsx`: selección con escritura imperativa; evitar desmontaje en revalidación de sesión.
+- `src/components/ventas/CatalogoGrid.tsx`: barra fija de selección con contador y recuperación.
+- `src/hooks/use-selection-autosave.ts`: exponer lectura del último autoguardado.
 - Sin cambios de base de datos.
 
-Nada de esto se aplica hasta que termines el catálogo y lo apruebes.
+## Validación
+
+- Generar el PDF con los 397 productos actuales de punta a punta: deben bajar las 2 partes aunque falten fotos.
+- Forzar productos sin foto y confirmar recuadro gris + aviso, sin aborto.
+- Refrescar 3 veces con selección activa y verificar que el contador no cambia.
