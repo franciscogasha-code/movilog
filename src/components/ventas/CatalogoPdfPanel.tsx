@@ -92,7 +92,8 @@ export function CatalogoPdfPanel({
   const [parts, setParts] = useState<CatalogPart[] | null>(null);
   const [imgFailures, setImgFailures] = useState(0);
   const [imageReport, setImageReport] = useState<CatalogImageReport | null>(null);
-  const [allowFailures, setAllowFailures] = useState(false);
+  // Los productos sin foto en BIMS no deben frenar el catálogo.
+  const [allowFailures] = useState(true);
   const [draftName, setDraftName] = useState("");
   const [drafts, setDrafts] = useState<Array<{ id: string; name: string; product_ids: string[]; updated_at: string }>>([]);
   const [draftBusy, setDraftBusy] = useState(false);
