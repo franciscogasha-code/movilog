@@ -216,7 +216,6 @@ export function CatalogoPdfPanel({
     setParts(null);
     setImgFailures(0);
     setImageReport(null);
-    setAllowFailures(false);
   }, [products, showPrices, showScales, showImages, sortBy, note, customer.priceListId]);
 
   const sortedPreview = useMemo(
