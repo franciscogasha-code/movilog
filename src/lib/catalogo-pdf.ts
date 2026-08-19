@@ -237,13 +237,23 @@ async function loadImage(url: string, quality: number, timeoutMs: number): Promi
   }
 }
 
+/** Descarta URLs sin nombre de archivo real (ficha BIMS sin foto cargada). */
+function hasImageFileName(url: string): boolean {
+  try {
+    const name = new URL(url).pathname.split("/").pop() ?? "";
+    return /\.[a-z0-9]+$/i.test(name);
+  } catch {
+    return false;
+  }
+}
+
 async function getImage(
   url: string | null | undefined,
   label: string,
   imageRequestId?: string,
   failureContext?: { productId: string; code: string },
 ): Promise<string> {
-  if (!url) return placeholderDataUrl(label);
+  if (!url || !hasImageFileName(url)) return placeholderDataUrl(label);
   // Los catálogos deben pedir una copia fresca por generación. Esto evita que
   // instalaciones antiguas del PWA entreguen respuestas opacas ya cacheadas.
   const src = proxyImageUrl(url, imageRequestId, "pdf");
