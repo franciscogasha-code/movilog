@@ -58,7 +58,7 @@ export interface CatalogPdfOptions {
   signal?: AbortSignal;
   /** Identificador único por generación para evitar cachés viejas del PWA. */
   imageRequestId?: string;
-  /** Permite continuar solo cuando el operador aceptó fallas individuales. */
+  /** false = compuerta dura de calidad. Por defecto se generan igual (recuadro gris). */
   allowImageFailures?: boolean;
 }
 
@@ -706,10 +706,17 @@ export async function buildCatalogPdfParts(
         imageRequestId,
         onProgress: (d) => opts.onProgress?.(base + d, total),
       });
-      if (report.failed.length > 0 && !opts.allowImageFailures) {
+      // Una foto faltante NUNCA frena el catálogo: sale con recuadro gris.
+      // Solo abortamos si teniendo fotos de origen no se pudo preparar ninguna.
+      if (
+        report.ready === 0 &&
+        report.failed.length > 0 &&
+        opts.allowImageFailures === false
+      ) {
         throw new CatalogImageQualityError(report);
       }
     }
+
 
     const blob = await buildCatalogPdf({
       ...opts,
