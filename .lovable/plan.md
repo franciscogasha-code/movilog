@@ -1,5 +1,9 @@
 # Que el catálogo PDF se genere siempre (397 productos)
 
+## Por qué se rompió (error mío)
+
+Antes generaba igual aunque faltaran fotos. Al endurecer la carga de imágenes contra el proxy de BIMS agregué una compuerta de calidad y la dejé **activada por defecto** (`const [allowFailures, setAllowFailures] = useState(false)` en `CatalogoPdfPanel.tsx`). Desde ahí, una sola foto faltante aborta todo el PDF. Un producto sin foto en la ficha de BIMS nunca debió frenar la generación.
+
 ## Qué está pasando (verificado en el código)
 
 En `src/lib/catalogo-pdf.ts` hay una compuerta de calidad que **aborta el PDF completo si falla una sola foto**:
