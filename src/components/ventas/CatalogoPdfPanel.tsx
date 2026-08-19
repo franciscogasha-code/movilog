@@ -613,6 +613,31 @@ export function CatalogoPdfPanel({
             </div>
           )}
 
+          {parts && parts.length > 0 && !progress && (
+            <div className="rounded-md border p-3 space-y-2">
+              <p className="text-xs font-semibold">
+                Catálogo listo · {products.length.toLocaleString("de-DE")} productos
+                {imgFailures > 0 ? ` · ${imgFailures.toLocaleString("de-DE")} sin foto` : ""}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {parts.map((part) => (
+                  <Button
+                    key={part.partIndex}
+                    size="sm"
+                    variant="outline"
+                    onClick={() => saveFile(part)}
+                  >
+                    <Download className="h-3.5 w-3.5 mr-1.5" />
+                    {part.partCount > 1 ? `Parte ${part.partIndex}` : "Descargar PDF"} ·{" "}
+                    {part.count.toLocaleString("de-DE")}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
+
+
+
           <div className="flex gap-2">
             <Button className="flex-1" onClick={share} disabled={busy || sortedPreview.length === 0}>
               <Share2 className="h-4 w-4 mr-1.5" />
