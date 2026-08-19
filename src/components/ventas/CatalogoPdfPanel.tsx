@@ -92,7 +92,8 @@ export function CatalogoPdfPanel({
   const [parts, setParts] = useState<CatalogPart[] | null>(null);
   const [imgFailures, setImgFailures] = useState(0);
   const [imageReport, setImageReport] = useState<CatalogImageReport | null>(null);
-  const [allowFailures, setAllowFailures] = useState(false);
+  // Los productos sin foto en BIMS no deben frenar el catálogo.
+  const [allowFailures] = useState(true);
   const [draftName, setDraftName] = useState("");
   const [drafts, setDrafts] = useState<Array<{ id: string; name: string; product_ids: string[]; updated_at: string }>>([]);
   const [draftBusy, setDraftBusy] = useState(false);
@@ -215,7 +216,6 @@ export function CatalogoPdfPanel({
     setParts(null);
     setImgFailures(0);
     setImageReport(null);
-    setAllowFailures(false);
   }, [products, showPrices, showScales, showImages, sortBy, note, customer.priceListId]);
 
   const sortedPreview = useMemo(
@@ -395,15 +395,15 @@ export function CatalogoPdfPanel({
         </DialogHeader>
 
         {imgFailures > 0 && showImages && (
-          <Alert variant="destructive">
+          <Alert>
             <Info className="h-4 w-4" />
             <AlertDescription className="text-xs">
-              El PDF no se descargó: {imgFailures.toLocaleString("de-DE")} fotos tuvieron una falla técnica.
-              Reintentá; si persiste, generá sin fotos.
+              {imgFailures.toLocaleString("de-DE")} fotos no se pudieron cargar. El PDF se genera igual:
+              esos productos salen con recuadro gris.
             </AlertDescription>
             <div className="mt-2 flex flex-wrap gap-2">
-              <Button size="sm" variant="outline" onClick={() => { setParts(null); setAllowFailures(false); void generate(); }} disabled={busy}>
-                <RefreshCw className="h-3.5 w-3.5 mr-1" /> Reintentar
+              <Button size="sm" variant="outline" onClick={() => { setParts(null); void generate(); }} disabled={busy}>
+                <RefreshCw className="h-3.5 w-3.5 mr-1" /> Reintentar fotos
               </Button>
               <Button size="sm" variant="outline" onClick={() => setShowImages(false)} disabled={busy}>
                 <ImageOff className="h-3.5 w-3.5 mr-1" /> Generar sin fotos
@@ -417,6 +417,7 @@ export function CatalogoPdfPanel({
             {imageReport.ready.toLocaleString("de-DE")} fotos listas · {imageReport.missingSource.toLocaleString("de-DE")} productos sin foto de origen
           </p>
         )}
+
 
 
         {partCount > 1 && (
@@ -611,6 +612,31 @@ export function CatalogoPdfPanel({
               </div>
             </div>
           )}
+
+          {parts && parts.length > 0 && !progress && (
+            <div className="rounded-md border p-3 space-y-2">
+              <p className="text-xs font-semibold">
+                Catálogo listo · {products.length.toLocaleString("de-DE")} productos
+                {imgFailures > 0 ? ` · ${imgFailures.toLocaleString("de-DE")} sin foto` : ""}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {parts.map((part) => (
+                  <Button
+                    key={part.partIndex}
+                    size="sm"
+                    variant="outline"
+                    onClick={() => saveFile(part)}
+                  >
+                    <Download className="h-3.5 w-3.5 mr-1.5" />
+                    {part.partCount > 1 ? `Parte ${part.partIndex}` : "Descargar PDF"} ·{" "}
+                    {part.count.toLocaleString("de-DE")}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
+
+
 
           <div className="flex gap-2">
             <Button className="flex-1" onClick={share} disabled={busy || sortedPreview.length === 0}>
