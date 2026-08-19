@@ -585,10 +585,15 @@ export function CatalogoGrid({
                   {clientMode ? (
                     <AvailabilityChip stock={stock} size="sm" />
                   ) : (
-                    <span className={`text-xs ${stock > 0 ? "text-green-600" : "text-destructive"}`}>
+                    <span
+                      className={`text-xs inline-flex items-center gap-0.5 ${stock > 0 ? "text-green-600" : "text-destructive"}`}
+                      title={isLiveItem ? "Stock en vivo desde BIMS" : "Stock sincronizado (referencial)"}
+                    >
+                      {isLiveItem && <Zap className="h-3 w-3" />}
                       Stock {stock.toLocaleString("de-DE")}
                     </span>
                   )}
+
                 </div>
 
                 {selectionMode ? (
