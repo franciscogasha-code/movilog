@@ -4,6 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 export type LiveStockData = Record<string, { stock_by_warehouse: Record<string, number>; total_stock: number }>;
 
 const CHUNK_SIZE = 20;
+/** Tiempo máximo de espera por lote. Si BIMS no responde, caemos al stock sincronizado. */
+const BATCH_TIMEOUT_MS = 8_000;
 
 function chunk<T>(arr: T[], size: number): T[][] {
   const out: T[][] = [];
@@ -11,22 +13,46 @@ function chunk<T>(arr: T[], size: number): T[][] {
   return out;
 }
 
+function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return new Promise<T>((resolve) => {
+    const timer = setTimeout(() => resolve(fallback), ms);
+    promise
+      .then((value) => {
+        clearTimeout(timer);
+        resolve(value);
+      })
+      .catch(() => {
+        clearTimeout(timer);
+        resolve(fallback);
+      });
+  });
+}
+
+async function fetchBatch(batch: string[]): Promise<LiveStockData> {
+  try {
+    const { data, error } = await supabase.functions.invoke("bims-stock-live", {
+      body: { bims_codes: batch },
+    });
+    if (error) {
+      console.warn("Stock en vivo no disponible (lote):", error?.message ?? error);
+      return {};
+    }
+    return (data as LiveStockData) || {};
+  } catch (err) {
+    console.warn("Stock en vivo no disponible (lote):", err);
+    return {};
+  }
+}
+
 async function fetchLiveStock(bimsCodes: string[]): Promise<LiveStockData> {
   if (!bimsCodes.length) return {};
 
   const batches = chunk(bimsCodes, CHUNK_SIZE);
 
+  // Nunca propagamos el error: si BIMS falla o tarda, devolvemos parcial/vacío
+  // y la UI usa el stock sincronizado (referencial).
   const results = await Promise.all(
-    batches.map(async (batch) => {
-      const { data, error } = await supabase.functions.invoke("bims-stock-live", {
-        body: { bims_codes: batch },
-      });
-      if (error) {
-        console.error("Live stock fetch error (batch):", error);
-        return {} as LiveStockData;
-      }
-      return (data as LiveStockData) || {};
-    })
+    batches.map((batch) => withTimeout(fetchBatch(batch), BATCH_TIMEOUT_MS, {} as LiveStockData))
   );
 
   return results.reduce<LiveStockData>((acc, part) => Object.assign(acc, part), {});
