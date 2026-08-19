@@ -395,15 +395,15 @@ export function CatalogoPdfPanel({
         </DialogHeader>
 
         {imgFailures > 0 && showImages && (
-          <Alert variant="destructive">
+          <Alert>
             <Info className="h-4 w-4" />
             <AlertDescription className="text-xs">
-              El PDF no se descargó: {imgFailures.toLocaleString("de-DE")} fotos tuvieron una falla técnica.
-              Reintentá; si persiste, generá sin fotos.
+              {imgFailures.toLocaleString("de-DE")} fotos no se pudieron cargar. El PDF se genera igual:
+              esos productos salen con recuadro gris.
             </AlertDescription>
             <div className="mt-2 flex flex-wrap gap-2">
-              <Button size="sm" variant="outline" onClick={() => { setParts(null); setAllowFailures(false); void generate(); }} disabled={busy}>
-                <RefreshCw className="h-3.5 w-3.5 mr-1" /> Reintentar
+              <Button size="sm" variant="outline" onClick={() => { setParts(null); void generate(); }} disabled={busy}>
+                <RefreshCw className="h-3.5 w-3.5 mr-1" /> Reintentar fotos
               </Button>
               <Button size="sm" variant="outline" onClick={() => setShowImages(false)} disabled={busy}>
                 <ImageOff className="h-3.5 w-3.5 mr-1" /> Generar sin fotos
@@ -417,6 +417,7 @@ export function CatalogoPdfPanel({
             {imageReport.ready.toLocaleString("de-DE")} fotos listas · {imageReport.missingSource.toLocaleString("de-DE")} productos sin foto de origen
           </p>
         )}
+
 
 
         {partCount > 1 && (
