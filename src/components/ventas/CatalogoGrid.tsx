@@ -482,10 +482,32 @@ export function CatalogoGrid({
 
       {!isLoading && products.length > 0 && (
         <div className="flex items-center justify-between gap-2 flex-wrap">
-          <p className="text-xs text-muted-foreground">
-            Mostrando {products.length.toLocaleString("de-DE")} de{" "}
-            {totalCount.toLocaleString("de-DE")} productos
-          </p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-xs text-muted-foreground">
+              Mostrando {products.length.toLocaleString("de-DE")} de{" "}
+              {totalCount.toLocaleString("de-DE")} productos
+            </p>
+            {!clientMode && (
+              <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+                {isLoadingStock ? (
+                  <>
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Verificando stock en vivo...
+                  </>
+                ) : isLive ? (
+                  <>
+                    <Zap className="h-3 w-3 text-emerald-600" />
+                    <span className="text-emerald-600 font-medium">Stock en vivo</span>
+                  </>
+                ) : (
+                  <>
+                    <Clock className="h-3 w-3" />
+                    Stock referencial (sincronizado)
+                  </>
+                )}
+              </span>
+            )}
+          </div>
           {selectionMode && onSelectManyIds && (
             <Button
               type="button"
@@ -505,18 +527,25 @@ export function CatalogoGrid({
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
         {products.map((p) => {
-          const stock = resolveStock(p as ProductRow);
+          const live = p.bims_code ? liveStock?.[p.bims_code] : undefined;
+          const stock =
+            typeof live?.total_stock === "number"
+              ? live.total_stock
+              : resolveStock(p as ProductRow);
+          const isLiveItem = typeof live?.total_stock === "number";
           const price = resolvePrice(p as ProductRow, customerPriceListId, 1);
           const inCart = cartItemIds.has(p.id);
           const isSelected = selectedIds?.has(p.id) ?? false;
           return (
             <Card
               key={p.id}
+              ref={registerCard(p.bims_code)}
               className={`overflow-hidden flex flex-col cursor-pointer transition-colors ${
                 selectionMode && isSelected
                   ? "border-primary ring-2 ring-primary/30"
                   : "hover:border-primary/50"
               }`}
+
               onClick={() =>
                 selectionMode ? onToggleSelect?.(p.id) : onAdd(p as ProductRow, 0)
               }
