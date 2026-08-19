@@ -31,6 +31,9 @@ import { AvailabilityChip } from "@/components/ventas/AvailabilityChip";
 import { useSalesPresentation } from "@/contexts/SalesPresentationContext";
 import { useIdbState } from "@/hooks/use-idb-state";
 import { idbGet, idbSet } from "@/lib/offline-store";
+import { useLiveStock } from "@/hooks/use-live-stock";
+import { Zap, Clock, Loader2 } from "lucide-react";
+
 
 
 type CatalogItem = {
