@@ -237,6 +237,16 @@ async function loadImage(url: string, quality: number, timeoutMs: number): Promi
   }
 }
 
+/** Descarta URLs sin nombre de archivo real (ficha BIMS sin foto cargada). */
+function hasImageFileName(url: string): boolean {
+  try {
+    const name = new URL(url).pathname.split("/").pop() ?? "";
+    return /\.[a-z0-9]+$/i.test(name);
+  } catch {
+    return false;
+  }
+}
+
 async function getImage(
   url: string | null | undefined,
   label: string,
