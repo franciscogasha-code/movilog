@@ -74,7 +74,7 @@ export function useLiveStock(bimsCodes: string[]) {
     enabled: validCodes.length > 0,
     staleTime: 30_000, // 30s cache
     gcTime: 60_000,
-    retry: 1,
+    retry: false,
     refetchOnWindowFocus: false,
   });
 

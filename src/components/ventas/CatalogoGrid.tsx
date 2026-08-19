@@ -304,7 +304,7 @@ export function CatalogoGrid({
   };
 
   /* ---------- Stock en vivo (BIMS) de los productos visibles ---------- */
-  const MAX_LIVE_CODES = 40;
+  const MAX_LIVE_CODES = 24;
   const [visibleCodes, setVisibleCodes] = useState<string[]>([]);
   const visibleSetRef = useRef<Set<string>>(new Set());
   const elCodeRef = useRef<WeakMap<Element, string>>(new WeakMap());
