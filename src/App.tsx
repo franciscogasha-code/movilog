@@ -144,27 +144,29 @@ function ChangePasswordRoute() {
 
 const App = () => (
   <PersistQueryClientProvider
-      client={queryClient}
-      persistOptions={{ persister, maxAge: 1000 * 60 * 60 * 24 }}
-    >
+    client={queryClient}
+    persistOptions={{ persister, maxAge: 1000 * 60 * 60 * 24 }}
+  >
     <TooltipProvider>
       <Toaster />
       <Sonner />
       <BrowserRouter>
         <ErrorBoundary>
           <AuthProvider>
-            <Routes>
-              <Route path="/login" element={<LoginRoute />} />
-              <Route path="/cambiar-contrasena" element={<ChangePasswordRoute />} />
-              <Route
-                path="/*"
-                element={
-                  <ErrorBoundary>
-                    <ProtectedRoutes />
-                  </ErrorBoundary>
-                }
-              />
-            </Routes>
+            <UpdateProvider>
+              <Routes>
+                <Route path="/login" element={<LoginRoute />} />
+                <Route path="/cambiar-contrasena" element={<ChangePasswordRoute />} />
+                <Route
+                  path="/*"
+                  element={
+                    <ErrorBoundary>
+                      <ProtectedRoutes />
+                    </ErrorBoundary>
+                  }
+                />
+              </Routes>
+            </UpdateProvider>
           </AuthProvider>
         </ErrorBoundary>
       </BrowserRouter>
