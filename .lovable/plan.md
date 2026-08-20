@@ -1,46 +1,50 @@
-# Botón "Enviar a otra sucursal" — diagnóstico y restauración
+# Que no se repita: detectar y forzar actualización de versión
 
-## Qué encontré (verificado, sin tocar código)
+## Qué pasó realmente
 
-No hubo regresión ni reversión. El código de la Fase 1 está completo:
+El código nunca se perdió: el botón "Enviar a otra sucursal" estaba en `Solicitudes.tsx` y también en el bundle publicado. Lo que estabas viendo era una **copia vieja de la app guardada en el navegador**. Con recarga forzada apareció.
 
-| Verificación | Resultado |
+Causa estructural: hoy la app muestra un número de versión fijo escrito a mano (`v5.2.0` en la barra lateral) que **no cambia con cada build**. Entonces no hay forma de saber, mirando la pantalla, si estás viendo la versión nueva o una vieja cacheada.
+
+## Qué propongo (3 medidas, chicas y aisladas)
+
+### 1. Versión real de build visible en la barra lateral
+Reemplazar el `v5.2.0` fijo por la versión real del build (fecha/hora + hash corto), inyectada por Vite en tiempo de compilación (`define` en `vite.config.ts`).
+
+Beneficio: en cualquier momento mirás el pie del menú y sabés exactamente qué versión estás corriendo. Si te digo "esto está desde la build de las 14:35" y vos ves una anterior, el diagnóstico es inmediato — ya no perdemos una ronda entera averiguando si el código se borró.
+
+### 2. Aviso automático "Hay una versión nueva"
+En la app publicada, cuando el service worker detecta una versión más nueva, mostrar un toast persistente con botón **"Actualizar"** que recarga limpio. Se usa el callback `onNeedRefresh` que ya provee `registerSW` en `register-app-sw.ts` (hoy se llama sin callbacks).
+
+Beneficio: los usuarios de sucursal dejan de quedarse con versiones viejas sin enterarse. No requiere que nadie sepa hacer `Ctrl+Shift+R`.
+
+### 3. Auto-recarga cuando el chunk viejo ya no existe
+Cuando el navegador tiene HTML viejo y pide un archivo JS que ya no está en el servidor, hoy eso puede terminar en pantalla en blanco o en módulos que no cargan. Agregar en `main.tsx` un manejador único de `vite:preloadError` / error de carga de módulo que fuerce **una sola** recarga (con guarda en `sessionStorage` para no entrar en bucle).
+
+## Alcance técnico
+
+| Archivo | Cambio |
 |---|---|
-| `EnvioDirectoForm.tsx` existe | Sí (15.8 KB) |
-| Botón en `Solicitudes.tsx` | Sí, líneas 708-712 |
-| Dialog que monta el form | Sí, líneas 1280-1293 |
-| Import del ícono `Send` e import del form | Sí, líneas 14 y 25 |
-| Condición de visibilidad | `!isViewer && (branch_operator, branch_manager, admin, supervisor u owner)` — como owner la cumplís |
-| ¿El fix de rechazo tocó esto? | No. Esos commits sumaron líneas a `Solicitudes.tsx` y `SolicitudDetail.tsx`; no borraron nada de Fase 1 |
-| Render real en el preview (viewport 1120px, tu sesión) | Los tres botones se renderizan: `Reposición admin.` · **`Enviar a otra sucursal`** · `Nuevo Pedido` |
-| Bundle de la app publicada (`movilog.lovable.app`) | Contiene el texto "Enviar a otra sucursal" |
+| `vite.config.ts` | `define` con `__APP_VERSION__` (fecha de build + hash corto de git) |
+| `src/vite-env.d.ts` | Declaración de tipo de `__APP_VERSION__` |
+| `src/components/AppSidebar.tsx` | Mostrar `__APP_VERSION__` en lugar del literal `v5.2.0` |
+| `src/lib/register-app-sw.ts` | `registerSW({ immediate: true, onNeedRefresh })` + toast con botón Actualizar |
+| `src/main.tsx` | Guarda anti-chunk-viejo con recarga única |
 
-O sea: tanto el preview como la versión publicada tienen el botón. Lo que estás viendo es **una copia vieja del bundle cacheada en tu navegador**, no un cambio en el código.
+Nada de esto toca `Solicitudes.tsx`, `EnvioDirectoForm.tsx`, `SolicitudDetail.tsx`, RPCs, RLS ni datos. Se respeta la regla de no registrar service worker en preview ni en dev (la guarda actual queda intacta).
 
-Nota: `register-app-sw.ts` ya desactiva y desregistra el service worker en hosts de preview, así que el caché sospechoso es el del navegador (o el service worker viejo que quedó registrado en `movilog.lovable.app` antes de este cambio).
+## Riesgos y mitigación
 
-## Paso 1 — Confirmar sin tocar código (hacelo vos, 1 minuto)
+| Riesgo | Mitigación |
+|---|---|
+| Bucle de recargas | Guarda en `sessionStorage`: una sola recarga automática por sesión |
+| Toast molesto durante la jornada | No recarga solo: el usuario decide cuándo tocar "Actualizar" |
+| El SW no existe en preview | El aviso solo aplica en la app publicada; en preview la guarda actual sigue desregistrando el SW |
 
-1. En el preview: recarga forzada con `Ctrl + Shift + R`.
-2. En `movilog.lovable.app`: abrir con `?sw=off` al final de la URL (`https://movilog.lovable.app/solicitudes?sw=off`) y recargar forzado. Ese parámetro ya está soportado en el código y desregistra el service worker.
+## Checklist de verificación
 
-Si con eso aparece el botón, el caso está cerrado: no hace falta ningún cambio de código.
-
-## Paso 2 — Solo si después de la recarga forzada sigue sin verse
-
-Entonces sí sería un problema real de entorno y haría, en este orden:
-
-1. Captura de tu pantalla exacta (rol activo y ancho de ventana) para descartar una condición de rol distinta a la esperada (por ejemplo, que tu perfil tenga también `viewer`/`auditor`, que apaga los tres botones por `isViewer`).
-2. Consulta a `user_roles` de tu usuario para confirmar los roles reales que llegan al cliente.
-3. Si el diagnóstico apunta a caché persistente en la app publicada, agregar una purga de caché única al arranque (bump de versión del service worker), sin tocar `Solicitudes.tsx` ni nada del fix de rechazo.
-
-## Sobre el fix de rechazo
-
-No se toca. Ninguna de las acciones anteriores modifica `SolicitudDetail.tsx`, `fn_transition_request_status`, ni los datos migrados.
-
-## Checklist de cierre
-
-1. Preview con recarga forzada: se ven los tres botones del header.
-2. Publicado con `?sw=off`: se ven los tres botones.
-3. "Enviar a otra sucursal" abre el modal con origen fijo, destino seleccionable y el campo "Solicitado por / medio".
-4. Detalle de un pedido rechazado sigue mostrando Motivo / Observación / Rechazado por / Fecha correctos.
+1. La barra lateral muestra una versión que cambia entre builds.
+2. En la app publicada, tras publicar una versión nueva, aparece el aviso "Hay una versión nueva" con botón Actualizar.
+3. Tocar "Actualizar" carga la versión nueva sin `Ctrl+Shift+R`.
+4. No hay bucles de recarga en ninguna pantalla.
+5. `/solicitudes` sigue mostrando los tres botones del header y el detalle de rechazo intacto.
