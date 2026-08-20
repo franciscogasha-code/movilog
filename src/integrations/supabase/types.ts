@@ -393,6 +393,7 @@ export type Database = {
           expected_next_event_deadline: string | null
           flow_type: string | null
           id: string
+          instruction_source: string | null
           is_pre_sale: boolean
           logistic_closed_at: string | null
           logistic_closed_by: string | null
@@ -457,6 +458,7 @@ export type Database = {
           expected_next_event_deadline?: string | null
           flow_type?: string | null
           id?: string
+          instruction_source?: string | null
           is_pre_sale?: boolean
           logistic_closed_at?: string | null
           logistic_closed_by?: string | null
@@ -523,6 +525,7 @@ export type Database = {
           expected_next_event_deadline?: string | null
           flow_type?: string | null
           id?: string
+          instruction_source?: string | null
           is_pre_sale?: boolean
           logistic_closed_at?: string | null
           logistic_closed_by?: string | null
