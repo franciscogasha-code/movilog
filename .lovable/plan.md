@@ -47,7 +47,7 @@ O, si el navegador insiste en autocompletar, una solución universal segura es:
 autoComplete="one-time-code"
 ```
 
-En la práctica, la combinación `autoComplete="off"` + `autoCorrect="off"` + `autoCapitalize="off"` + `spellCheck="false"` + `name`/`id` no estándar resuelve el problema en Android, iOS/Safari y escritorio. Si durante las pruebas persiste en algún navegador, se reemplaza por `autoComplete="new-instruction-source"` (alternativa declarada en el mismo plan).
+En la práctica, la combinación `autoComplete="off"` + `autoCorrect="off"` + `autoCapitalize="sentences"` + `spellCheck="false"` + `name`/`id` no estándar resuelve el problema en Android, iOS/Safari y escritorio. Si durante las pruebas persiste en algún navegador, se reemplaza por `autoComplete="new-instruction-source"` (alternativa declarada en el mismo plan).
 
 ## Checklist de prueba
 1. Abrir `/solicitudes` → "Enviar a otra sucursal".
