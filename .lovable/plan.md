@@ -17,7 +17,7 @@ Aplicar la combinación estándar y multiplataforma de atributos HTML en el inpu
   placeholder="Ej: Verbal - Gerente Caballero / WhatsApp"
   autoComplete="off"
   autoCorrect="off"
-  autoCapitalize="off"
+  autoCapitalize="sentences"
   spellCheck="false"
   inputMode="text"
   name="instruction-source-free-text"
@@ -29,7 +29,7 @@ Aplicar la combinación estándar y multiplataforma de atributos HTML en el inpu
 Razón de cada atributo:
 - `autoComplete="off"`: desactiva el autocompletado de contraseñas, tarjetas y direcciones.
 - `autoCorrect="off"`: desactiva la corrección automática en iOS/Safari y Android.
-- `autoCapitalize="off"`: desactiva la mayúscula automática al inicio de frase (comportamiento libre para texto operativo).
+- `autoCapitalize="sentences"`: mantiene la primera letra de cada frase en mayúscula de forma natural, útil para nombres de personas y medios ("Verbal - Gerente Caballero"), sin desactivar la ayuda del teclado.
 - `spellCheck="false"`: evita subrayados rojos y sugerencias del navegador de escritorio.
 - `inputMode="text"`: fuerza teclado de texto estándar (sin sugerencias numéricas/especiales).
 - `name` / `id` no comunes (no "name", "email", "address", "phone"): evita que el navegador asocie el campo a datos de autocompletado guardados por el usuario.
@@ -47,7 +47,7 @@ O, si el navegador insiste en autocompletar, una solución universal segura es:
 autoComplete="one-time-code"
 ```
 
-En la práctica, la combinación `autoComplete="off"` + `autoCorrect="off"` + `autoCapitalize="off"` + `spellCheck="false"` + `name`/`id` no estándar resuelve el problema en Android, iOS/Safari y escritorio. Si durante las pruebas persiste en algún navegador, se reemplaza por `autoComplete="new-instruction-source"` (alternativa declarada en el mismo plan).
+En la práctica, la combinación `autoComplete="off"` + `autoCorrect="off"` + `autoCapitalize="sentences"` + `spellCheck="false"` + `name`/`id` no estándar resuelve el problema en Android, iOS/Safari y escritorio. Si durante las pruebas persiste en algún navegador, se reemplaza por `autoComplete="new-instruction-source"` (alternativa declarada en el mismo plan).
 
 ## Checklist de prueba
 1. Abrir `/solicitudes` → "Enviar a otra sucursal".
