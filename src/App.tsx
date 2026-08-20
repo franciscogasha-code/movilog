@@ -6,6 +6,7 @@ import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client
 import { createIdbPersister } from "@/lib/offline-store";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { UpdateProvider } from "@/contexts/UpdateContext";
 import { AppLayout } from "@/components/AppLayout";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Login from "./pages/Login";
@@ -143,27 +144,29 @@ function ChangePasswordRoute() {
 
 const App = () => (
   <PersistQueryClientProvider
-      client={queryClient}
-      persistOptions={{ persister, maxAge: 1000 * 60 * 60 * 24 }}
-    >
+    client={queryClient}
+    persistOptions={{ persister, maxAge: 1000 * 60 * 60 * 24 }}
+  >
     <TooltipProvider>
       <Toaster />
       <Sonner />
       <BrowserRouter>
         <ErrorBoundary>
           <AuthProvider>
-            <Routes>
-              <Route path="/login" element={<LoginRoute />} />
-              <Route path="/cambiar-contrasena" element={<ChangePasswordRoute />} />
-              <Route
-                path="/*"
-                element={
-                  <ErrorBoundary>
-                    <ProtectedRoutes />
-                  </ErrorBoundary>
-                }
-              />
-            </Routes>
+            <UpdateProvider>
+              <Routes>
+                <Route path="/login" element={<LoginRoute />} />
+                <Route path="/cambiar-contrasena" element={<ChangePasswordRoute />} />
+                <Route
+                  path="/*"
+                  element={
+                    <ErrorBoundary>
+                      <ProtectedRoutes />
+                    </ErrorBoundary>
+                  }
+                />
+              </Routes>
+            </UpdateProvider>
           </AuthProvider>
         </ErrorBoundary>
       </BrowserRouter>
