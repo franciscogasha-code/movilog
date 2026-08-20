@@ -1,11 +1,32 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
+import { execSync } from "child_process";
 import { componentTagger } from "lovable-tagger";
 import { VitePWA } from "vite-plugin-pwa";
 
+function buildVersion(): string {
+  const stamp = new Date()
+    .toISOString()
+    .slice(0, 16)
+    .replace("T", " ");
+  let hash = "";
+  try {
+    hash = execSync("git rev-parse --short HEAD", { stdio: ["ignore", "pipe", "ignore"] })
+      .toString()
+      .trim();
+  } catch {
+    hash = "";
+  }
+  return hash ? `${stamp} · ${hash}` : stamp;
+}
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
+  define: {
+    __APP_VERSION__: JSON.stringify(buildVersion()),
+  },
+
   server: {
     host: "::",
     port: 8080,
