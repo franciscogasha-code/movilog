@@ -70,9 +70,10 @@ export function installChunkReloadGuard(): void {
   if (typeof window === "undefined") return;
 
   window.addEventListener("vite:preloadError", (event) => {
-    const payload = (event as CustomEvent<{ payload?: unknown }>).detail?.payload;
+    const payload = (event as unknown as { payload?: unknown }).payload;
     maybeReloadForStaleChunk(payload ?? "failed to fetch dynamically imported module");
   });
+
 
   window.addEventListener("unhandledrejection", (event) => {
     maybeReloadForStaleChunk(event.reason);
