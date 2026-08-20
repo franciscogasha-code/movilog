@@ -3,6 +3,19 @@ import { toast } from "sonner";
 
 const APP_SW_PATH = "/sw.js";
 
+type UpdateCallback = (update: () => Promise<void>) => void;
+
+let updateCallback: UpdateCallback | null = null;
+let pendingUpdate: (() => Promise<void>) | null = null;
+
+export function setUpdateAvailableCallback(cb: UpdateCallback | null) {
+  updateCallback = cb;
+  if (cb && pendingUpdate) {
+    cb(pendingUpdate);
+    pendingUpdate = null;
+  }
+}
+
 function isPreviewHost(hostname: string): boolean {
   return (
     hostname.startsWith("id-preview--") ||
@@ -48,16 +61,21 @@ export async function registerAppServiceWorker(): Promise<void> {
   const updateSW = registerSW({
     immediate: true,
     onNeedRefresh() {
-      // Aviso persistente: nunca recargamos solos, decide el usuario.
+      const doUpdate = () => updateSW(true);
+      if (updateCallback) {
+        updateCallback(doUpdate);
+      } else {
+        pendingUpdate = doUpdate;
+      }
+
+      // Toast secundario; el banner fijo es la notificación principal.
       toast.info("Hay una versión nueva de MoviLog", {
         description: "Actualizá para trabajar con la última versión.",
         duration: Infinity,
         id: "movilog-sw-update",
         action: {
           label: "Actualizar",
-          onClick: () => {
-            void updateSW(true);
-          },
+          onClick: () => void updateSW(true),
         },
       });
     },
