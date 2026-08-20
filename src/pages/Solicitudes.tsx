@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Plus, Search, Building2, ArrowRightLeft, FileSpreadsheet, Layers, ArrowDownLeft, ArrowUpRight, Repeat, Filter, X, AlertTriangle } from "lucide-react";
+import { Plus, Search, Building2, ArrowRightLeft, FileSpreadsheet, Layers, ArrowDownLeft, ArrowUpRight, Repeat, Filter, X, AlertTriangle, Send } from "lucide-react";
 import { useSolicitudesIntegrityCheck } from "@/hooks/use-solicitudes-integrity";
 import { REQUEST_STATUS_CONFIG, SHIPPING_METHOD_LABELS, DELIVERY_TARGET_LABELS, REQUEST_TYPE_LABELS } from "@/lib/constants";
 import {
@@ -186,6 +186,7 @@ export default function Solicitudes() {
 
   const [createOpen, setCreateOpen] = useState(false);
   const [adminRepoOpen, setAdminRepoOpen] = useState(false);
+  const [envioDirectoOpen, setEnvioDirectoOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const fromConsultation = searchParams.get("from_consultation");
   const detailParam = searchParams.get("detail");
