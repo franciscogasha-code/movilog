@@ -139,7 +139,12 @@ export function AppSidebar() {
           <LogOut className="h-4 w-4" />
           {!collapsed && <span className="text-xs">Cerrar sesión</span>}
         </Button>
-        {!collapsed && <p className="text-[10px] text-sidebar-foreground/30 text-center">v5.2.0</p>}
+        {!collapsed && (
+          <p className="text-[10px] text-sidebar-foreground/30 text-center" title="Versión de build">
+            {__APP_VERSION__}
+          </p>
+        )}
+
       </SidebarFooter>
     </Sidebar>
   );
