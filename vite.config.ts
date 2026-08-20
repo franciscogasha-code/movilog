@@ -5,6 +5,7 @@ import { execSync } from "child_process";
 import { componentTagger } from "lovable-tagger";
 import { VitePWA } from "vite-plugin-pwa";
 
+/** Fallback: fecha del build (solo YYYY-MM-DD) en hora de Asunción. */
 function formatAsuncion(date: Date): string {
   try {
     const parts = new Intl.DateTimeFormat('sv-SE', {
@@ -12,27 +13,27 @@ function formatAsuncion(date: Date): string {
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
     }).formatToParts(date);
     const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '00';
-    return `${get('year')}-${get('month')}-${get('day')} ${get('hour')}:${get('minute')}`;
+    return `${get('year')}-${get('month')}-${get('day')}`;
   } catch {
-    return date.toISOString().slice(0, 16).replace('T', ' ');
+    return date.toISOString().slice(0, 10);
   }
 }
 
-function buildVersion(): string {
-  const stamp = formatAsuncion(new Date());
-  let hash = "";
+function git(command: string): string {
   try {
-    hash = execSync("git rev-parse --short HEAD", { stdio: ["ignore", "pipe", "ignore"] })
-      .toString()
-      .trim();
+    return execSync(command, { stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
   } catch {
-    hash = "";
+    return "";
   }
+}
+
+/** Sello determinístico: fecha del commit + hash corto. Mismo commit = mismo sello. */
+function buildVersion(): string {
+  const commitDate = git("git show -s --date=short --format=%cd HEAD");
+  const hash = git("git rev-parse --short HEAD");
+  const stamp = commitDate || formatAsuncion(new Date());
   return hash ? `${stamp} · ${hash}` : stamp;
 }
 
