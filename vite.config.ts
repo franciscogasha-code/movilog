@@ -5,11 +5,26 @@ import { execSync } from "child_process";
 import { componentTagger } from "lovable-tagger";
 import { VitePWA } from "vite-plugin-pwa";
 
+function formatAsuncion(date: Date): string {
+  try {
+    const parts = new Intl.DateTimeFormat('sv-SE', {
+      timeZone: 'America/Asuncion',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).formatToParts(date);
+    const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '00';
+    return `${get('year')}-${get('month')}-${get('day')} ${get('hour')}:${get('minute')}`;
+  } catch {
+    return date.toISOString().slice(0, 16).replace('T', ' ');
+  }
+}
+
 function buildVersion(): string {
-  const stamp = new Date()
-    .toISOString()
-    .slice(0, 16)
-    .replace("T", " ");
+  const stamp = formatAsuncion(new Date());
   let hash = "";
   try {
     hash = execSync("git rev-parse --short HEAD", { stdio: ["ignore", "pipe", "ignore"] })
