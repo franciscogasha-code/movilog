@@ -1,17 +1,16 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
+import { setUpdateAvailableCallback } from "@/lib/register-app-sw";
 
 interface UpdateContextValue {
   needsUpdate: boolean;
   updateSW: (() => Promise<void>) | null;
   dismiss: () => void;
-  registerUpdate: (updateFn: () => Promise<void>) => void;
 }
 
 const UpdateContext = createContext<UpdateContextValue>({
   needsUpdate: false,
   updateSW: null,
   dismiss: () => {},
-  registerUpdate: () => {},
 });
 
 const DISMISS_KEY = "movilog:update-dismissed";
@@ -39,17 +38,14 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
     }
   }, [updateFn]);
 
-  // Si el usuario descarta el banner, no reaparece en la misma sesión.
+  // Registrar el callback para que el service worker pueda notificar al contexto.
   useEffect(() => {
-    const handleBeforeUnload = () => {
-      // sessionStorage se limpia automáticamente al cerrar la pestaña.
-    };
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, []);
+    setUpdateAvailableCallback(registerUpdate);
+    return () => setUpdateAvailableCallback(null);
+  }, [registerUpdate]);
 
   return (
-    <UpdateContext.Provider value={{ needsUpdate, updateSW, dismiss, registerUpdate }}>
+    <UpdateContext.Provider value={{ needsUpdate, updateSW, dismiss }}>
       {children}
     </UpdateContext.Provider>
   );
