@@ -22,6 +22,7 @@ import { useParentRequestIds } from "@/hooks/use-parent-request-ids";
 import { StatusBadge } from "@/components/StatusBadge";
 import { CommercialBackedBadge, isCommercialBackedChild } from "@/components/solicitudes/CommercialBackedBadge";
 import { AdminReposicionForm } from "@/components/solicitudes/AdminReposicionForm";
+import { EnvioDirectoForm } from "@/components/solicitudes/EnvioDirectoForm";
 import { SolicitudCreateForm } from "@/components/solicitudes/SolicitudCreateForm";
 import { RequestDetailRouter } from "@/components/solicitudes/RequestDetailRouter";
 import { useUserBranchFilter } from "@/hooks/use-user-access";
@@ -1271,6 +1272,25 @@ export default function Solicitudes() {
             </DialogHeader>
             <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 py-4 sm:px-6 sm:py-5 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
               <AdminReposicionForm onSuccess={() => { setAdminRepoOpen(false); refetch(); }} />
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Envío directo a otra sucursal (origen-push) */}
+        <Dialog open={envioDirectoOpen} onOpenChange={setEnvioDirectoOpen}>
+          <DialogContent
+            className="
+              p-0 gap-0 overflow-hidden
+              w-screen h-[100dvh] max-w-none rounded-none border-0
+              sm:w-[calc(100vw-2rem)] sm:max-w-3xl sm:h-auto sm:max-h-[90vh] sm:rounded-lg sm:border
+              flex flex-col
+            "
+          >
+            <DialogHeader className="px-4 py-3 sm:px-6 sm:py-4 border-b bg-background shrink-0 pr-14 sm:pr-12 pt-[calc(env(safe-area-inset-top)+0.75rem)] sm:pt-4">
+              <DialogTitle className="text-base sm:text-lg">Enviar a otra sucursal</DialogTitle>
+            </DialogHeader>
+            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 py-4 sm:px-6 sm:py-5 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
+              <EnvioDirectoForm onSuccess={() => { setEnvioDirectoOpen(false); refetch(); }} />
             </div>
           </DialogContent>
         </Dialog>
