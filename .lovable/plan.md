@@ -59,7 +59,8 @@ Basado en `AdminReposicionForm` (mismo patrón de líneas, Excel, adjunto, confi
 | Pedido creado pero sin avanzar (falla RPC) | Alta y transición desacopladas: el pedido queda en `pending`/`accepted` y el detalle permite avanzar manualmente. |
 | Operador eligiendo origen ajeno | Origen limitado a `allowedBranchIds`; RLS + `can_access_branch` como segunda barrera. |
 | Duplicar whitelists de estados | No se define ningún array local; solo se usan las transiciones vía RPC. |
-| Pedido "empujado" confunde al destino | Prefijo visible en notas + badge implícito por `request_type=reposition`; el destino lo ve en su bandeja como entrada. |
+| Pedido "empujado" confunde al destino | Campo `instruction_source` visible en el detalle + `request_type=reposition`; el destino lo ve en su bandeja como entrada. |
+| Columna nueva rompe queries existentes | `instruction_source` es nullable y no entra en `REQUEST_COLUMNS`; solo se lee en el detalle. |
 | Excel/adjunto | Se reusa `ExcelImport` y el mismo bucket `request-attachments`, sin cambios. |
 
 ## Checklist de prueba (antes de declarar estable)
