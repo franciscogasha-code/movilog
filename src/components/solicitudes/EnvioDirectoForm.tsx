@@ -165,6 +165,7 @@ export function EnvioDirectoForm({ onSuccess }: EnvioDirectoFormProps) {
         p_new_status: "accepted",
         p_reason: "Envío directo originado por la sucursal de origen",
         p_rejection_reason_type: null,
+        p_trip_id: null,
       });
 
       if (acceptErr) {
@@ -180,6 +181,7 @@ export function EnvioDirectoForm({ onSuccess }: EnvioDirectoFormProps) {
         p_new_status: "in_preparation",
         p_reason: "Envío directo: preparación en origen",
         p_rejection_reason_type: null,
+        p_trip_id: null,
       });
 
       if (prepErr) {
