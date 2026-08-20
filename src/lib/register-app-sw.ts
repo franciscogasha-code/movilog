@@ -1,4 +1,5 @@
 import { registerSW } from "virtual:pwa-register";
+import { toast } from "sonner";
 
 const APP_SW_PATH = "/sw.js";
 
@@ -44,5 +45,21 @@ export async function registerAppServiceWorker(): Promise<void> {
     return;
   }
 
-  registerSW({ immediate: true });
+  const updateSW = registerSW({
+    immediate: true,
+    onNeedRefresh() {
+      // Aviso persistente: nunca recargamos solos, decide el usuario.
+      toast.info("Hay una versión nueva de MoviLog", {
+        description: "Actualizá para trabajar con la última versión.",
+        duration: Infinity,
+        id: "movilog-sw-update",
+        action: {
+          label: "Actualizar",
+          onClick: () => {
+            void updateSW(true);
+          },
+        },
+      });
+    },
+  });
 }
