@@ -612,34 +612,47 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
             <XCircle className="h-5 w-5 text-destructive/70" />
             <h4 className="font-semibold text-foreground">Motivo del rechazo</h4>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-            <div>
-              <span className="text-muted-foreground">Motivo:</span>{" "}
-              <span className="font-medium">
-                {r.rejection_reason_type
-                  ? (REJECTION_REASONS as Record<string, string>)[r.rejection_reason_type] || r.rejection_reason_type
-                  : "No especificado"}
-              </span>
-            </div>
-            <div>
-              <span className="text-muted-foreground">Rechazado por:</span>{" "}
-              <span className="font-medium">{rejectedByProfile || "Usuario desconocido"}</span>
-            </div>
-            <div>
-              <span className="text-muted-foreground">Fecha:</span>{" "}
-              <span className="font-medium">
-                {r.rejected_at
-                  ? new Date(r.rejected_at).toLocaleString("es-PY")
-                  : "Sin fecha"}
-              </span>
-            </div>
-            {r.rejection_reason && (
-              <div className="col-span-1 sm:col-span-2">
-                <span className="text-muted-foreground">Observación:</span>{" "}
-                <span className="font-medium">{r.rejection_reason}</span>
+          {(() => {
+            // Fallback histórico: algunos rechazos viejos guardaron el CÓDIGO del
+            // motivo dentro de rejection_reason (campo de observación). Si es un
+            // código conocido, se muestra traducido en "Motivo" y no como observación.
+            const legacyCode =
+              !r.rejection_reason_type && r.rejection_reason && (REJECTION_REASONS as Record<string, string>)[r.rejection_reason]
+                ? (r.rejection_reason as string)
+                : null;
+            const reasonCode = (r.rejection_reason_type as string | null) || legacyCode;
+            const observation = legacyCode ? null : (r.rejection_reason as string | null);
+            return (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                <div>
+                  <span className="text-muted-foreground">Motivo:</span>{" "}
+                  <span className="font-medium">
+                    {reasonCode
+                      ? (REJECTION_REASONS as Record<string, string>)[reasonCode] || reasonCode
+                      : "No especificado"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Rechazado por:</span>{" "}
+                  <span className="font-medium">{rejectedByProfile || "Usuario desconocido"}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Fecha:</span>{" "}
+                  <span className="font-medium">
+                    {r.rejected_at
+                      ? new Date(r.rejected_at).toLocaleString("es-PY")
+                      : "Sin fecha"}
+                  </span>
+                </div>
+                {observation && (
+                  <div className="col-span-1 sm:col-span-2">
+                    <span className="text-muted-foreground">Observación:</span>{" "}
+                    <span className="font-medium">{observation}</span>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            );
+          })()}
         </div>
       )}
 
