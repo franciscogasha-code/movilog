@@ -196,7 +196,7 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
       const { data, error } = await (supabase
         .from("branch_requests")
         .select(
-          `${REQUEST_COLUMNS},
+          `${REQUEST_COLUMNS}, instruction_source,
            requesting_branch:branches!branch_requests_requesting_branch_id_fkey(name, code, logistic_group),
            source_branch:branches!branch_requests_source_branch_id_fkey(name, code, logistic_group, is_central_warehouse),
            parent:parent_request_id(id, request_number, is_pre_sale, created_from_presale_id)` as any,
@@ -1015,6 +1015,13 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
           </ol>
         )}
       </div>
+
+      {r.instruction_source && (
+        <div>
+          <h4 className="font-display font-semibold mb-1">Solicitado por / medio</h4>
+          <p className="text-sm text-muted-foreground">{r.instruction_source}</p>
+        </div>
+      )}
 
       {r.notes && (
         <div>

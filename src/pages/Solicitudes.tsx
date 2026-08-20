@@ -703,6 +703,11 @@ export default function Solicitudes() {
                   <FileSpreadsheet className="h-4 w-4 mr-2" /> Reposición admin.
                 </Button>
               )}
+              {(hasRole("branch_operator") || hasRole("branch_manager") || hasRole("admin") || hasRole("supervisor") || isOwner) && (
+                <Button variant="outline" onClick={() => setEnvioDirectoOpen(true)} className="w-full sm:w-auto">
+                  <Send className="h-4 w-4 mr-2" /> Enviar a otra sucursal
+                </Button>
+              )}
               <Dialog
                 open={createOpen}
                 onOpenChange={(open) => {
