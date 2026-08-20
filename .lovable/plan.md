@@ -44,8 +44,9 @@ Basado en `AdminReposicionForm` (mismo patrón de líneas, Excel, adjunto, confi
 - Nuevo `Dialog` que monta `EnvioDirectoForm`, con `onSuccess` → cerrar + `refetch()`.
 - El botón "Reposición admin." queda tal cual.
 
-### 4. `src/components/solicitudes/SolicitudDetail.tsx` (solo lectura)
-- Mostrar "Solicitado por / medio" en el bloque de datos del pedido cuando `instruction_source` no sea nulo. Sin cambios de lógica ni de acciones.
+### 4. `src/components/solicitudes/SolicitudDetail.tsx` (lectura del dato nuevo)
+- La query del detalle usa `REQUEST_COLUMNS` (que no incluye la columna nueva), así que se agrega explícitamente `instruction_source` al `select` del detalle para que el dato realmente llegue al cliente.
+- Mostrar "Solicitado por / medio" en el bloque de datos del pedido cuando `instruction_source` no sea nulo, junto al bloque de Notas. Sin cambios de lógica ni de acciones.
 
 ### 5. Sin cambios en
 `request-status.ts`, RPCs, triggers, RLS, abastecimiento, cobranzas, pre-ventas, ruteo, chofer.
@@ -70,3 +71,4 @@ Basado en `AdminReposicionForm` (mismo patrón de líneas, Excel, adjunto, confi
 4. Sucursal B ve el pedido en su bandeja de entrada y puede completar recepción/cierre.
 5. Admin/owner: "Reposición admin." sigue funcionando idéntico.
 6. Ningún pedido nuevo aparece en `in_supply` ni en la cola de abastecimiento.
+7. Crear un envío con "Solicitado por / medio" = un texto concreto (ej. "Verbal - Gerente Caballero") y verificar que ese texto **se ve** en el detalle del pedido después de guardar.
