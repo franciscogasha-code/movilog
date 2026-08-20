@@ -36,10 +36,27 @@ function buildVersion(): string {
   return hash ? `${stamp} · ${hash}` : stamp;
 }
 
+const APP_VERSION = buildVersion();
+
+/** Emite /version.json para el chequeo de versión publicada (independiente del service worker). */
+function versionManifestPlugin() {
+  return {
+    name: "movilog-version-manifest",
+    apply: "build" as const,
+    generateBundle(this: { emitFile: (file: { type: "asset"; fileName: string; source: string }) => void }) {
+      this.emitFile({
+        type: "asset",
+        fileName: "version.json",
+        source: JSON.stringify({ version: APP_VERSION }),
+      });
+    },
+  };
+}
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   define: {
-    __APP_VERSION__: JSON.stringify(buildVersion()),
+    __APP_VERSION__: JSON.stringify(APP_VERSION),
   },
 
   server: {
@@ -51,6 +68,7 @@ export default defineConfig(({ mode }) => ({
   },
   plugins: [
     react(),
+    versionManifestPlugin(),
     mode === "development" && componentTagger(),
     VitePWA({
       registerType: "autoUpdate",
