@@ -260,6 +260,13 @@ export function EnvioDirectoForm({ onSuccess }: EnvioDirectoFormProps) {
             maxLength={MAX_INSTRUCTION_SOURCE}
             onChange={(e) => setInstructionSource(e.target.value)}
             placeholder="Ej: Verbal - Gerente Caballero / WhatsApp"
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="sentences"
+            spellCheck="false"
+            inputMode="text"
+            name="instruction-source-free-text"
+            id="instruction-source-free-text"
             className="mt-1"
           />
           <p className="text-xs text-muted-foreground mt-1">
