@@ -22,7 +22,8 @@ Riesgos
 - Riesgo residual: si git no está disponible en el entorno de build, se pierde el determinismo y se usa la fecha de build (comportamiento actual, aceptado como fallback).
 
 Checklist
-- [ ] `vite.config.ts` genera el sello como `YYYY-MM-DD · <hash>`.
+- [ ] `vite.config.ts` genera el sello como `YYYY-MM-DD · <hash>` usando la fecha del commit.
+- [ ] Recompilar el mismo commit produce exactamente el mismo string.
 - [ ] `version.json` contiene el mismo string que `__APP_VERSION__`.
 - [ ] El chequeo de versión propio (`version-check.ts`) sigue comparando por igualdad de strings sin lógica adicional.
 - [ ] TypeScript compila sin errores.
