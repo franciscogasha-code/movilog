@@ -1,5 +1,6 @@
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
+import { UpdateBanner } from "@/components/UpdateBanner";
 import { Outlet } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -17,6 +18,7 @@ export function AppLayout() {
       <div className="min-h-screen flex w-full overflow-x-hidden">
         <AppSidebar />
         <div className="flex-1 flex flex-col min-w-0 max-w-full">
+          <UpdateBanner />
           <header className="h-14 flex items-center border-b border-border bg-card/80 backdrop-blur-md px-3 sm:px-4 sticky top-0 z-30">
             <SidebarTrigger className="mr-2 sm:mr-4" />
             <div className="flex-1" />
