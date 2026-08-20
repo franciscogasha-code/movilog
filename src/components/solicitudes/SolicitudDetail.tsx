@@ -617,7 +617,7 @@ export function SolicitudDetail({ requestId, onUpdate }: { requestId: string; on
             // motivo dentro de rejection_reason (campo de observación). Si es un
             // código conocido, se muestra traducido en "Motivo" y no como observación.
             const legacyCode =
-              !r.rejection_reason_type && r.rejection_reason && REJECTION_REASONS[r.rejection_reason]
+              !r.rejection_reason_type && r.rejection_reason && (REJECTION_REASONS as Record<string, string>)[r.rejection_reason]
                 ? (r.rejection_reason as string)
                 : null;
             const reasonCode = (r.rejection_reason_type as string | null) || legacyCode;
