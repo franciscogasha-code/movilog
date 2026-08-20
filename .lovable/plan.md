@@ -19,15 +19,19 @@ Solo el buscador compartido. No se toca recepción, chofer, ventas ni ningún ot
 **Nuevo** `src/components/shared/BarcodeScanner.tsx`
 - Overlay a pantalla completa (Dialog de shadcn) con `<video>`, marco guía, botón cerrar y estados: pidiendo permiso / escaneando / permiso denegado / cámara no disponible.
 - Cámara trasera (`facingMode: "environment"`), corte del stream al cerrar y al desmontar.
-- Props: `open`, `onOpenChange`, `onDetected(code: string)`, `continuous?`.
+- Props: `open`, `onOpenChange`, `onDetected(code: string)`, `continuous?` (por defecto `true`), `statusText?` (para mostrar el contador de agregados dentro del overlay).
+- En modo continuo el escáner NO se cierra al detectar: sigue leyendo hasta que el usuario toca "Listo/Cerrar".
 - Formatos: EAN-13, EAN-8, UPC-A, UPC-E, Code-128, Code-39, ITF.
 
 **Modificado** `src/components/shared/ProductSearch.tsx`
 - Botón "Escanear" (ícono `ScanLine`/cámara) dentro del input, solo si hay `navigator.mediaDevices`.
 - Nueva función `lookupByCode(code)`: consulta `products` activa con `barcode.eq` / `bims_code.eq` (y fallback `ilike` por si el código viene con ceros a la izquierda), respetando `excludeIds`.
-  - 1 resultado: `onSelect` con stock enriquecido si aplica, cierra el scanner, toast "Agregado: <producto>".
-  - Varios: carga el código en el input, abre el dropdown con los resultados, cierra el scanner.
+  - 1 resultado: `onSelect` con stock enriquecido si aplica, toast "Agregado: <producto>", incrementa el contador de agregados y **el escáner sigue abierto** escaneando el siguiente.
+  - Varios: carga el código en el input, abre el dropdown con los resultados y cierra el scanner (necesita decisión del usuario).
   - Ninguno: toast "No se encontró producto con ese código"; el scanner sigue abierto para reintentar.
+- Contador de sesión: se muestra dentro del overlay ("3 agregados") y se reinicia cada vez que se abre el escáner. Al cerrar, toast resumen "N productos agregados" si N > 0.
+- Anti-duplicado: se ignora el mismo código si se vuelve a leer dentro de 1,5 s (el usuario puede reescanear el mismo producto a propósito pasado ese lapso).
+
 
 ## Librería: `@zxing/browser` (+ `@zxing/library`)
 
