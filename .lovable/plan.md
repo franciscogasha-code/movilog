@@ -18,8 +18,22 @@ En la app publicada, cuando el service worker detecta una versión más nueva, m
 
 Beneficio: los usuarios de sucursal dejan de quedarse con versiones viejas sin enterarse. No requiere que nadie sepa hacer `Ctrl+Shift+R`.
 
-### 3. Auto-recarga cuando el chunk viejo ya no existe
-Cuando el navegador tiene HTML viejo y pide un archivo JS que ya no está en el servidor, hoy eso puede terminar en pantalla en blanco o en módulos que no cargan. Agregar en `main.tsx` un manejador único de `vite:preloadError` / error de carga de módulo que fuerce **una sola** recarga (con guarda en `sessionStorage` para no entrar en bucle).
+### 3. Auto-recarga cuando el chunk viejo ya no existe (reforzada)
+Cuando el navegador tiene HTML viejo y pide un archivo JS que ya no está en el servidor, hoy eso puede terminar en pantalla en blanco o en módulos que no cargan. Agregar en `main.tsx` un manejador de `vite:preloadError` / error de carga de módulo que fuerce **una sola** recarga.
+
+Refuerzo anti-bucle (condiciones acumulativas, todas obligatorias):
+- Guarda en `sessionStorage` con clave versionada (`movilog:chunk-reload:<APP_VERSION>`): si ya hubo una recarga automática en esa sesión para esa versión, no se recarga de nuevo — se deja caer al ErrorBoundary con el mensaje habitual.
+- Solo se recarga si el navegador está online (`navigator.onLine`); offline nunca dispara recarga.
+- Solo se recarga si el error es de carga de módulo/chunk (patrón de `vite:preloadError` o `Failed to fetch dynamically imported module`); cualquier otro error de red no dispara nada.
+- Ventana mínima de 10 s desde el arranque de la sesión antes de permitir otra recarga, para evitar ciclos rápidos.
+
+Prueba obligatoria antes de darla por lista (no se declara estable sin esto):
+- Recorrido automatizado (Playwright) por las pantallas principales — `/`, `/solicitudes`, `/consultas`, `/cumplimiento`, `/recepcion`, `/ventas`, `/chofer`, `/flota`, `/rendicion`, `/usuarios`, `/ejecutivo` — contando `page.on("load")` por ruta: debe ser exactamente 1 navegación por pantalla, 0 recargas espontáneas.
+- Caso forzado: interceptar un chunk dinámico y devolver 404 al entrar a una ruta lazy. Se espera **exactamente una** recarga y luego pantalla funcional (o el ErrorBoundary), nunca dos.
+- Caso forzado repetido: con el 404 persistente, verificar que la segunda entrada NO vuelve a recargar (la guarda de `sessionStorage` corta) y muestra el ErrorBoundary.
+- Caso offline: con red cortada y chunk fallando, verificar 0 recargas.
+- Resultado a reportar: tabla de recargas por pantalla, y el conteo del caso forzado.
+
 
 ## Alcance técnico
 
