@@ -51,14 +51,17 @@ Nada de esto toca `Solicitudes.tsx`, `EnvioDirectoForm.tsx`, `SolicitudDetail.ts
 
 | Riesgo | Mitigación |
 |---|---|
-| Bucle de recargas | Guarda en `sessionStorage`: una sola recarga automática por sesión |
+| Bucle de recargas | 4 guardas acumulativas (sessionStorage versionado, online, tipo de error, ventana de 10 s) + prueba automatizada de 0 recargas espontáneas en 11 pantallas |
 | Toast molesto durante la jornada | No recarga solo: el usuario decide cuándo tocar "Actualizar" |
 | El SW no existe en preview | El aviso solo aplica en la app publicada; en preview la guarda actual sigue desregistrando el SW |
 
-## Checklist de verificación
+## Checklist de verificación (se confirma punto por punto al terminar)
 
 1. La barra lateral muestra una versión que cambia entre builds.
 2. En la app publicada, tras publicar una versión nueva, aparece el aviso "Hay una versión nueva" con botón Actualizar.
 3. Tocar "Actualizar" carga la versión nueva sin `Ctrl+Shift+R`.
-4. No hay bucles de recarga en ninguna pantalla.
+4. No hay bucles de recarga en ninguna pantalla — evidencia: tabla de recargas por pantalla (11 rutas, 1 navegación cada una) + caso forzado con exactamente 1 recarga y segunda entrada sin recarga.
 5. `/solicitudes` sigue mostrando los tres botones del header y el detalle de rechazo intacto.
+
+Al cerrar la implementación te devuelvo estos 5 puntos con estado explícito (OK / observación), no un resumen genérico.
+
