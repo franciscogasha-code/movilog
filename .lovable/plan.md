@@ -17,22 +17,39 @@
 
 ## Plan
 
-### 1. Nuevo componente `src/components/solicitudes/EnvioDirectoForm.tsx`
+### 1. Migración: columna `instruction_source`
+SQL exacto a aplicar (se muestra antes de ejecutar):
+
+```sql
+ALTER TABLE public.branch_requests
+  ADD COLUMN IF NOT EXISTS instruction_source text;
+
+COMMENT ON COLUMN public.branch_requests.instruction_source IS
+  'Origen de la orden externa (verbal, WhatsApp, etc.) para envíos directos entre sucursales';
+```
+
+Nullable, sin default, sin cambios de RLS ni de grants (la tabla ya los tiene). No afecta pedidos existentes.
+
+### 2. Nuevo componente `src/components/solicitudes/EnvioDirectoForm.tsx`
 Basado en `AdminReposicionForm` (mismo patrón de líneas, Excel, adjunto, confirmación), con estas diferencias:
 - **Origen fijo**: se toma `defaultBranchId` de `useUserBranchFilter()`; se muestra como campo de solo lectura (nombre + código). Si el usuario no tiene sucursal por defecto y tiene varias permitidas, se ofrece un selector limitado **solo** a `allowedBranchIds`; sin acceso a ninguna → mensaje y botón de crear deshabilitado.
 - **Destino**: `BranchSelector` excluyendo el origen.
-- **Campo nuevo "Solicitado por / medio"** (texto libre, obligatorio, máx. 120 chars).
-- **Persistencia del campo**: se guarda en `notes` con prefijo estable `[Envío directo · Solicitado por: <texto>]` + notas libres debajo. Motivo: el cerco de alcance excluye cambios de esquema; el prefijo es parseable y ya existe precedente (`[Reposición administrativa]`). Si preferís columna propia (`instruction_source`), lo hago en una tanda aparte con migración + render en `SolicitudDetail`.
+- **Campo nuevo "Solicitado por / medio"**: texto libre, **obligatorio**, máx. 120 caracteres → se guarda en la columna `instruction_source`.
+- **`notes`** queda solo para notas libres del usuario, sin prefijos.
 - **Post-insert**: tras crear el pedido y las líneas, se llama `fn_transition_request_status` dos veces (`accepted`, luego `in_preparation`), igual que la acción "Aceptar" del detalle. Así el pedido entra directo a preparación del lado del origen, se crea el `fulfillment_order` y se registran los eventos. Si la segunda transición falla, el pedido queda en `accepted` y se avisa por toast ("Pedido creado, avanzá a Preparación desde el detalle") — nunca se pierde el alta.
 - Sin tocar `AdminReposicionForm.tsx` (queda intacto para admin/owner).
 
-### 2. `src/pages/Solicitudes.tsx` (solo el bloque de botones del header)
+### 3. `src/pages/Solicitudes.tsx` (solo el bloque de botones del header)
 - Agregar botón "Enviar a otra sucursal" visible para `branch_operator`, `branch_manager`, `admin`, `supervisor` y owner (oculto para viewer).
 - Nuevo `Dialog` que monta `EnvioDirectoForm`, con `onSuccess` → cerrar + `refetch()`.
 - El botón "Reposición admin." queda tal cual.
 
-### 3. Sin cambios en
+### 4. `src/components/solicitudes/SolicitudDetail.tsx` (solo lectura)
+- Mostrar "Solicitado por / medio" en el bloque de datos del pedido cuando `instruction_source` no sea nulo. Sin cambios de lógica ni de acciones.
+
+### 5. Sin cambios en
 `request-status.ts`, RPCs, triggers, RLS, abastecimiento, cobranzas, pre-ventas, ruteo, chofer.
+
 
 ## Riesgos de regresión y mitigación
 
