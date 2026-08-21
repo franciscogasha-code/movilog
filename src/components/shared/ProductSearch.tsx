@@ -1,10 +1,15 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Search, Package, Loader2, Zap, Clock } from "lucide-react";
+import { Search, Package, Loader2, Zap, Clock, ScanLine } from "lucide-react";
 import { proxyImageUrl } from "@/lib/image-utils";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useLiveStock } from "@/hooks/use-live-stock";
+import { BarcodeScanner } from "@/components/shared/BarcodeScanner";
+import { notify } from "@/lib/notify";
+import { revalidateLiveStock } from "@/hooks/use-live-stock";
+
 
 export type ProductResult = {
   id: string;
