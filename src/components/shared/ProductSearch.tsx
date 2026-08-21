@@ -255,8 +255,9 @@ export function ProductSearch({ onSelect, placeholder = "Buscar producto por nom
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={placeholder}
-          className={cn("pl-9", cameraAvailable ? "pr-20" : "pr-9")}
+          className="pl-9 pr-20"
         />
+
         {(loading || isLoadingStock) && (
           <Loader2
             className={cn(
