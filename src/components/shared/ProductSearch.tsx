@@ -146,18 +146,143 @@ export function ProductSearch({ onSelect, placeholder = "Buscar producto por nom
     setOpen(false);
   };
 
+  /** Busca por código exacto (barcode / bims_code / sku) para el escáner. */
+  const lookupByCode = useCallback(
+    async (code: string): Promise<ProductResult[]> => {
+      const select =
+        "id, name, sku, bims_code, barcode, category, unit, description, image_url, sell_price, price_scales, price_lists, stock_by_warehouse, total_stock";
+      const exact = await supabase
+        .from("products")
+        .select(select)
+        .eq("is_active", true)
+        .or(`barcode.eq.${code},bims_code.eq.${code},sku.eq.${code}`)
+        .limit(20);
+
+      let rows = (exact.data || []) as unknown as ProductResult[];
+
+      if (!exact.error && rows.length === 0) {
+        // Fallback: ceros a la izquierda o dígito verificador distinto en BIMS
+        const suffix = code.replace(/^0+/, "");
+        const loose = await supabase
+          .from("products")
+          .select(select)
+          .eq("is_active", true)
+          .or(`barcode.ilike.%${suffix},bims_code.ilike.%${suffix}`)
+          .limit(20);
+        rows = (loose.data || []) as unknown as ProductResult[];
+      }
+
+      return rows.filter((p) => !excludeIds.includes(p.id));
+    },
+    [excludeIds]
+  );
+
+  const handleDetected = useCallback(
+    async (code: string) => {
+      try {
+        const found = await lookupByCode(code);
+
+        if (found.length === 0) {
+          notify.warning("No se encontró producto con ese código", { description: code });
+          return;
+        }
+
+        if (found.length > 1) {
+          setQuery(code);
+          setResults(found);
+          setOpen(true);
+          setScannerOpen(false);
+          notify.info(`${found.length} productos con ese código`, {
+            description: "Elegí el correcto en la lista",
+          });
+          return;
+        }
+
+        const product = found[0];
+        let enriched = product;
+        if (product.bims_code) {
+          try {
+            const live = await revalidateLiveStock([product.bims_code]);
+            const entry = live[product.bims_code];
+            if (entry) {
+              enriched = {
+                ...product,
+                stock_by_warehouse: entry.stock_by_warehouse,
+                total_stock: entry.total_stock,
+              };
+            }
+          } catch {
+            /* stock referencial */
+          }
+        }
+        onSelect(enriched);
+        setScanCount((n) => n + 1);
+        notify.success(`Agregado: ${product.name}`);
+      } catch (err) {
+        console.error("Barcode lookup error:", err);
+        notify.error("No se pudo buscar el código", {
+          description: (err as Error)?.message,
+        });
+      }
+    },
+    [lookupByCode, onSelect]
+  );
+
+  const openScanner = () => {
+    setScanCount(0);
+    setScannerOpen(true);
+  };
+
+  const closeScanner = (next: boolean) => {
+    setScannerOpen(next);
+    if (!next && scanCount > 0) {
+      notify.info(`${scanCount} producto${scanCount === 1 ? "" : "s"} agregado${scanCount === 1 ? "" : "s"}`);
+    }
+  };
+
   return (
     <div ref={containerRef} className={cn("relative", className)}>
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
+          ref={inputRef}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={placeholder}
-          className="pl-9 pr-9"
+          className={cn("pl-9", cameraAvailable ? "pr-20" : "pr-9")}
         />
-        {(loading || isLoadingStock) && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />}
+        {(loading || isLoadingStock) && (
+          <Loader2
+            className={cn(
+              "absolute top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground",
+              cameraAvailable ? "right-12" : "right-3"
+            )}
+          />
+        )}
+        {cameraAvailable && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label="Escanear código de barras"
+            title="Escanear código de barras"
+            className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8"
+            onClick={openScanner}
+          >
+            <ScanLine className="h-4 w-4" />
+          </Button>
+        )}
       </div>
+
+      <BarcodeScanner
+        open={scannerOpen}
+        onOpenChange={closeScanner}
+        onDetected={handleDetected}
+        continuous
+        statusText={scanCount > 0 ? `${scanCount} agregado${scanCount === 1 ? "" : "s"}` : "Escaneo continuo"}
+        onManualSearch={() => inputRef.current?.focus()}
+      />
+
 
       {open && (
         <div className="absolute z-50 mt-1 w-full rounded-md border border-border bg-popover shadow-lg max-h-[300px] overflow-y-auto">
