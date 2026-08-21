@@ -65,7 +65,7 @@ export function ProductSearch({ onSelect, placeholder = "Buscar producto por nom
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
-  const cameraAvailable = typeof navigator !== "undefined" && !!navigator.mediaDevices?.getUserMedia;
+
 
 
   const search = useCallback(async (term: string) => {
@@ -229,9 +229,14 @@ export function ProductSearch({ onSelect, placeholder = "Buscar producto por nom
   );
 
   const openScanner = () => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      notify.warning("La cámara no está disponible en este dispositivo");
+      return;
+    }
     setScanCount(0);
     setScannerOpen(true);
   };
+
 
   const closeScanner = (next: boolean) => {
     setScannerOpen(next);
@@ -249,29 +254,30 @@ export function ProductSearch({ onSelect, placeholder = "Buscar producto por nom
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={placeholder}
-          className={cn("pl-9", cameraAvailable ? "pr-20" : "pr-9")}
+          className="pl-9 pr-20"
         />
+
         {(loading || isLoadingStock) && (
           <Loader2
             className={cn(
               "absolute top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground",
-              cameraAvailable ? "right-12" : "right-3"
+              "right-12"
             )}
           />
         )}
-        {cameraAvailable && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            aria-label="Escanear código de barras"
-            title="Escanear código de barras"
-            className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8"
-            onClick={openScanner}
-          >
-            <ScanLine className="h-4 w-4" />
-          </Button>
-        )}
+
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label="Escanear código de barras"
+          title="Escanear código de barras"
+          className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8"
+          onClick={openScanner}
+        >
+          <ScanLine className="h-4 w-4" />
+        </Button>
+
       </div>
 
       <BarcodeScanner
