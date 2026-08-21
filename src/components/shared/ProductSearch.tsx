@@ -68,6 +68,7 @@ export function ProductSearch({ onSelect, placeholder = "Buscar producto por nom
   const cameraAvailable = typeof navigator !== "undefined" && !!navigator.mediaDevices?.getUserMedia;
 
 
+
   const search = useCallback(async (term: string) => {
     if (term.length < 3) {
       setResults([]);
