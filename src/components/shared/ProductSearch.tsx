@@ -60,8 +60,13 @@ export function ProductSearch({ onSelect, placeholder = "Buscar producto por nom
   const [results, setResults] = useState<ProductResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [scanCount, setScanCount] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const cameraAvailable = typeof navigator !== "undefined" && !!navigator.mediaDevices?.getUserMedia;
+
 
   const search = useCallback(async (term: string) => {
     if (term.length < 3) {
