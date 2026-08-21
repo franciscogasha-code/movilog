@@ -262,10 +262,11 @@ export function ProductSearch({ onSelect, placeholder = "Buscar producto por nom
           <Loader2
             className={cn(
               "absolute top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground",
-              cameraAvailable ? "right-12" : "right-3"
+              "right-12"
             )}
           />
         )}
+
         {cameraAvailable && (
           <Button
             type="button"
