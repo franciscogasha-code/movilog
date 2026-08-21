@@ -230,9 +230,14 @@ export function ProductSearch({ onSelect, placeholder = "Buscar producto por nom
   );
 
   const openScanner = () => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      notify.warning("La cámara no está disponible en este dispositivo");
+      return;
+    }
     setScanCount(0);
     setScannerOpen(true);
   };
+
 
   const closeScanner = (next: boolean) => {
     setScannerOpen(next);
