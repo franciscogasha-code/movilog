@@ -1,0 +1,1 @@
+SELECT public.fn_saneamiento_lanzamiento('2026-08-07T00:00:00-04:00'::timestamptz, '259f7aaa-a746-433b-ad6d-7ffd5630ee81'::uuid, true);

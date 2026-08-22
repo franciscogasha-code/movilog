@@ -3602,6 +3602,10 @@ export type Database = {
         }
         Returns: Json
       }
+      fn_saneamiento_lanzamiento: {
+        Args: { p_actor: string; p_cutoff: string; p_dry_run?: boolean }
+        Returns: Json
+      }
       fn_send_presale_to_operation: {
         Args: { p_request_id: string; p_requesting_branch_id: string }
         Returns: string

@@ -155,14 +155,16 @@ export function useOperationalFunnel(range: DateRange, branchId?: string) {
   return useQuery({
     queryKey: ["exec-funnel-v3", range, branchId],
     queryFn: async () => {
-      let reqQuery = supabase.from("branch_requests").select("id, status").eq("is_pre_sale", false);
+      let reqQuery = supabase.from("branch_requests").select("id, status, rejection_reason").eq("is_pre_sale", false);
       if (branchId) reqQuery = reqQuery.or(`requesting_branch_id.eq.${branchId},source_branch_id.eq.${branchId}`);
 
       let fulQuery = supabase.from("fulfillment_orders").select("id, status").neq("status", "cancelled");
       if (branchId) fulQuery = fulQuery.or(`source_branch_id.eq.${branchId},destination_branch_id.eq.${branchId}`);
 
       const [reqRes, fulRes] = await Promise.all([reqQuery, fulQuery]);
-      const r = reqRes.data || [];
+      // Excluir rechazos del saneamiento de lanzamiento: son cierres administrativos
+      // históricos, no rechazos operativos — no deben ensuciar el embudo ni el bottleneck.
+      const r = (reqRes.data || []).filter(x => x.rejection_reason !== "saneamiento_lanzamiento");
       const f = fulRes.data || [];
 
       const stages = [
